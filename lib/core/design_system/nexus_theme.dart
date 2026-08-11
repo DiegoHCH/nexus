@@ -33,8 +33,14 @@ abstract final class NexusTheme {
       onSurfaceVariant: colors.mute,
       primary: colors.cyan,
       onPrimary: colors.void_,
+      primaryContainer: colors.rise,
+      onPrimaryContainer: colors.cyan,
       secondary: colors.mute,
+      secondaryContainer: colors.rise,
+      onSecondaryContainer: colors.mute,
       error: colors.err,
+      errorContainer: colors.rise,
+      onErrorContainer: colors.err,
       outline: colors.rule2,
       outlineVariant: colors.rule,
       surfaceContainerLowest: colors.void_,
@@ -44,12 +50,20 @@ abstract final class NexusTheme {
       surfaceContainerHighest: colors.rise,
       tertiary: colors.warn,
       onTertiary: colors.void_,
+      tertiaryContainer: colors.rise,
+      onTertiaryContainer: colors.warn,
       inverseSurface: colors.ink,
       onInverseSurface: colors.void_,
       shadow: colors.shadow,
       scrim: colors.scrim,
+      // Sin tinte de elevación: el mockup marca profundidad con hairlines,
+      // no con un overlay de color encima de la superficie.
+      surfaceTint: Colors.transparent,
     );
 
+    // El sistema de Nexus solo define un estilo de label (10px, mono,
+    // tracking .18em): labelMedium y labelSmall comparten esta misma
+    // instancia a propósito, no es un duplicado sin querer.
     final labelStyle = NexusTypography.label.copyWith(color: colors.faint);
     final textTheme = TextTheme(
       displayLarge: NexusTypography.hero.copyWith(color: colors.ink),
@@ -87,7 +101,7 @@ abstract final class NexusTheme {
         color: colors.deep,
         elevation: 0,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(NexusRadius.md),
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
           side: BorderSide(color: colors.rule),
         ),
       ),

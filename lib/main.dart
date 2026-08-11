@@ -12,6 +12,12 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // No es const: theme/darkTheme llaman a NexusTheme.light()/.dark(), que
+    // arman un ThemeData vía ColorScheme.fromSeed. Ni fromSeed ni ThemeData
+    // tienen constructor const, así que no hay forma de recuperar el const
+    // que tenía este MaterialApp sin abandonar fromSeed por un ColorScheme
+    // literal con sus ~40 campos a mano. El costo real es nulo: light()/
+    // dark() ya cachean el resultado en un static final.
     return MaterialApp(
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
