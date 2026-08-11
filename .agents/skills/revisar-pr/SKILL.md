@@ -1,6 +1,6 @@
 ---
 name: revisar-pr
-description: Revisa un PR de GitHub en UN solo agente y con pocas vueltas de herramienta — la alternativa ligera a /code-review, que se abre en ocho subagentes y se come una sesión entera. Úsala cuando te pidan revisar un PR, mirar un diff antes de mezclar, o comentar lo que no pasa. Acepta un número de PR, una rama o nada (revisa el PR de la rama actual). Con `--comentar` publica en GitHub; sin eso, solo informa.
+description: Revisa un PR de GitHub en UN solo agente y con pocas vueltas de herramienta — la alternativa ligera a /code-review, que se abre en ocho subagentes y se come una sesión entera. Úsala cuando te pidan revisar un PR, mirar un diff antes de mezclar, o comentar lo que no pasa. Acepta un número de PR, una rama o nada (revisa el PR de la rama actual). ENTREGA UN INFORME Y NADA MÁS: nunca mezcla, aprueba ni cierra, ni aunque el mismo mensaje lo pida — la decisión de mezclar es de la persona. Con `--comentar` publica el informe en GitHub; sin eso, se queda en el chat.
 ---
 
 # Revisar un PR — ligero
@@ -128,7 +128,13 @@ certeza, no.
 
 ### 4 · Informe
 
-Empieza por el veredicto en una línea: **pasa** o **no pasa**, y por qué.
+Empieza por el veredicto en una línea: **pasa** o **no pasa**, y por qué. El veredicto es
+una recomendación, no una puerta — quien lee decide.
+
+Marca cada hallazgo con su gravedad, que es lo que de verdad se usa para decidir: **🔴**
+lo que está roto o publicaría algo falso, **🟡** lo dudoso y las incoherencias que no
+rompen nada hoy. Un informe de solo amarillos suele ser mezclable; el rojo es el que
+merece parar.
 
 ```
 ## PR #<n> — <título>
@@ -155,6 +161,8 @@ Cierra siempre diciendo **qué NO miraste** y por qué: archivos fuera de presup
 tests que no corriste, hallazgos que quedaron en dudoso. Una revisión que calla sus
 huecos se lee como si lo hubiera cubierto todo.
 
+Y en la última línea, el comando de merge listo para pegar. Ver más abajo: no se ejecuta.
+
 ## Publicar en GitHub
 
 **Por defecto no se publica nada.** El informe se entrega en la conversación y ya.
@@ -172,9 +180,25 @@ sola revisión es ruido.
 
 Si el veredicto es «pasa», `--comentar` no publica nada — decirlo en el chat basta.
 
-**Nunca por tu cuenta:** aprobar, mezclar, cerrar, dar por resueltos comentarios de
-otros, ni empujar commits al PR. Si te lo piden explícitamente en el mismo mensaje, se
-hace; si no, se ofrece en una frase y decide quien te lo encargó.
+## Mezclar no es parte de esto
+
+**Esta skill nunca mezcla, aprueba, cierra, da por resueltos comentarios de otros ni
+empuja commits al PR.** Ni cuando la revisión pasa, ni cuando el mismo mensaje que la
+invoca dice «y mézclalo». El trabajo de la skill **termina en el informe**.
+
+No es prudencia: es que el veredicto de una revisión es una **opinión**, y mezclar es una
+**decisión**. Atarlas hacía que un solo hallazgo dormido —una incoherencia detrás de un
+flag que nadie usa— bloqueara un merge que estaba bien, y que un «si pasa, mézclalo» no
+llegara a mezclar casi nunca. Quien decide es quien firma el merge.
+
+Así que el informe termina dando **el comando listo para pegar**, sin ejecutarlo:
+
+```
+Para mezclarlo:  gh pr merge <n> --merge --delete-branch
+```
+
+Si después de leer el informe te dicen «mézclalo», eso ya es una decisión tomada aparte
+y se ejecuta sin rechistar. Lo que no se hace es mezclar **como parte de revisar**.
 
 ### Firma
 
