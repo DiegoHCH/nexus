@@ -43,3 +43,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Pizarra local del squad (no se versiona)
+SQUAD.md
