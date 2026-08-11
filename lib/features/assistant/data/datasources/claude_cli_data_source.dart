@@ -1,0 +1,82 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+/// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
+/// decodificada. No sabe nada de dominio: eso lo traduce el repositorio.
+class ClaudeCliDataSource {
+  const ClaudeCliDataSource();
+
+  static const _extraPathDirs = ['/opt/homebrew/bin', '/usr/local/bin'];
+
+  Stream<Map<String, dynamic>> run(String instruction) async* {
+    final process = await Process.start(
+      'claude',
+      [
+        '-p',
+        instruction,
+        '--output-format',
+        'stream-json',
+        '--include-partial-messages',
+        '--verbose',
+      ],
+      environment: _buildEnvironment(),
+      includeParentEnvironment: false,
+    );
+    // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
+    // arrancar — nadie le va a escribir nada, así que se lo avisamos ya.
+    unawaited(process.stdin.close());
+
+    final stderrBuffer = StringBuffer();
+    final stderrDone = process.stderr.transform(utf8.decoder).listen(stderrBuffer.write).asFuture<void>();
+
+    final lines = process.stdout.transform(utf8.decoder).transform(const LineSplitter());
+    await for (final line in lines) {
+      if (line.trim().isEmpty) continue;
+      final decoded = jsonDecode(line);
+      if (decoded is Map<String, dynamic>) yield decoded;
+    }
+
+    await stderrDone;
+    final exitCode = await process.exitCode;
+    if (exitCode != 0) {
+      throw ClaudeProcessException(exitCode, stderrBuffer.toString().trim());
+    }
+  }
+
+  /// Una app de GUI no hereda el PATH del shell de login ni puede confiar en
+  /// que `CLAUDE_CONFIG_DIR` venga seteado igual en cada lanzamiento: se
+  /// parte del entorno completo del proceso (HOME, USER, etc.) y se fuerza
+  /// lo que el bridge necesita, en vez de dejarlo a lo que herede.
+  Map<String, String> _buildEnvironment() {
+    final env = Map<String, String>.from(Platform.environment);
+
+    // Fuera del entorno: claude factura por la suscripción, no por API key.
+    env.remove('ANTHROPIC_API_KEY');
+    env.remove('ANTHROPIC_AUTH_TOKEN');
+
+    final home = env['HOME'] ?? '';
+    // TODO(nexus): decidir qué perfil de Claude Code usa Nexus por defecto
+    // (~/.claude, ~/.claude-work, ~/.claude-private) — no todos están
+    // autenticados en toda máquina. Por ahora, si el entorno ya trae uno
+    // (p.ej. lanzado desde una shell con el alias exportado) se respeta;
+    // si no, se cae al de fábrica.
+    env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
+
+    final extraPaths = [..._extraPathDirs, if (home.isNotEmpty) '$home/.local/bin'];
+    final currentPath = env['PATH'] ?? '';
+    env['PATH'] = [...extraPaths, currentPath].where((p) => p.isNotEmpty).join(':');
+
+    return env;
+  }
+}
+
+class ClaudeProcessException implements Exception {
+  const ClaudeProcessException(this.exitCode, this.stderr);
+
+  final int exitCode;
+  final String stderr;
+
+  @override
+  String toString() => 'claude terminó con código $exitCode: $stderr';
+}
