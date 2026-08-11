@@ -164,5 +164,21 @@ class NexusColors extends ThemeExtension<NexusColors> {
 
 extension NexusColorsContext on BuildContext {
   /// Acceso corto: `context.colors.cyan`.
-  NexusColors get colors => Theme.of(this).extension<NexusColors>()!;
+  ///
+  /// Requiere que el `ThemeData` venga de `NexusTheme.light()`/`.dark()`:
+  /// son los únicos que registran esta extensión. Un `MaterialApp` armado a
+  /// mano con un `ThemeData()` plano (típico en un test que no envuelve con
+  /// `NexusTheme`) hace fallar esto con un mensaje claro en vez de un
+  /// null-check genérico.
+  NexusColors get colors {
+    final colors = Theme.of(this).extension<NexusColors>();
+    if (colors == null) {
+      throw FlutterError(
+        'context.colors no encontró NexusColors en el ThemeData.\n'
+        'Envolvé la app (o el widget bajo test) con NexusTheme.light() o '
+        'NexusTheme.dark(), no un ThemeData armado a mano.',
+      );
+    }
+    return colors;
+  }
 }

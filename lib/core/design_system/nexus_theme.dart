@@ -12,22 +12,45 @@ import 'nexus_typography.dart';
 /// `context.colors`. Este `ThemeData` es para que los widgets de Material
 /// que sí usemos (inputs, scrollbars, tooltips) no desentonen.
 abstract final class NexusTheme {
-  static ThemeData dark() => _build(NexusColors.dark, Brightness.dark);
+  static final ThemeData _dark = _build(NexusColors.dark, Brightness.dark);
+  static final ThemeData _light = _build(NexusColors.light, Brightness.light);
 
-  static ThemeData light() => _build(NexusColors.light, Brightness.light);
+  static ThemeData dark() => _dark;
+
+  static ThemeData light() => _light;
 
   static ThemeData _build(NexusColors colors, Brightness brightness) {
+    // Se especifican los tonos de superficie, `outline` y `tertiary` a mano
+    // en vez de dejar que `fromSeed` los derive del cian: si no, widgets que
+    // todavía no theming-eamos a propósito (Dialog, SnackBar, Drawer) usan
+    // una paleta tonal algorítmica que no coincide con la progresión
+    // void/deep/rise del mockup.
     final colorScheme = ColorScheme.fromSeed(
       seedColor: colors.cyan,
       brightness: brightness,
       surface: colors.deep,
       onSurface: colors.ink,
+      onSurfaceVariant: colors.mute,
       primary: colors.cyan,
       onPrimary: colors.void_,
       secondary: colors.mute,
       error: colors.err,
+      outline: colors.rule2,
+      outlineVariant: colors.rule,
+      surfaceContainerLowest: colors.void_,
+      surfaceContainerLow: colors.deep,
+      surfaceContainer: colors.deep,
+      surfaceContainerHigh: colors.rise,
+      surfaceContainerHighest: colors.rise,
+      tertiary: colors.warn,
+      onTertiary: colors.void_,
+      inverseSurface: colors.ink,
+      onInverseSurface: colors.void_,
+      shadow: colors.shadow,
+      scrim: colors.scrim,
     );
 
+    final labelStyle = NexusTypography.label.copyWith(color: colors.faint);
     final textTheme = TextTheme(
       displayLarge: NexusTypography.hero.copyWith(color: colors.ink),
       displayMedium: NexusTypography.subtitle.copyWith(color: colors.ink),
@@ -38,8 +61,8 @@ abstract final class NexusTheme {
       bodyMedium: NexusTypography.body.copyWith(color: colors.ink),
       bodySmall: NexusTypography.mono.copyWith(color: colors.faint),
       labelLarge: NexusTypography.data.copyWith(color: colors.mute),
-      labelMedium: NexusTypography.label.copyWith(color: colors.faint),
-      labelSmall: NexusTypography.label.copyWith(color: colors.faint),
+      labelMedium: labelStyle,
+      labelSmall: labelStyle,
     );
 
     return ThemeData(
