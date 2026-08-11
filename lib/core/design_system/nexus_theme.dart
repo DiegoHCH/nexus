@@ -1,0 +1,131 @@
+import 'package:flutter/material.dart';
+
+import 'nexus_colors.dart';
+import 'nexus_radius.dart';
+import 'nexus_typography.dart';
+
+/// Construye los `ThemeData` claro y oscuro de Nexus a partir de los tokens
+/// de [NexusColors] y la escala de [NexusTypography].
+///
+/// Los componentes propios del HUD (orbe, horizonte, franja de subtítulos)
+/// no leen de aquí: leen [NexusColors] y [NexusTypography] directamente vía
+/// `context.colors`. Este `ThemeData` es para que los widgets de Material
+/// que sí usemos (inputs, scrollbars, tooltips) no desentonen.
+abstract final class NexusTheme {
+  static ThemeData dark() => _build(NexusColors.dark, Brightness.dark);
+
+  static ThemeData light() => _build(NexusColors.light, Brightness.light);
+
+  static ThemeData _build(NexusColors colors, Brightness brightness) {
+    final colorScheme = ColorScheme.fromSeed(
+      seedColor: colors.cyan,
+      brightness: brightness,
+      surface: colors.deep,
+      onSurface: colors.ink,
+      primary: colors.cyan,
+      onPrimary: colors.void_,
+      secondary: colors.mute,
+      error: colors.err,
+    );
+
+    final textTheme = TextTheme(
+      displayLarge: NexusTypography.hero.copyWith(color: colors.ink),
+      displayMedium: NexusTypography.subtitle.copyWith(color: colors.ink),
+      displaySmall: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
+      headlineMedium: NexusTypography.title.copyWith(color: colors.ink),
+      titleMedium: NexusTypography.brand.copyWith(color: colors.mute),
+      bodyLarge: NexusTypography.lead.copyWith(color: colors.mute),
+      bodyMedium: NexusTypography.body.copyWith(color: colors.ink),
+      bodySmall: NexusTypography.mono.copyWith(color: colors.faint),
+      labelLarge: NexusTypography.data.copyWith(color: colors.mute),
+      labelMedium: NexusTypography.label.copyWith(color: colors.faint),
+      labelSmall: NexusTypography.label.copyWith(color: colors.faint),
+    );
+
+    return ThemeData(
+      useMaterial3: true,
+      brightness: brightness,
+      colorScheme: colorScheme,
+      scaffoldBackgroundColor: colors.void_,
+      canvasColor: colors.void_,
+      dividerColor: colors.rule,
+      fontFamily: NexusTypography.sansFamily,
+      textTheme: textTheme,
+      splashFactory: NoSplash.splashFactory,
+      focusColor: colors.cyan,
+      extensions: [colors],
+      appBarTheme: AppBarTheme(
+        backgroundColor: colors.void_,
+        foregroundColor: colors.ink,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+      ),
+      cardTheme: CardThemeData(
+        color: colors.deep,
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(NexusRadius.md),
+          side: BorderSide(color: colors.rule),
+        ),
+      ),
+      dividerTheme: DividerThemeData(color: colors.rule, thickness: 1, space: 1),
+      inputDecorationTheme: InputDecorationTheme(
+        filled: true,
+        fillColor: colors.rise,
+        hintStyle: NexusTypography.mono.copyWith(color: colors.faint),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+          borderSide: BorderSide(color: colors.rule2),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+          borderSide: BorderSide(color: colors.rule2),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+          borderSide: BorderSide(color: colors.cyan, width: 1.5),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStatePropertyAll(colors.mute),
+          textStyle: WidgetStatePropertyAll(NexusTypography.label),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+          ),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: ButtonStyle(
+          foregroundColor: WidgetStatePropertyAll(colors.mute),
+          textStyle: WidgetStatePropertyAll(NexusTypography.label),
+          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+          side: WidgetStatePropertyAll(BorderSide(color: colors.rule2)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+          ),
+        ),
+      ),
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ButtonStyle(
+          backgroundColor: WidgetStatePropertyAll(colors.cyan),
+          foregroundColor: WidgetStatePropertyAll(colors.void_),
+          textStyle: WidgetStatePropertyAll(NexusTypography.label.copyWith(fontWeight: FontWeight.w600)),
+          elevation: const WidgetStatePropertyAll(0),
+          minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
+          shape: WidgetStatePropertyAll(
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+          ),
+        ),
+      ),
+      tooltipTheme: TooltipThemeData(
+        decoration: BoxDecoration(
+          color: colors.rise,
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+          border: Border.all(color: colors.rule2),
+        ),
+        textStyle: NexusTypography.data.copyWith(color: colors.ink),
+      ),
+    );
+  }
+}
