@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
-import 'package:nexus/features/counter/presentation/pages/counter_page.dart';
+import 'package:nexus/features/assistant/presentation/pages/home_page.dart';
 
 void main() {
   runApp(const ProviderScope(child: MainApp()));
@@ -22,7 +22,7 @@ class MainApp extends StatelessWidget {
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const CounterPage(),
+      home: const HomePage(),
     );
   }
 }
