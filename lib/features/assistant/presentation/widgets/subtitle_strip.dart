@@ -23,8 +23,14 @@ class SubtitleStrip extends StatefulWidget {
 }
 
 class _SubtitleStripState extends State<SubtitleStrip> {
+  /// Cuánto de la ventana puede ocupar el texto antes de hacerse scroll.
+  /// Es franja de subtítulos, no un panel de lectura: si se come la pantalla
+  /// deja de ser lo que el diseño quería. Lo que no cabe se lee bajando.
+  static const _maxSubtitleFraction = 0.45;
+
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
+  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -33,6 +39,19 @@ class _SubtitleStripState extends State<SubtitleStrip> {
   }
 
   void _handleFocusChange() => widget.onFocusChanged(_focusNode.hasFocus);
+
+  @override
+  void didUpdateWidget(covariant SubtitleStrip oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.subtitle == oldWidget.subtitle) return;
+    // El texto llega en trozos, así que hay que seguir el final: si no, la
+    // respuesta crece por debajo del borde y hay que ir bajando a mano
+    // mientras habla.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!_scrollController.hasClients) return;
+      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
+    });
+  }
 
   void _handleSubmit(String value) {
     if (value.trim().isEmpty) return;
@@ -46,6 +65,7 @@ class _SubtitleStripState extends State<SubtitleStrip> {
       ..removeListener(_handleFocusChange)
       ..dispose();
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -74,19 +94,31 @@ class _SubtitleStripState extends State<SubtitleStrip> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (widget.subtitle.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
-                child: RichText(
-                  text: TextSpan(
-                    style: NexusTypography.subtitle.copyWith(color: colors.ink),
-                    children: [
-                      TextSpan(text: widget.subtitle),
-                      if (widget.isStreaming)
-                        WidgetSpan(
-                          alignment: PlaceholderAlignment.middle,
-                          child: _BlinkingCursor(color: colors.cyan),
-                        ),
-                    ],
+              // Con tope y con scroll. La franja nació para una frase hablada,
+              // pero por aquí también entran respuestas escritas de cuarenta
+              // líneas: sin límite crecía hasta empujar el campo de texto
+              // fuera de la pantalla y romper la vista entera.
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * _maxSubtitleFraction,
+                ),
+                child: Padding(
+                  padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
+                  child: SingleChildScrollView(
+                    controller: _scrollController,
+                    child: RichText(
+                      text: TextSpan(
+                        style: NexusTypography.subtitle.copyWith(color: colors.ink),
+                        children: [
+                          TextSpan(text: widget.subtitle),
+                          if (widget.isStreaming)
+                            WidgetSpan(
+                              alignment: PlaceholderAlignment.middle,
+                              child: _BlinkingCursor(color: colors.cyan),
+                            ),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
