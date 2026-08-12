@@ -7,6 +7,8 @@ import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/widgets/subtitle_strip.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
+import 'package:nexus/features/workspace/presentation/widgets/hud_top_bar.dart';
 
 /// El orbe con su horizonte arriba, la franja de subtítulos abajo. Se puede
 /// escribir —camino de la Fase 1, por Claude— o hablar.
@@ -36,7 +38,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     // configuración inicial no hay con qué hablar todavía.
     hotKeyManager.register(
       HomePage._talkHotKey,
-      keyDownHandler: (_) => ref.read(assistantControllerProvider.notifier).toggleVoice(),
+      keyDownHandler: (_) =>
+          ref.read(assistantControllerProvider.notifier).toggleVoice(),
     );
   }
 
@@ -51,43 +54,57 @@ class _HomePageState extends ConsumerState<HomePage> {
     final hud = ref.watch(assistantControllerProvider);
     final controller = ref.read(assistantControllerProvider.notifier);
 
-    return Scaffold(
-      body: Column(
-        children: [
-          Expanded(
-            child: Stack(
-              children: [
-                Positioned.fill(
-                  child: GestureDetector(
-                    onTap: controller.toggleVoice,
-                    behavior: HitTestBehavior.opaque,
-                    child: NexusOrb(state: hud.orbState),
-                  ),
+    return CallbackShortcuts(
+      bindings: {
+        // ⌘, es el atajo de preferencias de cualquier app de macOS: no hay
+        // motivo para inventarse otro.
+        const SingleActivator(LogicalKeyboardKey.comma, meta: true): () =>
+            SettingsPage.open(context),
+      },
+      child: Focus(
+        autofocus: true,
+        child: Scaffold(
+          body: Column(
+            children: [
+              HudTopBar(status: _statusFor(hud.orbState)),
+              Expanded(
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: GestureDetector(
+                        onTap: controller.toggleVoice,
+                        behavior: HitTestBehavior.opaque,
+                        child: NexusOrb(state: hud.orbState),
+                      ),
+                    ),
+                    if (hud.voiceActive)
+                      Positioned(
+                        top: NexusSpacing.s5,
+                        left: 0,
+                        right: 0,
+                        child: _LiveBadge(
+                          working: hud.orbState == NexusOrbState.think,
+                        ),
+                      ),
+                    if (hud.errorMessage != null)
+                      Positioned(
+                        bottom: NexusSpacing.s4,
+                        left: NexusSpacing.s6,
+                        right: NexusSpacing.s6,
+                        child: _ErrorLine(hud.errorMessage!),
+                      ),
+                  ],
                 ),
-                if (hud.voiceActive)
-                  Positioned(
-                    top: NexusSpacing.s5,
-                    left: 0,
-                    right: 0,
-                    child: _LiveBadge(working: hud.orbState == NexusOrbState.think),
-                  ),
-                if (hud.errorMessage != null)
-                  Positioned(
-                    bottom: NexusSpacing.s4,
-                    left: NexusSpacing.s6,
-                    right: NexusSpacing.s6,
-                    child: _ErrorLine(hud.errorMessage!),
-                  ),
-              ],
-            ),
+              ),
+              SubtitleStrip(
+                subtitle: hud.subtitle,
+                isStreaming: hud.isStreaming,
+                onSubmit: controller.submit,
+                onFocusChanged: controller.setListening,
+              ),
+            ],
           ),
-          SubtitleStrip(
-            subtitle: hud.subtitle,
-            isStreaming: hud.isStreaming,
-            onSubmit: controller.submit,
-            onFocusChanged: controller.setListening,
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -95,6 +112,14 @@ class _HomePageState extends ConsumerState<HomePage> {
 
 /// Que el micrófono esté saliendo hacia Google no puede ser invisible: si el
 /// orbe se quedara igual, la única señal sería el punto naranja de macOS.
+/// Una palabra para lo que está pasando, como el «Dormido» del mockup.
+String _statusFor(NexusOrbState state) => switch (state) {
+  NexusOrbState.sleep => 'Dormido',
+  NexusOrbState.listen => 'Escuchando',
+  NexusOrbState.think => 'Trabajando',
+  NexusOrbState.speak => 'Hablando',
+};
+
 class _LiveBadge extends StatelessWidget {
   const _LiveBadge({required this.working});
 
@@ -115,7 +140,10 @@ class _LiveBadge extends StatelessWidget {
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3, vertical: 3),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s3,
+            vertical: 3,
+          ),
           child: Text(
             working
                 ? 'TRABAJANDO · ⌥ESPACIO PARA CANCELAR'

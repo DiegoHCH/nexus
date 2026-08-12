@@ -9,7 +9,23 @@ class ClaudeCliDataSource {
 
   static const _extraPathDirs = ['/opt/homebrew/bin', '/usr/local/bin'];
 
-  Stream<Map<String, dynamic>> run(String instruction) async* {
+  /// [workingDirectory] es dónde trabaja Claude, y no es opcional de verdad:
+  /// sin él el proceso hereda el directorio de la app, que para un bundle
+  /// lanzado por launchd es `/`. Cualquier encargo sobre archivos respondía
+  /// entonces sobre la raíz del disco, con seguridad y sin avisar.
+  ///
+  /// [permissionMode] es el `--permission-mode` del CLI. Con `manual` la
+  /// escritura se deniega, también la que intente colarse por Bash.
+  /// [extraDirectories] son las demás carpetas emparejadas. Sin ellas, Claude
+  /// solo alcanza el directorio de trabajo: un repo que guarda sus reglas en
+  /// una carpeta hermana —lo normal en un monorepo de contexto compartido—
+  /// carga las instrucciones y luego no puede leer lo que estas le mandan.
+  Stream<Map<String, dynamic>> run(
+    String instruction, {
+    required String workingDirectory,
+    required String permissionMode,
+    List<String> extraDirectories = const [],
+  }) async* {
     final process = await Process.start(
       'claude',
       [
@@ -19,7 +35,13 @@ class ClaudeCliDataSource {
         'stream-json',
         '--include-partial-messages',
         '--verbose',
+        '--permission-mode',
+        permissionMode,
+        // Al final y de una sola vez: el flag es variádico, así que cualquier
+        // argumento que fuera detrás se lo tragaría como si fuera una carpeta.
+        if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
       ],
+      workingDirectory: workingDirectory,
       environment: _buildEnvironment(),
       includeParentEnvironment: false,
     );

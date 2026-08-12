@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/presentation/providers/claude_bridge_pr
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
 /// [ClaudeEvent] y cada [VoiceEvent] al mismo [AssistantHudState] que el orbe,
@@ -30,6 +31,16 @@ class AssistantController extends Notifier<AssistantHudState> {
       _subscription?.cancel();
       _voiceSubscription?.cancel();
     });
+
+    // Cambiar de carpeta con la sesión viva la cierra (i5). El audio abierto
+    // bajo una carpeta permisiva no puede seguir fluyendo al saltar a una
+    // restringida solo porque nadie miró.
+    ref.listen(workspaceControllerProvider, (previous, next) {
+      if (!state.voiceActive) return;
+      final changedFolder = previous?.activePath != next.activePath;
+      if (changedFolder || !next.allowsVoice) unawaited(stopVoice());
+    });
+
     return const AssistantHudState();
   }
 
@@ -81,6 +92,25 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> toggleVoice() async {
     if (state.voiceActive) {
       await stopVoice();
+      return;
+    }
+
+    // El guardia de i5, y va aquí —donde se abre la sesión— y no en un botón
+    // deshabilitado: si viviera en la interfaz, cualquier otro camino que
+    // abriera sesión (el atajo global, sin ir más lejos) se lo saltaría.
+    final workspace = ref.read(workspaceControllerProvider);
+    if (workspace.active == null) {
+      state = state.copyWith(
+        errorMessage: 'Empareja una carpeta antes de hablarle: sin eso no hay dónde trabajar.',
+      );
+      return;
+    }
+    if (!workspace.allowsVoice) {
+      state = state.copyWith(
+        errorMessage:
+            'La carpeta ${workspace.active!.name} está en modo solo texto, así que no se '
+            'abre el micrófono. Escríbele por abajo o cambia el modo en Ajustes.',
+      );
       return;
     }
 

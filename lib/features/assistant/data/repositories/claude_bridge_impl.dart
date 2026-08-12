@@ -7,10 +7,25 @@ class ClaudeBridgeImpl implements ClaudeBridge {
 
   final ClaudeCliDataSource _dataSource;
 
+  /// `manual` deniega la escritura —también la que intente colarse por Bash,
+  /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
+  /// es lo único viable sin nadie delante para aprobar.
+  static String _permissionMode({required bool canEdit}) => canEdit ? 'acceptEdits' : 'manual';
+
   @override
-  Stream<ClaudeEvent> ask(String instruction) async* {
+  Stream<ClaudeEvent> ask(
+    String instruction, {
+    required String workingDirectory,
+    required bool canEdit,
+    List<String> extraDirectories = const [],
+  }) async* {
     try {
-      await for (final json in _dataSource.run(instruction)) {
+      await for (final json in _dataSource.run(
+        instruction,
+        workingDirectory: workingDirectory,
+        permissionMode: _permissionMode(canEdit: canEdit),
+        extraDirectories: extraDirectories,
+      )) {
         final event = _decode(json);
         if (event != null) yield event;
       }
