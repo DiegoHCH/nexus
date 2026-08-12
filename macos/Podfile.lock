@@ -1,32 +1,51 @@
 PODS:
+  - flutter_pcm_sound (0.0.1):
+    - FlutterMacOS
   - flutter_secure_storage_darwin (10.0.0):
     - Flutter
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - HotKey (0.2.1)
+  - hotkey_manager_macos (0.0.1):
+    - FlutterMacOS
+    - HotKey
   - record_macos (2.0.0):
     - FlutterMacOS
   - url_launcher_macos (0.0.1):
     - FlutterMacOS
 
 DEPENDENCIES:
+  - flutter_pcm_sound (from `Flutter/ephemeral/.symlinks/plugins/flutter_pcm_sound/macos`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - hotkey_manager_macos (from `Flutter/ephemeral/.symlinks/plugins/hotkey_manager_macos/macos`)
   - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
 
+SPEC REPOS:
+  trunk:
+    - HotKey
+
 EXTERNAL SOURCES:
+  flutter_pcm_sound:
+    :path: Flutter/ephemeral/.symlinks/plugins/flutter_pcm_sound/macos
   flutter_secure_storage_darwin:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin
   FlutterMacOS:
     :path: Flutter/ephemeral
+  hotkey_manager_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/hotkey_manager_macos/macos
   record_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
   url_launcher_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
+  flutter_pcm_sound: 66c15658e17150e5578b5fc1bcd7db97b2644711
   flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e
+  HotKey: 400beb7caa29054ea8d864c96f5ba7e5b4852277
+  hotkey_manager_macos: a4317849af96d2430fa89944d3c58977ca089fbe
   record_macos: 2e43c16b84ce188b8137754ee648322a2dcdf7fa
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
 

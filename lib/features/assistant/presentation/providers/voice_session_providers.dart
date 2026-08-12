@@ -1,0 +1,36 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
+import 'package:nexus/features/assistant/data/datasources/pcm_player_data_source.dart';
+import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
+import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
+import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
+import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+
+final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
+  (ref) => const GeminiLiveDataSource(),
+);
+
+/// La llave la pone onboarding, que es quien la guardó. El puente entre las
+/// dos features se hace aquí, en el cableado, y no dentro del gateway: así
+/// `assistant` no depende de `onboarding` más que en este punto.
+final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
+  final keyStore = ref.watch(geminiKeyStoreProvider);
+  return GeminiVoiceGateway(ref.watch(geminiLiveDataSourceProvider), keyStore.read);
+});
+
+final audioOutputProvider = Provider<AudioOutput>((ref) {
+  final output = AudioOutputImpl(const PcmPlayerDataSource());
+  ref.onDispose(output.stop);
+  return output;
+});
+
+final holdVoiceConversationProvider = Provider<HoldVoiceConversation>(
+  (ref) => HoldVoiceConversation(
+    ref.watch(voiceInputProvider),
+    ref.watch(voiceGatewayProvider),
+    ref.watch(audioOutputProvider),
+  ),
+);
