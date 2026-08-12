@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
+import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -17,6 +20,15 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 /// escribir son la misma conversación, aunque por dentro uno sea un proceso
 /// y el otro un socket.
 class AssistantController extends Notifier<AssistantHudState> {
+  AssistantController(this.conversationId);
+
+  /// La conversación a la que sirve este controlador. Hay uno por cada una y
+  /// **corren a la vez**: cada uno con su proceso de Claude, su actividad y su
+  /// memoria. Lo único que no se duplica es el micrófono.
+  final String conversationId;
+
+  String? get _folder => ref.read(conversationFolderProvider(conversationId));
+
   StreamSubscription<ClaudeEvent>? _subscription;
   StreamSubscription<VoiceEvent>? _voiceSubscription;
 
@@ -32,16 +44,97 @@ class AssistantController extends Notifier<AssistantHudState> {
       _voiceSubscription?.cancel();
     });
 
-    // Cambiar de carpeta con la sesión viva la cierra (i5). El audio abierto
-    // bajo una carpeta permisiva no puede seguir fluyendo al saltar a una
-    // restringida solo porque nadie miró.
+    unawaited(_loadMemory());
+
+    // Perder el foco cierra el micrófono: solo la conversación en foco puede
+    // hablar, y dejarlo abierto en una que ya no miras sería exactamente el
+    // estado que el proyecto lleva evitando desde 2.5.
+    ref.listen(conversationsProvider, (previous, next) {
+      if (state.voiceActive && next.focusedId != conversationId) {
+        unawaited(stopVoice());
+      }
+    });
+
+    // Y si a su carpeta le quitan el modo voz, también (i5).
     ref.listen(workspaceControllerProvider, (previous, next) {
       if (!state.voiceActive) return;
-      final changedFolder = previous?.activePath != next.activePath;
-      if (changedFolder || !next.allowsVoice) unawaited(stopVoice());
+      final folder = _folder;
+      final allowed = next.folders.any(
+        (f) => f.path == folder && f.modality.allowsVoice,
+      );
+      if (!allowed) unawaited(stopVoice());
     });
 
     return const AssistantHudState();
+  }
+
+  /// El historial es de la carpeta, no de la ficha: dos conversaciones sobre
+  /// el mismo repo comparten contexto, así que compartir también lo pedido es
+  /// lo coherente — verían el mismo hilo desde dos sitios.
+  Future<void> _loadMemory() async {
+    final folder = _folder;
+    if (folder == null) return;
+    final memory = await ref.read(conversationMemoryProvider).read(folder);
+    state = state.copyWith(history: memory.prompts);
+  }
+
+  /// Empezar de cero **en esta carpeta**: Claude deja de reanudar la sesión
+  /// anterior. Afecta a las conversaciones que compartan carpeta, que es lo
+  /// coherente si comparten contexto. El historial de lo pedido se conserva
+  /// —sirve para repetir una petición— porque lo que estorba es el contexto
+  /// arrastrado, no la lista.
+  Future<void> forgetConversation() async {
+    final folder = _folder;
+    if (folder == null) return;
+    await ref.read(conversationMemoryProvider).forget(folder);
+    state = state.copyWith(
+      subtitle: 'Conversación olvidada: la próxima empieza de cero.',
+      meter: const SessionMeter(),
+    );
+  }
+
+  /// Añade un turno a la conversación.
+  void _say(ChatAuthor author, String text, {bool spoken = false}) {
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          author: author,
+          text: text,
+          spoken: spoken,
+          streaming: true,
+        ),
+      ],
+    );
+  }
+
+  /// Va completando el último turno de ese autor mientras llega.
+  ///
+  /// El texto entra a trozos —deltas de Claude, transcripción de Gemini— y
+  /// crear un mensaje por trozo llenaría la ventana de fragmentos sueltos.
+  void _appendTo(ChatAuthor author, String text, {bool spoken = false}) {
+    final messages = [...state.messages];
+    final last = messages.lastOrNull;
+    if (last != null && last.author == author && last.streaming) {
+      messages[messages.length - 1] = last.copyWith(text: last.text + text);
+      state = state.copyWith(messages: messages);
+      return;
+    }
+    _say(author, text, spoken: spoken);
+  }
+
+  /// Cierra el turno en curso: se le quita el cursor.
+  void _sealLast() {
+    final messages = [...state.messages];
+    final last = messages.lastOrNull;
+    if (last == null || !last.streaming) return;
+    if (last.isEmpty) {
+      // Un turno que no llegó a decir nada no se deja en la ventana.
+      messages.removeLast();
+    } else {
+      messages[messages.length - 1] = last.copyWith(streaming: false);
+    }
+    state = state.copyWith(messages: messages);
   }
 
   Future<void> submit(String instruction) async {
@@ -49,14 +142,20 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (trimmed.isEmpty) return;
 
     await _subscription?.cancel();
+    _sealLast();
     final buffer = StringBuffer();
-    state = const AssistantHudState(
+    state = state.copyWith(
       orbState: NexusOrbState.think,
+      subtitle: '',
       isStreaming: true,
-      activity: [],
+      activity: const [],
+      errorMessage: null,
+      history: _remember(trimmed),
     );
+    _say(ChatAuthor.user, trimmed);
+    _sealLast();
 
-    final ask = ref.read(askClaudeProvider);
+    final ask = ref.read(askClaudeProvider(conversationId));
     _subscription = ask(trimmed).listen(
       (event) => switch (event) {
         ClaudeSessionStarted() => _onSessionStarted(event.model),
@@ -102,14 +201,12 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
     buffer.write(event.text);
-    state = state.copyWith(
-      orbState: NexusOrbState.speak,
-      subtitle: buffer.toString(),
-      isStreaming: true,
-    );
+    _appendTo(ChatAuthor.nexus, event.text);
+    state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
   }
 
   void _onTurnCompleted(ClaudeTurnCompleted event) {
+    _sealLast();
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,
@@ -121,6 +218,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   void _onFailed(String message) {
+    _sealLast();
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,
@@ -153,22 +251,33 @@ class AssistantController extends Notifier<AssistantHudState> {
     // El guardia de i5, y va aquí —donde se abre la sesión— y no en un botón
     // deshabilitado: si viviera en la interfaz, cualquier otro camino que
     // abriera sesión (el atajo global, sin ir más lejos) se lo saltaría.
-    final workspace = ref.read(workspaceControllerProvider);
-    if (workspace.active == null) {
+    // Sobre **la carpeta de esta conversación**, no sobre una «activa» global:
+    // con varias abiertas, esa noción ya no existe, y consultarla haría que el
+    // permiso de una decidiera por otra.
+    final folder = _folder;
+    final paired = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull;
+    if (paired == null) {
       state = state.copyWith(
         errorMessage:
-            'Empareja una carpeta antes de hablarle: sin eso no hay dónde trabajar.',
+            'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.',
       );
       return;
     }
-    if (!workspace.allowsVoice) {
+    if (!paired.modality.allowsVoice) {
       state = state.copyWith(
         errorMessage:
-            'La carpeta ${workspace.active!.name} está en modo solo texto, así que no se '
+            'La carpeta ${paired.name} está en modo solo texto, así que no se '
             'abre el micrófono. Escríbele por abajo o cambia el modo en Ajustes.',
       );
       return;
     }
+
+    // Hablar es del foco: si esta conversación no lo tiene, se lo lleva.
+    unawaited(ref.read(conversationsProvider.notifier).focus(conversationId));
 
     _heard.clear();
     _reply.clear();
@@ -177,7 +286,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       voiceActive: true,
     );
 
-    final conversation = ref.read(holdVoiceConversationProvider);
+    final conversation = ref.read(
+      holdVoiceConversationProvider(conversationId),
+    );
     _voiceSubscription = conversation().listen(
       (event) => switch (event) {
         VoiceSessionReady() => _onVoiceReady(),
@@ -218,6 +329,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
   }
 
+  /// Quita el aviso ya leído. Un error que no se puede cerrar obliga a
+  /// convivir con él el resto de la sesión.
+  void dismissError() => state = state.copyWith(errorMessage: null);
+
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();
     _voiceSubscription = null;
@@ -240,26 +355,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   void _onHeard(String text) {
-    // Si el usuario vuelve a hablar, lo anterior deja de ser el turno actual.
     if (_reply.isNotEmpty) {
       _reply.clear();
       _heard.clear();
+      _sealLast();
     }
     _heard.write(text);
-    state = state.copyWith(
-      orbState: NexusOrbState.listen,
-      subtitle: _heard.toString(),
-      isStreaming: true,
-    );
+    _appendTo(ChatAuthor.user, text, spoken: true);
+    state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: true);
   }
 
   void _onReply(String text) {
+    if (_reply.isEmpty) _sealLast();
     _reply.write(text);
-    state = state.copyWith(
-      orbState: NexusOrbState.speak,
-      subtitle: _reply.toString(),
-      isStreaming: true,
-    );
+    _appendTo(ChatAuthor.nexus, text, spoken: true);
+    state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
   }
 
   void _onInterrupted() {
@@ -271,6 +381,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Si Claude está trabajando, el turno hablado que acaba es el "voy a
     // mirarlo": el orbe tiene que seguir en trabajando, no volver a escuchar.
     if (state.orbState == NexusOrbState.think) return;
+    _sealLast();
     _heard.clear();
     _reply.clear();
     state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: false);
@@ -336,6 +447,6 @@ class AssistantController extends Notifier<AssistantHudState> {
 }
 
 final assistantControllerProvider =
-    NotifierProvider<AssistantController, AssistantHudState>(
+    NotifierProvider.family<AssistantController, AssistantHudState, String>(
       AssistantController.new,
     );

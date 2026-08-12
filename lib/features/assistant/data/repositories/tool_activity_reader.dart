@@ -14,7 +14,10 @@ abstract final class ToolActivityReader {
   /// Cuánto comando cabe antes de estorbar más de lo que informa.
   static const _maxCommandLength = 70;
 
-  static ClaudeToolUsed? read(Map<String, dynamic> block, {required String workingDirectory}) {
+  static ClaudeToolUsed? read(
+    Map<String, dynamic> block, {
+    required String workingDirectory,
+  }) {
     final id = block['id'] as String?;
     final name = block['name'] as String?;
     if (id == null || name == null) return null;
@@ -33,7 +36,10 @@ abstract final class ToolActivityReader {
   static String? _detail(String name, Map<String, dynamic> input) {
     final value = switch (name) {
       'Bash' => input['command'] as String?,
-      'Read' || 'Write' || 'Edit' || 'MultiEdit' => input['file_path'] as String?,
+      'Read' ||
+      'Write' ||
+      'Edit' ||
+      'MultiEdit' => input['file_path'] as String?,
       'Grep' || 'Glob' => input['pattern'] as String?,
       'WebFetch' => input['url'] as String?,
       _ => null,
@@ -42,8 +48,13 @@ abstract final class ToolActivityReader {
     return (trimmed == null || trimmed.isEmpty) ? null : trimmed;
   }
 
-  static String _describe(String name, Map<String, dynamic> input, String workingDirectory) {
-    String path(String key) => _relative(input[key] as String? ?? '', workingDirectory);
+  static String _describe(
+    String name,
+    Map<String, dynamic> input,
+    String workingDirectory,
+  ) {
+    String path(String key) =>
+        _relative(input[key] as String? ?? '', workingDirectory);
 
     return switch (name) {
       'Read' => 'Leyendo ${path('file_path')}',
@@ -55,12 +66,15 @@ abstract final class ToolActivityReader {
       // mezcla dos idiomas y encima miente sobre el verbo: la herramienta era
       // Bash. El mockup enseña el comando —«Corriendo git status»— y tiene
       // razón, porque es lo que de verdad se ejecuta.
-      'Bash' => 'Corriendo ${_shorten(input['command'] as String? ?? input['description'] as String? ?? '')}',
+      'Bash' =>
+        'Corriendo ${_shorten(input['command'] as String? ?? input['description'] as String? ?? '')}',
       'Grep' => 'Buscando «${_shorten(input['pattern'] as String? ?? '')}»',
-      'Glob' => 'Buscando archivos ${_shorten(input['pattern'] as String? ?? '')}',
+      'Glob' =>
+        'Buscando archivos ${_shorten(input['pattern'] as String? ?? '')}',
       'Task' => 'Delegando: ${_shorten(input['description'] as String? ?? '')}',
       'WebFetch' => 'Consultando ${_shorten(input['url'] as String? ?? '')}',
-      'WebSearch' => 'Buscando en la web «${_shorten(input['query'] as String? ?? '')}»',
+      'WebSearch' =>
+        'Buscando en la web «${_shorten(input['query'] as String? ?? '')}»',
       'TodoWrite' => 'Ordenando la lista de tareas',
       _ => 'Usando $name',
     };

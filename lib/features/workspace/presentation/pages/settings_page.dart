@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -15,13 +16,25 @@ import 'package:nexus/features/workspace/presentation/widgets/permission_switch.
 class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
-  static Future<void> open(BuildContext context) {
-    return Navigator.of(context).push(
-      MaterialPageRoute<void>(
-        builder: (_) => const SettingsPage(),
-        fullscreenDialog: true,
-      ),
-    );
+  /// Se abre desde cuatro sitios —el botón de la barra, el de «empareja una
+  /// carpeta», ⌘, y el menú de macOS—, y algunos pueden coincidir en la misma
+  /// pulsación. Apilar dos ajustes deja al usuario cerrando la misma pantalla
+  /// dos veces, así que el segundo no hace nada.
+  static bool _isOpen = false;
+
+  static Future<void> open(BuildContext context) async {
+    if (_isOpen) return;
+    _isOpen = true;
+    try {
+      await Navigator.of(context).push(
+        MaterialPageRoute<void>(
+          builder: (_) => const SettingsPage(),
+          fullscreenDialog: true,
+        ),
+      );
+    } finally {
+      _isOpen = false;
+    }
   }
 
   @override
@@ -296,8 +309,11 @@ class _PermissionsSection extends ConsumerWidget {
           for (final folder in workspace.folders)
             _FolderRow(
               folder: folder,
-              isActive: folder.path == workspace.activePath,
-              onActivate: () => controller.setActive(folder.path),
+              // «Activa» dejó de existir al haber varias conversaciones: lo
+              // que importa aquí es si esa carpeta tiene una abierta.
+              isActive: ref.watch(conversationsProvider).hasFolder(folder.path),
+              onActivate: () =>
+                  ref.read(conversationsProvider.notifier).open(folder.path),
               onModality: (value) => controller.setModality(folder.path, value),
               onRemove: () => controller.removeFolder(folder.path),
             ),

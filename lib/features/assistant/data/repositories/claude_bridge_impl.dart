@@ -11,7 +11,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   /// `manual` deniega la escritura —también la que intente colarse por Bash,
   /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
   /// es lo único viable sin nadie delante para aprobar.
-  static String _permissionMode({required bool canEdit}) => canEdit ? 'acceptEdits' : 'manual';
+  static String _permissionMode({required bool canEdit}) =>
+      canEdit ? 'acceptEdits' : 'manual';
 
   @override
   Stream<ClaudeEvent> ask(
@@ -19,17 +20,36 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     required String workingDirectory,
     required bool canEdit,
     List<String> extraDirectories = const [],
+    String? resumeSessionId,
   }) async* {
+    var emitted = false;
     try {
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
         permissionMode: _permissionMode(canEdit: canEdit),
         extraDirectories: extraDirectories,
+        resumeSessionId: resumeSessionId,
       )) {
-        yield* Stream.fromIterable(_decode(json, workingDirectory));
+        for (final event in _decode(json, workingDirectory)) {
+          emitted = true;
+          yield event;
+        }
       }
     } catch (e) {
+      // Una sesión guardada puede haber caducado o haberse borrado, y entonces
+      // `--resume` falla antes de decir nada. Perder la memoria es molesto;
+      // dejar al usuario sin respuesta por eso, inaceptable — así que se
+      // reintenta una vez sin ella y se sigue.
+      if (resumeSessionId != null && !emitted) {
+        yield* ask(
+          instruction,
+          workingDirectory: workingDirectory,
+          canEdit: canEdit,
+          extraDirectories: extraDirectories,
+        );
+        return;
+      }
       yield ClaudeFailed(e.toString());
     }
   }
@@ -41,7 +61,10 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   /// Devuelve una lista y no un solo evento porque **un mensaje puede traer
   /// varias herramientas a la vez**: Claude pide leer tres archivos en el
   /// mismo turno y los tres llegan en el mismo `assistant`.
-  List<ClaudeEvent> _decode(Map<String, dynamic> json, String workingDirectory) {
+  List<ClaudeEvent> _decode(
+    Map<String, dynamic> json,
+    String workingDirectory,
+  ) {
     switch (json['type']) {
       case 'system':
         if (json['subtype'] != 'init') return const [];
@@ -63,17 +86,24 @@ class ClaudeBridgeImpl implements ClaudeBridge {
       // interesa son los bloques `tool_use`, que traen el detalle completo
       // —qué archivo, qué comando— justo antes de ejecutarse.
       case 'assistant':
-        final content = (json['message'] as Map<String, dynamic>?)?['content'] as List<dynamic>?;
+        final content =
+            (json['message'] as Map<String, dynamic>?)?['content']
+                as List<dynamic>?;
         return [
           for (final block in content ?? const [])
             if (block is Map<String, dynamic> && block['type'] == 'tool_use')
-              ?ToolActivityReader.read(block, workingDirectory: workingDirectory),
+              ?ToolActivityReader.read(
+                block,
+                workingDirectory: workingDirectory,
+              ),
         ];
 
       // El resultado de una herramienta vuelve como mensaje de usuario: es la
       // señal de que aquella acción terminó.
       case 'user':
-        final content = (json['message'] as Map<String, dynamic>?)?['content'] as List<dynamic>?;
+        final content =
+            (json['message'] as Map<String, dynamic>?)?['content']
+                as List<dynamic>?;
         return [
           for (final block in content ?? const [])
             if (block is Map<String, dynamic> && block['type'] == 'tool_result')
@@ -83,14 +113,17 @@ class ClaudeBridgeImpl implements ClaudeBridge {
 
       case 'result':
         if (json['is_error'] == true) {
-          return [ClaudeFailed(json['result'] as String? ?? 'Error desconocido')];
+          return [
+            ClaudeFailed(json['result'] as String? ?? 'Error desconocido'),
+          ];
         }
         final usage = json['usage'] as Map<String, dynamic>? ?? const {};
         int count(String key) => (usage[key] as num?)?.toInt() ?? 0;
         // La caché cuenta: son tokens que ya están en la ventana aunque no se
         // vuelvan a enviar, y no contarlos haría parecer vacía una
         // conversación larga.
-        final prompt = count('input_tokens') +
+        final prompt =
+            count('input_tokens') +
             count('cache_creation_input_tokens') +
             count('cache_read_input_tokens');
 
@@ -118,16 +151,19 @@ class ClaudeBridgeImpl implements ClaudeBridge {
 
     final raw = switch (content) {
       String text => text,
-      List<dynamic> blocks => blocks
-          .whereType<Map<String, dynamic>>()
-          .where((block) => block['type'] == 'text')
-          .map((block) => block['text'] as String? ?? '')
-          .join('\n'),
+      List<dynamic> blocks =>
+        blocks
+            .whereType<Map<String, dynamic>>()
+            .where((block) => block['type'] == 'text')
+            .map((block) => block['text'] as String? ?? '')
+            .join('\n'),
       _ => '',
     };
 
     final trimmed = raw.trim();
     if (trimmed.isEmpty) return null;
-    return trimmed.length <= limit ? trimmed : '${trimmed.substring(0, limit)}\n…';
+    return trimmed.length <= limit
+        ? trimmed
+        : '${trimmed.substring(0, limit)}\n…';
   }
 }

@@ -48,7 +48,10 @@ class GeminiVoiceGateway implements VoiceGateway {
       throw StateError('No hay llave de Gemini guardada.');
     }
 
-    final connection = await _dataSource.open(apiKey: apiKey, setup: _buildSetup());
+    final connection = await _dataSource.open(
+      apiKey: apiKey,
+      setup: _buildSetup(),
+    );
     return _GeminiVoiceSession(
       connection,
       onResumptionHandle: (handle) => _resumptionHandle = handle,
@@ -144,7 +147,8 @@ class GeminiVoiceGateway implements VoiceGateway {
               'properties': {
                 'instruccion': {
                   'type': 'STRING',
-                  'description': 'La tarea, en español, tal como se le diría a un programador.',
+                  'description':
+                      'La tarea, en español, tal como se le diría a un programador.',
                 },
               },
               'required': ['instruccion'],
@@ -202,7 +206,8 @@ class _GeminiVoiceSession implements VoiceSession {
         final code = _connection.closeCode;
         if (code != null && code != 1000) {
           final reason = _connection.closeReason;
-          endReason = 'el servicio cortó la conexión ($code${reason == null || reason.isEmpty ? '' : ' $reason'})';
+          endReason =
+              'el servicio cortó la conexión ($code${reason == null || reason.isEmpty ? '' : ' $reason'})';
         }
         _events.close();
       },
@@ -231,10 +236,13 @@ class _GeminiVoiceSession implements VoiceSession {
 
     // El asa se renueva sola durante la conversación; hay que quedarse con la
     // última, no con la primera.
-    final resumption = message['sessionResumptionUpdate'] as Map<String, dynamic>?;
+    final resumption =
+        message['sessionResumptionUpdate'] as Map<String, dynamic>?;
     if (resumption != null) {
       final handle = resumption['newHandle'] as String?;
-      if (resumption['resumable'] == true && handle != null) onResumptionHandle(handle);
+      if (resumption['resumable'] == true && handle != null) {
+        onResumptionHandle(handle);
+      }
       return;
     }
 
@@ -252,15 +260,26 @@ class _GeminiVoiceSession implements VoiceSession {
     final server = message['serverContent'] as Map<String, dynamic>?;
     if (server == null) return;
 
-    final userText = (server['inputTranscription'] as Map<String, dynamic>?)?['text'] as String?;
-    if (userText != null && userText.isNotEmpty) _events.add(VoiceUserTranscript(userText));
+    final userText =
+        (server['inputTranscription'] as Map<String, dynamic>?)?['text']
+            as String?;
+    if (userText != null && userText.isNotEmpty) {
+      _events.add(VoiceUserTranscript(userText));
+    }
 
-    final replyText = (server['outputTranscription'] as Map<String, dynamic>?)?['text'] as String?;
-    if (replyText != null && replyText.isNotEmpty) _events.add(VoiceReplyTranscript(replyText));
+    final replyText =
+        (server['outputTranscription'] as Map<String, dynamic>?)?['text']
+            as String?;
+    if (replyText != null && replyText.isNotEmpty) {
+      _events.add(VoiceReplyTranscript(replyText));
+    }
 
-    final parts = (server['modelTurn'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
+    final parts =
+        (server['modelTurn'] as Map<String, dynamic>?)?['parts']
+            as List<dynamic>?;
     for (final part in parts ?? const []) {
-      final inline = (part as Map<String, dynamic>)['inlineData'] as Map<String, dynamic>?;
+      final inline =
+          (part as Map<String, dynamic>)['inlineData'] as Map<String, dynamic>?;
       final data = inline?['data'] as String?;
       if (data != null) _events.add(VoiceReplyAudio(base64Decode(data)));
     }
@@ -285,7 +304,11 @@ class _GeminiVoiceSession implements VoiceSession {
   }
 
   @override
-  void sendToolResult({required String callId, required String name, required String result}) {
+  void sendToolResult({
+    required String callId,
+    required String name,
+    required String result,
+  }) {
     _connection.send({
       'toolResponse': {
         'functionResponses': [

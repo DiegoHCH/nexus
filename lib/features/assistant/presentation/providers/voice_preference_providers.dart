@@ -28,6 +28,7 @@ class VoicePreferenceController extends Notifier<NexusVoice> {
   }
 }
 
-final voicePreferenceProvider = NotifierProvider<VoicePreferenceController, NexusVoice>(
-  VoicePreferenceController.new,
-);
+final voicePreferenceProvider =
+    NotifierProvider<VoicePreferenceController, NexusVoice>(
+      VoicePreferenceController.new,
+    );

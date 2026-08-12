@@ -13,5 +13,6 @@ abstract class ClaudeBridge {
     required String workingDirectory,
     required bool canEdit,
     List<String> extraDirectories,
+    String? resumeSessionId,
   });
 }

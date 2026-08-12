@@ -19,6 +19,7 @@ class HudTopBar extends ConsumerWidget {
     required this.status,
     this.live = false,
     this.meter = const SessionMeter(),
+    this.folderPath,
   });
 
   /// Lo que Nexus está haciendo ahora mismo, en una palabra.
@@ -31,12 +32,21 @@ class HudTopBar extends ConsumerWidget {
   /// inventa nada: se dice que no la hay.
   final SessionMeter meter;
 
+  /// La carpeta de **la conversación que se está mirando**.
+  ///
+  /// Se recibe en vez de leerse del workspace porque con varias conversaciones
+  /// abiertas ya no existe «la carpeta activa»: cada una tiene la suya, y la
+  /// cabecera tiene que decir la de esta o miente sobre dónde estás trabajando.
+  final String? folderPath;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final workspace = ref.watch(workspaceControllerProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
-    final active = workspace.active;
+    final active = workspace.folders
+        .where((folder) => folder.path == folderPath)
+        .firstOrNull;
 
     return Padding(
       padding: const EdgeInsets.symmetric(

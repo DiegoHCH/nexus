@@ -1,20 +1,21 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 
-/// La franja de subtítulos: no es una burbuja de chat. El texto de Claude
-/// aparece arriba, letra a letra a medida que llegan los `text_delta` del
-/// bridge; el campo para escribir vive siempre debajo.
+/// La caja para escribirle, siempre disponible — también mientras habla o
+/// trabaja.
+///
+/// Nació mostrando además la respuesta letra a letra («franja de subtítulos,
+/// no burbujas de chat»), y eso se fue a la ventana de conversación de la
+/// derecha cuando aparecieron varios hilos en paralelo: con tres conversaciones
+/// hace falta poder volver sobre lo dicho, y una franja solo enseña lo último.
 class SubtitleStrip extends StatefulWidget {
   const SubtitleStrip({
     super.key,
-    required this.subtitle,
-    required this.isStreaming,
     required this.onSubmit,
     required this.onFocusChanged,
   });
 
-  final String subtitle;
-  final bool isStreaming;
   final ValueChanged<String> onSubmit;
   final ValueChanged<bool> onFocusChanged;
 
@@ -23,14 +24,8 @@ class SubtitleStrip extends StatefulWidget {
 }
 
 class _SubtitleStripState extends State<SubtitleStrip> {
-  /// Cuánto de la ventana puede ocupar el texto antes de hacerse scroll.
-  /// Es franja de subtítulos, no un panel de lectura: si se come la pantalla
-  /// deja de ser lo que el diseño quería. Lo que no cabe se lee bajando.
-  static const _maxSubtitleFraction = 0.45;
-
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
-  final _scrollController = ScrollController();
 
   @override
   void initState() {
@@ -40,23 +35,18 @@ class _SubtitleStripState extends State<SubtitleStrip> {
 
   void _handleFocusChange() => widget.onFocusChanged(_focusNode.hasFocus);
 
-  @override
-  void didUpdateWidget(covariant SubtitleStrip oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.subtitle == oldWidget.subtitle) return;
-    // El texto llega en trozos, así que hay que seguir el final: si no, la
-    // respuesta crece por debajo del borde y hay que ir bajando a mano
-    // mientras habla.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!_scrollController.hasClients) return;
-      _scrollController.jumpTo(_scrollController.position.maxScrollExtent);
-    });
-  }
-
   void _handleSubmit(String value) {
     if (value.trim().isEmpty) return;
     widget.onSubmit(value);
     _controller.clear();
+  }
+
+  /// Vaciar la caja sin enviar nada. Devuelve el cursor al campo: quien borra
+  /// es porque va a reescribir, y obligarle a volver a pinchar sería un paso
+  /// de más.
+  void _handleClear() {
+    _controller.clear();
+    _focusNode.requestFocus();
   }
 
   @override
@@ -65,7 +55,6 @@ class _SubtitleStripState extends State<SubtitleStrip> {
       ..removeListener(_handleFocusChange)
       ..dispose();
     _controller.dispose();
-    _scrollController.dispose();
     super.dispose();
   }
 
@@ -98,53 +87,97 @@ class _SubtitleStripState extends State<SubtitleStrip> {
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            if (widget.subtitle.isNotEmpty)
-              // Con tope y con scroll. La franja nació para una frase hablada,
-              // pero por aquí también entran respuestas escritas de cuarenta
-              // líneas: sin límite crecía hasta empujar el campo de texto
-              // fuera de la pantalla y romper la vista entera.
-              ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxHeight:
-                      MediaQuery.sizeOf(context).height * _maxSubtitleFraction,
-                ),
-                child: Padding(
-                  padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
-                  child: SingleChildScrollView(
-                    controller: _scrollController,
-                    child: RichText(
-                      text: TextSpan(
-                        style: NexusTypography.subtitle.copyWith(
-                          color: colors.ink,
-                        ),
-                        children: [
-                          TextSpan(text: widget.subtitle),
-                          if (widget.isStreaming)
-                            WidgetSpan(
-                              alignment: PlaceholderAlignment.middle,
-                              child: _BlinkingCursor(color: colors.cyan),
+            // Enter envía; ⇧Enter hace salto de línea. Se intercepta la tecla
+            // porque un campo de varias líneas trata Enter como salto por
+            // defecto, y entonces no habría forma de enviar sin ratón.
+            Focus(
+              onKeyEvent: (node, event) {
+                if (event is! KeyDownEvent) return KeyEventResult.ignored;
+                if (event.logicalKey != LogicalKeyboardKey.enter) {
+                  return KeyEventResult.ignored;
+                }
+                if (HardwareKeyboard.instance.isShiftPressed) {
+                  return KeyEventResult.ignored;
+                }
+                _handleSubmit(_controller.text);
+                return KeyEventResult.handled;
+              },
+              // En escritorio Flutter le cuelga una barra de desplazamiento al
+              // campo en cuanto pasa de una línea, y en una caja de seis se ve
+              // como un cuerpo extraño. El scroll sigue funcionando con la
+              // rueda y con el cursor; lo que se quita es la barra.
+              child: ScrollConfiguration(
+                behavior: const _NoScrollbar(),
+                child: ValueListenableBuilder<TextEditingValue>(
+                  valueListenable: _controller,
+                  builder: (context, value, child) => TextField(
+                    controller: _controller,
+                    focusNode: _focusNode,
+                    style: NexusTypography.body.copyWith(color: colors.ink),
+                    // Crece hacia abajo con lo que escribes, hasta seis líneas; a
+                    // partir de ahí se queda quieto y hace scroll, para que una
+                    // instrucción larga no se coma la conversación de arriba.
+                    minLines: 1,
+                    maxLines: 6,
+                    keyboardType: TextInputType.multiline,
+                    textInputAction: TextInputAction.newline,
+                    decoration: InputDecoration(
+                      hintText:
+                          'Escribe una instrucción…   ⇧↵ para salto de línea',
+                      hintStyle: NexusTypography.body.copyWith(
+                        color: colors.faint,
+                      ),
+                      // Solo cuando hay algo que borrar: un botón permanente que
+                      // la mitad del tiempo no hace nada es ruido en una caja
+                      // que casi siempre está vacía.
+                      suffixIcon: value.text.isEmpty
+                          ? null
+                          : Tooltip(
+                              message: 'Borrar lo escrito',
+                              child: IconButton(
+                                onPressed: _handleClear,
+                                padding: EdgeInsets.zero,
+                                splashRadius: 14,
+                                iconSize: 16,
+                                color: colors.faint,
+                                hoverColor: colors.cyan.withValues(alpha: 0.12),
+                                icon: const Icon(Icons.backspace_outlined),
+                              ),
                             ),
-                        ],
+                      // Sin esto el icono impone su altura mínima de 48 y la
+                      // caja de una línea deja de ser una línea.
+                      suffixIconConstraints: const BoxConstraints(
+                        minWidth: 28,
+                        minHeight: 28,
                       ),
                     ),
                   ),
                 ),
               ),
-            TextField(
-              controller: _controller,
-              focusNode: _focusNode,
-              style: NexusTypography.body.copyWith(color: colors.ink),
-              decoration: InputDecoration(
-                hintText: 'Escribe una instrucción…',
-                hintStyle: NexusTypography.body.copyWith(color: colors.faint),
-              ),
-              onSubmitted: _handleSubmit,
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Campo de texto sin barra de desplazamiento.
+///
+/// No basta con un `ScrollConfiguration` que pida `scrollbars: false`: cuando
+/// el campo es de varias líneas, `EditableText` toma el comportamiento heredado
+/// y le vuelve a poner `scrollbars: true` él mismo. Lo que sí respeta es el
+/// `buildScrollbar` del comportamiento de abajo, y aquí devuelve el hijo tal
+/// cual. El desplazamiento no se toca: solo desaparece la barra.
+class _NoScrollbar extends MaterialScrollBehavior {
+  const _NoScrollbar();
+
+  @override
+  Widget buildScrollbar(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) => child;
 }
 
 /// Cursor de la franja: parpadeo duro (on/off), no un fundido — igual que

@@ -21,7 +21,12 @@ import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 /// encarga el trabajo es otro modelo. Cada una sigue probándose por separado;
 /// el pegamento es esto.
 class HoldVoiceConversation {
-  const HoldVoiceConversation(this._voiceInput, this._gateway, this._output, this._askClaude);
+  const HoldVoiceConversation(
+    this._voiceInput,
+    this._gateway,
+    this._output,
+    this._askClaude,
+  );
 
   /// Cuánto se espera sin actividad antes de cerrar sola la sesión.
   ///
@@ -47,9 +52,11 @@ class HoldVoiceConversation {
   /// ahí el titular útil es el nombre.
   static String _headline(VoiceToolRequested request) {
     if (request.name == ClaudeErrand.skillTool) {
-      return 'Creando la skill ${ClaudeErrand.skillName(request.arguments['nombre'] as String?) ?? ''}'.trim();
+      return 'Creando la skill ${ClaudeErrand.skillName(request.arguments['nombre'] as String?) ?? ''}'
+          .trim();
     }
-    return (request.arguments['instruccion'] as String?)?.trim() ?? request.name;
+    return (request.arguments['instruccion'] as String?)?.trim() ??
+        request.name;
   }
 
   /// Abre la conversación y emite lo que ocurre dentro. **Cancelar la
@@ -137,7 +144,8 @@ class HoldVoiceConversation {
         session?.sendToolResult(
           callId: request.callId,
           name: request.name,
-          result: 'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
+          result:
+              'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
         );
         return;
       }
@@ -227,7 +235,9 @@ class HoldVoiceConversation {
       session?.sendToolResult(
         callId: request.callId,
         name: request.name,
-        result: answer.isEmpty ? 'La tarea terminó sin devolver nada.' : answer.toString(),
+        result: answer.isEmpty
+            ? 'La tarea terminó sin devolver nada.'
+            : answer.toString(),
       );
       controller.add(VoiceToolFinished(ok: ok));
       keepAlive();
@@ -246,7 +256,11 @@ class HoldVoiceConversation {
       final because = session?.endReason;
 
       if (reconnects >= _maxReconnects) {
-        controller.add(VoiceSessionFailed('La conexión con el servicio de voz no se sostiene: ${because ?? 'se cortó varias veces seguidas'}.'));
+        controller.add(
+          VoiceSessionFailed(
+            'La conexión con el servicio de voz no se sostiene: ${because ?? 'se cortó varias veces seguidas'}.',
+          ),
+        );
         if (!controller.isClosed) await controller.close();
         return;
       }
@@ -257,7 +271,9 @@ class HoldVoiceConversation {
         sessionSubscription = null;
         attach(await _gateway.resume());
       } catch (error) {
-        controller.add(VoiceSessionFailed(because == null ? '$error' : '$error ($because)'));
+        controller.add(
+          VoiceSessionFailed(because == null ? '$error' : '$error ($because)'),
+        );
         if (!controller.isClosed) await controller.close();
       }
     }
@@ -316,7 +332,8 @@ class HoldVoiceConversation {
           // otra sesión, y capturarla en una variable mandaría el audio a la
           // conexión muerta.
           (frame) => session?.sendAudio(frame.pcm),
-          onError: (Object error) => controller.add(VoiceSessionFailed('$error')),
+          onError: (Object error) =>
+              controller.add(VoiceSessionFailed('$error')),
         );
       } catch (error, stackTrace) {
         controller.addError(error, stackTrace);

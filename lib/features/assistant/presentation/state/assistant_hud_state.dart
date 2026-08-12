@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 
@@ -53,6 +54,7 @@ class AssistantHudState {
     this.isStreaming = false,
     this.voiceActive = false,
     this.activity = const [],
+    this.messages = const [],
     this.history = const [],
     this.meter = const SessionMeter(),
     this.errorMessage,
@@ -73,6 +75,10 @@ class AssistantHudState {
   /// empezar uno nuevo: es «ahora mismo», no un historial.
   final List<ActivityItem> activity;
 
+  /// La conversación entera, en orden: lo pedido y lo respondido, por voz o
+  /// por teclado.
+  final List<ChatMessage> messages;
+
   /// Lo que se le pidió antes en esta sesión, de lo más reciente hacia atrás.
   /// El diseño lo llama «Antes» y lo deja accesible pero no protagonista: son
   /// dos líneas en gris, no una lista de chat.
@@ -89,6 +95,7 @@ class AssistantHudState {
     bool? isStreaming,
     bool? voiceActive,
     List<ActivityItem>? activity,
+    List<ChatMessage>? messages,
     List<String>? history,
     SessionMeter? meter,
     Object? errorMessage = _unset,
@@ -99,6 +106,7 @@ class AssistantHudState {
       isStreaming: isStreaming ?? this.isStreaming,
       voiceActive: voiceActive ?? this.voiceActive,
       activity: activity ?? this.activity,
+      messages: messages ?? this.messages,
       history: history ?? this.history,
       meter: meter ?? this.meter,
       errorMessage: errorMessage == _unset

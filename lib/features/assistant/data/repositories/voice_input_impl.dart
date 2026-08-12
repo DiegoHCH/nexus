@@ -39,13 +39,10 @@ class VoiceInputImpl implements VoiceInput {
       onListen: () async {
         try {
           await _audio.acquire();
-          subscription = _audio.frames.listen(
-            (chunk) {
-              final pcm = _normalize(chunk);
-              controller.add(AudioFrame(pcm: pcm, amplitude: _rms(pcm)));
-            },
-            onError: controller.addError,
-          );
+          subscription = _audio.frames.listen((chunk) {
+            final pcm = _normalize(chunk);
+            controller.add(AudioFrame(pcm: pcm, amplitude: _rms(pcm)));
+          }, onError: controller.addError);
         } catch (error, stackTrace) {
           controller.addError(error, stackTrace);
           await controller.close();
