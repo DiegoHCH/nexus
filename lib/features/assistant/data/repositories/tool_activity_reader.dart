@@ -42,6 +42,10 @@ abstract final class ToolActivityReader {
       'MultiEdit' => input['file_path'] as String?,
       'Grep' || 'Glob' => input['pattern'] as String?,
       'WebFetch' => input['url'] as String?,
+      // El encargo entero, que es lo único que cuenta qué se llevó el
+      // subagente: su trabajo ocurre en otro contexto y de él solo vuelve el
+      // resultado.
+      'Task' || 'Agent' => input['prompt'] as String?,
       _ => null,
     };
     final trimmed = value?.trim();
@@ -71,13 +75,35 @@ abstract final class ToolActivityReader {
       'Grep' => 'Buscando «${_shorten(input['pattern'] as String? ?? '')}»',
       'Glob' =>
         'Buscando archivos ${_shorten(input['pattern'] as String? ?? '')}',
-      'Task' => 'Delegando: ${_shorten(input['description'] as String? ?? '')}',
+      // Los dos nombres, no uno: el CLI llama a esta herramienta `Task` en
+      // unas sesiones y `Agent` en otras. Atarse a uno deja la delegación
+      // medio invisible según con cuál toque —salía como «Usando Agent», sin
+      // decir qué encargó—, y delegar es justo lo que hay que ver: es trabajo
+      // que se va a otro contexto.
+      'Task' || 'Agent' => 'Delegando: ${_shorten(_delegationSummary(input))}',
       'WebFetch' => 'Consultando ${_shorten(input['url'] as String? ?? '')}',
       'WebSearch' =>
         'Buscando en la web «${_shorten(input['query'] as String? ?? '')}»',
       'TodoWrite' => 'Ordenando la lista de tareas',
       _ => 'Usando $name',
     };
+  }
+
+  /// Qué se delegó, en una línea. `description` es lo que Claude escribe para
+  /// resumir el encargo; cuando no la manda se cae al tipo de subagente, y
+  /// como último recurso a la primera línea del encargo — antes que dejar
+  /// «Delegando:» sin nada detrás.
+  static String _delegationSummary(Map<String, dynamic> input) {
+    final description = (input['description'] as String?)?.trim();
+    if (description != null && description.isNotEmpty) return description;
+
+    final type = (input['subagent_type'] as String?)?.trim();
+    if (type != null && type.isNotEmpty) return type;
+
+    final prompt = (input['prompt'] as String?)?.trim() ?? '';
+    if (prompt.isEmpty) return 'una tarea';
+    final firstLine = prompt.split('\n').first.trim();
+    return firstLine.isEmpty ? 'una tarea' : firstLine;
   }
 
   /// Rutas relativas a la carpeta de trabajo: la ruta absoluta ocupa media
