@@ -6,6 +6,7 @@ import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 /// D00b del mockup: solo la primera vez. El interruptor de permisos de las
@@ -55,6 +56,11 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final setup = ref.watch(setupControllerProvider);
+    // Las tres cosas: micrófono, llave y carpeta. Sin la tercera la app
+    // arrancaría sin sitio donde trabajar, y el primer encargo respondería
+    // sobre la raíz del disco.
+    final canFinish =
+        setup.canFinish && ref.watch(workspaceControllerProvider).folders.isNotEmpty;
 
     return Scaffold(
       body: Stack(
@@ -117,6 +123,8 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                               ref.read(setupControllerProvider.notifier).requestMicrophoneAccess(),
                         ),
                         const SizedBox(height: NexusSpacing.s6),
+                        const _WorkFolderField(),
+                        const SizedBox(height: NexusSpacing.s6),
                         _GeminiKeyField(
                           controller: _keyController,
                           onChanged: (value) =>
@@ -136,11 +144,11 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                         // deshabilitado y habilitado se ven igual sin este
                         // opacity — el mockup marca el bloqueado con .38.
                         Opacity(
-                          opacity: setup.canFinish ? 1 : 0.38,
+                          opacity: canFinish ? 1 : 0.38,
                           child: SizedBox(
                             width: double.infinity,
                             child: ElevatedButton(
-                              onPressed: setup.canFinish ? _finish : null,
+                              onPressed: canFinish ? _finish : null,
                               child: setup.saving
                                   ? SizedBox(
                                       width: 16,
@@ -330,6 +338,55 @@ class _WaveformPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _WaveformPainter oldDelegate) =>
       !listEquals(oldDelegate.samples, samples) || oldDelegate.color != color;
+}
+
+/// La carpeta donde Nexus va a trabajar, pedida ya en el primer arranque.
+///
+/// Se pide aquí y no después porque sin ella la app no puede hacer nada: el
+/// puente a Claude necesita un directorio, y sin uno heredaría el de la app
+/// —la raíz del disco— y respondería sobre todo el Mac. Una carpeta concreta
+/// no es una preferencia, es la condición para que exista el trabajo.
+class _WorkFolderField extends ConsumerWidget {
+  const _WorkFolderField();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final workspace = ref.watch(workspaceControllerProvider);
+    final home = ref.watch(homeDirectoryProvider);
+    final folder = workspace.folders.firstOrNull;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('CARPETA DE TRABAJO', style: NexusTypography.label.copyWith(color: colors.faint)),
+        const SizedBox(height: NexusSpacing.s3),
+        Row(
+          children: [
+            _StatusChip(
+              text: folder == null ? 'ELEGIR' : 'ELEGIDA',
+              color: folder == null ? colors.cyan : colors.ok,
+              onTap: ref.read(workspaceControllerProvider.notifier).pairFolder,
+            ),
+            const SizedBox(width: NexusSpacing.s4),
+            Expanded(
+              child: Text(
+                folder?.displayPath(home) ?? 'Nexus solo trabaja donde le digas',
+                style: NexusTypography.data.copyWith(color: colors.faint),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          'Puede ser un proyecto o la carpeta que los contiene a todos. Si las reglas de un '
+          'repo viven fuera de él, elige la carpeta padre. Después puedes añadir más en Ajustes.',
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+      ],
+    );
+  }
 }
 
 class _GeminiKeyField extends StatelessWidget {
