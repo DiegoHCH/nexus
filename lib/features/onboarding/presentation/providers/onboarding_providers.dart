@@ -46,15 +46,16 @@ class AppRouteController extends Notifier<AppRouteState> {
       ref.read(checkOnboardingStatusProvider)(const NoParams()),
     ).wait;
     final OnboardingStatus status = results.$2;
-    state = status.hasGeminiKey ? const AppRouteReady() : const AppRouteNeedsSetup();
+    state = status.hasGeminiKey
+        ? const AppRouteReady()
+        : const AppRouteNeedsSetup();
   }
 
   void completeSetup() => state = const AppRouteReady();
 }
 
-final appRouteControllerProvider = NotifierProvider<AppRouteController, AppRouteState>(
-  AppRouteController.new,
-);
+final appRouteControllerProvider =
+    NotifierProvider<AppRouteController, AppRouteState>(AppRouteController.new);
 
 /// El formulario de la configuración inicial: micrófono y llave de Gemini.
 /// Vive aparte de [AppRouteController] porque su ciclo de vida es el de la
@@ -88,7 +89,10 @@ class SetupController extends Notifier<SetupState> {
     _micSubscription = voiceInput.listen().listen(
       (frame) => state = state.copyWith(amplitude: frame.amplitude),
       onError: (Object _) {
-        state = state.copyWith(micStatus: MicrophoneStatus.denied, amplitude: 0);
+        state = state.copyWith(
+          micStatus: MicrophoneStatus.denied,
+          amplitude: 0,
+        );
       },
     );
   }

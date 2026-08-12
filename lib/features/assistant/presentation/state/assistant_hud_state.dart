@@ -13,12 +13,16 @@ class ActivityItem {
     this.detail,
     this.output,
     this.done = false,
+    this.parentId,
   });
 
   final String id;
   final String description;
   final bool writes;
   final bool done;
+
+  /// La delegación de la que cuelga este paso, si lo dio un subagente.
+  final String? parentId;
 
   /// El comando o la ruta completos, sin recortar: la línea de la columna va
   /// abreviada para leerse de un vistazo, esto es para cuando quieres saber
@@ -40,6 +44,7 @@ class ActivityItem {
     detail: detail,
     output: output ?? this.output,
     done: true,
+    parentId: parentId,
   );
 }
 

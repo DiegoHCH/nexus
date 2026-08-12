@@ -89,12 +89,18 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         final content =
             (json['message'] as Map<String, dynamic>?)?['content']
                 as List<dynamic>?;
+        // Verificado contra el binario: los pasos de un subagente llegan como
+        // mensajes `assistant` normales, marcados con el `tool_use_id` de la
+        // delegación que los originó. Sin leerlo, el trabajo del subagente
+        // aparecía al mismo nivel que el del principal, indistinguible.
+        final parentId = json['parent_tool_use_id'] as String?;
         return [
           for (final block in content ?? const [])
             if (block is Map<String, dynamic> && block['type'] == 'tool_use')
               ?ToolActivityReader.read(
                 block,
                 workingDirectory: workingDirectory,
+                parentId: parentId,
               ),
         ];
 

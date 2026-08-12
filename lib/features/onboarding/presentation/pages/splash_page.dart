@@ -34,7 +34,10 @@ class SplashPage extends StatelessWidget {
             child: Text(
               'N E X U S',
               textAlign: TextAlign.center,
-              style: NexusTypography.brand.copyWith(color: colors.mute, letterSpacing: 6.16),
+              style: NexusTypography.brand.copyWith(
+                color: colors.mute,
+                letterSpacing: 6.16,
+              ),
             ),
           ),
           Positioned(
@@ -44,7 +47,10 @@ class SplashPage extends StatelessWidget {
             child: Text(
               'INICIANDO',
               textAlign: TextAlign.center,
-              style: NexusTypography.label.copyWith(color: colors.faint, letterSpacing: 3.5),
+              style: NexusTypography.label.copyWith(
+                color: colors.faint,
+                letterSpacing: 3.5,
+              ),
             ),
           ),
         ],

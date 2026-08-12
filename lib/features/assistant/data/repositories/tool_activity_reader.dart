@@ -14,9 +14,13 @@ abstract final class ToolActivityReader {
   /// Cuánto comando cabe antes de estorbar más de lo que informa.
   static const _maxCommandLength = 70;
 
+  /// [parentId] es el `parent_tool_use_id` del mensaje: viene puesto cuando el
+  /// paso lo dio un subagente, y es lo que permite colgarlo de la delegación
+  /// que lo creó en vez de mezclarlo con los del principal.
   static ClaudeToolUsed? read(
     Map<String, dynamic> block, {
     required String workingDirectory,
+    String? parentId,
   }) {
     final id = block['id'] as String?;
     final name = block['name'] as String?;
@@ -28,6 +32,7 @@ abstract final class ToolActivityReader {
       description: _describe(name, input, workingDirectory),
       writes: _writingTools.contains(name),
       detail: _detail(name, input),
+      parentId: parentId,
     );
   }
 

@@ -185,6 +185,12 @@ class AssistantController extends Notifier<AssistantHudState> {
           id: event.id,
           description: event.description,
           writes: event.writes,
+          // El detalle se estaba tirando aquí: el lector lo traía y la fila no
+          // lo recibía, así que un paso no se podía abrir hasta que terminara
+          // —y entonces solo enseñaba lo que devolvió, nunca lo que se
+          // ejecutó—. Es justo la mitad que 3.2 fue a buscar.
+          detail: event.detail,
+          parentId: event.parentId,
         ),
       ],
     );

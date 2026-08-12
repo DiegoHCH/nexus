@@ -137,13 +137,25 @@ class _Meter extends StatelessWidget {
         Text(model, style: NexusTypography.data.copyWith(color: colors.mute)),
         if (tokens != null) ...[
           _dot(colors),
-          Text(tokens, style: NexusTypography.data.copyWith(color: colors.mute)),
-          Text(' tokens', style: NexusTypography.data.copyWith(color: colors.faint)),
+          Text(
+            tokens,
+            style: NexusTypography.data.copyWith(color: colors.mute),
+          ),
+          Text(
+            ' tokens',
+            style: NexusTypography.data.copyWith(color: colors.faint),
+          ),
         ],
         if (context_ != null) ...[
           _dot(colors),
-          Text('$context_ %', style: NexusTypography.data.copyWith(color: colors.mute)),
-          Text(' contexto', style: NexusTypography.data.copyWith(color: colors.faint)),
+          Text(
+            '$context_ %',
+            style: NexusTypography.data.copyWith(color: colors.mute),
+          ),
+          Text(
+            ' contexto',
+            style: NexusTypography.data.copyWith(color: colors.faint),
+          ),
         ],
       ],
     );
