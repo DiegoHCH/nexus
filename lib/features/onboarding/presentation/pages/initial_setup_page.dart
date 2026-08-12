@@ -7,11 +7,18 @@ import 'package:nexus/features/onboarding/presentation/providers/onboarding_prov
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// D00b del mockup: solo la primera vez, sin llave de Gemini guardada. El
-/// interruptor de permisos de las demás pantallas no aparece aquí porque
-/// todavía no hay ninguna carpeta emparejada sobre la que decidir.
+/// D00b del mockup: solo la primera vez. El interruptor de permisos de las
+/// demás pantallas no aparece aquí porque todavía no hay ninguna carpeta
+/// emparejada sobre la que decidir "solo leer" o "puede editar".
+///
+/// El orbe vive en una franja fija arriba (altura [_orbZoneHeight]); el
+/// contenido siempre arranca por debajo de esa franja — nunca centrado en
+/// toda la pantalla — para que no se monten cuando la ventana es baja.
 class InitialSetupPage extends ConsumerStatefulWidget {
   const InitialSetupPage({super.key});
+
+  static const _orbZoneHeight = 170.0;
+  static const _contentTopPadding = 210.0;
 
   @override
   ConsumerState<InitialSetupPage> createState() => _InitialSetupPageState();
@@ -50,11 +57,11 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
             top: 0,
             left: 0,
             right: 0,
-            height: 220,
+            height: InitialSetupPage._orbZoneHeight,
             child: const NexusOrb(state: NexusOrbState.sleep, showHorizon: false),
           ),
           Positioned(
-            top: NexusSpacing.s6,
+            top: NexusSpacing.s5,
             left: 0,
             right: 0,
             child: Text(
@@ -65,9 +72,13 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
           ),
           Positioned.fill(
             child: SafeArea(
-              child: Center(
+              child: Align(
+                alignment: Alignment.topCenter,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s9),
+                  padding: const EdgeInsets.only(
+                    top: InitialSetupPage._contentTopPadding,
+                    bottom: NexusSpacing.s9,
+                  ),
                   child: ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 520),
                     child: Column(
@@ -93,11 +104,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                           style: NexusTypography.body.copyWith(color: colors.mute),
                         ),
                         const SizedBox(height: NexusSpacing.s7),
-                        _MicrophoneField(
-                          status: setup.micStatus,
-                          onRequestPermission: () =>
-                              ref.read(setupControllerProvider.notifier).requestMicrophonePermission(),
-                        ),
+                        _MicrophoneField(status: setup.micStatus, amplitude: setup.amplitude),
                         const SizedBox(height: NexusSpacing.s6),
                         _GeminiKeyField(
                           controller: _keyController,
@@ -156,18 +163,18 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
 }
 
 class _MicrophoneField extends StatelessWidget {
-  const _MicrophoneField({required this.status, required this.onRequestPermission});
+  const _MicrophoneField({required this.status, required this.amplitude});
 
-  final MicPermissionStatus status;
-  final VoidCallback onRequestPermission;
+  final MicrophoneStatus status;
+  final double amplitude;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     final (chipText, chipColor, dataText) = switch (status) {
-      MicPermissionStatus.pending => ('PENDIENTE', colors.warn, 'Nexus no puede escucharte todavía'),
-      MicPermissionStatus.granted => ('CONCEDIDO', colors.ok, 'Nexus puede escucharte'),
-      MicPermissionStatus.denied => ('DENEGADO', colors.err, 'Actívalo en Ajustes del Sistema'),
+      MicrophoneStatus.checking => ('PENDIENTE', colors.warn, 'Pidiendo acceso al micrófono…'),
+      MicrophoneStatus.granted => ('CONCEDIDO', colors.ok, 'Nexus puede escucharte'),
+      MicrophoneStatus.denied => ('DENEGADO', colors.err, 'Actívalo en Ajustes del Sistema'),
     };
 
     return Column(
@@ -182,22 +189,102 @@ class _MicrophoneField extends StatelessWidget {
             Text(dataText, style: NexusTypography.data.copyWith(color: colors.faint)),
           ],
         ),
-        const SizedBox(height: NexusSpacing.s2),
-        Opacity(
-          opacity: status == MicPermissionStatus.granted ? 0.38 : 1,
-          child: ElevatedButton(
-            onPressed: status == MicPermissionStatus.granted ? null : onRequestPermission,
-            child: const Text('PERMITIR ACCESO AL MICRÓFONO'),
+        const SizedBox(height: NexusSpacing.s3),
+        if (status == MicrophoneStatus.granted)
+          Row(
+            children: [
+              Expanded(child: _MicWaveform(amplitude: amplitude)),
+              const SizedBox(width: NexusSpacing.s4),
+              Text('TE ESCUCHO', style: NexusTypography.label.copyWith(color: colors.cyan)),
+            ],
           ),
-        ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
-          'Abre el diálogo de permisos de macOS. Nexus solo graba después de oír la palabra clave.',
+          status == MicrophoneStatus.denied
+              ? 'Nexus no puede escucharte todavía. Actívalo en Ajustes del Sistema › '
+                    'Privacidad y seguridad › Micrófono.'
+              : 'Habla un momento — si el trazo se mueve, tu voz llega bien a Nexus. Sin '
+                    'pasos extra: en cuanto macOS concede el permiso, la prueba empieza sola.',
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
       ],
     );
   }
+}
+
+/// Traza en vivo del volumen del micrófono: una cola de las últimas muestras
+/// de [AudioFrame.amplitude] que entra por la derecha y se desplaza hacia la
+/// izquierda, como un medidor de nivel. No es un osciloscopio real — no hay
+/// forma de onda cruda aquí, solo el RMS por bloque que ya calcula
+/// [VoiceInputImpl] — pero alcanza para que se note si la voz está llegando.
+class _MicWaveform extends StatefulWidget {
+  const _MicWaveform({required this.amplitude});
+
+  final double amplitude;
+
+  @override
+  State<_MicWaveform> createState() => _MicWaveformState();
+}
+
+class _MicWaveformState extends State<_MicWaveform> {
+  static const _maxSamples = 40;
+  final _samples = <double>[];
+
+  @override
+  void didUpdateWidget(covariant _MicWaveform oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.amplitude == oldWidget.amplitude) return;
+    setState(() {
+      _samples.add(widget.amplitude);
+      if (_samples.length > _maxSamples) _samples.removeAt(0);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 28,
+      child: CustomPaint(
+        size: const Size(double.infinity, 28),
+        painter: _WaveformPainter(samples: _samples, color: context.colors.cyan),
+      ),
+    );
+  }
+}
+
+class _WaveformPainter extends CustomPainter {
+  const _WaveformPainter({required this.samples, required this.color});
+
+  final List<double> samples;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 2
+      ..strokeCap = StrokeCap.round;
+
+    if (samples.isEmpty) {
+      canvas.drawLine(Offset(0, size.height / 2), Offset(size.width, size.height / 2), paint..color = color.withValues(alpha: 0.3));
+      return;
+    }
+
+    final gap = size.width / _MicWaveformState._maxSamples;
+    for (var i = 0; i < samples.length; i++) {
+      final x = size.width - (samples.length - i) * gap;
+      final barHeight = (samples[i].clamp(0.0, 1.0) * size.height).clamp(2.0, size.height);
+      final fade = 0.35 + 0.65 * (i / samples.length);
+      canvas.drawLine(
+        Offset(x, size.height / 2 - barHeight / 2),
+        Offset(x, size.height / 2 + barHeight / 2),
+        paint..color = color.withValues(alpha: fade),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _WaveformPainter oldDelegate) => oldDelegate.samples != samples;
 }
 
 class _GeminiKeyField extends StatelessWidget {

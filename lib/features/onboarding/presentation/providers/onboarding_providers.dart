@@ -2,15 +2,13 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/usecase/usecase.dart';
-import 'package:nexus/features/onboarding/data/datasources/microphone_permission_data_source.dart';
+import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/onboarding/data/datasources/secure_storage_data_source.dart';
 import 'package:nexus/features/onboarding/data/repositories/gemini_key_store_impl.dart';
-import 'package:nexus/features/onboarding/data/repositories/microphone_access_impl.dart';
 import 'package:nexus/features/onboarding/domain/entities/onboarding_status.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
-import 'package:nexus/features/onboarding/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/onboarding/domain/usecases/check_onboarding_status.dart';
-import 'package:nexus/features/onboarding/domain/usecases/request_microphone_permission.dart';
 import 'package:nexus/features/onboarding/domain/usecases/save_gemini_key.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 
@@ -28,18 +26,6 @@ final checkOnboardingStatusProvider = Provider<CheckOnboardingStatus>(
 
 final saveGeminiKeyProvider = Provider<SaveGeminiKey>(
   (ref) => SaveGeminiKey(ref.watch(geminiKeyStoreProvider)),
-);
-
-final microphonePermissionDataSourceProvider = Provider<MicrophonePermissionDataSource>(
-  (ref) => MicrophonePermissionDataSource(),
-);
-
-final microphoneAccessProvider = Provider<MicrophoneAccess>(
-  (ref) => MicrophoneAccessImpl(ref.watch(microphonePermissionDataSourceProvider)),
-);
-
-final requestMicrophonePermissionProvider = Provider<RequestMicrophonePermission>(
-  (ref) => RequestMicrophonePermission(ref.watch(microphoneAccessProvider)),
 );
 
 /// Siempre pasa por el splash — el orbe apareciendo, nada más — antes de
@@ -70,27 +56,50 @@ final appRouteControllerProvider = NotifierProvider<AppRouteController, AppRoute
   AppRouteController.new,
 );
 
-/// El formulario de la configuración inicial: permiso de micrófono y llave
-/// de Gemini. Vive aparte de [AppRouteController] porque su ciclo de vida es
-/// el de la pantalla, no el de toda la app.
+/// El formulario de la configuración inicial: micrófono y llave de Gemini.
+/// Vive aparte de [AppRouteController] porque su ciclo de vida es el de la
+/// pantalla, no el de toda la app.
+///
+/// El micrófono no tiene un paso "pedir permiso" separado de "probarlo": en
+/// cuanto se construye el controlador se pide el permiso y, si se concede, se
+/// abre el micrófono real (el mismo [VoiceInput] de la Fase 2) para que la
+/// prueba de sonido reaccione a la voz de verdad — no hay nada que simular.
 class SetupController extends Notifier<SetupState> {
+  StreamSubscription<AudioFrame>? _micSubscription;
+
   @override
-  SetupState build() => const SetupState();
+  SetupState build() {
+    ref.onDispose(() => _micSubscription?.cancel());
+    unawaited(_startMicrophoneTest());
+    return const SetupState();
+  }
 
-  void updateKeyText(String value) => state = state.copyWith(keyText: value);
+  Future<void> _startMicrophoneTest() async {
+    final voiceInput = ref.read(voiceInputProvider);
+    final granted = await voiceInput.hasPermission();
+    if (!granted) {
+      state = state.copyWith(micStatus: MicrophoneStatus.denied);
+      return;
+    }
 
-  Future<void> requestMicrophonePermission() async {
-    final granted = await ref.read(requestMicrophonePermissionProvider)(const NoParams());
-    state = state.copyWith(
-      micStatus: granted ? MicPermissionStatus.granted : MicPermissionStatus.denied,
+    state = state.copyWith(micStatus: MicrophoneStatus.granted);
+    _micSubscription = voiceInput.listen().listen(
+      (frame) => state = state.copyWith(amplitude: frame.amplitude),
+      onError: (Object _) {
+        state = state.copyWith(micStatus: MicrophoneStatus.denied, amplitude: 0);
+      },
     );
   }
+
+  void updateKeyText(String value) => state = state.copyWith(keyText: value);
 
   Future<bool> finish() async {
     if (!state.canFinish) return false;
     state = state.copyWith(saving: true, errorMessage: null);
     try {
       await ref.read(saveGeminiKeyProvider)(state.keyText);
+      await _micSubscription?.cancel();
+      _micSubscription = null;
       return true;
     } catch (error) {
       state = state.copyWith(saving: false, errorMessage: error.toString());
