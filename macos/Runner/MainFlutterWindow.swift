@@ -10,6 +10,14 @@ class MainFlutterWindow: NSWindow {
 
     RegisterGeneratedPlugins(registry: flutterViewController)
 
+    // Registro a mano: el motor de audio vive en el propio Runner y no como
+    // paquete, porque es específico de esta app —un solo motor para escuchar y
+    // hablar, que es lo que permite cancelar el eco— y no hay nada que
+    // publicar.
+    NexusAudioEngine.register(
+      with: flutterViewController.registrar(forPlugin: "NexusAudioEngine")
+    )
+
     // Marco oscuro, no sin marco: la barra de título se funde con --void
     // (#04070D) en vez del cromo claro por defecto de macOS. Se fuerza
     // .darkAqua en el marco nativo sin importar el tema del sistema —el

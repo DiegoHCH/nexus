@@ -1,6 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
-import 'package:nexus/features/assistant/data/datasources/pcm_player_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
@@ -23,7 +22,7 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
 });
 
 final audioOutputProvider = Provider<AudioOutput>((ref) {
-  final output = AudioOutputImpl(const PcmPlayerDataSource());
+  final output = AudioOutputImpl(ref.watch(nativeAudioDataSourceProvider));
   ref.onDispose(output.stop);
   return output;
 });

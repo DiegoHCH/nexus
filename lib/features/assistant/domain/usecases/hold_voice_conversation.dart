@@ -49,11 +49,16 @@ class HoldVoiceConversation {
     StreamSubscription<VoiceEvent>? sessionSubscription;
     Timer? idleTimer;
     late void Function(VoiceSession) attach;
+    void Function()? abortErrand;
     var reconnects = 0;
     var closing = false;
 
     Future<void> shutdown() async {
       closing = true;
+      // Primero el encargo: si hay un `claude -p` en marcha, cerrar la
+      // conversación sin matarlo lo deja trabajando de fondo para nadie.
+      abortErrand?.call();
+      abortErrand = null;
       idleTimer?.cancel();
       idleTimer = null;
       await micSubscription?.cancel();
@@ -77,6 +82,16 @@ class HoldVoiceConversation {
     void keepAlive() {
       idleTimer?.cancel();
       idleTimer = Timer(_idleTimeout, () async {
+        // «Dejaron de llegar eventos» no es «dejó de hablar»: el servicio
+        // entrega la respuesta más rápido que en tiempo real, así que el
+        // altavoz puede tener frases enteras pendientes cuando el socket ya
+        // está callado. Cerrar aquí cortaba la respuesta a media palabra.
+        final pending = await _output.pending();
+        if (pending > Duration.zero) {
+          idleTimer?.cancel();
+          idleTimer = Timer(pending + _idleTimeout, () => keepAlive());
+          return;
+        }
         await shutdown();
         if (!controller.isClosed) await controller.close();
       });
@@ -93,9 +108,14 @@ class HoldVoiceConversation {
       controller.add(VoiceToolStarted(request.instruction));
       final answer = StringBuffer();
       var ok = true;
+      var aborted = false;
+      final ended = Completer<void>();
+      void finish() {
+        if (!ended.isCompleted) ended.complete();
+      }
 
-      try {
-        await for (final event in _askClaude(request.instruction)) {
+      final errand = _askClaude(request.instruction).listen(
+        (event) {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por
           // inactividad justo mientras se trabaja para ella.
@@ -118,13 +138,34 @@ class HoldVoiceConversation {
             case ClaudeSessionStarted():
               break;
           }
-        }
-      } catch (error) {
-        ok = false;
-        answer
-          ..clear()
-          ..write('No se pudo ejecutar la tarea: $error');
-      }
+        },
+        onError: (Object error) {
+          ok = false;
+          answer
+            ..clear()
+            ..write('No se pudo ejecutar la tarea: $error');
+          finish();
+        },
+        onDone: finish,
+        cancelOnError: true,
+      );
+
+      // Se escucha con `listen` y no con `await for` justamente por esto: un
+      // `await for` no se puede cortar desde fuera, y cerrar la conversación
+      // tiene que matar el encargo — cancelar la suscripción mata el proceso.
+      abortErrand = () {
+        aborted = true;
+        unawaited(errand.cancel());
+        finish();
+      };
+
+      await ended.future;
+      abortErrand = null;
+      await errand.cancel();
+
+      // Cancelado: no hay a quién contestar, la sesión se está cerrando. Y sin
+      // este corte, el `sendToolResult` iría a una sesión ya muerta.
+      if (aborted || closing) return;
 
       session?.sendToolResult(
         callId: request.callId,
@@ -204,8 +245,13 @@ class HoldVoiceConversation {
 
     Future<void> boot() async {
       try {
-        await _output.start();
-        attach(await _gateway.connect());
+        // En paralelo a propósito: arrancar el motor de audio tarda medio
+        // segundo largo —el cancelador de eco construye un dispositivo agregado
+        // juntando micro y altavoz— y abrir el socket otros tantos. En serie,
+        // ese retardo se nota entre pulsar el atajo y poder hablar; a la vez,
+        // se paga una sola vez.
+        final booted = await (_output.start(), _gateway.connect()).wait;
+        attach(booted.$2);
         keepAlive();
 
         micSubscription = _voiceInput.listen().listen(

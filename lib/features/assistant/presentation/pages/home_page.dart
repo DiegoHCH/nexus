@@ -5,6 +5,7 @@ import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/widgets/subtitle_strip.dart';
 
 /// El orbe con su horizonte arriba, la franja de subtítulos abajo. Se puede
@@ -64,7 +65,12 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ),
                 ),
                 if (hud.voiceActive)
-                  const Positioned(top: NexusSpacing.s5, left: 0, right: 0, child: _LiveBadge()),
+                  Positioned(
+                    top: NexusSpacing.s5,
+                    left: 0,
+                    right: 0,
+                    child: _LiveBadge(working: hud.orbState == NexusOrbState.think),
+                  ),
                 if (hud.errorMessage != null)
                   Positioned(
                     bottom: NexusSpacing.s4,
@@ -90,23 +96,31 @@ class _HomePageState extends ConsumerState<HomePage> {
 /// Que el micrófono esté saliendo hacia Google no puede ser invisible: si el
 /// orbe se quedara igual, la única señal sería el punto naranja de macOS.
 class _LiveBadge extends StatelessWidget {
-  const _LiveBadge();
+  const _LiveBadge({required this.working});
+
+  /// Mientras Claude trabaja el aviso cambia: ahí lo que hace falta saber no
+  /// es que el micro está abierto, sino que **se puede parar** — un encargo
+  /// puede durar minutos y quedarse sin salida visible sería lo peor.
+  final bool working;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final color = working ? colors.warn : colors.err;
     return Center(
       child: DecoratedBox(
         decoration: BoxDecoration(
-          color: colors.err.withValues(alpha: 0.12),
-          border: Border.all(color: colors.err.withValues(alpha: 0.4)),
+          color: color.withValues(alpha: 0.12),
+          border: Border.all(color: color.withValues(alpha: 0.4)),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3, vertical: 3),
           child: Text(
-            'MICRÓFONO ABIERTO · SE CIERRA SOLO AL CALLARTE',
-            style: NexusTypography.label.copyWith(color: colors.err),
+            working
+                ? 'TRABAJANDO · ⌥ESPACIO PARA CANCELAR'
+                : 'MICRÓFONO ABIERTO · SE CIERRA SOLO AL CALLARTE',
+            style: NexusTypography.label.copyWith(color: color),
           ),
         ),
       ),

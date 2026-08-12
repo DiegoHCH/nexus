@@ -13,9 +13,16 @@ abstract class AudioOutput {
   /// Encola PCM de 16 bits mono. No bloquea: suena cuando le toque.
   void enqueue(Uint8List pcm);
 
-  /// Tira lo que quede sin sonar. Lo ya entregado al sistema termina de
-  /// sonar igual, así que el corte nunca es instantáneo del todo.
+  /// Tira lo que quede sin sonar.
   Future<void> discard();
+
+  /// Cuánto queda por sonar de lo ya encolado.
+  ///
+  /// Hace falta porque el servicio de voz entrega la respuesta más rápido que
+  /// en tiempo real: cuando dejan de llegar trozos, el altavoz todavía tiene
+  /// frases enteras pendientes. Quien decida cerrar la sesión tiene que
+  /// preguntar esto antes, o cortará a media palabra.
+  Future<Duration> pending();
 
   Future<void> stop();
 }
