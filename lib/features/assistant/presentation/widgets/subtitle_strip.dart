@@ -74,12 +74,17 @@ class _SubtitleStripState extends State<SubtitleStrip> {
     final colors = context.colors;
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border(top: BorderSide(color: colors.cyan.withValues(alpha: 0.28))),
+        border: Border(
+          top: BorderSide(color: colors.cyan.withValues(alpha: 0.28)),
+        ),
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           stops: const [0.0, 0.7],
-          colors: [colors.cyan.withValues(alpha: 0.045), colors.cyan.withValues(alpha: 0)],
+          colors: [
+            colors.cyan.withValues(alpha: 0.045),
+            colors.cyan.withValues(alpha: 0),
+          ],
         ),
       ),
       child: Padding(
@@ -100,7 +105,8 @@ class _SubtitleStripState extends State<SubtitleStrip> {
               // fuera de la pantalla y romper la vista entera.
               ConstrainedBox(
                 constraints: BoxConstraints(
-                  maxHeight: MediaQuery.sizeOf(context).height * _maxSubtitleFraction,
+                  maxHeight:
+                      MediaQuery.sizeOf(context).height * _maxSubtitleFraction,
                 ),
                 child: Padding(
                   padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
@@ -108,7 +114,9 @@ class _SubtitleStripState extends State<SubtitleStrip> {
                     controller: _scrollController,
                     child: RichText(
                       text: TextSpan(
-                        style: NexusTypography.subtitle.copyWith(color: colors.ink),
+                        style: NexusTypography.subtitle.copyWith(
+                          color: colors.ink,
+                        ),
                         children: [
                           TextSpan(text: widget.subtitle),
                           if (widget.isStreaming)
@@ -150,13 +158,17 @@ class _BlinkingCursor extends StatefulWidget {
   State<_BlinkingCursor> createState() => _BlinkingCursorState();
 }
 
-class _BlinkingCursorState extends State<_BlinkingCursor> with SingleTickerProviderStateMixin {
+class _BlinkingCursorState extends State<_BlinkingCursor>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: const Duration(milliseconds: 1150))..repeat();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1150),
+    )..repeat();
   }
 
   @override
@@ -171,7 +183,12 @@ class _BlinkingCursorState extends State<_BlinkingCursor> with SingleTickerProvi
       animation: _controller,
       builder: (context, _) => Opacity(
         opacity: _controller.value < 0.5 ? 1 : 0,
-        child: Container(width: 2, height: 28, margin: const EdgeInsets.only(left: 6), color: widget.color),
+        child: Container(
+          width: 2,
+          height: 28,
+          margin: const EdgeInsets.only(left: 6),
+          color: widget.color,
+        ),
       ),
     );
   }

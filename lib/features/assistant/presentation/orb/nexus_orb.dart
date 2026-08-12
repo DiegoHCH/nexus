@@ -18,7 +18,8 @@ class NexusOrb extends StatefulWidget {
   State<NexusOrb> createState() => _NexusOrbState();
 }
 
-class _NexusOrbState extends State<NexusOrb> with SingleTickerProviderStateMixin {
+class _NexusOrbState extends State<NexusOrb>
+    with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   late final double _phaseOffset;
   final ValueNotifier<double> _time = ValueNotifier(0);

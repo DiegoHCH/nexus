@@ -137,7 +137,9 @@ class NexusOrbPainter extends CustomPainter {
     final r = r0 * breathe * beat;
 
     _paintHalo(canvas, cx, cy, r, cfg, env);
-    if (state == NexusOrbState.speak) _paintConcentricWaves(canvas, cx, cy, r, env);
+    if (state == NexusOrbState.speak) {
+      _paintConcentricWaves(canvas, cx, cy, r, env);
+    }
 
     final projected = _project(cx, cy, r, cfg, env, state);
     if (cfg.edge > 0) _paintEdges(canvas, projected, cfg.edge);
@@ -148,10 +150,18 @@ class NexusOrbPainter extends CustomPainter {
     if (showHorizon) _paintHorizon(canvas, w, h, cx, cy, env);
   }
 
-  void _paintHalo(Canvas canvas, double cx, double cy, double r, _StateConfig cfg, double env) {
+  void _paintHalo(
+    Canvas canvas,
+    double cx,
+    double cy,
+    double r,
+    _StateConfig cfg,
+    double env,
+  ) {
     if (cfg.halo <= 0) return;
     final hr = r * (state == NexusOrbState.speak ? 3.1 : 2.5);
-    final haloAlpha = cfg.halo * (state == NexusOrbState.speak ? (0.75 + 0.4 * env) : 1.0);
+    final haloAlpha =
+        cfg.halo * (state == NexusOrbState.speak ? (0.75 + 0.4 * env) : 1.0);
     final center = Offset(cx, cy);
     // El original (`ctx.createRadialGradient(cx, cy, R*0.35, cx, cy, hr)`) es
     // un gradiente de dos círculos concéntricos: empieza a brillar recién en
@@ -172,10 +182,19 @@ class NexusOrbPainter extends CustomPainter {
       center,
       r * 0.35,
     );
-    canvas.drawRect(Rect.fromCircle(center: center, radius: hr), Paint()..shader = shader);
+    canvas.drawRect(
+      Rect.fromCircle(center: center, radius: hr),
+      Paint()..shader = shader,
+    );
   }
 
-  void _paintConcentricWaves(Canvas canvas, double cx, double cy, double r, double env) {
+  void _paintConcentricWaves(
+    Canvas canvas,
+    double cx,
+    double cy,
+    double r,
+    double env,
+  ) {
     for (var q = 0; q < 3; q++) {
       final p = ((t * 0.42) + q / 3) % 1.0;
       final alpha = (0.26 * (1 - p) * (0.5 + env * 0.5)).clamp(0.0, 1.0);
@@ -249,7 +268,10 @@ class NexusOrbPainter extends CustomPainter {
       var alpha = edgeAlpha * (0.18 + dd * 0.95);
       if (proj.lit[i] || proj.lit[j]) alpha = math.min(0.85, alpha + 0.35);
       alpha = alpha.clamp(0.0, 1.0);
-      final bucket = (alpha * (_edgeBuckets - 1)).round().clamp(0, _edgeBuckets - 1);
+      final bucket = (alpha * (_edgeBuckets - 1)).round().clamp(
+        0,
+        _edgeBuckets - 1,
+      );
       bucketPaths[bucket]
         ..moveTo(proj.x[i], proj.y[i])
         ..lineTo(proj.x[j], proj.y[j]);
@@ -276,7 +298,10 @@ class NexusOrbPainter extends CustomPainter {
     final n = OrbGeometry.points.length;
     for (var i = 0; i < n; i++) {
       if (proj.lit[i]) continue;
-      final bucket = (proj.depth[i] * (_dotBuckets - 1)).round().clamp(0, _dotBuckets - 1);
+      final bucket = (proj.depth[i] * (_dotBuckets - 1)).round().clamp(
+        0,
+        _dotBuckets - 1,
+      );
       bucketOffsets[bucket]
         ..add(proj.x[i])
         ..add(proj.y[i]);
@@ -301,8 +326,12 @@ class NexusOrbPainter extends CustomPainter {
     // se dibujan sueltos, más brillantes, encima de los cubos.
     for (var i = 0; i < n; i++) {
       if (!proj.lit[i]) continue;
-      final alpha = math.min(1.0, cfg.dot * (0.15 + proj.depth[i] * 0.95) + 0.4);
-      final radius = cfg.size * (0.55 + proj.depth[i] * 0.85) * (r / 120 + 0.55) * 1.5;
+      final alpha = math.min(
+        1.0,
+        cfg.dot * (0.15 + proj.depth[i] * 0.95) + 0.4,
+      );
+      final radius =
+          cfg.size * (0.55 + proj.depth[i] * 0.85) * (r / 120 + 0.55) * 1.5;
       canvas.drawCircle(
         Offset(proj.x[i], proj.y[i]),
         math.max(0.5, radius),
@@ -333,11 +362,21 @@ class NexusOrbPainter extends CustomPainter {
     }
   }
 
-  void _paintVoiceRing(Canvas canvas, double cx, double cy, double r, double env) {
+  void _paintVoiceRing(
+    Canvas canvas,
+    double cx,
+    double cy,
+    double r,
+    double env,
+  ) {
     final path = Path();
     for (var s = 0; s <= 120; s++) {
       final a = (s / 120) * 2 * math.pi;
-      final rr = r * (1.34 + 0.13 * env * math.sin(a * 6 + t * 4.2) + 0.05 * math.sin(a * 13 - t * 2.6));
+      final rr =
+          r *
+          (1.34 +
+              0.13 * env * math.sin(a * 6 + t * 4.2) +
+              0.05 * math.sin(a * 13 - t * 2.6));
       final x = cx + math.cos(a) * rr, y = cy + math.sin(a) * rr;
       if (s == 0) {
         path.moveTo(x, y);
@@ -356,15 +395,27 @@ class NexusOrbPainter extends CustomPainter {
   }
 
   /// El horizonte: cambia de *tipo* de línea según el estado, no de color.
-  void _paintHorizon(Canvas canvas, double w, double h, double cx, double cy, double env) {
+  void _paintHorizon(
+    Canvas canvas,
+    double w,
+    double h,
+    double cx,
+    double cy,
+    double env,
+  ) {
     final hy = cy;
     switch (state) {
       case NexusOrbState.sleep:
-        final shader = ui.Gradient.linear(const Offset(0, 0), Offset(w, 0), [
-          accent.withValues(alpha: 0),
-          accent.withValues(alpha: 0.13),
-          accent.withValues(alpha: 0),
-        ], const [0.0, 0.5, 1.0]);
+        final shader = ui.Gradient.linear(
+          const Offset(0, 0),
+          Offset(w, 0),
+          [
+            accent.withValues(alpha: 0),
+            accent.withValues(alpha: 0.13),
+            accent.withValues(alpha: 0),
+          ],
+          const [0.0, 0.5, 1.0],
+        );
         canvas.drawLine(Offset(0, hy), Offset(w, hy), Paint()..shader = shader);
 
       case NexusOrbState.listen:
@@ -372,7 +423,10 @@ class NexusOrbPainter extends CustomPainter {
         for (var x = 0.0; x <= w; x += 3) {
           final fall = math.exp(-math.pow((x - cx) / (w * 0.30), 2));
           final amp = 22 * env * fall;
-          final y = hy + math.sin(x * 0.026 + t * 6.2) * amp + math.sin(x * 0.061 - t * 3.4) * amp * 0.42;
+          final y =
+              hy +
+              math.sin(x * 0.026 + t * 6.2) * amp +
+              math.sin(x * 0.061 - t * 3.4) * amp * 0.42;
           if (x == 0) {
             path.moveTo(x, y);
           } else {
@@ -388,24 +442,52 @@ class NexusOrbPainter extends CustomPainter {
         );
 
       case NexusOrbState.think:
-        canvas.drawLine(Offset(0, hy), Offset(w, hy), Paint()..color = accent.withValues(alpha: 0.10));
+        canvas.drawLine(
+          Offset(0, hy),
+          Offset(w, hy),
+          Paint()..color = accent.withValues(alpha: 0.10),
+        );
         final travel = ((t * 0.30) % 1.0) * w;
-        final x0 = math.max(0.0, travel - w * 0.16), x1 = math.min(w, travel + w * 0.06);
-        final shader = ui.Gradient.linear(Offset(travel - w * 0.16, 0), Offset(travel + w * 0.06, 0), [
-          accent.withValues(alpha: 0),
-          accent.withValues(alpha: 0.55),
-          accent.withValues(alpha: 0),
-        ], const [0.0, 0.75, 1.0]);
-        canvas.drawLine(Offset(x0, hy), Offset(x1, hy), Paint()..shader = shader..strokeWidth = 1.6);
+        final x0 = math.max(0.0, travel - w * 0.16),
+            x1 = math.min(w, travel + w * 0.06);
+        final shader = ui.Gradient.linear(
+          Offset(travel - w * 0.16, 0),
+          Offset(travel + w * 0.06, 0),
+          [
+            accent.withValues(alpha: 0),
+            accent.withValues(alpha: 0.55),
+            accent.withValues(alpha: 0),
+          ],
+          const [0.0, 0.75, 1.0],
+        );
+        canvas.drawLine(
+          Offset(x0, hy),
+          Offset(x1, hy),
+          Paint()
+            ..shader = shader
+            ..strokeWidth = 1.6,
+        );
 
       case NexusOrbState.speak:
-        canvas.drawLine(Offset(0, hy), Offset(w, hy), Paint()..color = accent.withValues(alpha: 0.14));
+        canvas.drawLine(
+          Offset(0, hy),
+          Offset(w, hy),
+          Paint()..color = accent.withValues(alpha: 0.14),
+        );
         final barPaint = Paint()..color = accent.withValues(alpha: 0.34);
         for (var x = 0.0; x <= w; x += 9) {
           final fall = math.exp(-math.pow((x - cx) / (w * 0.34), 2));
-          final height = 12 * env * fall * (0.45 + 0.55 * math.sin(x * 0.05 + t * 5.5).abs());
+          final height =
+              12 *
+              env *
+              fall *
+              (0.45 + 0.55 * math.sin(x * 0.05 + t * 5.5).abs());
           if (height < 0.7) continue;
-          canvas.drawLine(Offset(x, hy - height), Offset(x, hy + height), barPaint);
+          canvas.drawLine(
+            Offset(x, hy - height),
+            Offset(x, hy + height),
+            barPaint,
+          );
         }
     }
   }

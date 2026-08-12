@@ -18,7 +18,10 @@ final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
 /// `assistant` no depende de `onboarding` más que en este punto.
 final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
   final keyStore = ref.watch(geminiKeyStoreProvider);
-  return GeminiVoiceGateway(ref.watch(geminiLiveDataSourceProvider), keyStore.read);
+  return GeminiVoiceGateway(
+    ref.watch(geminiLiveDataSourceProvider),
+    keyStore.read,
+  );
 });
 
 final audioOutputProvider = Provider<AudioOutput>((ref) {

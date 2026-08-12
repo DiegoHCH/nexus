@@ -145,6 +145,26 @@ class HoldVoiceConversation {
               answer
                 ..clear()
                 ..write('La tarea falló: $message');
+            case ClaudeToolUsed():
+              controller.add(
+                VoiceToolActivity(
+                  id: event.id,
+                  description: event.description,
+                  writes: event.writes,
+                  done: false,
+                  detail: event.detail,
+                ),
+              );
+            case ClaudeToolFinished():
+              controller.add(
+                VoiceToolActivity(
+                  id: event.id,
+                  description: '',
+                  writes: false,
+                  done: true,
+                  output: event.output,
+                ),
+              );
             case ClaudeSessionStarted():
               break;
           }

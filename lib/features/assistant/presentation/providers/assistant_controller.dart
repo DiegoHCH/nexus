@@ -50,31 +50,82 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     await _subscription?.cancel();
     final buffer = StringBuffer();
-    state = const AssistantHudState(orbState: NexusOrbState.think, isStreaming: true);
+    state = const AssistantHudState(
+      orbState: NexusOrbState.think,
+      isStreaming: true,
+      activity: [],
+    );
 
     final ask = ref.read(askClaudeProvider);
     _subscription = ask(trimmed).listen(
       (event) => switch (event) {
-        ClaudeSessionStarted() => null,
+        ClaudeSessionStarted() => _onSessionStarted(event.model),
         ClaudeTextDelta() => _onTextDelta(buffer, event),
-        ClaudeTurnCompleted() => _onTurnCompleted(),
+        ClaudeToolUsed() => _onClaudeToolUsed(event),
+        ClaudeToolFinished() => _onClaudeToolFinished(event.id, event.output),
+        ClaudeTurnCompleted() => _onTurnCompleted(event),
         ClaudeFailed() => _onFailed(event.message),
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
   }
 
-  void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
-    buffer.write(event.text);
-    state = state.copyWith(orbState: NexusOrbState.speak, subtitle: buffer.toString(), isStreaming: true);
+  void _onSessionStarted(String model) {
+    if (model.isEmpty) return;
+    state = state.copyWith(meter: state.meter.copyWith(model: model));
   }
 
-  void _onTurnCompleted() {
-    state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
+  /// La actividad se acumula en el turno y se vacía al empezar el siguiente:
+  /// la columna se llama «Ahora mismo», no «historial».
+  void _onClaudeToolUsed(ClaudeToolUsed event) {
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      activity: [
+        ...state.activity,
+        ActivityItem(
+          id: event.id,
+          description: event.description,
+          writes: event.writes,
+        ),
+      ],
+    );
+  }
+
+  void _onClaudeToolFinished(String id, [String? output]) {
+    state = state.copyWith(
+      activity: [
+        for (final item in state.activity)
+          if (item.id == id) item.asDone(output: output) else item,
+      ],
+    );
+  }
+
+  void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
+    buffer.write(event.text);
+    state = state.copyWith(
+      orbState: NexusOrbState.speak,
+      subtitle: buffer.toString(),
+      isStreaming: true,
+    );
+  }
+
+  void _onTurnCompleted(ClaudeTurnCompleted event) {
+    state = state.copyWith(
+      orbState: NexusOrbState.sleep,
+      isStreaming: false,
+      meter: state.meter.copyWith(
+        turnTokens: event.turnTokens,
+        contextTokens: event.contextTokens,
+      ),
+    );
   }
 
   void _onFailed(String message) {
-    state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false, errorMessage: message);
+    state = state.copyWith(
+      orbState: NexusOrbState.sleep,
+      isStreaming: false,
+      errorMessage: message,
+    );
   }
 
   /// Mientras no hay sesión de voz, el campo de texto enfocado es la señal
@@ -82,9 +133,13 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// nada en curso.
   void setListening(bool isListening) {
     if (state.voiceActive) return;
-    final idle = state.orbState == NexusOrbState.sleep || state.orbState == NexusOrbState.listen;
+    final idle =
+        state.orbState == NexusOrbState.sleep ||
+        state.orbState == NexusOrbState.listen;
     if (!idle) return;
-    state = state.copyWith(orbState: isListening ? NexusOrbState.listen : NexusOrbState.sleep);
+    state = state.copyWith(
+      orbState: isListening ? NexusOrbState.listen : NexusOrbState.sleep,
+    );
   }
 
   /// Abre o cierra la conversación por voz. Es un interruptor y no dos
@@ -101,7 +156,8 @@ class AssistantController extends Notifier<AssistantHudState> {
     final workspace = ref.read(workspaceControllerProvider);
     if (workspace.active == null) {
       state = state.copyWith(
-        errorMessage: 'Empareja una carpeta antes de hablarle: sin eso no hay dónde trabajar.',
+        errorMessage:
+            'Empareja una carpeta antes de hablarle: sin eso no hay dónde trabajar.',
       );
       return;
     }
@@ -116,7 +172,10 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     _heard.clear();
     _reply.clear();
-    state = const AssistantHudState(orbState: NexusOrbState.think, voiceActive: true);
+    state = const AssistantHudState(
+      orbState: NexusOrbState.think,
+      voiceActive: true,
+    );
 
     final conversation = ref.read(holdVoiceConversationProvider);
     _voiceSubscription = conversation().listen(
@@ -128,6 +187,7 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceTurnCompleted() => _onVoiceTurnCompleted(),
         VoiceToolStarted() => _onToolStarted(event.instruction),
         VoiceToolProgress() => _onToolProgress(event.text),
+        VoiceToolActivity() => _onVoiceActivity(event),
         VoiceToolFinished() => _onToolFinished(),
         VoiceSessionFailed() => unawaited(_onVoiceFailed(event.message)),
         // El audio no llega hasta aquí: lo reproduce el caso de uso. La
@@ -138,8 +198,24 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceToolRequested() => null,
       },
       onError: (Object error) => unawaited(_onVoiceFailed(error.toString())),
-      onDone: () => state = state.copyWith(voiceActive: false, orbState: NexusOrbState.sleep),
+      onDone: () => state = state.copyWith(
+        voiceActive: false,
+        orbState: NexusOrbState.sleep,
+      ),
     );
+  }
+
+  /// Detiene lo que esté en curso, venga de la voz o del teclado. Es el
+  /// «Detener ⌘.» del diseño: un encargo puede durar minutos y quedarse sin
+  /// salida visible sería lo peor que puede pasarte.
+  Future<void> stopWork() async {
+    if (state.voiceActive) {
+      await stopVoice();
+      return;
+    }
+    await _subscription?.cancel();
+    _subscription = null;
+    state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
   }
 
   Future<void> stopVoice() async {
@@ -154,6 +230,13 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onVoiceReady() {
     state = state.copyWith(orbState: NexusOrbState.listen, subtitle: '');
+  }
+
+  /// Lo pedido antes, lo más reciente primero y sin repetir el turno en curso.
+  List<String> _remember(String prompt) {
+    const keep = 6;
+    final rest = state.history.where((item) => item != prompt);
+    return [prompt, ...rest].take(keep).toList();
   }
 
   void _onHeard(String text) {
@@ -203,6 +286,24 @@ class AssistantController extends Notifier<AssistantHudState> {
       orbState: NexusOrbState.think,
       subtitle: instruction,
       isStreaming: true,
+      activity: const [],
+      history: _remember(instruction),
+    );
+  }
+
+  /// Una acción marcada como terminada llega sin descripción: solo dice
+  /// «aquella ya está», así que se conserva el texto que ya se mostraba.
+  void _onVoiceActivity(VoiceToolActivity event) {
+    if (event.done) {
+      _onClaudeToolFinished(event.id);
+      return;
+    }
+    _onClaudeToolUsed(
+      ClaudeToolUsed(
+        id: event.id,
+        description: event.description,
+        writes: event.writes,
+      ),
     );
   }
 
@@ -234,6 +335,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 }
 
-final assistantControllerProvider = NotifierProvider<AssistantController, AssistantHudState>(
-  AssistantController.new,
-);
+final assistantControllerProvider =
+    NotifierProvider<AssistantController, AssistantHudState>(
+      AssistantController.new,
+    );
