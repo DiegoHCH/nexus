@@ -38,7 +38,10 @@ class VoiceInputImpl implements VoiceInput {
             channels: VoiceInput.channels,
           );
           subscription = raw.listen(
-            (chunk) => controller.add(AudioFrame(pcm: chunk, amplitude: _rms(chunk))),
+            (chunk) {
+              final pcm = _normalize(chunk);
+              controller.add(AudioFrame(pcm: pcm, amplitude: _rms(pcm)));
+            },
             onError: controller.addError,
             onDone: controller.close,
           );
@@ -53,6 +56,20 @@ class VoiceInputImpl implements VoiceInput {
     return controller.stream;
   }
 
+  /// Copia el trozo a un buffer propio con offset 0 y longitud par.
+  ///
+  /// Lo que entrega el micrófono son vistas sobre un buffer compartido y
+  /// reutilizado, con `offsetInBytes` arbitrario. Eso rompe a cualquier
+  /// consumidor que lea el PCM como enteros de 16 bits —`asInt16List` exige
+  /// alineación a 2 bytes y lanza `RangeError` con un offset impar—, y además
+  /// deja el frame expuesto a que el paquete pise esos bytes en el siguiente
+  /// chunk. Con la copia, [AudioFrame.pcm] es siempre un buffer autónomo y
+  /// alineado.
+  Uint8List _normalize(Uint8List chunk) {
+    final evenLength = chunk.length - (chunk.length.isOdd ? 1 : 0);
+    return Uint8List.fromList(Uint8List.sublistView(chunk, 0, evenLength));
+  }
+
   /// RMS de un buffer PCM de 16 bits con signo, little-endian, normalizado
   /// a 0..1 sobre el fondo de escala (32768).
   ///
@@ -61,13 +78,16 @@ class VoiceInputImpl implements VoiceInput {
   /// perceptible en vez de quedarse casi plano.
   double _rms(Uint8List chunk) {
     if (chunk.length < 2) return 0;
-    final samples = chunk.buffer.asInt16List(chunk.offsetInBytes, chunk.lengthInBytes ~/ 2);
+    // ByteData en vez de asInt16List: getInt16 no exige alineación a 2 bytes,
+    // así que esto no depende de que le llegue un buffer ya normalizado.
+    final bytes = ByteData.sublistView(chunk);
+    final sampleCount = bytes.lengthInBytes ~/ 2;
     var sum = 0.0;
-    for (final sample in samples) {
-      final normalized = sample / 32768.0;
+    for (var i = 0; i < sampleCount; i++) {
+      final normalized = bytes.getInt16(i * 2, Endian.little) / 32768.0;
       sum += normalized * normalized;
     }
-    final rms = math.sqrt(sum / samples.length);
+    final rms = math.sqrt(sum / sampleCount);
     return math.sqrt(rms).clamp(0.0, 1.0);
   }
 }

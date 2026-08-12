@@ -18,10 +18,16 @@ class MicrophoneDataSource {
         encoder: AudioEncoder.pcm16bits,
         sampleRate: sampleRate,
         numChannels: channels,
-        // El micro del Mac mete bastante ruido de fondo y de teclado; que el
-        // sistema lo limpie antes de que salga hacia el servicio de voz.
-        noiseSuppress: true,
-        echoCancel: true,
+        // Sin `echoCancel`, y no por gusto: activa el voice processing unit de
+        // Apple, que monta un dispositivo agregado de entrada+salida. Crear ese
+        // agregado dispara un AVAudioEngineConfigurationChange, AVAudioEngine se
+        // para solo, y record_macos no escucha esa notificación ni reinicia el
+        // motor — el micro se abre y enmudece a los 600 ms.
+        //
+        // `noiseSuppress` en macOS se lee pero no se aplica (el delegate solo
+        // pasa echoCancel y autoGain a setVoiceProcessingEnabled), así que se
+        // deja fuera en vez de fingir una limpieza que no ocurre. El ruido de
+        // fondo lo absorbe el VAD del servicio de voz.
       ),
     );
   }
