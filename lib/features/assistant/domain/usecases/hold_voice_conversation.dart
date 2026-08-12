@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 
 /// La conversación completa: micrófono → socket → altavoz, y Claude en medio
 /// cuando hay trabajo de verdad que hacer.
@@ -37,6 +38,19 @@ class HoldVoiceConversation {
   final VoiceGateway _gateway;
   final AudioOutput _output;
   final AskClaude _askClaude;
+
+  /// Lo que la pantalla enseña como titular del trabajo.
+  ///
+  /// Para un encargo normal es la instrucción que redactó el modelo, que es lo
+  /// que se va a ejecutar y la única parte revisable. Para crear una skill,
+  /// el encargo es una plantilla de veinte líneas que no dice nada al leerla:
+  /// ahí el titular útil es el nombre.
+  static String _headline(VoiceToolRequested request) {
+    if (request.name == ClaudeErrand.skillTool) {
+      return 'Creando la skill ${ClaudeErrand.skillName(request.arguments['nombre'] as String?) ?? ''}'.trim();
+    }
+    return (request.arguments['instruccion'] as String?)?.trim() ?? request.name;
+  }
 
   /// Abre la conversación y emite lo que ocurre dentro. **Cancelar la
   /// suscripción la cierra entera**: micrófono, socket y altavoz. Ese es el
@@ -115,7 +129,20 @@ class HoldVoiceConversation {
     /// ella la conversación se queda muda para siempre, que es peor que una
     /// mala noticia bien contada.
     Future<void> runTool(VoiceToolRequested request) async {
-      controller.add(VoiceToolStarted(request.instruction));
+      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
+      // Herramienta desconocida o argumentos incompletos: se contesta igual.
+      // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
+      // y la conversación muda para siempre.
+      if (instruction == null || instruction.isEmpty) {
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result: 'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
+        );
+        return;
+      }
+
+      controller.add(VoiceToolStarted(_headline(request)));
       final answer = StringBuffer();
       var ok = true;
       var aborted = false;
@@ -124,7 +151,7 @@ class HoldVoiceConversation {
         if (!ended.isCompleted) ended.complete();
       }
 
-      final errand = _askClaude(request.instruction).listen(
+      final errand = _askClaude(instruction).listen(
         (event) {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por

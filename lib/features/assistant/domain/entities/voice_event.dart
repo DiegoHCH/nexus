@@ -49,12 +49,17 @@ final class VoiceToolRequested extends VoiceEvent {
   const VoiceToolRequested({
     required this.callId,
     required this.name,
-    required this.instruction,
+    required this.arguments,
   });
 
   final String callId;
   final String name;
-  final String instruction;
+
+  /// Los argumentos tal como los redactó el modelo. Se guardan crudos y sin
+  /// interpretar porque **cada herramienta tiene los suyos**: encargar trabajo
+  /// lleva una instrucción, crear una skill lleva nombre y propósito. Quien
+  /// sabe qué hacer con ellos es el caso de uso, no el traductor del socket.
+  final Map<String, dynamic> arguments;
 }
 
 /// Empezó el encargo a Claude. La interfaz pasa a "trabajando".

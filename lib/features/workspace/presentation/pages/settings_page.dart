@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
@@ -10,7 +12,7 @@ import 'package:nexus/features/workspace/presentation/widgets/permission_switch.
 /// las otras tres se listan apagadas, como en el propio mockup, porque
 /// pertenecen a fases que aún no existen y fingirlas sería peor que dejarlas
 /// a la vista.
-class SettingsPage extends ConsumerWidget {
+class SettingsPage extends ConsumerStatefulWidget {
   const SettingsPage({super.key});
 
   static Future<void> open(BuildContext context) {
@@ -23,7 +25,17 @@ class SettingsPage extends ConsumerWidget {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<SettingsPage> createState() => _SettingsPageState();
+}
+
+class _SettingsPageState extends ConsumerState<SettingsPage> {
+  /// «Móvil» y «Modelo» siguen apagadas: pertenecen a fases que no existen, y
+  /// fingirlas sería peor que dejarlas a la vista como lo que son.
+  static const _sections = ['Voz', 'Permisos'];
+  String _section = 'Permisos';
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
 
     return CallbackShortcuts(
@@ -49,18 +61,24 @@ class SettingsPage extends ConsumerWidget {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _section('Voz', active: false, colors: colors),
-                            _section('Permisos', active: true, colors: colors),
-                            _section('Móvil', active: false, colors: colors),
-                            _section('Modelo', active: false, colors: colors),
+                            for (final name in _sections)
+                              _SectionLink(
+                                label: name,
+                                active: _section == name,
+                                onTap: () => setState(() => _section = name),
+                              ),
+                            _disabled('Móvil', colors),
+                            _disabled('Modelo', colors),
                           ],
                         ),
                       ),
                       const SizedBox(width: 96),
-                      const Expanded(
+                      Expanded(
                         child: SizedBox(
                           width: 600,
-                          child: _PermissionsSection(),
+                          child: _section == 'Voz'
+                              ? const _VoiceSection()
+                              : const _PermissionsSection(),
                         ),
                       ),
                     ],
@@ -74,19 +92,112 @@ class SettingsPage extends ConsumerWidget {
     );
   }
 
-  Widget _section(
-    String label, {
-    required bool active,
-    required NexusColors colors,
-  }) {
+  Widget _disabled(String label, NexusColors colors) => Padding(
+    padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
+    child: Text(
+      label.toUpperCase(),
+      style: NexusTypography.label.copyWith(color: colors.rule2),
+    ),
+  );
+}
+
+class _SectionLink extends StatelessWidget {
+  const _SectionLink({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
     return Padding(
       padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
-      child: Text(
-        label.toUpperCase(),
-        style: NexusTypography.label.copyWith(
-          color: active ? colors.cyan : colors.faint,
+      child: InkWell(
+        onTap: onTap,
+        child: Text(
+          label.toUpperCase(),
+          style: NexusTypography.label.copyWith(
+            color: active ? colors.cyan : colors.faint,
+          ),
         ),
       ),
+    );
+  }
+}
+
+/// La voz con la que responde. Existe porque sin fijarla el servicio elegía
+/// una distinta en cada sesión.
+class _VoiceSection extends ConsumerWidget {
+  const _VoiceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final selected = ref.watch(voicePreferenceProvider);
+    final controller = ref.read(voicePreferenceProvider.notifier);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'VOZ DE NEXUS',
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          'Se fija al abrir la sesión, así que un cambio vale desde la próxima vez que '
+          'le hables. El idioma no se elige: lo detecta de lo que dices.',
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        Expanded(
+          child: ListView.builder(
+            itemCount: NexusVoice.all.length,
+            itemBuilder: (context, index) {
+              final voice = NexusVoice.all[index];
+              final isSelected = voice.name == selected.name;
+              return InkWell(
+                onTap: () => controller.select(voice),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: NexusSpacing.s3,
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_unchecked,
+                        size: 15,
+                        color: isSelected ? colors.cyan : colors.faint,
+                      ),
+                      const SizedBox(width: NexusSpacing.s3),
+                      Text(
+                        voice.name,
+                        style: NexusTypography.data.copyWith(
+                          color: isSelected ? colors.ink : colors.mute,
+                        ),
+                      ),
+                      const SizedBox(width: NexusSpacing.s3),
+                      Text(
+                        voice.character,
+                        style: NexusTypography.mono.copyWith(
+                          color: colors.faint,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
     );
   }
 }

@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 
 final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
@@ -21,6 +22,7 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
   return GeminiVoiceGateway(
     ref.watch(geminiLiveDataSourceProvider),
     keyStore.read,
+    () => ref.read(voicePreferenceProvider).name,
   );
 });
 

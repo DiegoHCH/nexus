@@ -8,12 +8,17 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
 class GeminiVoiceGateway implements VoiceGateway {
-  GeminiVoiceGateway(this._dataSource, this._readApiKey);
+  GeminiVoiceGateway(this._dataSource, this._readApiKey, this._readVoiceName);
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
   /// llave cambiada en Ajustes vale desde la siguiente sesión sin reconstruir
   /// nada, y no queda una copia viva en memoria más tiempo del necesario.
   final Future<String?> Function() _readApiKey;
+
+  /// Se consulta al conectar, no se guarda: así una voz cambiada en Ajustes
+  /// vale desde la siguiente sesión sin reconstruir nada.
+  final String Function() _readVoiceName;
+
   final GeminiLiveDataSource _dataSource;
 
   /// Lo último que el servicio dio para poder reengancharse. Vive aquí —y no
@@ -52,6 +57,19 @@ class GeminiVoiceGateway implements VoiceGateway {
 
   Map<String, dynamic> _buildSetup() => {
     ..._setup,
+    // `speechConfig` va **dentro de `generationConfig`**, no en la raíz del
+    // setup: ahí el servicio corta la conexión con un 1007 «Unknown name
+    // speechConfig». Los SDK lo aplanan en su configuración y por eso la doc
+    // lo enseña suelto; el protocolo crudo no.
+    'generationConfig': {
+      ...(_setup['generationConfig']! as Map<String, dynamic>),
+      'speechConfig': {
+        'voiceConfig': {
+          'prebuiltVoiceConfig': {'voiceName': _readVoiceName()},
+        },
+      },
+    },
+
     // Con el asa a `null` se pide igual: es la forma de decirle al servicio
     // que queremos poder reengancharnos, y él va mandando asas nuevas.
     'sessionResumption': {'handle': _resumptionHandle},
@@ -71,6 +89,20 @@ class GeminiVoiceGateway implements VoiceGateway {
     // conversación. Para hablar es el intercambio correcto: nadie espera que
     // recuerde literalmente lo de hace veinte minutos, y sí que no se muera.
     'contextWindowCompression': {'slidingWindow': <String, dynamic>{}},
+    // El detector de voz del servicio, alargado a propósito. Por defecto corta
+    // el turno con una pausa muy corta, y una instrucción larga tiene pausas
+    // naturales —para pensar, para respirar—: el efecto era que se quedaba con
+    // media frase y contestaba a eso. Se paga con algo más de espera antes de
+    // que responda, que es el intercambio correcto: mejor esperar medio
+    // segundo más que contestar a una pregunta que no terminaste.
+    'realtimeInputConfig': {
+      'automaticActivityDetection': {
+        'endOfSpeechSensitivity': 'END_SENSITIVITY_LOW',
+        'silenceDurationMs': 1200,
+        // Sin esto se come el principio de la primera palabra.
+        'prefixPaddingMs': 300,
+      },
+    },
     'systemInstruction': {
       'parts': [
         {
@@ -85,8 +117,13 @@ class GeminiVoiceGateway implements VoiceGateway {
               'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
               'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
               'algo que acabas de decir.\n'
-              'Antes de llamar a la herramienta di en tres o cuatro palabras qué vas '
-              'a hacer, para que no haya un silencio largo mientras se trabaja.',
+              'Antes de llamar a una herramienta di en tres o cuatro palabras qué vas '
+              'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
+              'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
+              'a volver a necesitar —un procedimiento del proyecto, una convención, una '
+              'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
+              'en una frase y sin insistir. Ofrécelo **después** de resolver lo que te '
+              'pidieron, nunca en vez de resolverlo, y solo si él acepta.',
         },
       ],
     },
@@ -113,14 +150,43 @@ class GeminiVoiceGateway implements VoiceGateway {
               'required': ['instruccion'],
             },
           },
+          {
+            'name': skillToolName,
+            'description':
+                'Crea una skill nueva para Claude Code: una carpeta con su '
+                'SKILL.md dentro del proyecto, que queda disponible para '
+                'siempre. Úsala cuando detectes que falta conocimiento que se '
+                'va a volver a necesitar —un procedimiento del proyecto, una '
+                'convención, una tarea repetitiva— en vez de repetir la '
+                'explicación cada vez. Requiere que el interruptor de permisos '
+                'esté en «puede editar»: si está en solo lectura, dilo en vez '
+                'de intentarlo.',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'nombre': {
+                  'type': 'STRING',
+                  'description':
+                      'Identificador corto en minúsculas y con guiones, como nombre de carpeta.',
+                },
+                'para_que': {
+                  'type': 'STRING',
+                  'description':
+                      'Qué debe saber hacer la skill y cuándo hay que usarla, con detalle.',
+                },
+              },
+              'required': ['nombre', 'para_que'],
+            },
+          },
         ],
       },
     ],
   };
 
-  /// El nombre vive aquí y no suelto en el JSON porque el traductor de
-  /// respuestas tiene que reconocerlo cuando el modelo la llama.
+  /// Los nombres viven aquí y no sueltos en el JSON porque el caso de uso
+  /// tiene que reconocerlos cuando el modelo los llama.
   static const toolName = 'pedir_a_claude';
+  static const skillToolName = 'crear_skill';
 }
 
 class _GeminiVoiceSession implements VoiceSession {
@@ -214,15 +280,7 @@ class _GeminiVoiceSession implements VoiceSession {
       if (id == null || name == null) continue;
 
       final args = function['args'] as Map<String, dynamic>? ?? const {};
-      _events.add(
-        VoiceToolRequested(
-          callId: id,
-          name: name,
-          // El modelo puede llamar sin argumento si se lía; mejor un encargo
-          // vacío que reventar la sesión entera por un campo que falta.
-          instruction: (args['instruccion'] as String?)?.trim() ?? '',
-        ),
-      );
+      _events.add(VoiceToolRequested(callId: id, name: name, arguments: args));
     }
   }
 
