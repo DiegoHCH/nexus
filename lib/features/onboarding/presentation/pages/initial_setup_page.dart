@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -17,8 +18,13 @@ import 'package:url_launcher/url_launcher.dart';
 class InitialSetupPage extends ConsumerStatefulWidget {
   const InitialSetupPage({super.key});
 
+  // El orbe se centra al 46% de la altura de su caja (NexusOrbPainter), así
+  // que con top:0 su mitad superior queda casi a la misma altura que el
+  // wordmark de arriba. Bajarla despega la esfera del título; el padding del
+  // contenido baja lo mismo para conservar el hueco que ya había debajo.
+  static const _orbZoneTop = 32.0;
   static const _orbZoneHeight = 170.0;
-  static const _contentTopPadding = 210.0;
+  static const _contentTopPadding = 210.0 + _orbZoneTop;
 
   @override
   ConsumerState<InitialSetupPage> createState() => _InitialSetupPageState();
@@ -54,7 +60,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
       body: Stack(
         children: [
           Positioned(
-            top: 0,
+            top: InitialSetupPage._orbZoneTop,
             left: 0,
             right: 0,
             height: InitialSetupPage._orbZoneHeight,
@@ -104,7 +110,12 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                           style: NexusTypography.body.copyWith(color: colors.mute),
                         ),
                         const SizedBox(height: NexusSpacing.s7),
-                        _MicrophoneField(status: setup.micStatus, amplitude: setup.amplitude),
+                        _MicrophoneField(
+                          status: setup.micStatus,
+                          amplitude: setup.amplitude,
+                          onRequest: () =>
+                              ref.read(setupControllerProvider.notifier).requestMicrophoneAccess(),
+                        ),
                         const SizedBox(height: NexusSpacing.s6),
                         _GeminiKeyField(
                           controller: _keyController,
@@ -163,18 +174,42 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
 }
 
 class _MicrophoneField extends StatelessWidget {
-  const _MicrophoneField({required this.status, required this.amplitude});
+  const _MicrophoneField({required this.status, required this.amplitude, required this.onRequest});
 
   final MicrophoneStatus status;
   final double amplitude;
+  final VoidCallback onRequest;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final (chipText, chipColor, dataText) = switch (status) {
-      MicrophoneStatus.checking => ('PENDIENTE', colors.warn, 'Pidiendo acceso al micrófono…'),
-      MicrophoneStatus.granted => ('CONCEDIDO', colors.ok, 'Nexus puede escucharte'),
-      MicrophoneStatus.denied => ('DENEGADO', colors.err, 'Actívalo en Ajustes del Sistema'),
+    final (chipText, chipColor, dataText, hint) = switch (status) {
+      MicrophoneStatus.idle => (
+        'SOLICITAR',
+        colors.cyan,
+        'Nexus necesita tu micrófono para escucharte',
+        'Vas a ver el diálogo de permiso de macOS. En cuanto lo aceptes, la '
+            'prueba de sonido en vivo empieza sola.',
+      ),
+      MicrophoneStatus.checking => (
+        'PENDIENTE',
+        colors.warn,
+        'Pidiendo acceso al micrófono…',
+        'Respondé al diálogo del sistema para continuar.',
+      ),
+      MicrophoneStatus.granted => (
+        'CONCEDIDO',
+        colors.ok,
+        'Nexus puede escucharte',
+        'Habla un momento — si el trazo se mueve, tu voz llega bien a Nexus.',
+      ),
+      MicrophoneStatus.denied => (
+        'DENEGADO',
+        colors.err,
+        'Actívalo en Ajustes del Sistema',
+        'Nexus no puede escucharte todavía. Actívalo en Ajustes del Sistema › '
+            'Privacidad y seguridad › Micrófono.',
+      ),
     };
 
     return Column(
@@ -184,29 +219,35 @@ class _MicrophoneField extends StatelessWidget {
         const SizedBox(height: NexusSpacing.s3),
         Row(
           children: [
-            _StatusChip(text: chipText, color: chipColor),
+            _StatusChip(
+              text: chipText,
+              color: chipColor,
+              onTap: status == MicrophoneStatus.idle ? onRequest : null,
+            ),
             const SizedBox(width: NexusSpacing.s4),
             Text(dataText, style: NexusTypography.data.copyWith(color: colors.faint)),
           ],
         ),
         const SizedBox(height: NexusSpacing.s3),
         if (status == MicrophoneStatus.granted)
-          Row(
-            children: [
-              Expanded(child: _MicWaveform(amplitude: amplitude)),
-              const SizedBox(width: NexusSpacing.s4),
-              Text('TE ESCUCHO', style: NexusTypography.label.copyWith(color: colors.cyan)),
-            ],
+          Container(
+            constraints: const BoxConstraints(minHeight: 44),
+            padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3),
+            decoration: BoxDecoration(
+              color: colors.rise,
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+              border: Border.all(color: colors.rule2),
+            ),
+            child: Row(
+              children: [
+                Expanded(child: _MicWaveform(amplitude: amplitude)),
+                const SizedBox(width: NexusSpacing.s4),
+                Text('TE ESCUCHO', style: NexusTypography.label.copyWith(color: colors.cyan)),
+              ],
+            ),
           ),
         const SizedBox(height: NexusSpacing.s2),
-        Text(
-          status == MicrophoneStatus.denied
-              ? 'Nexus no puede escucharte todavía. Actívalo en Ajustes del Sistema › '
-                    'Privacidad y seguridad › Micrófono.'
-              : 'Habla un momento — si el trazo se mueve, tu voz llega bien a Nexus. Sin '
-                    'pasos extra: en cuanto macOS concede el permiso, la prueba empieza sola.',
-          style: NexusTypography.mono.copyWith(color: colors.faint),
-        ),
+        Text(hint, style: NexusTypography.mono.copyWith(color: colors.faint)),
       ],
     );
   }
@@ -246,7 +287,10 @@ class _MicWaveformState extends State<_MicWaveform> {
       height: 28,
       child: CustomPaint(
         size: const Size(double.infinity, 28),
-        painter: _WaveformPainter(samples: _samples, color: context.colors.cyan),
+        // Una copia y no `_samples` a pelo: la cola se muta en el sitio, así
+        // que el pintor viejo y el nuevo compartirían la misma lista y
+        // shouldRepaint no vería jamás una diferencia.
+        painter: _WaveformPainter(samples: List.of(_samples), color: context.colors.cyan),
       ),
     );
   }
@@ -284,7 +328,8 @@ class _WaveformPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _WaveformPainter oldDelegate) => oldDelegate.samples != samples;
+  bool shouldRepaint(covariant _WaveformPainter oldDelegate) =>
+      !listEquals(oldDelegate.samples, samples) || oldDelegate.color != color;
 }
 
 class _GeminiKeyField extends StatelessWidget {
@@ -329,14 +374,19 @@ class _GeminiKeyField extends StatelessWidget {
 }
 
 class _StatusChip extends StatelessWidget {
-  const _StatusChip({required this.text, required this.color});
+  const _StatusChip({required this.text, required this.color, this.onTap});
 
   final String text;
   final Color color;
 
+  /// Si no es nulo, el chip se pinta igual pero se puede tocar — es como
+  /// "Solicitar" pide el permiso: un botón con la misma pinta que un chip de
+  /// estado, no uno nuevo aparte.
+  final VoidCallback? onTap;
+
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
+    final chip = DecoratedBox(
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.12),
         border: Border.all(color: color.withValues(alpha: 0.4)),
@@ -346,6 +396,13 @@ class _StatusChip extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3, vertical: NexusSpacing.s1),
         child: Text(text, style: NexusTypography.label.copyWith(color: color)),
       ),
+    );
+
+    if (onTap == null) return chip;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(NexusRadius.sm),
+      child: chip,
     );
   }
 }

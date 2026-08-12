@@ -17,13 +17,14 @@ class AppRouteReady extends AppRouteState {
   const AppRouteReady();
 }
 
-/// El micrófono no se pide con un botón: en cuanto se pinta la pantalla se
-/// pide solo, y la prueba de sonido en vivo empieza sin pasos extra.
-enum MicrophoneStatus { checking, granted, denied }
+/// El micrófono se pide con un botón ("Solicitar") — no al construir la
+/// pantalla. [idle] es el estado antes de que el usuario lo pulse; [checking]
+/// solo dura mientras el diálogo del sistema está resolviendo.
+enum MicrophoneStatus { idle, checking, granted, denied }
 
 class SetupState {
   const SetupState({
-    this.micStatus = MicrophoneStatus.checking,
+    this.micStatus = MicrophoneStatus.idle,
     this.amplitude = 0,
     this.keyText = '',
     this.saving = false,

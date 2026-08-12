@@ -60,21 +60,23 @@ final appRouteControllerProvider = NotifierProvider<AppRouteController, AppRoute
 /// Vive aparte de [AppRouteController] porque su ciclo de vida es el de la
 /// pantalla, no el de toda la app.
 ///
-/// El micrófono no tiene un paso "pedir permiso" separado de "probarlo": en
-/// cuanto se construye el controlador se pide el permiso y, si se concede, se
-/// abre el micrófono real (el mismo [VoiceInput] de la Fase 2) para que la
-/// prueba de sonido reaccione a la voz de verdad — no hay nada que simular.
+/// El micrófono se pide al pulsar "Solicitar", no al construir la pantalla —
+/// si se concede, se abre el micrófono real (el mismo [VoiceInput] de la
+/// Fase 2) para que la prueba de sonido reaccione a la voz de verdad, no hay
+/// nada que simular.
 class SetupController extends Notifier<SetupState> {
   StreamSubscription<AudioFrame>? _micSubscription;
 
   @override
   SetupState build() {
     ref.onDispose(() => _micSubscription?.cancel());
-    unawaited(_startMicrophoneTest());
     return const SetupState();
   }
 
-  Future<void> _startMicrophoneTest() async {
+  Future<void> requestMicrophoneAccess() async {
+    if (state.micStatus == MicrophoneStatus.checking) return;
+    state = state.copyWith(micStatus: MicrophoneStatus.checking);
+
     final voiceInput = ref.read(voiceInputProvider);
     final granted = await voiceInput.hasPermission();
     if (!granted) {
