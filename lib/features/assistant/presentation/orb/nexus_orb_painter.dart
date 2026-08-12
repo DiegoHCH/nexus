@@ -152,12 +152,27 @@ class NexusOrbPainter extends CustomPainter {
     if (cfg.halo <= 0) return;
     final hr = r * (state == NexusOrbState.speak ? 3.1 : 2.5);
     final haloAlpha = cfg.halo * (state == NexusOrbState.speak ? (0.75 + 0.4 * env) : 1.0);
-    final shader = ui.Gradient.radial(Offset(cx, cy), hr, [
-      accent.withValues(alpha: haloAlpha.clamp(0.0, 1.0)),
-      accent.withValues(alpha: (haloAlpha * 0.28).clamp(0.0, 1.0)),
-      accent.withValues(alpha: 0),
-    ], const [0.0, 0.55, 1.0]);
-    canvas.drawRect(Rect.fromCircle(center: Offset(cx, cy), radius: hr), Paint()..shader = shader);
+    final center = Offset(cx, cy);
+    // El original (`ctx.createRadialGradient(cx, cy, R*0.35, cx, cy, hr)`) es
+    // un gradiente de dos círculos concéntricos: empieza a brillar recién en
+    // R*0.35, no en el centro. `Gradient.radial` de Flutter solo dibuja un
+    // círculo salvo que se le dé `focal`/`focalRadius` — sin eso el brillo
+    // arranca en el centro y se ve más apagado hacia afuera que en el mockup.
+    final shader = ui.Gradient.radial(
+      center,
+      hr,
+      [
+        accent.withValues(alpha: haloAlpha.clamp(0.0, 1.0)),
+        accent.withValues(alpha: (haloAlpha * 0.28).clamp(0.0, 1.0)),
+        accent.withValues(alpha: 0),
+      ],
+      const [0.0, 0.55, 1.0],
+      TileMode.clamp,
+      null,
+      center,
+      r * 0.35,
+    );
+    canvas.drawRect(Rect.fromCircle(center: center, radius: hr), Paint()..shader = shader);
   }
 
   void _paintConcentricWaves(Canvas canvas, double cx, double cy, double r, double env) {

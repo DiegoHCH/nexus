@@ -30,17 +30,27 @@ class ClaudeCliDataSource {
     final stderrBuffer = StringBuffer();
     final stderrDone = process.stderr.transform(utf8.decoder).listen(stderrBuffer.write).asFuture<void>();
 
-    final lines = process.stdout.transform(utf8.decoder).transform(const LineSplitter());
-    await for (final line in lines) {
-      if (line.trim().isEmpty) continue;
-      final decoded = jsonDecode(line);
-      if (decoded is Map<String, dynamic>) yield decoded;
-    }
+    try {
+      final lines = process.stdout.transform(utf8.decoder).transform(const LineSplitter());
+      await for (final line in lines) {
+        if (line.trim().isEmpty) continue;
+        final decoded = jsonDecode(line);
+        if (decoded is Map<String, dynamic>) yield decoded;
+      }
 
-    await stderrDone;
-    final exitCode = await process.exitCode;
-    if (exitCode != 0) {
-      throw ClaudeProcessException(exitCode, stderrBuffer.toString().trim());
+      await stderrDone;
+      final exitCode = await process.exitCode;
+      if (exitCode != 0) {
+        throw ClaudeProcessException(exitCode, stderrBuffer.toString().trim());
+      }
+    } finally {
+      // Si quien escuchaba se fue antes de que el proceso terminara —la
+      // conversación se cerró, el encargo se canceló— hay que matarlo. Un
+      // `claude -p` abandonado no se entera: sigue trabajando, gastando
+      // contexto y tiempo para una respuesta que nadie va a leer. Este
+      // `finally` también corre al cancelar la suscripción, que es justo el
+      // caso que importa. Si el proceso ya salió, `kill` no hace nada.
+      process.kill();
     }
   }
 

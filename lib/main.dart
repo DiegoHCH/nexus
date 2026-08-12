@@ -1,9 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
-import 'package:nexus/features/assistant/presentation/pages/home_page.dart';
+import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Los atajos globales los registra el sistema, no la app: sobreviven a un
+  // hot reload y quedarían duplicados —o peor, huérfanos— sin esta limpieza
+  // al arrancar.
+  await hotKeyManager.unregisterAll();
   runApp(const ProviderScope(child: MainApp()));
 }
 
@@ -22,7 +28,7 @@ class MainApp extends StatelessWidget {
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const HomePage(),
+      home: const AppRoot(),
     );
   }
 }

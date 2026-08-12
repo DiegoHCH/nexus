@@ -5,10 +5,18 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = nexus
+PRODUCT_NAME = Nexus
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.example.nexus
+PRODUCT_BUNDLE_IDENTIFIER = com.katanalabs.nexus
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.example. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Katana Labs. All rights reserved.
+
+// Firma real, no ad-hoc: el Keychain de protección de datos exige el
+// entitlement keychain-access-groups, y ese solo se concede con un certificado
+// de verdad. Se firma con el Developer ID —el mismo que hará falta para
+// distribuir fuera de la App Store— en vez de con automatic signing, que
+// necesitaría que Xcode tuviera sesión abierta para emitir perfiles.
+DEVELOPMENT_TEAM = Y9H7TRB5L7
+CODE_SIGN_IDENTITY = Developer ID Application
