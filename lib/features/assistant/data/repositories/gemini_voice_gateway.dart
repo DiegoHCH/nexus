@@ -42,12 +42,43 @@ class GeminiVoiceGateway implements VoiceGateway {
           'text':
               'Eres Nexus, un asistente de voz que vive en el Mac de quien te habla. '
               'Respondes en español, en frases cortas: esto se escucha, no se lee. '
-              'Todavía no puedes tocar archivos ni ejecutar nada — si te piden algo '
-              'así, dilo en una frase en vez de inventarte el resultado.',
+              'Para cualquier cosa sobre código, archivos, git o el estado de un '
+              'proyecto NO respondas de memoria ni te inventes el resultado: llama a '
+              'pedir_a_claude con la instrucción y luego cuenta lo que devolvió. '
+              'Antes de llamarla, di en tres o cuatro palabras qué vas a hacer, para '
+              'que no haya un silencio largo mientras se trabaja.',
         },
       ],
     },
+    'tools': [
+      {
+        'functionDeclarations': [
+          {
+            'name': toolName,
+            'description':
+                'Le encarga a Claude Code una tarea real sobre este Mac: leer o '
+                'editar archivos, mirar el estado de git, ejecutar comandos. '
+                'Todavía no hay carpeta emparejada, así que trabaja sobre el '
+                'directorio donde corre la app y no sobre un proyecto concreto.',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'instruccion': {
+                  'type': 'STRING',
+                  'description': 'La tarea, en español, tal como se le diría a un programador.',
+                },
+              },
+              'required': ['instruccion'],
+            },
+          },
+        ],
+      },
+    ],
   };
+
+  /// El nombre vive aquí y no suelto en el JSON porque el traductor de
+  /// respuestas tiene que reconocerlo cuando el modelo la llama.
+  static const toolName = 'pedir_a_claude';
 }
 
 class _GeminiVoiceSession implements VoiceSession {
@@ -80,6 +111,12 @@ class _GeminiVoiceSession implements VoiceSession {
       return;
     }
 
+    final toolCall = message['toolCall'] as Map<String, dynamic>?;
+    if (toolCall != null) {
+      _translateToolCall(toolCall);
+      return;
+    }
+
     final server = message['serverContent'] as Map<String, dynamic>?;
     if (server == null) return;
 
@@ -100,6 +137,42 @@ class _GeminiVoiceSession implements VoiceSession {
     // escuche tiene que tirar la cola antes de dar el turno por cerrado.
     if (server['interrupted'] == true) _events.add(const VoiceInterrupted());
     if (server['turnComplete'] == true) _events.add(const VoiceTurnCompleted());
+  }
+
+  void _translateToolCall(Map<String, dynamic> toolCall) {
+    final calls = toolCall['functionCalls'] as List<dynamic>? ?? const [];
+    for (final call in calls) {
+      final function = call as Map<String, dynamic>;
+      final id = function['id'] as String?;
+      final name = function['name'] as String?;
+      if (id == null || name == null) continue;
+
+      final args = function['args'] as Map<String, dynamic>? ?? const {};
+      _events.add(
+        VoiceToolRequested(
+          callId: id,
+          name: name,
+          // El modelo puede llamar sin argumento si se lía; mejor un encargo
+          // vacío que reventar la sesión entera por un campo que falta.
+          instruction: (args['instruccion'] as String?)?.trim() ?? '',
+        ),
+      );
+    }
+  }
+
+  @override
+  void sendToolResult({required String callId, required String name, required String result}) {
+    _connection.send({
+      'toolResponse': {
+        'functionResponses': [
+          {
+            'id': callId,
+            'name': name,
+            'response': {'result': result},
+          },
+        ],
+      },
+    });
   }
 
   @override

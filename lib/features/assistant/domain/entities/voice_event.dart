@@ -40,6 +40,49 @@ final class VoiceReplyAudio extends VoiceEvent {
   final Uint8List pcm;
 }
 
+/// El modelo pide ejecutar la herramienta: quiere que Claude haga algo real.
+///
+/// No sale hacia la interfaz — lo atiende el caso de uso, que es quien tiene
+/// el puente a Claude. Lo que la pantalla ve es [VoiceToolStarted] y lo que
+/// vaya llegando en [VoiceToolProgress].
+final class VoiceToolRequested extends VoiceEvent {
+  const VoiceToolRequested({
+    required this.callId,
+    required this.name,
+    required this.instruction,
+  });
+
+  final String callId;
+  final String name;
+  final String instruction;
+}
+
+/// Empezó el encargo a Claude. La interfaz pasa a "trabajando".
+final class VoiceToolStarted extends VoiceEvent {
+  const VoiceToolStarted(this.instruction);
+
+  /// La instrucción tal como Gemini la redactó, que no es literalmente lo que
+  /// dijiste: la traduce a un encargo de programador. Se muestra porque es
+  /// **lo que se va a ejecutar de verdad**, y esconderlo detrás de un
+  /// "trabajando…" sería esconder justo la parte revisable.
+  final String instruction;
+}
+
+/// Trozo de lo que Claude va contando mientras trabaja.
+final class VoiceToolProgress extends VoiceEvent {
+  const VoiceToolProgress(this.text);
+
+  final String text;
+}
+
+/// Terminó el encargo. El resultado ya viajó de vuelta al modelo, que lo
+/// narrará en el siguiente turno hablado.
+final class VoiceToolFinished extends VoiceEvent {
+  const VoiceToolFinished({required this.ok});
+
+  final bool ok;
+}
+
 /// El modelo terminó su turno.
 final class VoiceTurnCompleted extends VoiceEvent {
   const VoiceTurnCompleted();

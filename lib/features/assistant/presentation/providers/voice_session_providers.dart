@@ -6,6 +6,7 @@ import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
+import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 
@@ -32,5 +33,6 @@ final holdVoiceConversationProvider = Provider<HoldVoiceConversation>(
     ref.watch(voiceInputProvider),
     ref.watch(voiceGatewayProvider),
     ref.watch(audioOutputProvider),
+    ref.watch(askClaudeProvider),
   ),
 );

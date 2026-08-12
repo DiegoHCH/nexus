@@ -96,10 +96,16 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceReplyTranscript() => _onReply(event.text),
         VoiceInterrupted() => _onInterrupted(),
         VoiceTurnCompleted() => _onVoiceTurnCompleted(),
+        VoiceToolStarted() => _onToolStarted(event.instruction),
+        VoiceToolProgress() => _onToolProgress(event.text),
+        VoiceToolFinished() => _onToolFinished(),
         VoiceSessionFailed() => unawaited(_onVoiceFailed(event.message)),
         // El audio no llega hasta aquí: lo reproduce el caso de uso. La
         // interfaz solo necesita el texto y el estado.
         VoiceReplyAudio() => null,
+        // La petición la atiende el caso de uso; la pantalla ve el trabajo,
+        // no la fontanería.
+        VoiceToolRequested() => null,
       },
       onError: (Object error) => unawaited(_onVoiceFailed(error.toString())),
       onDone: () => state = state.copyWith(voiceActive: false, orbState: NexusOrbState.sleep),
@@ -149,7 +155,39 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   void _onVoiceTurnCompleted() {
+    // Si Claude está trabajando, el turno hablado que acaba es el "voy a
+    // mirarlo": el orbe tiene que seguir en trabajando, no volver a escuchar.
+    if (state.orbState == NexusOrbState.think) return;
     _heard.clear();
+    _reply.clear();
+    state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: false);
+  }
+
+  /// Se muestra la instrucción que redactó Gemini, no lo que dijo el usuario:
+  /// es lo que se va a ejecutar de verdad, y es la única parte revisable
+  /// antes de que pase.
+  void _onToolStarted(String instruction) {
+    _heard.clear();
+    _reply.clear();
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: instruction,
+      isStreaming: true,
+    );
+  }
+
+  void _onToolProgress(String text) {
+    _reply.write(text);
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: _reply.toString(),
+      isStreaming: true,
+    );
+  }
+
+  /// El resultado ya viajó de vuelta al modelo: lo siguiente que llegue será
+  /// su narración hablada, así que aquí solo se suelta el estado de trabajo.
+  void _onToolFinished() {
     _reply.clear();
     state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: false);
   }

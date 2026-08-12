@@ -30,5 +30,17 @@ abstract class VoiceSession {
   /// [VoiceSessionFormat.inputSampleRate].
   void sendAudio(Uint8List pcm);
 
+  /// Devuelve el resultado de un [VoiceToolRequested].
+  ///
+  /// Es obligatorio contestar siempre, también cuando la herramienta falla:
+  /// el modelo se queda esperando esta respuesta y sin ella la conversación
+  /// se cuelga en silencio. Por eso [result] admite tanto el resultado como
+  /// la explicación del error.
+  void sendToolResult({
+    required String callId,
+    required String name,
+    required String result,
+  });
+
   Future<void> close();
 }
