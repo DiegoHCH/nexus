@@ -82,7 +82,17 @@ class HoldVoiceConversation {
     void keepAlive() {
       idleTimer?.cancel();
       idleTimer = Timer(_idleTimeout, () async {
-        // «Dejaron de llegar eventos» no es «dejó de hablar»: el servicio
+        // Con un encargo en marcha no se cierra, y punto. Reiniciar la cuenta
+        // con cada evento de Claude no bastaba: **el primero tarda más que el
+        // propio plazo** —arrancar el CLI, cargar los CLAUDE.md del árbol— así
+        // que la sesión se cerraba antes de recibir nada y `shutdown()` mataba
+        // el proceso. Silencio mientras se trabaja no es inactividad.
+        if (abortErrand != null) {
+          keepAlive();
+          return;
+        }
+
+        // «Dejaron de llegar eventos» tampoco es «dejó de hablar»: el servicio
         // entrega la respuesta más rápido que en tiempo real, así que el
         // altavoz puede tener frases enteras pendientes cuando el socket ya
         // está callado. Cerrar aquí cortaba la respuesta a media palabra.
