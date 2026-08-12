@@ -48,6 +48,16 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   private var pendingFrames: Int64 = 0
   private let pendingLock = NSLock()
 
+  /// Cuándo se quedó la cola del altavoz a cero teniendo aún respuesta por
+  /// delante. Es la medida que falta para decidir el tamaño del colchón: con
+  /// buena conexión no ocurre nunca, y con mala es exactamente el corte que se
+  /// oye. Se anota aquí porque el dato solo existe en una sesión real —no hay
+  /// forma de fabricarlo— y sin él, cambiar el número sería adivinar.
+  private var starvedAt: Date?
+  private var gapCount = 0
+  private var worstGapMs = 0
+  private var playedAnything = false
+
   /// Cuándo arrancó el motor, para medir cuánto tarda en llegar el primer
   /// bloque de audio: es el retardo que se nota entre pulsar y poder hablar.
   private var startedAt: Date?
@@ -287,6 +297,21 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     guard running else { return }
     running = false
 
+    // El resumen de la sesión, aunque sea para decir que no hubo cortes: «cero
+    // huecos con buena conexión» es justo el dato de referencia contra el que
+    // se lee una sesión mala.
+    pendingLock.lock()
+    let gaps = gapCount
+    let worst = worstGapMs
+    gapCount = 0
+    worstGapMs = 0
+    starvedAt = nil
+    playedAnything = false
+    pendingLock.unlock()
+    Self.log.info(
+      "reproducción · \(gaps, privacy: .public) huecos, el peor de \(worst, privacy: .public) ms"
+    )
+
     NotificationCenter.default.removeObserver(
       self,
       name: .AVAudioEngineConfigurationChange,
@@ -479,13 +504,24 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // decide cuándo cerrar la sesión creería que ya no pasa nada.
     let frameCount = Int64(converted.frameLength)
     pendingLock.lock()
+    // Si la cola se había vaciado y ya sonaba una respuesta, esto que llega
+    // llega tarde: el altavoz estuvo callado en medio de una frase.
+    if let emptiedAt = starvedAt, playedAnything {
+      let gap = Int(Date().timeIntervalSince(emptiedAt) * 1000)
+      gapCount += 1
+      worstGapMs = max(worstGapMs, gap)
+      Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
+    }
+    starvedAt = nil
     pendingFrames += frameCount
+    playedAnything = true
     pendingLock.unlock()
 
     player.scheduleBuffer(converted, completionCallbackType: .dataPlayedBack) { [weak self] _ in
       guard let self else { return }
       self.pendingLock.lock()
       self.pendingFrames = max(0, self.pendingFrames - frameCount)
+      if self.pendingFrames == 0 { self.starvedAt = Date() }
       self.pendingLock.unlock()
     }
     if !player.isPlaying { player.play() }
@@ -508,6 +544,11 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     player.stop()
     pendingLock.lock()
     pendingFrames = 0
+    // Interrumpir vacía la cola a propósito: eso no es un hueco de red y
+    // contarlo como tal estropearía la medida justo en las sesiones con más
+    // interrupciones.
+    starvedAt = nil
+    playedAnything = false
     pendingLock.unlock()
     player.play()
   }
