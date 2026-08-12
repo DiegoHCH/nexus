@@ -4,5 +4,15 @@ import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 /// independiente: no mantiene una sesión abierta entre instrucciones (eso es
 /// trabajo de la Fase 3, con `--resume`).
 abstract class ClaudeBridge {
-  Stream<ClaudeEvent> ask(String instruction);
+  /// [workingDirectory] es obligatorio a propósito: sin él el proceso hereda
+  /// el directorio de la app —`/` para un bundle lanzado por launchd— y
+  /// responde sobre la raíz del disco sin avisar. Que no se pueda llamar sin
+  /// decidirlo es la mitad del arreglo.
+  Stream<ClaudeEvent> ask(
+    String instruction, {
+    required String workingDirectory,
+    required bool canEdit,
+    List<String> extraDirectories,
+    String? resumeSessionId,
+  });
 }

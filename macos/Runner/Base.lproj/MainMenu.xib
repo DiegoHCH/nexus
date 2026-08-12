@@ -33,7 +33,16 @@
                                 </connections>
                             </menuItem>
                             <menuItem isSeparatorItem="YES" id="VOq-y0-SEH"/>
-                            <menuItem title="Preferences…" keyEquivalent="," id="BOF-NM-1cW"/>
+                            <!-- Venía del molde de Flutter sin acción ninguna: un
+                                 «Preferences…» muerto que además se quedaba con ⌘,
+                                 antes de que la tecla llegara a Flutter. Ahora
+                                 apunta al responder chain, donde AppDelegate lo
+                                 recoge y se lo pasa a la app. -->
+                            <menuItem title="Ajustes…" keyEquivalent="," id="BOF-NM-1cW">
+                                <connections>
+                                    <action selector="openNexusSettings:" target="-1" id="nXs-St-gS1"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>

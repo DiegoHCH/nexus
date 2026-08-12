@@ -40,7 +40,9 @@ class NativeAudioDataSource {
 
   /// Trozos de micrófono: PCM 16 bits, 16 kHz, mono.
   Stream<Uint8List> get frames {
-    return _frameStream ??= _frames.receiveBroadcastStream().map((dynamic frame) => frame as Uint8List);
+    return _frameStream ??= _frames.receiveBroadcastStream().map(
+      (dynamic frame) => frame as Uint8List,
+    );
   }
 
   /// Encola PCM de 16 bits a 24 kHz para que suene.

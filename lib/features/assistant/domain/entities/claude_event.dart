@@ -20,13 +20,67 @@ final class ClaudeTextDelta extends ClaudeEvent {
   final String text;
 }
 
+/// Claude va a usar una herramienta: leer un archivo, correr un comando.
+///
+/// Es lo que convierte «pensando…» en algo que se puede mirar. Sin esto, dos
+/// minutos de trabajo son indistinguibles de estar colgado.
+final class ClaudeToolUsed extends ClaudeEvent {
+  const ClaudeToolUsed({
+    required this.id,
+    required this.description,
+    required this.writes,
+    this.detail,
+  });
+
+  /// Identificador de la llamada, para poder marcarla como terminada cuando
+  /// llegue su resultado.
+  final String id;
+
+  /// Ya en lenguaje humano: «Leyendo lib/main.dart», «Corriendo git status».
+  final String description;
+
+  /// La herramienta modifica archivos. La interfaz lo marca aparte porque
+  /// escribir es la parte que da miedo con razón, y el permiso y su
+  /// consecuencia tienen que verse juntos.
+  final bool writes;
+
+  /// Lo que se ejecuta de verdad: el comando entero, la ruta completa. La
+  /// línea de arriba está recortada para leerse de un vistazo; esto es para
+  /// cuando quieres saber qué pasó exactamente.
+  final String? detail;
+}
+
+/// Terminó una herramienta: la actividad pasa de «en curso» a «hecha».
+final class ClaudeToolFinished extends ClaudeEvent {
+  const ClaudeToolFinished(this.id, {this.output});
+
+  final String id;
+
+  /// Lo que devolvió la herramienta, recortado. Sin esto la columna dice qué
+  /// se hizo pero no qué salió, que es justo la mitad interesante.
+  final String? output;
+}
+
 /// El turno terminó bien.
 final class ClaudeTurnCompleted extends ClaudeEvent {
-  const ClaudeTurnCompleted({required this.result, this.costUsd, this.durationMs});
+  const ClaudeTurnCompleted({
+    required this.result,
+    this.costUsd,
+    this.durationMs,
+    this.turnTokens,
+    this.contextTokens,
+  });
 
   final String result;
   final double? costUsd;
   final int? durationMs;
+
+  /// Todo lo que consumió el turno, entrada y salida.
+  final int? turnTokens;
+
+  /// Lo que ocupa la conversación en la ventana de contexto. Es distinto de
+  /// [turnTokens]: aquí no cuenta lo generado, cuenta lo que hay que arrastrar.
+  final int? contextTokens;
 }
 
 /// El turno falló: el proceso salió con error, el CLI reportó `is_error`, o

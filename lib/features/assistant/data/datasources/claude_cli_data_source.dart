@@ -9,7 +9,24 @@ class ClaudeCliDataSource {
 
   static const _extraPathDirs = ['/opt/homebrew/bin', '/usr/local/bin'];
 
-  Stream<Map<String, dynamic>> run(String instruction) async* {
+  /// [workingDirectory] es dónde trabaja Claude, y no es opcional de verdad:
+  /// sin él el proceso hereda el directorio de la app, que para un bundle
+  /// lanzado por launchd es `/`. Cualquier encargo sobre archivos respondía
+  /// entonces sobre la raíz del disco, con seguridad y sin avisar.
+  ///
+  /// [permissionMode] es el `--permission-mode` del CLI. Con `manual` la
+  /// escritura se deniega, también la que intente colarse por Bash.
+  /// [extraDirectories] son las demás carpetas emparejadas. Sin ellas, Claude
+  /// solo alcanza el directorio de trabajo: un repo que guarda sus reglas en
+  /// una carpeta hermana —lo normal en un monorepo de contexto compartido—
+  /// carga las instrucciones y luego no puede leer lo que estas le mandan.
+  Stream<Map<String, dynamic>> run(
+    String instruction, {
+    required String workingDirectory,
+    required String permissionMode,
+    List<String> extraDirectories = const [],
+    String? resumeSessionId,
+  }) async* {
     final process = await Process.start(
       'claude',
       [
@@ -19,7 +36,16 @@ class ClaudeCliDataSource {
         'stream-json',
         '--include-partial-messages',
         '--verbose',
+        '--permission-mode',
+        permissionMode,
+        // Con esto Claude recuerda lo de antes; sin esto, cada encargo empieza
+        // de cero y no sabe ni lo que hizo hace un minuto.
+        if (resumeSessionId != null) ...['--resume', resumeSessionId],
+        // Al final y de una sola vez: el flag es variádico, así que cualquier
+        // argumento que fuera detrás se lo tragaría como si fuera una carpeta.
+        if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
       ],
+      workingDirectory: workingDirectory,
       environment: _buildEnvironment(),
       includeParentEnvironment: false,
     );
@@ -28,10 +54,15 @@ class ClaudeCliDataSource {
     unawaited(process.stdin.close());
 
     final stderrBuffer = StringBuffer();
-    final stderrDone = process.stderr.transform(utf8.decoder).listen(stderrBuffer.write).asFuture<void>();
+    final stderrDone = process.stderr
+        .transform(utf8.decoder)
+        .listen(stderrBuffer.write)
+        .asFuture<void>();
 
     try {
-      final lines = process.stdout.transform(utf8.decoder).transform(const LineSplitter());
+      final lines = process.stdout
+          .transform(utf8.decoder)
+          .transform(const LineSplitter());
       await for (final line in lines) {
         if (line.trim().isEmpty) continue;
         final decoded = jsonDecode(line);
@@ -73,9 +104,15 @@ class ClaudeCliDataSource {
     // si no, se cae al de fábrica.
     env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
 
-    final extraPaths = [..._extraPathDirs, if (home.isNotEmpty) '$home/.local/bin'];
+    final extraPaths = [
+      ..._extraPathDirs,
+      if (home.isNotEmpty) '$home/.local/bin',
+    ];
     final currentPath = env['PATH'] ?? '';
-    env['PATH'] = [...extraPaths, currentPath].where((p) => p.isNotEmpty).join(':');
+    env['PATH'] = [
+      ...extraPaths,
+      currentPath,
+    ].where((p) => p.isNotEmpty).join(':');
 
     return env;
   }

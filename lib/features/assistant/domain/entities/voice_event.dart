@@ -49,12 +49,17 @@ final class VoiceToolRequested extends VoiceEvent {
   const VoiceToolRequested({
     required this.callId,
     required this.name,
-    required this.instruction,
+    required this.arguments,
   });
 
   final String callId;
   final String name;
-  final String instruction;
+
+  /// Los argumentos tal como los redactó el modelo. Se guardan crudos y sin
+  /// interpretar porque **cada herramienta tiene los suyos**: encargar trabajo
+  /// lleva una instrucción, crear una skill lleva nombre y propósito. Quien
+  /// sabe qué hacer con ellos es el caso de uso, no el traductor del socket.
+  final Map<String, dynamic> arguments;
 }
 
 /// Empezó el encargo a Claude. La interfaz pasa a "trabajando".
@@ -66,6 +71,30 @@ final class VoiceToolStarted extends VoiceEvent {
   /// **lo que se va a ejecutar de verdad**, y esconderlo detrás de un
   /// "trabajando…" sería esconder justo la parte revisable.
   final String instruction;
+}
+
+/// Una acción concreta de Claude dentro del encargo: qué archivo lee, qué
+/// comando corre.
+///
+/// Va como evento propio y no dentro del texto porque la interfaz lo pinta en
+/// otro sitio —la columna «Ahora mismo»— y con otro significado: el texto es
+/// lo que cuenta, esto es lo que hace.
+final class VoiceToolActivity extends VoiceEvent {
+  const VoiceToolActivity({
+    required this.id,
+    required this.description,
+    required this.writes,
+    required this.done,
+    this.detail,
+    this.output,
+  });
+
+  final String id;
+  final String description;
+  final bool writes;
+  final bool done;
+  final String? detail;
+  final String? output;
 }
 
 /// Trozo de lo que Claude va contando mientras trabaja.

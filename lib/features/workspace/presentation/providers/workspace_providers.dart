@@ -1,0 +1,108 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
+import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
+
+final workspaceStoreProvider = Provider<WorkspaceStore>(
+  (ref) => const WorkspaceStoreImpl(WorkspacePreferencesDataSource()),
+);
+
+final folderPickerProvider = Provider<FolderPicker>(
+  (ref) => const SystemFolderPicker(),
+);
+
+/// El home del usuario, para pintar las rutas con `~` como en el mockup.
+final homeDirectoryProvider = Provider<String>(
+  (ref) => Platform.environment['HOME'] ?? '',
+);
+
+/// Las carpetas emparejadas y sus permisos, en memoria y en disco.
+class WorkspaceController extends Notifier<Workspace> {
+  @override
+  Workspace build() {
+    unawaited(_load());
+    return const Workspace();
+  }
+
+  Future<void> _load() async {
+    state = await ref.read(workspaceStoreProvider).read();
+  }
+
+  Future<void> _persist(Workspace next) async {
+    state = next;
+    await ref.read(workspaceStoreProvider).save(next);
+  }
+
+  /// Abre el diálogo del sistema y empareja lo que se elija.
+  ///
+  /// La carpeta nueva entra en **solo texto**: el modo restrictivo. Si entrara
+  /// en voz, la primera carpeta emparejada se filtraría hacia Google por
+  /// omisión, que es exactamente el fallo que este control existe para evitar
+  /// (decisión i5).
+  Future<void> pairFolder() async {
+    final path = await ref.read(folderPickerProvider).pickFolder();
+    if (path == null) return;
+    if (state.folders.any((folder) => folder.path == path)) {
+      await _persist(state.copyWith(activePath: path));
+      return;
+    }
+
+    final folder = PairedFolder(path: path, modality: FolderModality.textOnly);
+    await _persist(
+      state.copyWith(folders: [...state.folders, folder], activePath: path),
+    );
+  }
+
+  Future<void> removeFolder(String path) async {
+    final folders = state.folders
+        .where((folder) => folder.path != path)
+        .toList();
+    final wasActive = state.activePath == path;
+    await _persist(
+      Workspace(
+        folders: folders,
+        activePath: wasActive ? null : state.activePath,
+        permission: state.permission,
+      ),
+    );
+  }
+
+  Future<void> setActive(String path) async {
+    if (state.activePath == path) return;
+    await _persist(state.copyWith(activePath: path));
+  }
+
+  Future<void> setModality(String path, FolderModality modality) async {
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          folder.copyWith(modality: modality)
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
+  Future<void> setPermission(FilePermission permission) async {
+    if (state.permission == permission) return;
+    await _persist(state.copyWith(permission: permission));
+  }
+
+  void togglePermission() {
+    unawaited(
+      setPermission(
+        state.permission == FilePermission.readOnly
+            ? FilePermission.canEdit
+            : FilePermission.readOnly,
+      ),
+    );
+  }
+}
+
+final workspaceControllerProvider =
+    NotifierProvider<WorkspaceController, Workspace>(WorkspaceController.new);

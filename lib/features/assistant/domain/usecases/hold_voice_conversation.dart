@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 
 /// La conversación completa: micrófono → socket → altavoz, y Claude en medio
 /// cuando hay trabajo de verdad que hacer.
@@ -20,7 +21,12 @@ import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 /// encarga el trabajo es otro modelo. Cada una sigue probándose por separado;
 /// el pegamento es esto.
 class HoldVoiceConversation {
-  const HoldVoiceConversation(this._voiceInput, this._gateway, this._output, this._askClaude);
+  const HoldVoiceConversation(
+    this._voiceInput,
+    this._gateway,
+    this._output,
+    this._askClaude,
+  );
 
   /// Cuánto se espera sin actividad antes de cerrar sola la sesión.
   ///
@@ -37,6 +43,21 @@ class HoldVoiceConversation {
   final VoiceGateway _gateway;
   final AudioOutput _output;
   final AskClaude _askClaude;
+
+  /// Lo que la pantalla enseña como titular del trabajo.
+  ///
+  /// Para un encargo normal es la instrucción que redactó el modelo, que es lo
+  /// que se va a ejecutar y la única parte revisable. Para crear una skill,
+  /// el encargo es una plantilla de veinte líneas que no dice nada al leerla:
+  /// ahí el titular útil es el nombre.
+  static String _headline(VoiceToolRequested request) {
+    if (request.name == ClaudeErrand.skillTool) {
+      return 'Creando la skill ${ClaudeErrand.skillName(request.arguments['nombre'] as String?) ?? ''}'
+          .trim();
+    }
+    return (request.arguments['instruccion'] as String?)?.trim() ??
+        request.name;
+  }
 
   /// Abre la conversación y emite lo que ocurre dentro. **Cancelar la
   /// suscripción la cierra entera**: micrófono, socket y altavoz. Ese es el
@@ -82,7 +103,17 @@ class HoldVoiceConversation {
     void keepAlive() {
       idleTimer?.cancel();
       idleTimer = Timer(_idleTimeout, () async {
-        // «Dejaron de llegar eventos» no es «dejó de hablar»: el servicio
+        // Con un encargo en marcha no se cierra, y punto. Reiniciar la cuenta
+        // con cada evento de Claude no bastaba: **el primero tarda más que el
+        // propio plazo** —arrancar el CLI, cargar los CLAUDE.md del árbol— así
+        // que la sesión se cerraba antes de recibir nada y `shutdown()` mataba
+        // el proceso. Silencio mientras se trabaja no es inactividad.
+        if (abortErrand != null) {
+          keepAlive();
+          return;
+        }
+
+        // «Dejaron de llegar eventos» tampoco es «dejó de hablar»: el servicio
         // entrega la respuesta más rápido que en tiempo real, así que el
         // altavoz puede tener frases enteras pendientes cuando el socket ya
         // está callado. Cerrar aquí cortaba la respuesta a media palabra.
@@ -105,7 +136,21 @@ class HoldVoiceConversation {
     /// ella la conversación se queda muda para siempre, que es peor que una
     /// mala noticia bien contada.
     Future<void> runTool(VoiceToolRequested request) async {
-      controller.add(VoiceToolStarted(request.instruction));
+      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
+      // Herramienta desconocida o argumentos incompletos: se contesta igual.
+      // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
+      // y la conversación muda para siempre.
+      if (instruction == null || instruction.isEmpty) {
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result:
+              'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
+        );
+        return;
+      }
+
+      controller.add(VoiceToolStarted(_headline(request)));
       final answer = StringBuffer();
       var ok = true;
       var aborted = false;
@@ -114,7 +159,7 @@ class HoldVoiceConversation {
         if (!ended.isCompleted) ended.complete();
       }
 
-      final errand = _askClaude(request.instruction).listen(
+      final errand = _askClaude(instruction).listen(
         (event) {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por
@@ -135,6 +180,26 @@ class HoldVoiceConversation {
               answer
                 ..clear()
                 ..write('La tarea falló: $message');
+            case ClaudeToolUsed():
+              controller.add(
+                VoiceToolActivity(
+                  id: event.id,
+                  description: event.description,
+                  writes: event.writes,
+                  done: false,
+                  detail: event.detail,
+                ),
+              );
+            case ClaudeToolFinished():
+              controller.add(
+                VoiceToolActivity(
+                  id: event.id,
+                  description: '',
+                  writes: false,
+                  done: true,
+                  output: event.output,
+                ),
+              );
             case ClaudeSessionStarted():
               break;
           }
@@ -170,7 +235,9 @@ class HoldVoiceConversation {
       session?.sendToolResult(
         callId: request.callId,
         name: request.name,
-        result: answer.isEmpty ? 'La tarea terminó sin devolver nada.' : answer.toString(),
+        result: answer.isEmpty
+            ? 'La tarea terminó sin devolver nada.'
+            : answer.toString(),
       );
       controller.add(VoiceToolFinished(ok: ok));
       keepAlive();
@@ -189,7 +256,11 @@ class HoldVoiceConversation {
       final because = session?.endReason;
 
       if (reconnects >= _maxReconnects) {
-        controller.add(VoiceSessionFailed('La conexión con el servicio de voz no se sostiene: ${because ?? 'se cortó varias veces seguidas'}.'));
+        controller.add(
+          VoiceSessionFailed(
+            'La conexión con el servicio de voz no se sostiene: ${because ?? 'se cortó varias veces seguidas'}.',
+          ),
+        );
         if (!controller.isClosed) await controller.close();
         return;
       }
@@ -200,7 +271,9 @@ class HoldVoiceConversation {
         sessionSubscription = null;
         attach(await _gateway.resume());
       } catch (error) {
-        controller.add(VoiceSessionFailed(because == null ? '$error' : '$error ($because)'));
+        controller.add(
+          VoiceSessionFailed(because == null ? '$error' : '$error ($because)'),
+        );
         if (!controller.isClosed) await controller.close();
       }
     }
@@ -259,7 +332,8 @@ class HoldVoiceConversation {
           // otra sesión, y capturarla en una variable mandaría el audio a la
           // conexión muerta.
           (frame) => session?.sendAudio(frame.pcm),
-          onError: (Object error) => controller.add(VoiceSessionFailed('$error')),
+          onError: (Object error) =>
+              controller.add(VoiceSessionFailed('$error')),
         );
       } catch (error, stackTrace) {
         controller.addError(error, stackTrace);

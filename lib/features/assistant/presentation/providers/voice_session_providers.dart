@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 
 final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
@@ -18,7 +19,11 @@ final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
 /// `assistant` no depende de `onboarding` más que en este punto.
 final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
   final keyStore = ref.watch(geminiKeyStoreProvider);
-  return GeminiVoiceGateway(ref.watch(geminiLiveDataSourceProvider), keyStore.read);
+  return GeminiVoiceGateway(
+    ref.watch(geminiLiveDataSourceProvider),
+    keyStore.read,
+    () => ref.read(voicePreferenceProvider).name,
+  );
 });
 
 final audioOutputProvider = Provider<AudioOutput>((ref) {
@@ -27,11 +32,15 @@ final audioOutputProvider = Provider<AudioOutput>((ref) {
   return output;
 });
 
-final holdVoiceConversationProvider = Provider<HoldVoiceConversation>(
-  (ref) => HoldVoiceConversation(
-    ref.watch(voiceInputProvider),
-    ref.watch(voiceGatewayProvider),
-    ref.watch(audioOutputProvider),
-    ref.watch(askClaudeProvider),
-  ),
-);
+/// Por conversación, porque el encargo que salga de la voz tiene que ir a la
+/// carpeta de **esa** conversación. El micrófono y el altavoz siguen siendo
+/// únicos: los comparten porque solo la del foco puede abrir sesión.
+final holdVoiceConversationProvider =
+    Provider.family<HoldVoiceConversation, String>(
+      (ref, conversationId) => HoldVoiceConversation(
+        ref.watch(voiceInputProvider),
+        ref.watch(voiceGatewayProvider),
+        ref.watch(audioOutputProvider),
+        ref.watch(askClaudeProvider(conversationId)),
+      ),
+    );
