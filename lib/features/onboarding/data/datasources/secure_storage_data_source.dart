@@ -10,11 +10,12 @@ class SecureStorageDataSource {
 
   /// Keychain clásico (el del login) en vez del *data protection keychain*.
   ///
-  /// El de protección de datos —el que usa el paquete por defecto— exige el
-  /// entitlement `keychain-access-groups`, y ese solo se puede conceder
-  /// firmando con un certificado de desarrollo: con la firma ad-hoc de un
-  /// build local, Xcode ni siquiera deja compilar con él, y sin él el guardado
-  /// falla con -34018 (errSecMissingEntitlement). El keychain del login está
+  /// El de protección de datos exige el entitlement `keychain-access-groups`,
+  /// y ese —con perfil o sin él, con grupo explícito o con el array vacío—
+  /// obliga a un *provisioning profile*, que a su vez exige tener este Mac
+  /// registrado en la cuenta de desarrollador. La app ya se firma con
+  /// certificado real (Developer ID, equipo Y9H7TRB5L7), así que lo único que
+  /// falta para dar el salto es ese registro. El keychain del login está
   /// cifrado igual y protegido por la contraseña de la cuenta, así que la
   /// promesa de la pantalla ("se guarda cifrada en este Mac") se mantiene.
   static const _macOptions = MacOsOptions(usesDataProtectionKeychain: false);
