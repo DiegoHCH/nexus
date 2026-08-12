@@ -29,6 +29,10 @@ class HoldVoiceConversation {
   /// la repregunta, que es lo que pasaría cerrando al terminar cada frase.
   static const _idleTimeout = Duration(seconds: 6);
 
+  /// Reenganches seguidos sin que llegue nada en medio antes de rendirse.
+  /// Reintentar en bucle contra un servicio caído solo esconde el problema.
+  static const _maxReconnects = 3;
+
   final VoiceInput _voiceInput;
   final VoiceGateway _gateway;
   final AudioOutput _output;
@@ -44,8 +48,12 @@ class HoldVoiceConversation {
     StreamSubscription<AudioFrame>? micSubscription;
     StreamSubscription<VoiceEvent>? sessionSubscription;
     Timer? idleTimer;
+    late void Function(VoiceSession) attach;
+    var reconnects = 0;
+    var closing = false;
 
     Future<void> shutdown() async {
+      closing = true;
       idleTimer?.cancel();
       idleTimer = null;
       await micSubscription?.cancel();
@@ -127,40 +135,83 @@ class HoldVoiceConversation {
       keepAlive();
     }
 
+    /// Reengancha la conversación cuando el servicio corta la conexión.
+    ///
+    /// El corte llega cada pocos minutos por diseño del servicio, y con los
+    /// encargos a Claude sosteniendo la sesión abierta se alcanza de verdad.
+    /// Si el reenganche falla se cierra y punto: seguir con la memoria en
+    /// blanco, disimulando que es la misma charla, sería peor.
+    Future<void> reconnect() async {
+      // El motivo del corte se arrastra al mensaje de error: si el reenganche
+      // acaba fallando, «no se pudo recuperar la conversación» a secas no dice
+      // nada, y la causa real (llave mala, cuota, red) está aquí.
+      final because = session?.endReason;
+
+      if (reconnects >= _maxReconnects) {
+        controller.add(VoiceSessionFailed('La conexión con el servicio de voz no se sostiene: ${because ?? 'se cortó varias veces seguidas'}.'));
+        if (!controller.isClosed) await controller.close();
+        return;
+      }
+      reconnects++;
+
+      try {
+        await sessionSubscription?.cancel();
+        sessionSubscription = null;
+        attach(await _gateway.resume());
+      } catch (error) {
+        controller.add(VoiceSessionFailed(because == null ? '$error' : '$error ($because)'));
+        if (!controller.isClosed) await controller.close();
+      }
+    }
+
+    attach = (VoiceSession live) {
+      session = live;
+      sessionSubscription = live.events.listen(
+        (event) {
+          // Llegó algo: la conexión va bien, así que la cuenta de reenganches
+          // vuelve a cero. Si no, tres cortes en toda una tarde acabarían
+          // pareciendo un servicio caído.
+          reconnects = 0;
+          keepAlive();
+          switch (event) {
+            // El audio no sale hacia la interfaz: se reproduce y punto. Lo
+            // que la interfaz necesita de la respuesta es el texto, que
+            // llega aparte como transcripción.
+            case VoiceReplyAudio(:final pcm):
+              _output.enqueue(pcm);
+            case VoiceInterrupted():
+              unawaited(_output.discard());
+              controller.add(event);
+            // La petición no sale hacia la interfaz: la atiende este caso de
+            // uso, que es quien tiene el puente. La pantalla ve el trabajo
+            // empezar y avanzar, no la fontanería.
+            case VoiceToolRequested():
+              unawaited(runTool(event));
+            default:
+              controller.add(event);
+          }
+        },
+        onError: controller.addError,
+        // Que se acabe el stream no significa que se acabe la conversación:
+        // puede ser el corte de conexión periódico. Solo se cierra de verdad
+        // si ya estábamos apagando o si no hay forma de volver.
+        onDone: () {
+          if (closing || controller.isClosed) return;
+          unawaited(reconnect());
+        },
+      );
+    };
+
     Future<void> boot() async {
       try {
         await _output.start();
-        final live = await _gateway.connect();
-        session = live;
-
+        attach(await _gateway.connect());
         keepAlive();
 
-        sessionSubscription = live.events.listen(
-          (event) {
-            keepAlive();
-            switch (event) {
-              // El audio no sale hacia la interfaz: se reproduce y punto. Lo
-              // que la interfaz necesita de la respuesta es el texto, que
-              // llega aparte como transcripción.
-              case VoiceReplyAudio(:final pcm):
-                _output.enqueue(pcm);
-              case VoiceInterrupted():
-                unawaited(_output.discard());
-                controller.add(event);
-              // La petición no sale hacia la interfaz: la atiende este caso de
-              // uso, que es quien tiene el puente. La pantalla ve el trabajo
-              // empezar y avanzar, no la fontanería.
-              case VoiceToolRequested():
-                unawaited(runTool(event));
-              default:
-                controller.add(event);
-            }
-          },
-          onError: controller.addError,
-          onDone: controller.close,
-        );
-
         micSubscription = _voiceInput.listen().listen(
+          // Se lee `session` en cada trozo a propósito: tras un reenganche es
+          // otra sesión, y capturarla en una variable mandaría el audio a la
+          // conexión muerta.
           (frame) => session?.sendAudio(frame.pcm),
           onError: (Object error) => controller.add(VoiceSessionFailed('$error')),
         );

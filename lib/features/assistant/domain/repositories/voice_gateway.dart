@@ -16,15 +16,34 @@ abstract final class VoiceSessionFormat {
 /// Quien sabe abrir una conversación de voz. Una implementación por servicio;
 /// hoy solo la Live API de Gemini.
 abstract class VoiceGateway {
-  /// Abre la sesión y la deja lista para recibir audio. Lanza si no hay
-  /// llave guardada o si el servicio rechaza la conexión.
+  /// Abre una conversación **nueva**, sin memoria de las anteriores. Lanza si
+  /// no hay llave guardada o si el servicio rechaza la conexión.
   Future<VoiceSession> connect();
+
+  /// Reengancha **la misma conversación** en una conexión nueva, conservando
+  /// lo que ya se había hablado.
+  ///
+  /// No es un lujo: el servicio corta cada conexión al cabo de unos minutos,
+  /// así que sin esto una charla larga —o un par de encargos lentos a Claude—
+  /// se moriría a media frase. Lanza si esa conversación ya no se puede
+  /// recuperar, y entonces lo honesto es cerrar y que el usuario vuelva a
+  /// abrir, no seguir con una memoria en blanco disimulando.
+  Future<VoiceSession> resume();
 }
 
 /// Una conversación abierta. Vive hasta que alguien la cierra.
 abstract class VoiceSession {
   /// Todo lo que llega del servicio. Se cierra cuando la sesión termina.
   Stream<VoiceEvent> get events;
+
+  /// Por qué terminó, si terminó de forma anormal. `null` si acabó bien o
+  /// sigue viva.
+  ///
+  /// La sesión **no decide** si eso es un fallo: informa. El servicio corta
+  /// conexiones cada pocos minutos, a veces sin despedirse, y quien sabe si
+  /// eso importa es quien lleva el ciclo de vida — que puede reengancharse y
+  /// seguir como si nada.
+  String? get endReason;
 
   /// Empuja un trozo de micrófono: PCM 16 bits mono a
   /// [VoiceSessionFormat.inputSampleRate].

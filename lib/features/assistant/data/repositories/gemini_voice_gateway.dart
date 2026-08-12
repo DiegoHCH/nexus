@@ -8,7 +8,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
 class GeminiVoiceGateway implements VoiceGateway {
-  const GeminiVoiceGateway(this._dataSource, this._readApiKey);
+  GeminiVoiceGateway(this._dataSource, this._readApiKey);
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
   /// llave cambiada en Ajustes vale desde la siguiente sesión sin reconstruir
@@ -16,16 +16,46 @@ class GeminiVoiceGateway implements VoiceGateway {
   final Future<String?> Function() _readApiKey;
   final GeminiLiveDataSource _dataSource;
 
+  /// Lo último que el servicio dio para poder reengancharse. Vive aquí —y no
+  /// en el dominio— porque es un detalle de este servicio: el dominio solo
+  /// sabe que una conversación se puede continuar.
+  String? _resumptionHandle;
+
   @override
-  Future<VoiceSession> connect() async {
+  Future<VoiceSession> connect() {
+    // Conversación nueva: se tira el asa vieja, o el modelo arrancaría
+    // recordando una charla de hace una hora que el usuario ya cerró.
+    _resumptionHandle = null;
+    return _open();
+  }
+
+  @override
+  Future<VoiceSession> resume() {
+    if (_resumptionHandle == null) {
+      throw StateError('La conversación anterior ya no se puede recuperar.');
+    }
+    return _open();
+  }
+
+  Future<VoiceSession> _open() async {
     final apiKey = await _readApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw StateError('No hay llave de Gemini guardada.');
     }
 
-    final connection = await _dataSource.open(apiKey: apiKey, setup: _setup);
-    return _GeminiVoiceSession(connection);
+    final connection = await _dataSource.open(apiKey: apiKey, setup: _buildSetup());
+    return _GeminiVoiceSession(
+      connection,
+      onResumptionHandle: (handle) => _resumptionHandle = handle,
+    );
   }
+
+  Map<String, dynamic> _buildSetup() => {
+    ..._setup,
+    // Con el asa a `null` se pide igual: es la forma de decirle al servicio
+    // que queremos poder reengancharnos, y él va mandando asas nuevas.
+    'sessionResumption': {'handle': _resumptionHandle},
+  };
 
   static Map<String, dynamic> get _setup => {
     'model': 'models/${GeminiLiveDataSource.model}',
@@ -36,6 +66,11 @@ class GeminiVoiceGateway implements VoiceGateway {
     // tendría que transcribir por su cuenta. Con esto llega hecho.
     'inputAudioTranscription': <String, dynamic>{},
     'outputAudioTranscription': <String, dynamic>{},
+    // Una sesión de solo audio caduca a los 15 minutos; con la ventana
+    // deslizante deja de caducar, a cambio de ir soltando lo más viejo de la
+    // conversación. Para hablar es el intercambio correcto: nadie espera que
+    // recuerde literalmente lo de hace veinte minutos, y sí que no se muera.
+    'contextWindowCompression': {'slidingWindow': <String, dynamic>{}},
     'systemInstruction': {
       'parts': [
         {
@@ -82,16 +117,19 @@ class GeminiVoiceGateway implements VoiceGateway {
 }
 
 class _GeminiVoiceSession implements VoiceSession {
-  _GeminiVoiceSession(this._connection) {
+  _GeminiVoiceSession(this._connection, {required this.onResumptionHandle}) {
     _subscription = _connection.messages.listen(
       _translate,
       onError: (Object error) => _events.add(VoiceSessionFailed('$error')),
       onDone: () {
-        // Un cierre del lado de Google no llega como error, solo se acaba el
-        // stream: sin esto, la interfaz se quedaría esperando para siempre.
+        // Aquí no se juzga: se anota el motivo y se cierra el stream. Google
+        // corta la conexión cada pocos minutos —a veces con `goAway` y a
+        // veces sin despedirse, con un 1006 seco, comprobado— y llamar a eso
+        // un fallo mataría la conversación en vez de reengancharla.
         final code = _connection.closeCode;
         if (code != null && code != 1000) {
-          _events.add(VoiceSessionFailed('El servicio cerró la sesión ($code ${_connection.closeReason ?? ''})'.trim()));
+          final reason = _connection.closeReason;
+          endReason = 'el servicio cortó la conexión ($code${reason == null || reason.isEmpty ? '' : ' $reason'})';
         }
         _events.close();
       },
@@ -99,8 +137,15 @@ class _GeminiVoiceSession implements VoiceSession {
   }
 
   final GeminiLiveConnection _connection;
+
+  /// Se llama con cada asa nueva. El gateway la guarda para reengancharse.
+  final void Function(String handle) onResumptionHandle;
+
   final _events = StreamController<VoiceEvent>.broadcast();
   late final StreamSubscription<Map<String, dynamic>> _subscription;
+
+  @override
+  String? endReason;
 
   @override
   Stream<VoiceEvent> get events => _events.stream;
@@ -110,6 +155,20 @@ class _GeminiVoiceSession implements VoiceSession {
       _events.add(const VoiceSessionReady());
       return;
     }
+
+    // El asa se renueva sola durante la conversación; hay que quedarse con la
+    // última, no con la primera.
+    final resumption = message['sessionResumptionUpdate'] as Map<String, dynamic>?;
+    if (resumption != null) {
+      final handle = resumption['newHandle'] as String?;
+      if (resumption['resumable'] == true && handle != null) onResumptionHandle(handle);
+      return;
+    }
+
+    // Aviso de que esta conexión se acaba. No hace falta hacer nada: el corte
+    // se atiende igual cuando llega, con aviso o sin él —a veces no lo hay—,
+    // y el reenganche es asunto del caso de uso.
+    if (message.containsKey('goAway')) return;
 
     final toolCall = message['toolCall'] as Map<String, dynamic>?;
     if (toolCall != null) {
