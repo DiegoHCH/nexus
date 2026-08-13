@@ -466,9 +466,18 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     _heard.clear();
     _reply.clear();
-    state = const AssistantHudState(
+    // `copyWith` y no un estado nuevo: construirlo de cero **borraba la
+    // conversación entera**. Al tocar el orbe para hablar, los mensajes
+    // desaparecían y con ellos la ventana de la derecha, así que el orbe se
+    // volvía a poner en medio como si nunca hubieras dicho nada. Lo único que
+    // empieza de cero al abrir la voz es la actividad de este turno.
+    state = state.copyWith(
       orbState: NexusOrbState.think,
       voiceActive: true,
+      isStreaming: false,
+      subtitle: '',
+      activity: const [],
+      errorMessage: null,
     );
 
     final conversation = ref.read(
