@@ -10,6 +10,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
@@ -23,6 +24,22 @@ import 'package:nexus/features/workspace/presentation/widgets/hud_top_bar.dart';
 /// El orbe fijo a la izquierda y la conversación a la derecha: lo que le
 /// pediste y lo que respondió, por voz o escrito, en el mismo sitio. Abajo, la
 /// caja para escribirle, siempre disponible.
+/// Dónde nace una conversación cuando no hay ninguna abierta.
+///
+/// **Manda la carpeta activa**, que es la que enseña la barra. Antes se abría
+/// siempre sobre `folders.first`, y eso hacía que elegir carpeta y ponerse a
+/// escribir empezara en otra — con «Sin proyecto», que la elección se perdiera
+/// del todo, porque la carpeta de documentos no está entre las emparejadas.
+///
+/// Si no hay ninguna emparejada pero sí carpeta de documentos, se trabaja ahí:
+/// pedir un mockup no exige tener un proyecto.
+String? whereToStart(WidgetRef ref) {
+  final workspace = ref.read(workspaceControllerProvider);
+  return workspace.activePath ??
+      workspace.folders.firstOrNull?.path ??
+      ref.read(artifactsFolderProvider);
+}
+
 class HomePage extends ConsumerStatefulWidget {
   const HomePage({super.key});
 
@@ -59,11 +76,9 @@ class _HomePageState extends ConsumerState<HomePage> {
   Future<void> _talk() async {
     var focused = ref.read(conversationsProvider).focused;
     if (focused == null) {
-      final folders = ref.read(workspaceControllerProvider).folders;
-      if (folders.isEmpty) return;
-      final id = await ref
-          .read(conversationsProvider.notifier)
-          .open(folders.first.path);
+      final where = whereToStart(ref);
+      if (where == null) return;
+      final id = await ref.read(conversationsProvider.notifier).open(where);
       if (id == null) return;
       focused = ref.read(conversationsProvider).byId(id);
       if (focused == null) return;
@@ -244,16 +259,15 @@ class _FirstRun extends ConsumerStatefulWidget {
 
 class _FirstRunState extends ConsumerState<_FirstRun> {
   Future<void> _startWith(String text) async {
-    final folders = ref.read(workspaceControllerProvider).folders;
-    if (folders.isEmpty) {
-      // Sin carpetas no hay dónde trabajar: se lleva a emparejar en vez de
-      // crear una conversación que no podría hacer nada.
+    final where = whereToStart(ref);
+    if (where == null) {
+      // Ni carpeta emparejada ni carpeta de documentos: no hay dónde trabajar,
+      // así que se lleva a elegir en vez de crear una conversación que no
+      // podría hacer nada.
       if (mounted) await SettingsPage.open(context);
       return;
     }
-    final id = await ref
-        .read(conversationsProvider.notifier)
-        .open(folders.first.path);
+    final id = await ref.read(conversationsProvider.notifier).open(where);
     if (id == null) return;
     await ref.read(assistantControllerProvider(id).notifier).submit(text);
   }
@@ -288,7 +302,8 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                       bottom: NexusSpacing.s5,
                       child: ConversationDock(),
                     ),
-                    if (folders.isEmpty)
+                    if (folders.isEmpty &&
+                        ref.watch(artifactsFolderProvider) == null)
                       Positioned(
                         top: NexusSpacing.s5,
                         left: 0,

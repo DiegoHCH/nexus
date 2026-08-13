@@ -277,6 +277,9 @@ class _Chips extends ConsumerWidget {
               // conversación nacerá cuando escribas o hables. Crear una aquí
               // llenaría el dock de conversaciones vacías cada vez que miras
               // dónde ibas a trabajar.
+              //
+              // Lo que sí tiene que valer es **esa** carpeta y no otra: la que
+              // se apunte aquí es la que se usa al escribir.
               await ref
                   .read(workspaceControllerProvider.notifier)
                   .setActive(value);

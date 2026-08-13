@@ -480,11 +480,12 @@ class NexusStringsEs extends NexusStrings {
   String get noProject => 'Sin proyecto';
   @override
   String get artifactsExplainer =>
-      'Lo que Claude genera —mockups, informes, hojas— va a la carpeta que '
-      'elijas, y desde aquí se abre.';
+      'La carpeta para lo que no es de ningún proyecto: ahí trabajan las '
+      'conversaciones sin proyecto y ahí deja Claude lo que genere.';
   @override
   String get artifactsNoFolder =>
-      'Elige una carpeta y se la diré a Claude para que deje ahí lo que genere.';
+      'Elige una carpeta para lo que no es de ningún proyecto. Ahí trabajarán '
+      'las conversaciones sin proyecto y ahí dejará Claude lo que genere.';
   @override
   String get artifactsEmpty => 'Todavía no hay nada en esa carpeta.';
   @override
@@ -1027,11 +1028,12 @@ class NexusStringsEn extends NexusStrings {
   String get noProject => 'No project';
   @override
   String get artifactsExplainer =>
-      'What Claude produces — mockups, reports, sheets — goes to the folder you '
-      'pick, and opens from here.';
+      "The folder for whatever isn't part of a project: conversations with no "
+      'project work there, and Claude leaves what it produces there.';
   @override
   String get artifactsNoFolder =>
-      'Pick a folder and I will tell Claude to leave what it makes there.';
+      "Pick a folder for whatever isn't part of a project. Conversations with "
+      'no project will work there, and Claude will leave what it makes there.';
   @override
   String get artifactsEmpty => 'Nothing in that folder yet.';
   @override
