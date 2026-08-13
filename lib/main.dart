@@ -66,10 +66,14 @@ class _MainAppState extends ConsumerState<MainApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: StringsScope(
-        strings: NexusStrings.of(locale),
-        child: const AppRoot(),
-      ),
+      // Por encima del Navigator, no envolviendo `home`: Ajustes se abre como
+      // una ruta nueva, y esas se construyen **fuera** del hijo de `home`. Con
+      // el scope ahí abajo, abrir Ajustes reventaba con «falta un
+      // StringsScope» — y solo en esa pantalla, que es lo que lo hacía fácil
+      // de no ver hasta usarla.
+      builder: (context, child) =>
+          StringsScope(strings: NexusStrings.of(locale), child: child!),
+      home: const AppRoot(),
     );
   }
 }
