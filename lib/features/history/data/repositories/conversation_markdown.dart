@@ -27,12 +27,20 @@ abstract final class ConversationMarkdown {
     required bool wikilinks,
   }) {
     final buffer = StringBuffer()
+      // Las mismas claves que ya escribe La Oficina en este vault, y por el
+      // mismo motivo: si dos apps dejan notas en la misma carpeta y cada una
+      // inventa su cabecera, ninguna puede leer las de la otra.
       ..writeln('---')
       ..writeln('titulo: ${_quote(record.title)}')
-      ..writeln('proyecto: ${record.projectName}')
-      ..writeln('carpeta: ${record.folderPath}')
+      ..writeln('proyecto: ${_quote(record.folderPath)}')
       ..writeln('fecha: ${record.startedAt.toIso8601String()}')
-      ..writeln('tags: [nexus, ${_slug(record.projectName)}]')
+      ..writeln('id: ${_quote(record.id)}')
+      ..writeln(
+        record.profileName == null
+            ? 'tags: [nexus, ${_slug(record.projectName)}]'
+            : 'perfil: ${_quote(record.profileName!)}\n'
+                  'tags: [nexus, ${record.profileName}, ${_slug(record.projectName)}]',
+      )
       ..writeln('---')
       ..writeln()
       ..writeln('# ${record.title}')
@@ -73,8 +81,8 @@ abstract final class ConversationMarkdown {
   }) {
     final buffer = StringBuffer()
       ..writeln('---')
-      ..writeln('proyecto: $projectName')
-      ..writeln('carpeta: $folderPath')
+      ..writeln('proyecto: ${_quote(folderPath)}')
+      ..writeln('nombre: $projectName')
       ..writeln('tags: [nexus, proyecto]')
       ..writeln('---')
       ..writeln()

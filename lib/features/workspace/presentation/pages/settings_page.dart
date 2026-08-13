@@ -820,6 +820,10 @@ class _Chooser<T> extends StatelessWidget {
           // El desplegado hereda el fondo claro de Material si no se le dice
           // lo contrario, y en esta app eso es un fogonazo blanco.
           dropdownColor: colors.deep,
+          // Sin esto, el botón se queda pintado de cian después de elegir: es
+          // el resaltado de foco de Material, que en un control tan ancho se
+          // lee como «esto sigue seleccionado» en vez de «esto tiene el foco».
+          focusColor: Colors.transparent,
           borderRadius: BorderRadius.circular(NexusRadius.sm),
           icon: Icon(Icons.expand_more, size: 16, color: colors.faint),
           style: NexusTypography.data.copyWith(color: colors.ink),

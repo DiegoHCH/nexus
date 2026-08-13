@@ -4,6 +4,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
+import 'package:nexus/features/history/data/datasources/vault_reader.dart';
 import 'package:nexus/features/history/data/datasources/notion_api.dart';
 import 'package:nexus/features/history/data/repositories/markdown_archive.dart';
 import 'package:nexus/features/history/data/repositories/notion_archive.dart';
@@ -202,10 +203,39 @@ final localConversationStoreProvider = Provider<LocalConversationStore>(
   (ref) => const LocalConversationStore(),
 );
 
-/// Las conversaciones guardadas de una carpeta. Se recarga sola al invalidar,
-/// que es lo que se hace al terminar un turno.
+/// Las conversaciones de una carpeta: las de la app **y las que ya hubiera** en
+/// la carpeta o el vault elegido.
+///
+/// Se juntan a propósito. Ese vault puede traer conversaciones de La Oficina
+/// sobre los mismos repos y con el mismo Claude; esconderlas porque las escribió
+/// otra app sería una frontera que solo existe en el código. Se recarga al
+/// invalidar, que es lo que se hace al terminar un turno.
 final savedConversationsProvider =
-    FutureProvider.family<List<ConversationRecord>, String>(
-      (ref, folderPath) =>
-          ref.watch(localConversationStoreProvider).list(folderPath),
-    );
+    FutureProvider.family<List<ConversationRecord>, String>((
+      ref,
+      folderPath,
+    ) async {
+      final propias = await ref
+          .watch(localConversationStoreProvider)
+          .list(folderPath);
+
+      final settings = ref.watch(archiveControllerProvider);
+      final root = settings.destination.needsFolder
+          ? settings.folderPath
+          : null;
+      if (root == null || root.isEmpty) return propias;
+
+      final delVault = await const VaultReader().read(
+        root,
+        folderPath: folderPath,
+      );
+
+      // Lo de la app manda cuando se repiten: es lo que se puede retomar con
+      // todo su detalle, mientras que la nota es una copia para leer fuera.
+      final vistas = {for (final record in propias) record.id};
+      final todas = [
+        ...propias,
+        ...delVault.where((record) => !vistas.contains(record.id)),
+      ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+      return todas;
+    });

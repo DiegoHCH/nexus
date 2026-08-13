@@ -82,7 +82,7 @@ void main() {
       expect(texto, contains('## Tú · por voz'));
       expect(texto, contains('## Nexus'));
       expect(texto, contains('Pasan los 112.'));
-      expect(texto, contains('proyecto: workspace'));
+      expect(texto, contains('proyecto: "/Users/alguien/workspace"'));
     });
 
     // Es la diferencia entre los dos destinos de disco, y no es estética: sin
@@ -125,6 +125,9 @@ void main() {
     );
   });
 
+  // La convención del vault: `perfil/proyecto/`, la misma que ya usa La
+  // Oficina. Si cada app inventara la suya, el mismo proyecto acabaría en dos
+  // sitios y ninguna lista estaría completa.
   group('lo que acaba en el disco', () {
     late Directory destino;
 
@@ -147,7 +150,7 @@ void main() {
         ),
       );
 
-      final base = '${destino.path}/${MarkdownArchive.folderName}';
+      final base = destino.path;
       expect(File('$base/workspace/workspace.md').existsSync(), isTrue);
       expect(
         File(
@@ -167,9 +170,7 @@ void main() {
       await archivo.save(record());
       await archivo.save(record());
 
-      final carpeta = Directory(
-        '${destino.path}/${MarkdownArchive.folderName}/workspace',
-      );
+      final carpeta = Directory('${destino.path}/workspace');
       final md = carpeta.listSync().whereType<File>().length;
       // La conversación y la nota del proyecto. Ni una copia más.
       expect(md, 2);
@@ -194,7 +195,7 @@ void main() {
         );
 
         final nota = File(
-          '${destino.path}/${MarkdownArchive.folderName}/workspace/workspace.md',
+          '${destino.path}/workspace/workspace.md',
         ).readAsStringSync();
 
         expect(nota, contains('[[2026-08-12-mira-el-historial-de-git]]'));
@@ -202,15 +203,35 @@ void main() {
       },
     );
 
+    test('con cuenta elegida, el perfil es el primer nivel', () async {
+      final archivo = MarkdownArchive(root: destino.path, wikilinks: true);
+
+      await archivo.save(
+        ConversationRecord(
+          id: 'c9',
+          folderPath: '/Users/alguien/Workspace',
+          startedAt: DateTime(2026, 8, 12),
+          profileName: 'work',
+          messages: const [
+            ChatMessage(author: ChatAuthor.user, text: 'algo del trabajo'),
+          ],
+        ),
+      );
+
+      expect(
+        File(
+          '${destino.path}/work/Workspace/2026-08-12-algo-del-trabajo.md',
+        ).existsSync(),
+        isTrue,
+      );
+    });
+
     test('una conversación en la que nadie dijo nada no se guarda', () async {
       final archivo = MarkdownArchive(root: destino.path, wikilinks: false);
 
       await archivo.save(record(messages: const []));
 
-      expect(
-        Directory('${destino.path}/${MarkdownArchive.folderName}').existsSync(),
-        isFalse,
-      );
+      expect(Directory('${destino.path}/workspace').existsSync(), isFalse);
     });
   });
 }

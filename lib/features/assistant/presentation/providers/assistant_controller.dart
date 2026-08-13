@@ -267,6 +267,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       folderPath: folder,
       startedAt: _startedAt,
       messages: state.messages,
+      // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale de la
+      // carpeta, que es donde se elige la cuenta.
+      profileName: _profileName(folder),
     );
 
     // Primero el historial de la app, que no depende de nada externo. Si
@@ -292,6 +295,19 @@ class AssistantController extends Notifier<AssistantHudState> {
       // sigue — el historial de la app nunca depende del destino externo.
       developer.log('no se pudo archivar: $error', name: 'nexus.archivo');
     }
+  }
+
+  /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
+  String? _profileName(String folder) {
+    final paired = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull;
+    final profile = paired?.claudeProfile;
+    if (profile == null || profile.isEmpty) return null;
+    final name = profile.split('/').last;
+    return name.startsWith('.claude-') ? name.substring(8) : name;
   }
 
   /// Cuándo empezó, para fechar el archivo. Se fija al construir el

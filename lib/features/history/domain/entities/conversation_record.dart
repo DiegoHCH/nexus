@@ -14,12 +14,22 @@ class ConversationRecord {
     required this.folderPath,
     required this.startedAt,
     required this.messages,
-  });
+    this.profileName,
+    String? title,
+    // El campo es privado y el parámetro no: quien construye pasa `title`, y
+    // adentro se guarda como el título de respaldo que usa el getter.
+    // ignore: prefer_initializing_formals
+  }) : _title = title;
 
   final String id;
   final String folderPath;
   final DateTime startedAt;
   final List<ChatMessage> messages;
+
+  /// Con qué cuenta de Claude se trabajó — `work`, `private`— o `null` con la
+  /// de siempre. Es el primer nivel de carpetas del vault, la misma convención
+  /// que ya usa La Oficina: `vault/perfil/proyecto/conversación.md`.
+  final String? profileName;
 
   /// El nombre de la carpeta, que es como se llama el proyecto en todos lados.
   String get projectName {
@@ -27,10 +37,16 @@ class ConversationRecord {
     return parts.isEmpty ? 'sin-proyecto' : parts.last;
   }
 
+  /// El título que traía la nota, si venía con uno. Lo que se lee de un vault
+  /// ya tiene título escrito, y deducirlo otra vez del primer mensaje daría uno
+  /// distinto del que se ve en el archivo.
+  final String? _title;
+
   /// La primera cosa que se pidió, recortada. Es el mejor título disponible sin
   /// gastar un turno del modelo en inventar uno — y el que reconoce quien
   /// buscaba esta conversación.
   String get title {
+    if (_title case final stored? when stored.trim().isNotEmpty) return stored;
     final first = messages
         .where((message) => message.author == ChatAuthor.user)
         .map((message) => message.text.trim())

@@ -26,16 +26,26 @@ class MarkdownArchive implements ConversationArchive {
 
   final bool wikilinks;
 
-  /// Todo cuelga de una carpeta propia: un vault es de quien lo usa, y llenarle
-  /// la raíz de notas sería apropiarse de su sitio.
-  static const folderName = 'Nexus';
+  /// Dónde va cada conversación: `<destino>/<perfil>/<proyecto>/`.
+  ///
+  /// Es la convención que ya usa el vault de La Oficina, y por eso se adopta
+  /// tal cual en vez de inventar otra: si las dos apps escriben en la misma
+  /// carpeta con dos organizaciones distintas, acabas con el mismo proyecto en
+  /// dos sitios y ninguna lista completa. Sin perfil no se mete un nivel
+  /// vacío — el proyecto cuelga directamente del destino.
+  String _pathFor(ConversationRecord record) {
+    final profile = record.profileName;
+    return profile == null || profile.isEmpty
+        ? '$root/${record.projectName}'
+        : '$root/$profile/${record.projectName}';
+  }
 
   @override
   Future<void> save(ConversationRecord record) async {
     // Una conversación en la que nadie llegó a decir nada no es historial.
     if (record.isEmpty) return;
 
-    final directory = Directory('$root/$folderName/${record.projectName}');
+    final directory = Directory(_pathFor(record));
     await directory.create(recursive: true);
 
     final file = File(
