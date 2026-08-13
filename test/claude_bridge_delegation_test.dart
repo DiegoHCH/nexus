@@ -27,6 +27,7 @@ class _RecordedDataSource extends ClaudeCliDataSource {
     String? configDir,
     String? model,
     String? effort,
+    List<String> disallowedTools = const [],
   }) async* {
     final lines = File(
       'test/fixtures/delegacion_real.jsonl',

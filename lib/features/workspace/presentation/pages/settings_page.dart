@@ -364,6 +364,16 @@ class _PermissionsSection extends ConsumerWidget {
           context.strings.foldersExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
+        // De la carpeta activa: lo que tarda en un repo no tarda en otro, así
+        // que una lista global bloquearía en un proyecto lo que en otro es
+        // instantáneo.
+        if (workspace.folders
+                .where((folder) => folder.path == workspace.activePath)
+                .firstOrNull
+            case final activa?) ...[
+          const SizedBox(height: NexusSpacing.s6),
+          _BlockedCommands(folder: activa),
+        ],
       ],
     );
   }
@@ -438,6 +448,83 @@ class _FolderRow extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Lo que Claude no puede ejecutar en la carpeta activa.
+///
+/// Va en Permisos y no en una sección propia porque es un permiso: la
+/// diferencia con el interruptor es que aquel dice si puede escribir y este
+/// dice qué **no** puede correr, y los dos se leen juntos.
+class _BlockedCommands extends ConsumerStatefulWidget {
+  const _BlockedCommands({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  ConsumerState<_BlockedCommands> createState() => _BlockedCommandsState();
+}
+
+class _BlockedCommandsState extends ConsumerState<_BlockedCommands> {
+  late final _controller = TextEditingController(
+    text: widget.folder.blockedCommands.join('\n'),
+  );
+
+  @override
+  void didUpdateWidget(covariant _BlockedCommands oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Al cambiar de carpeta activa hay que traer su lista: sin esto se quedaría
+    // la de la anterior y se guardaría encima de la nueva.
+    if (widget.folder.path == oldWidget.folder.path) return;
+    _controller.text = widget.folder.blockedCommands.join('\n');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.blockedTitle(widget.folder.name),
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.blockedExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s3),
+        TextField(
+          controller: _controller,
+          minLines: 3,
+          maxLines: 6,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(
+            hintText: strings.blockedHint,
+            hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+          ),
+          onChanged: (value) => ref
+              .read(workspaceControllerProvider.notifier)
+              .setBlockedCommands(
+                widget.folder.path,
+                value
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .toList(),
+              ),
+        ),
+      ],
     );
   }
 }
