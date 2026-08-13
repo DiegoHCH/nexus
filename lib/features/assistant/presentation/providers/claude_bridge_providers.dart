@@ -2,6 +2,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
+import 'package:nexus/features/assistant/data/repositories/stays_awake_impl.dart';
+import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/assistant/data/datasources/conversation_memory_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/conversation_memory_impl.dart';
@@ -86,8 +88,13 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
     },
     ref.watch(conversationMemoryProvider),
     ref.watch(folderErrandQueueProvider),
+    ref.watch(staysAwakeProvider),
   );
 });
+
+/// Uno solo para toda la app, por el mismo motivo que la cola: lleva la cuenta
+/// de cuántos encargos hay en marcha, y esa cuenta cruza conversaciones.
+final staysAwakeProvider = Provider<StaysAwake>((ref) => StaysAwakeImpl());
 
 /// Una sola cola para toda la app, no una por conversación: su trabajo es
 /// justamente coordinar entre conversaciones distintas.

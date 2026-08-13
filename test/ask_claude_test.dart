@@ -3,6 +3,7 @@ import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 
 class _Bridge implements ClaudeBridge {
@@ -47,10 +48,22 @@ class _Memory implements ConversationMemory {
   Future<void> forget(String folderPath) async {}
 }
 
+class _Awake implements StaysAwake {
+  int held = 0;
+  int released = 0;
+
+  @override
+  Future<void Function()> hold(String reason) async {
+    held++;
+    return () => released++;
+  }
+}
+
 AskClaude _askWith(
   _Bridge bridge,
   _Memory memory, {
   String? folder = '/repo',
+  _Awake? awake,
 }) => AskClaude(
   bridge,
   (_) async => folder == null
@@ -66,6 +79,7 @@ AskClaude _askWith(
         ),
   memory,
   FolderErrandQueue(),
+  awake ?? _Awake(),
 );
 
 void main() {
@@ -120,5 +134,43 @@ void main() {
 
     expect(memory.prompts, ['mira el historial']);
     expect(bridge.asked.last, startsWith('/compact'));
+  });
+
+  group('el Mac no se duerme mientras dura el encargo', () {
+    test('se pide al empezar y se suelta al terminar', () async {
+      final awake = _Awake();
+
+      await _askWith(_Bridge(), _Memory(), awake: awake)('algo').toList();
+
+      expect(awake.held, 1);
+      expect(awake.released, 1);
+    });
+
+    // Cerrar la conversación a media ejecución cancela el stream, y por ahí se
+    // sale sin pasar por el final. Si eso no soltara, el Mac se quedaría sin
+    // poder dormirse el resto de la sesión — y nadie lo relacionaría con esto.
+    test('también si se cancela a mitad', () async {
+      final awake = _Awake();
+      final stream = _askWith(_Bridge(), _Memory(), awake: awake)('algo');
+
+      final subscription = stream.listen(null);
+      await Future<void>.delayed(Duration.zero);
+      await subscription.cancel();
+
+      expect(awake.held, 1);
+      expect(awake.released, 1);
+    });
+
+    // Sin carpeta no hay encargo: ni se lanza nada ni hay por qué tocar el
+    // sistema.
+    test('sin carpeta no se pide nada', () async {
+      final awake = _Awake();
+
+      await _askWith(_Bridge(), _Memory(), folder: null, awake: awake)(
+        'algo',
+      ).toList();
+
+      expect(awake.held, 0);
+    });
   });
 }
