@@ -89,6 +89,9 @@ abstract class NexusStrings {
   String get sectionMobile;
   String get sectionModel;
   String get nexusVoice;
+  String get audioOutput;
+  String get audioOutputExplainer;
+  String get audioOutputSystem;
   String get voiceExplainer;
   String get filePermissionsTitle;
   String get filePermissionsExplainer;
@@ -296,6 +299,14 @@ class NexusStringsEs extends NexusStrings {
   String get sectionModel => 'Modelo';
   @override
   String get nexusVoice => 'VOZ DE NEXUS';
+  @override
+  String get audioOutput => 'POR DÓNDE SUENA';
+  @override
+  String get audioOutputExplainer =>
+      'Vale desde la próxima vez que le hables: el aparato se fija al montar el '
+      'audio. Con «el del sistema», cambiar de auriculares cambia también esto.';
+  @override
+  String get audioOutputSystem => 'El del sistema';
   @override
   String get voiceExplainer =>
       'Se fija al abrir la sesión, así que un cambio vale desde la próxima vez '
@@ -618,6 +629,14 @@ class NexusStringsEn extends NexusStrings {
   String get sectionModel => 'Model';
   @override
   String get nexusVoice => 'NEXUS VOICE';
+  @override
+  String get audioOutput => 'WHERE IT PLAYS';
+  @override
+  String get audioOutputExplainer =>
+      'Applies the next time you talk to it: the device is fixed when the audio '
+      'is set up. On «system», switching headphones switches this too.';
+  @override
+  String get audioOutputSystem => 'Whatever the system uses';
   @override
   String get voiceExplainer =>
       'It is fixed when the session opens, so a change applies the next time '

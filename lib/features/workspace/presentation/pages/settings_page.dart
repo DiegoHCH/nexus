@@ -8,7 +8,9 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
+import 'package:nexus/features/assistant/presentation/widgets/microphone_tester.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
@@ -202,6 +204,14 @@ class _VoiceSection extends ConsumerWidget {
           detail: (voice) => voice.character,
           onSelected: controller.select,
         ),
+        const SizedBox(height: NexusSpacing.s6),
+        const _AudioOutputPicker(),
+        const SizedBox(height: NexusSpacing.s6),
+        // El micrófono se prueba aquí y no solo en el primer arranque: es donde
+        // se viene cuando algo no se oye, y hasta ahora esta sección solo
+        // dejaba cambiar la voz con la que Nexus habla, no comprobar la que
+        // escucha.
+        const Expanded(child: MicrophoneTester()),
       ],
     );
   }
@@ -642,6 +652,57 @@ class _HistorySection extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Por dónde sale la voz de Nexus, cuando hay más de un aparato conectado.
+class _AudioOutputPicker extends ConsumerWidget {
+  const _AudioOutputPicker();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final devices = ref.watch(audioOutputDevicesProvider).value ?? const [];
+    // Con un solo aparato no hay nada que elegir; el desplegable sobra.
+    if (devices.length < 2) return const SizedBox.shrink();
+
+    final selected = ref.watch(audioOutputControllerProvider);
+    final options = <int?>[null, ...devices.map((device) => device.id)];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.audioOutput,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        _Chooser<int?>(
+          value: options.contains(selected) ? selected : null,
+          options: options,
+          label: (id) {
+            if (id == null) return strings.audioOutputSystem;
+            return devices.firstWhere((device) => device.id == id).name;
+          },
+          // El que usa el sistema se marca, para que elegir «el del sistema» no
+          // sea elegir a ciegas.
+          detail: (id) => id == null
+              ? (devices
+                        .where((device) => device.isDefault)
+                        .firstOrNull
+                        ?.name ??
+                    '')
+              : '',
+          onSelected: ref.read(audioOutputControllerProvider.notifier).select,
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.audioOutputExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
       ],
     );
   }
