@@ -260,7 +260,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
   /// resultado, que es justo lo que se quiere de un archivo idempotente.
   Future<void> _archive() async {
-    final archive = ref.read(conversationArchiveProvider);
+    final archive = await ref.read(conversationArchiveProvider.future);
     final folder = _folder;
     if (archive == null || folder == null) return;
     try {

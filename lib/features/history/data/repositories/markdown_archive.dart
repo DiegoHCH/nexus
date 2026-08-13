@@ -113,7 +113,7 @@ class MarkdownArchive implements ConversationArchive {
 /// Una conversación ya archivada, reconstruida solo con lo que hace falta para
 /// enlazarla desde la nota del proyecto.
 class _ArchivedRecord extends ConversationRecord {
-  _ArchivedRecord({
+  const _ArchivedRecord({
     required super.folderPath,
     required super.startedAt,
     required String title,

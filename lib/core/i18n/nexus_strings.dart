@@ -121,6 +121,14 @@ abstract class NexusStrings {
   String get archiveChooseFolder;
   String get archiveNoFolderYet;
   String archiveLayout(String folder);
+  String get notionToken;
+  String get notionTokenHint;
+  String get notionTokenExplainer;
+  String get notionPage;
+  String get notionPageHint;
+  String get notionPageExplainer;
+  String get notionReady;
+  String get notionMissing;
 
   // Configuración inicial
   String get beforeWeStart;
@@ -368,6 +376,29 @@ class NexusStringsEs extends NexusStrings {
   String archiveLayout(String folder) =>
       'Se guardan en $folder/Nexus/<proyecto>/, con una nota por proyecto que '
       'enlaza sus conversaciones.';
+  @override
+  String get notionToken => 'TOKEN DE INTEGRACIÓN';
+  @override
+  String get notionTokenHint => 'Pega aquí tu token de Notion (ntn_…)';
+  @override
+  String get notionTokenExplainer =>
+      'Se crea en notion.so/my-integrations y se guarda cifrado en este Mac, '
+      'igual que la llave de Gemini. Nexus solo lo usa para escribir en la '
+      'página que elijas.';
+  @override
+  String get notionPage => 'PÁGINA DONDE GUARDAR';
+  @override
+  String get notionPageHint => 'Pega la URL de la página de Notion';
+  @override
+  String get notionPageExplainer =>
+      'Dentro se crea una página por proyecto, y dentro de cada una, sus '
+      'conversaciones. Acuérdate de darle acceso a la integración desde el '
+      'menú «…» de esa página, o Notion la esconderá.';
+  @override
+  String get notionReady => 'Conectado con Notion';
+  @override
+  String get notionMissing =>
+      'Falta el token o la página: todavía no se guarda nada.';
 
   @override
   String get beforeWeStart => 'ANTES DE EMPEZAR';
@@ -653,6 +684,28 @@ class NexusStringsEn extends NexusStrings {
   String archiveLayout(String folder) =>
       'Kept in $folder/Nexus/<project>/, with one note per project linking its '
       'conversations.';
+  @override
+  String get notionToken => 'INTEGRATION TOKEN';
+  @override
+  String get notionTokenHint => 'Paste your Notion token here (ntn_…)';
+  @override
+  String get notionTokenExplainer =>
+      'Created at notion.so/my-integrations and stored encrypted on this Mac, '
+      'like the Gemini key. Nexus only uses it to write in the page you pick.';
+  @override
+  String get notionPage => 'PAGE TO SAVE INTO';
+  @override
+  String get notionPageHint => 'Paste the Notion page URL';
+  @override
+  String get notionPageExplainer =>
+      'One page per project is created inside it, and each holds its own '
+      'conversations. Remember to share the page with your integration from '
+      'its «…» menu, or Notion will keep it hidden.';
+  @override
+  String get notionReady => 'Connected to Notion';
+  @override
+  String get notionMissing =>
+      'Token or page missing: nothing is being saved yet.';
 
   @override
   String get beforeWeStart => 'BEFORE WE START';

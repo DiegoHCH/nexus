@@ -1,8 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/history/data/datasources/notion_api.dart';
 import 'package:nexus/features/history/data/repositories/markdown_archive.dart';
+import 'package:nexus/features/history/data/repositories/notion_archive.dart';
+import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -13,6 +17,8 @@ class ArchiveSettings {
   const ArchiveSettings({
     this.destination = ArchiveDestination.none,
     this.folderPath,
+    this.notionPage,
+    this.hasNotionToken = false,
   });
 
   final ArchiveDestination destination;
@@ -25,22 +31,42 @@ class ArchiveSettings {
     ArchiveDestination.none => false,
     ArchiveDestination.folder ||
     ArchiveDestination.obsidian => (folderPath ?? '').isNotEmpty,
-    // Todavía no: falta la parte de la API.
-    ArchiveDestination.notion => false,
+    ArchiveDestination.notion =>
+      hasNotionToken && NotionApi.pageIdFrom(notionPage ?? '') != null,
   };
+
+  /// La página de Notion donde cuelga todo, tal como la pegó el usuario.
+  final String? notionPage;
+
+  /// El token está o no está; **su valor no vive aquí**. Igual que la llave de
+  /// Gemini: se guarda cifrado en el llavero y se pide en el momento de usarlo,
+  /// no se pasea por el estado de la interfaz.
+  final bool hasNotionToken;
 
   ArchiveSettings copyWith({
     ArchiveDestination? destination,
     String? folderPath,
+    String? notionPage,
+    bool? hasNotionToken,
   }) => ArchiveSettings(
     destination: destination ?? this.destination,
     folderPath: folderPath ?? this.folderPath,
+    notionPage: notionPage ?? this.notionPage,
+    hasNotionToken: hasNotionToken ?? this.hasNotionToken,
   );
 }
 
 class ArchiveController extends Notifier<ArchiveSettings> {
   static const _destinationKey = 'archive_destination';
   static const _folderKey = 'archive_folder';
+  static const _notionPageKey = 'archive_notion_page';
+  static const _notionTokenKey = 'notion_token';
+
+  /// Las páginas ya creadas en Notion y cuánto se ha mandado de cada
+  /// conversación. Sin esto, cada arranque crearía páginas nuevas de lo mismo
+  /// y repetiría los mensajes ya subidos.
+  static const _notionPagesKey = 'archive_notion_pages';
+  static const _notionSentKey = 'archive_notion_sent';
 
   @override
   ArchiveSettings build() {
@@ -50,12 +76,70 @@ class ArchiveController extends Notifier<ArchiveSettings> {
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
+    final token = await ref
+        .read(secureStorageDataSourceProvider)
+        .read(_notionTokenKey);
     state = ArchiveSettings(
       destination: ArchiveDestination.fromStored(
         prefs.getString(_destinationKey),
       ),
       folderPath: prefs.getString(_folderKey),
+      notionPage: prefs.getString(_notionPageKey),
+      hasNotionToken: (token ?? '').isNotEmpty,
     );
+  }
+
+  /// El token, cifrado en el llavero — nunca en las preferencias en claro.
+  Future<void> saveNotionToken(String token) async {
+    await ref
+        .read(secureStorageDataSourceProvider)
+        .write(_notionTokenKey, token.trim());
+    state = state.copyWith(hasNotionToken: token.trim().isNotEmpty);
+  }
+
+  Future<void> saveNotionPage(String pageUrl) async {
+    state = state.copyWith(notionPage: pageUrl.trim());
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_notionPageKey, pageUrl.trim());
+  }
+
+  Future<String?> readNotionToken() =>
+      ref.read(secureStorageDataSourceProvider).read(_notionTokenKey);
+
+  Future<Map<String, String>> notionPages() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_notionPagesKey);
+    if (raw == null) return {};
+    final decoded = jsonDecode(raw);
+    return decoded is Map<String, dynamic>
+        ? decoded.map((key, value) => MapEntry(key, value.toString()))
+        : {};
+  }
+
+  Future<Map<String, int>> notionSent() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_notionSentKey);
+    if (raw == null) return {};
+    final decoded = jsonDecode(raw);
+    return decoded is Map<String, dynamic>
+        ? decoded.map(
+            (key, value) => MapEntry(key, (value as num?)?.toInt() ?? 0),
+          )
+        : {};
+  }
+
+  Future<void> rememberNotionPage(String key, String pageId) async {
+    final prefs = await SharedPreferences.getInstance();
+    final pages = await notionPages()
+      ..[key] = pageId;
+    await prefs.setString(_notionPagesKey, jsonEncode(pages));
+  }
+
+  Future<void> rememberNotionSent(String key, int count) async {
+    final prefs = await SharedPreferences.getInstance();
+    final sent = await notionSent()
+      ..[key] = count;
+    await prefs.setString(_notionSentKey, jsonEncode(sent));
   }
 
   Future<void> selectDestination(ArchiveDestination destination) async {
@@ -76,9 +160,32 @@ final archiveControllerProvider =
 
 /// El archivo activo, o `null` si el usuario no ha elegido ninguno — que es lo
 /// normal hasta que lo configure, y no un error.
-final conversationArchiveProvider = Provider<ConversationArchive?>((ref) {
+/// El archivo activo, ya montado con lo que el usuario configuró.
+///
+/// Notion necesita más piezas que una carpeta —token, página, y la memoria de
+/// lo ya subido—, así que se arma aparte y de forma asíncrona: leer el llavero
+/// no es instantáneo.
+final conversationArchiveProvider = FutureProvider<ConversationArchive?>((
+  ref,
+) async {
   final settings = ref.watch(archiveControllerProvider);
   if (!settings.isReady) return null;
+
+  if (settings.destination == ArchiveDestination.notion) {
+    final controller = ref.read(archiveControllerProvider.notifier);
+    final token = await controller.readNotionToken();
+    final page = NotionApi.pageIdFrom(settings.notionPage ?? '');
+    if (token == null || token.isEmpty || page == null) return null;
+    return NotionArchive(
+      token: token,
+      rootPageId: page,
+      pageIds: await controller.notionPages(),
+      onPageCreated: controller.rememberNotionPage,
+      sentMessages: await controller.notionSent(),
+      onSent: controller.rememberNotionSent,
+    );
+  }
+
   return MarkdownArchive(
     root: settings.folderPath!,
     // Los `[[enlaces]]` solo tienen sentido dentro de un vault. En una carpeta

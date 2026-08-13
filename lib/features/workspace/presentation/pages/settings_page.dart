@@ -520,11 +520,7 @@ class _HistorySection extends ConsumerWidget {
         const SizedBox(height: NexusSpacing.s5),
         for (final option in ArchiveDestination.values)
           InkWell(
-            // Notion se ve pero no se puede elegir: dibujarlo como disponible
-            // sería prometer algo que todavía no guarda nada.
-            onTap: option == ArchiveDestination.notion
-                ? null
-                : () => controller.selectDestination(option),
+            onTap: () => controller.selectDestination(option),
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
               child: Row(
@@ -535,11 +531,9 @@ class _HistorySection extends ConsumerWidget {
                         ? Icons.radio_button_checked
                         : Icons.radio_button_unchecked,
                     size: 15,
-                    color: option == ArchiveDestination.notion
-                        ? colors.rule2
-                        : (option == settings.destination
-                              ? colors.cyan
-                              : colors.faint),
+                    color: option == settings.destination
+                        ? colors.cyan
+                        : colors.faint,
                   ),
                   const SizedBox(width: NexusSpacing.s3),
                   Expanded(
@@ -549,11 +543,9 @@ class _HistorySection extends ConsumerWidget {
                         Text(
                           label(option),
                           style: NexusTypography.data.copyWith(
-                            color: option == ArchiveDestination.notion
-                                ? colors.rule2
-                                : (option == settings.destination
-                                      ? colors.ink
-                                      : colors.mute),
+                            color: option == settings.destination
+                                ? colors.ink
+                                : colors.mute,
                           ),
                         ),
                         Text(
@@ -569,6 +561,10 @@ class _HistorySection extends ConsumerWidget {
               ),
             ),
           ),
+        if (settings.destination == ArchiveDestination.notion) ...[
+          const SizedBox(height: NexusSpacing.s5),
+          _NotionFields(settings: settings, controller: controller),
+        ],
         if (settings.destination.needsFolder) ...[
           const SizedBox(height: NexusSpacing.s5),
           Row(
@@ -599,6 +595,89 @@ class _HistorySection extends ConsumerWidget {
             ),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// El token y la página de Notion.
+///
+/// Se pide aquí y no en la configuración inicial porque no es un requisito para
+/// usar Nexus: es una decisión de dónde quieres tus conversaciones. El token
+/// viaja al llavero, como la llave de Gemini — no a las preferencias en claro.
+class _NotionFields extends StatefulWidget {
+  const _NotionFields({required this.settings, required this.controller});
+
+  final ArchiveSettings settings;
+  final ArchiveController controller;
+
+  @override
+  State<_NotionFields> createState() => _NotionFieldsState();
+}
+
+class _NotionFieldsState extends State<_NotionFields> {
+  late final _page = TextEditingController(
+    text: widget.settings.notionPage ?? '',
+  );
+  final _token = TextEditingController();
+
+  @override
+  void dispose() {
+    _page.dispose();
+    _token.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final settings = widget.settings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.notionToken,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        TextField(
+          controller: _token,
+          obscureText: true,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(hintText: strings.notionTokenHint),
+          onChanged: widget.controller.saveNotionToken,
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.notionTokenExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        Text(
+          strings.notionPage,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        TextField(
+          controller: _page,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(hintText: strings.notionPageHint),
+          onChanged: widget.controller.saveNotionPage,
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.notionPageExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        Text(
+          settings.isReady ? strings.notionReady : strings.notionMissing,
+          style: NexusTypography.mono.copyWith(
+            color: settings.isReady ? colors.ok : colors.warn,
+          ),
+        ),
       ],
     );
   }
