@@ -20,6 +20,7 @@ class _Bridge implements ClaudeBridge {
     String? claudeProfile,
     String? model,
     String? effort,
+    List<String> disallowedTools = const [],
   }) async* {
     asked.add(instruction);
     resumed.add(resumeSessionId);
@@ -76,6 +77,8 @@ AskClaude _askWith(
           claudeProfile: null,
           model: null,
           effort: null,
+          disallowedTools: const <String>[],
+          constraintsNotice: null,
         ),
   memory,
   FolderErrandQueue(),

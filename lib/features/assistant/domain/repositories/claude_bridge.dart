@@ -22,5 +22,8 @@ abstract class ClaudeBridge {
     /// Alias del modelo y nivel de esfuerzo. `null` deja lo que el CLI tenga.
     String? model,
     String? effort,
+
+    /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
+    List<String> disallowedTools,
   });
 }

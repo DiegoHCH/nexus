@@ -15,6 +15,7 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -155,10 +156,15 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      // Los cambios del turno anterior se van con él: son de esa tarea.
+      changes: null,
       history: _remember(trimmed),
     );
     _say(ChatAuthor.user, trimmed);
     _sealLast();
+    // La marca se toma **antes** de que Claude toque nada: es lo que hace que
+    // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
+    unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
     _subscription = ask(trimmed).listen(
@@ -255,6 +261,38 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
   }
 
+  /// Dónde estaba el repositorio antes de este encargo.
+  String? _repoBase;
+
+  Future<void> _markRepo() async {
+    final folder = _workingDirectory;
+    _repoBase = folder == null
+        ? null
+        : await const GitDataSource().snapshot(folder);
+  }
+
+  /// Qué dejó tocado, si tocó algo.
+  Future<void> _readChanges() async {
+    final folder = _workingDirectory;
+    final base = _repoBase;
+    if (folder == null || base == null) return;
+    final cambios = await const GitDataSource().changesSince(folder, base);
+    if (cambios != null) state = state.copyWith(changes: cambios);
+  }
+
+  /// Donde trabaja Claude: el repo elegido dentro de la carpeta, o la carpeta.
+  String? get _workingDirectory {
+    final folder = _folder;
+    if (folder == null) return null;
+    return ref
+            .read(workspaceControllerProvider)
+            .folders
+            .where((item) => item.path == folder)
+            .firstOrNull
+            ?.workingDirectory ??
+        folder;
+  }
+
   void _onTurnCompleted(ClaudeTurnCompleted event) {
     _sealLast();
     state = state.copyWith(
@@ -268,6 +306,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
+    unawaited(_readChanges());
     unawaited(_archive());
     unawaited(_compactIfNeeded());
   }
