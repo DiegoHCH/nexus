@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
@@ -63,6 +64,7 @@ class AssistantHudState {
     this.history = const [],
     this.meter = const SessionMeter(),
     this.errorMessage,
+    this.changes,
   });
 
   final NexusOrbState orbState;
@@ -94,6 +96,13 @@ class AssistantHudState {
 
   final String? errorMessage;
 
+  /// Lo que **este turno** dejó tocado en el repositorio, si tocó algo.
+  ///
+  /// De este turno y no de la conversación: acumular los cambios haría que el
+  /// quinto encargo enseñara también los cuatro anteriores, y entonces revisar
+  /// «qué acaba de hacer» sería buscar una aguja en lo que ya diste por bueno.
+  final GitChanges? changes;
+
   AssistantHudState copyWith({
     NexusOrbState? orbState,
     String? subtitle,
@@ -104,6 +113,7 @@ class AssistantHudState {
     List<String>? history,
     SessionMeter? meter,
     Object? errorMessage = _unset,
+    Object? changes = _unset,
   }) {
     return AssistantHudState(
       orbState: orbState ?? this.orbState,
@@ -117,6 +127,7 @@ class AssistantHudState {
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : errorMessage as String?,
+      changes: changes == _unset ? this.changes : changes as GitChanges?,
     );
   }
 }

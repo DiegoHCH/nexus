@@ -44,6 +44,9 @@ abstract class NexusStrings {
   String get attachFile;
   String get chooseFolder;
   String get noGitRepo;
+  String changedFiles(int count);
+  String get changesTitle;
+  String get newFile;
   String get addFolderShort;
   String get openSettings;
   String get modelTitle;
@@ -229,6 +232,14 @@ class NexusStringsEs extends NexusStrings {
   String get chooseFolder => 'Elegir carpeta';
   @override
   String get noGitRepo => 'sin git';
+  @override
+  String changedFiles(int count) => count == 1
+      ? 'VER EL ARCHIVO QUE TOCÓ'
+      : 'VER LOS $count ARCHIVOS QUE TOCÓ';
+  @override
+  String get changesTitle => 'LO QUE CAMBIÓ EN ESTA TAREA';
+  @override
+  String get newFile => 'nuevo';
   @override
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
@@ -598,6 +609,14 @@ class NexusStringsEn extends NexusStrings {
   String get chooseFolder => 'Choose folder';
   @override
   String get noGitRepo => 'no git';
+  @override
+  String changedFiles(int count) => count == 1
+      ? 'SEE THE FILE IT TOUCHED'
+      : 'SEE THE $count FILES IT TOUCHED';
+  @override
+  String get changesTitle => 'WHAT THIS TASK CHANGED';
+  @override
+  String get newFile => 'new';
   @override
   String get addFolderShort => 'Pair another folder';
   @override
