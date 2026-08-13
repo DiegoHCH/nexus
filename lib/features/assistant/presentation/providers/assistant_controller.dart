@@ -246,7 +246,79 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    unawaited(_compactIfNeeded());
   }
+
+  /// A partir de aquí se comprime la conversación.
+  ///
+  /// Antes del tope a propósito: al llenarse, Claude resume solo y **se pierde
+  /// el detalle sin que nadie lo decida**. Con margen, la compresión ocurre
+  /// cuando conviene y se puede contar.
+  static const _compactAtPercent = 85;
+
+  bool _compacting = false;
+
+  /// Comprime la conversación con `/compact`, el mismo comando de la terminal.
+  ///
+  /// Medido contra el binario antes de cablearlo, porque no era obvio que
+  /// funcionara en modo headless: en una sesión de 39.890 tokens de contexto,
+  /// después de `/compact` el siguiente turno arrancó con 31.841 — y seguía
+  /// recordando un dato del principio. No baja a cero: el suelo son las
+  /// instrucciones y las reglas del proyecto, que viajan en cada encargo y no
+  /// se pueden resumir.
+  ///
+  /// Se lanza **al terminar un turno**, nunca en medio: comprimir mientras
+  /// Claude trabaja sería cambiarle el suelo bajo los pies.
+  /// Dos conversaciones sobre la misma carpeta comparten sesión, así que las
+  /// dos podrían pedir compresión casi a la vez. No se coordina a propósito:
+  /// la cola por carpeta las serializa y la segunda encuentra el contexto ya
+  /// bajado, así que lo peor que pasa es un turno de más — bastante menos
+  /// aparato que un candado compartido para un caso raro e inofensivo.
+  Future<void> _compactIfNeeded() async {
+    if (_compacting) return;
+    final before = state.meter.contextPercent;
+    if (before == null || before < _compactAtPercent) return;
+
+    _compacting = true;
+    final strings = ref.read(stringsProvider);
+    state = state.copyWith(
+      activity: [
+        ...state.activity,
+        ActivityItem(
+          id: _compactItemId,
+          description: strings.compacting(before),
+          writes: false,
+        ),
+      ],
+    );
+
+    try {
+      await for (final event in ref.read(askClaudeProvider(conversationId))(
+        '/compact',
+        remember: false,
+      )) {
+        if (event case ClaudeTurnCompleted(:final contextTokens)) {
+          state = state.copyWith(
+            meter: state.meter.copyWith(contextTokens: contextTokens),
+          );
+        }
+      }
+      _onClaudeToolFinished(_compactItemId);
+      final after = state.meter.contextPercent;
+      if (after != null) {
+        _say(ChatAuthor.nexus, strings.compacted(before, after));
+        _sealLast();
+      }
+    } catch (error) {
+      // Que falle la compresión no puede tumbar la conversación: se sigue con
+      // el contexto lleno, que es exactamente como se estaba antes.
+      _onClaudeToolFinished(_compactItemId);
+    } finally {
+      _compacting = false;
+    }
+  }
+
+  static const _compactItemId = 'comprimiendo';
 
   void _onFailed(String message) {
     _sealLast();

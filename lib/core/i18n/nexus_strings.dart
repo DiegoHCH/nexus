@@ -69,6 +69,8 @@ abstract class NexusStrings {
   String get waitingByVoice;
   String get noFolderForConversation;
   String textOnlyFolder(String folder);
+  String compacting(int percent);
+  String compacted(int before, int after);
 
   // Historial
   String get history;
@@ -224,6 +226,14 @@ class NexusStringsEs extends NexusStrings {
   String textOnlyFolder(String folder) =>
       'La carpeta $folder está en modo solo texto, así que no se abre el '
       'micrófono. Escríbele por abajo o cambia el modo en Ajustes.';
+  @override
+  String compacting(int percent) =>
+      'Contexto al $percent %: comprimiendo la conversación para seguir sin '
+      'perder el hilo';
+  @override
+  String compacted(int before, int after) =>
+      'Conversación comprimida: el contexto baja del $before % al $after %. '
+      'Claude conserva un resumen de lo hablado.';
 
   @override
   String get history => 'HISTORIAL';
@@ -464,6 +474,14 @@ class NexusStringsEn extends NexusStrings {
   String textOnlyFolder(String folder) =>
       'The folder $folder is in text-only mode, so the microphone stays shut. '
       'Type below, or change the mode in Settings.';
+  @override
+  String compacting(int percent) =>
+      'Context at $percent%: compacting the conversation so it can go on '
+      'without losing the thread';
+  @override
+  String compacted(int before, int after) =>
+      'Conversation compacted: context drops from $before% to $after%. Claude '
+      'keeps a summary of what was said.';
 
   @override
   String get history => 'HISTORY';

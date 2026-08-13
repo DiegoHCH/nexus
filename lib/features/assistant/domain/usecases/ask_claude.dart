@@ -36,7 +36,10 @@ class AskClaude {
   /// único que impide que dos hilos sobre el mismo repo se pisen la sesión.
   final FolderErrandQueue _queue;
 
-  Stream<ClaudeEvent> call(String instruction) async* {
+  /// [remember] a `false` para lo que no es una petición del usuario —hoy,
+  /// comprimir la conversación—: eso no debe aparecer en «lo que le has
+  /// pedido», donde la lista sirve para repetir una petición anterior.
+  Stream<ClaudeEvent> call(String instruction, {bool remember = true}) async* {
     final context = await _readContext();
     // Sin carpeta emparejada no hay dónde trabajar, y lo honesto es decirlo:
     // antes se lanzaba igual y Claude respondía sobre la raíz del disco.
@@ -63,7 +66,7 @@ class AskClaude {
       // la misma sesión de Claude— y dos sobre repos distintos no se enteran el
       // uno del otro. La carpeta es la frontera.
       final memory = await _memory.read(folder);
-      await _memory.rememberPrompt(folder, instruction);
+      if (remember) await _memory.rememberPrompt(folder, instruction);
 
       await for (final event in _bridge.ask(
         // La preferencia de idioma va como preferencia, no como orden: si
