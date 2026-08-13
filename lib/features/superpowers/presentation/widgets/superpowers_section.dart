@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/mcp_panel.dart';
+import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Lo que Claude sabe hacer de más, por cuenta.
@@ -18,8 +19,12 @@ class SuperpowersSection extends ConsumerStatefulWidget {
   ConsumerState<SuperpowersSection> createState() => _SuperpowersSectionState();
 }
 
+/// Las dos mitades: manos fuera del disco y procedimientos aprendidos.
+enum _Kind { mcp, skills }
+
 class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   String? _profile;
+  var _kind = _Kind.mcp;
 
   @override
   Widget build(BuildContext context) {
@@ -56,13 +61,77 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
             ],
           ),
         const SizedBox(height: NexusSpacing.s5),
+        Row(
+          children: [
+            for (final kind in _Kind.values) ...[
+              _Toggle(
+                label: switch (kind) {
+                  _Kind.mcp => strings.superpowersMcp,
+                  _Kind.skills => strings.superpowersSkills,
+                },
+                active: _kind == kind,
+                onTap: () => setState(() => _kind = kind),
+              ),
+              const SizedBox(width: NexusSpacing.s2),
+            ],
+          ],
+        ),
+        const SizedBox(height: NexusSpacing.s5),
         // La clave fuerza a rehacer el panel al cambiar de cuenta: sin ella, lo
         // escrito a medias en el formulario de una cuenta se quedaría delante
         // de la lista de la otra.
         Expanded(
-          child: McpPanel(key: ValueKey(current), configDir: current),
+          child: switch (_kind) {
+            _Kind.mcp => McpPanel(
+              key: ValueKey('mcp-$current'),
+              configDir: current,
+            ),
+            _Kind.skills => SkillsPanel(
+              key: ValueKey('skills-$current'),
+              configDir: current,
+            ),
+          },
         ),
       ],
+    );
+  }
+}
+
+class _Toggle extends StatelessWidget {
+  const _Toggle({
+    required this.label,
+    required this.active,
+    required this.onTap,
+  });
+
+  final String label;
+  final bool active;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(NexusRadius.sm),
+      child: Container(
+        padding: const EdgeInsets.symmetric(
+          horizontal: NexusSpacing.s3,
+          vertical: 5,
+        ),
+        decoration: BoxDecoration(
+          color: active ? colors.rise : Colors.transparent,
+          border: Border.all(color: active ? colors.rule : Colors.transparent),
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+        ),
+        child: Text(
+          label,
+          style: NexusTypography.label.copyWith(
+            color: active ? colors.ink : colors.faint,
+          ),
+        ),
+      ),
     );
   }
 }

@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
+import 'package:nexus/features/superpowers/data/datasources/skills_data_source.dart';
+import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 
 final mcpDataSourceProvider = Provider<McpDataSource>(
@@ -20,3 +22,20 @@ final mcpServersProvider = FutureProvider.family<List<McpServer>, String>(
 final mcpHealthProvider = FutureProvider.family<List<McpServer>?, String>(
   (ref, configDir) => ref.watch(mcpDataSourceProvider).check(configDir),
 );
+
+final skillsDataSourceProvider = Provider<SkillsDataSource>(
+  (ref) => const SkillsDataSource(),
+);
+
+/// Las que ya tiene esa cuenta.
+final installedSkillsProvider = FutureProvider.family<List<Skill>, String>(
+  (ref, configDir) => ref.watch(skillsDataSourceProvider).installed(configDir),
+);
+
+/// Lo que trae un repo. La familia va por repo —no por cuenta— porque el
+/// contenido de un repo es el mismo mires desde donde mires, y clonarlo dos
+/// veces por cambiar de pestaña sería tirar la caché a la basura.
+final repoSkillsProvider =
+    FutureProvider.family<({List<Skill> skills, String? error}), String>(
+      (ref, repo) => ref.watch(skillsDataSourceProvider).scan(repo),
+    );

@@ -82,6 +82,23 @@ abstract class NexusStrings {
   String get mcpChecking;
   String get mcpCheckFailed;
 
+  // Superpoderes: skills instaladas en la cuenta.
+  String get superpowersMcp;
+  String get superpowersSkills;
+  String get skillsExplainer;
+  String get skillsInstalled;
+  String get skillsNone;
+  String get skillsFromRepo;
+  String get skillsBrowse;
+  String get skillsInstall;
+  String get skillsUpdate;
+  String get skillsRemove;
+  String get skillsFetching;
+  String get skillsRepoFailed;
+  String get skillsOwn;
+  String get skillsOwnHint;
+  String get skillsCreate;
+
   /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
   String get dropHere;
 
@@ -349,6 +366,39 @@ class NexusStringsEs extends NexusStrings {
   String get mcpChecking => 'Preguntando a cada uno…';
   @override
   String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
+  @override
+  String get superpowersMcp => 'Servidores MCP';
+  @override
+  String get superpowersSkills => 'Skills';
+  @override
+  String get skillsExplainer =>
+      'Una skill es un procedimiento escrito que el agente activa solo cuando '
+      'la tarea lo pide. Instalada en la cuenta la usa cualquier proyecto; '
+      'escrita dentro de un repo, solo ese.';
+  @override
+  String get skillsInstalled => 'Instaladas en esta cuenta';
+  @override
+  String get skillsNone => 'Ninguna todavía.';
+  @override
+  String get skillsFromRepo => 'Traer de un repositorio';
+  @override
+  String get skillsBrowse => 'Ver qué trae';
+  @override
+  String get skillsInstall => 'Instalar';
+  @override
+  String get skillsUpdate => 'Actualizar';
+  @override
+  String get skillsRemove => 'Quitar';
+  @override
+  String get skillsFetching => 'Trayendo el repositorio…';
+  @override
+  String get skillsRepoFailed => 'No se pudo leer ese repositorio.';
+  @override
+  String get skillsOwn => 'Escribir una propia';
+  @override
+  String get skillsOwnHint => 'cómo se llama';
+  @override
+  String get skillsCreate => 'Crear y abrir';
   @override
   String get dropHere => 'Suéltalo aquí';
   @override
@@ -800,6 +850,39 @@ class NexusStringsEn extends NexusStrings {
   String get mcpChecking => 'Asking each one…';
   @override
   String get mcpCheckFailed => 'The CLI could not produce the list.';
+  @override
+  String get superpowersMcp => 'MCP servers';
+  @override
+  String get superpowersSkills => 'Skills';
+  @override
+  String get skillsExplainer =>
+      'A skill is a written procedure the agent activates on its own when the '
+      'task calls for it. Installed on the account any project can use it; '
+      'written inside a repo, only that one.';
+  @override
+  String get skillsInstalled => 'Installed on this account';
+  @override
+  String get skillsNone => 'None yet.';
+  @override
+  String get skillsFromRepo => 'Bring some from a repository';
+  @override
+  String get skillsBrowse => 'See what it has';
+  @override
+  String get skillsInstall => 'Install';
+  @override
+  String get skillsUpdate => 'Update';
+  @override
+  String get skillsRemove => 'Remove';
+  @override
+  String get skillsFetching => 'Fetching the repository…';
+  @override
+  String get skillsRepoFailed => 'That repository could not be read.';
+  @override
+  String get skillsOwn => 'Write your own';
+  @override
+  String get skillsOwnHint => 'what it is called';
+  @override
+  String get skillsCreate => 'Create and open';
   @override
   String get dropHere => 'Drop it here';
   @override
