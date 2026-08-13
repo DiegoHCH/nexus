@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -73,6 +74,14 @@ class HoldVoiceConversation {
     void Function()? abortErrand;
     var reconnects = 0;
     var closing = false;
+
+    // Que todo pase por Claude es una instrucción al modelo, no un candado
+    // (b6): nada en el código lo obliga, y en la zona gris puede contestar de
+    // memoria sin avisar. No se puede impedir —la respuesta ya va en audio
+    // cuando nos enteramos— pero sí contar cuántas veces pasa, que es lo que
+    // faltaba para decidir si hace falta la salida cara.
+    String? lastAsked;
+    var answeredAlone = 0;
 
     Future<void> shutdown() async {
       closing = true;
@@ -300,7 +309,25 @@ class HoldVoiceConversation {
             // uso, que es quien tiene el puente. La pantalla ve el trabajo
             // empezar y avanzar, no la fontanería.
             case VoiceToolRequested():
+              // Lo pasó a Claude: este turno cumplió la regla.
+              lastAsked = null;
               unawaited(runTool(event));
+            case VoiceUserTranscript(:final text):
+              lastAsked = text;
+              controller.add(event);
+            case VoiceTurnCompleted():
+              if (lastAsked case final asked? when asked.trim().isNotEmpty) {
+                answeredAlone++;
+                // `dart:developer` y no `debugPrint`: esto es dominio y no
+                // puede depender de Flutter.
+                developer.log(
+                  'contestado sin pasar por Claude ($answeredAlone en esta '
+                  'sesión): «$asked»',
+                  name: 'nexus.b6',
+                );
+                lastAsked = null;
+              }
+              controller.add(event);
             default:
               controller.add(event);
           }
