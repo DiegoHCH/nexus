@@ -55,6 +55,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   static const _sections = [
     _Section.voice,
     _Section.permissions,
+    _Section.history,
     _Section.language,
   ];
   _Section _section = _Section.permissions;
