@@ -58,6 +58,24 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   private var worstGapMs = 0
   private var playedAnything = false
 
+  /// El motor sigue montado, pero la conversación terminó: **no se entrega ni
+  /// un bloque de audio a nadie**. Es la diferencia entre tener el micrófono
+  /// abierto en local y estar escuchando.
+  private var listening = false
+
+  /// Lo que desmonta el motor cuando se cumple el minuto de espera. Se guarda
+  /// para poder cancelarlo si vuelves a hablarle antes.
+  private var teardownWork: DispatchWorkItem?
+
+  /// Cuánto se queda el motor caliente después de colgar.
+  ///
+  /// Montar el dispositivo agregado del cancelador de eco cuesta ~1,3 s de los
+  /// 1,76 s que tardaba en poder hablar, y solo se ahorra teniéndolo ya
+  /// montado. Un minuto cubre el caso real —seguir hablándole— sin dejar el
+  /// micrófono abierto toda la sesión. Decisión del usuario, no técnica: las
+  /// tres opciones estaban sobre la mesa y esta es la elegida.
+  private static let warmSeconds = 60.0
+
   /// Cuándo arrancó el motor, para medir cuánto tarda en llegar el primer
   /// bloque de audio: es el retardo que se nota entre pulsar y poder hablar.
   private var startedAt: Date?
@@ -210,7 +228,17 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   // MARK: - Motor
 
   private func start() throws {
-    if running { return }
+    // Vuelve a hablar antes de que se cumpla el minuto: el motor ya está
+    // montado y solo hay que volver a escuchar. Es el atajo entero — sin esto,
+    // aquí empezaría otra vez el 1,3 s del dispositivo agregado.
+    teardownWork?.cancel()
+    teardownWork = nil
+    if running {
+      listening = true
+      startedAt = Date()
+      Self.log.info("motor caliente reutilizado · sin montar el agregado")
+      return
+    }
     let begin = Date()
 
     // El cancelador solo se enciende si la respuesta va a salir por los
@@ -289,13 +317,23 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     try engine.start()
     player.play()
     running = true
+    listening = true
     startedAt = Date()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor en marcha")
   }
 
+  /// Colgar: se deja de escuchar **ya**, y el motor se desmonta al cabo de un
+  /// minuto por si vuelves a hablarle.
+  ///
+  /// La distinción es la que importa: desde este instante no sale ni un bloque
+  /// de audio de la máquina —ni al servicio de voz ni a ninguna parte—. Lo que
+  /// sigue montado un rato es el aparato local, y eso macOS lo enseña con su
+  /// indicador de micrófono encendido: es honesto que se vea, porque el
+  /// micrófono está efectivamente abierto.
   private func stop() {
-    guard running else { return }
-    running = false
+    guard running, listening else { return }
+    listening = false
+    player.stop()
 
     // El resumen de la sesión, aunque sea para decir que no hubo cortes: «cero
     // huecos con buena conexión» es justo el dato de referencia contra el que
@@ -307,10 +345,25 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     worstGapMs = 0
     starvedAt = nil
     playedAnything = false
+    pendingFrames = 0
     pendingLock.unlock()
     Self.log.info(
       "reproducción · \(gaps, privacy: .public) huecos, el peor de \(worst, privacy: .public) ms"
     )
+
+    let work = DispatchWorkItem { [weak self] in self?.teardown() }
+    teardownWork = work
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.warmSeconds, execute: work)
+  }
+
+  /// Desmontar de verdad. Ocurre al cumplirse el minuto sin que vuelvas a
+  /// hablar, no al colgar.
+  private func teardown() {
+    guard running else { return }
+    running = false
+    listening = false
+    teardownWork = nil
+    Self.log.info("motor desmontado tras \(Int(Self.warmSeconds), privacy: .public) s sin uso")
 
     NotificationCenter.default.removeObserver(
       self,
@@ -344,7 +397,12 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// había que adivinar por ausencia de audio.
   @objc private func configurationChanged(_ notification: Notification) {
     guard running else { return }
-    stop()
+    // Se desmonta de verdad, no se deja caliente: cambió el aparato, así que
+    // el grafo entero —formatos, canal de voz, cancelador— hay que rehacerlo.
+    // Reutilizarlo sería quedarse hablándole al dispositivo que ya no está.
+    let wasListening = listening
+    teardown()
+    guard wasListening else { return }
     do {
       try start()
     } catch {
@@ -359,6 +417,10 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   // MARK: - Captura
 
   private func deliver(_ buffer: AVAudioPCMBuffer) {
+    // Con el motor caliente pero la conversación colgada, el bloque se
+    // descarta aquí mismo: ni se convierte ni se mira. El micrófono está
+    // abierto en el aparato; lo que no hay es nadie escuchando.
+    guard listening else { return }
     guard let sink = frameSink,
           let converter = captureConverter,
           let monoFormat = captureMonoFormat,
@@ -460,7 +522,9 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
 
   /// Encola PCM de 16 bits a 24 kHz, resampleado al ritmo del altavoz.
   private func enqueue(_ pcm: Data) {
-    guard running, pcm.count >= 2,
+    // Colgado no se reproduce nada, aunque el motor siga montado: una frase
+    // que llegara tarde sonaría después de haber cerrado la conversación.
+    guard running, listening, pcm.count >= 2,
           let converter = playbackConverter,
           let speaker = speakerFormat else { return }
 
