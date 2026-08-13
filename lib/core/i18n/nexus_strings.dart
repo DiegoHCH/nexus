@@ -139,6 +139,12 @@ abstract class NexusStrings {
   String get attachedFilesLabel;
   String get chooseFolder;
   String get noGitRepo;
+  String changedFiles(int count);
+  String get changesTitle;
+  String get newFile;
+  String blockedTitle(String folder);
+  String get blockedExplainer;
+  String get blockedHint;
   String get addFolderShort;
   String get openSettings;
   String get modelTitle;
@@ -504,6 +510,23 @@ class NexusStringsEs extends NexusStrings {
   String get chooseFolder => 'Elegir carpeta';
   @override
   String get noGitRepo => 'sin git';
+  @override
+  String changedFiles(int count) => count == 1
+      ? 'VER EL ARCHIVO QUE TOCÓ'
+      : 'VER LOS $count ARCHIVOS QUE TOCÓ';
+  @override
+  String get changesTitle => 'LO QUE CAMBIÓ EN ESTA TAREA';
+  @override
+  String get newFile => 'nuevo';
+  @override
+  String blockedTitle(String folder) => 'COMANDOS BLOQUEADOS EN $folder';
+  @override
+  String get blockedExplainer =>
+      'Uno por línea, y basta con un trozo del comando. No es un ruego: el CLI '
+      'los deniega, así que no hay rodeo. Claude hará todo lo demás y terminará '
+      'diciéndote el comando exacto para que lo lances tú. Con # se comenta.';
+  @override
+  String get blockedHint => 'build_runner\npod install\nmake generate';
   @override
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
@@ -1052,6 +1075,23 @@ class NexusStringsEn extends NexusStrings {
   String get chooseFolder => 'Choose folder';
   @override
   String get noGitRepo => 'no git';
+  @override
+  String changedFiles(int count) => count == 1
+      ? 'SEE THE FILE IT TOUCHED'
+      : 'SEE THE $count FILES IT TOUCHED';
+  @override
+  String get changesTitle => 'WHAT THIS TASK CHANGED';
+  @override
+  String get newFile => 'new';
+  @override
+  String blockedTitle(String folder) => 'COMMANDS BLOCKED IN $folder';
+  @override
+  String get blockedExplainer =>
+      'One per line, and a fragment of the command is enough. Not a plea: the '
+      'CLI denies them, so there is no way around it. Claude will do everything '
+      'else and finish by telling you the exact command to run. # comments.';
+  @override
+  String get blockedHint => 'build_runner\npod install\nmake generate';
   @override
   String get addFolderShort => 'Pair another folder';
   @override

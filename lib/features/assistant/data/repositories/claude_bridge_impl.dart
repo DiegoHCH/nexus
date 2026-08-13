@@ -35,6 +35,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? model,
     String? effort,
     String? artifactsFolder,
+    List<String> disallowedTools = const [],
   }) async* {
     var emitted = false;
     try {
@@ -62,6 +63,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         configDir: claudeProfile,
         model: model,
         effort: effort,
+        disallowedTools: disallowedTools,
         appendSystemPrompt: ProjectContextPrompt.compose(
           rules: context.rules,
           sharedContext: context.sharedContext,
@@ -88,6 +90,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           model: model,
           effort: effort,
           artifactsFolder: artifactsFolder,
+          disallowedTools: disallowedTools,
         );
         return;
       }

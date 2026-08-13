@@ -24,6 +24,7 @@ class _Cli extends ClaudeCliDataSource {
     String? configDir,
     String? model,
     String? effort,
+    List<String> disallowedTools = const [],
   }) async* {
     if (failFirst && resumeSessionId != null) {
       throw const ClaudeProcessException(1, 'no such session');

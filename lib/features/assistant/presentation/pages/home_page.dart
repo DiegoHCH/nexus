@@ -13,6 +13,7 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
+import 'package:nexus/features/assistant/presentation/widgets/changes_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
@@ -178,6 +179,22 @@ class _HomePageState extends ConsumerState<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Expanded(child: ChatPanel(messages: hud.messages)),
+                            // Solo si esta tarea tocó algo: un botón que a
+                            // veces no lleva a nada enseña a no pulsarlo.
+                            if (hud.changes case final cambios?)
+                              Align(
+                                alignment: Alignment.centerLeft,
+                                child: TextButton.icon(
+                                  onPressed: () =>
+                                      ChangesSheet.open(context, cambios),
+                                  icon: const Icon(Icons.difference, size: 14),
+                                  label: Text(
+                                    context.strings.changedFiles(
+                                      cambios.fileCount,
+                                    ),
+                                  ),
+                                ),
+                              ),
                             // La actividad no desaparece: baja al pie de la
                             // conversación mientras hay trabajo, para verse sin
                             // tapar lo que ya se dijo.

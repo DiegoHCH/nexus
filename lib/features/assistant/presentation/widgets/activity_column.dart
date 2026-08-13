@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -140,6 +142,9 @@ class _ActivityRowState extends State<_ActivityRow> {
                       ),
                     ),
                   ),
+                  // Cuánto lleva corriendo, y solo mientras corre: al terminar
+                  // el dato deja de importar y sería ruido en la lista.
+                  if (running) _Elapsed(since: item.startedAt),
                   Expanded(
                     child: Text(
                       item.description,
@@ -189,6 +194,55 @@ class _ActivityRowState extends State<_ActivityRow> {
           ),
           if (_open) _Detail(item: item),
         ],
+      ),
+    );
+  }
+}
+
+/// El cronómetro del paso en curso.
+///
+/// Se pinta con su propio reloj en vez de meter el segundero en el estado: la
+/// conversación entera se reconstruiría una vez por segundo, y lo único que
+/// cambia son dos cifras.
+class _Elapsed extends StatefulWidget {
+  const _Elapsed({required this.since});
+
+  final DateTime since;
+
+  @override
+  State<_Elapsed> createState() => _ElapsedState();
+}
+
+class _ElapsedState extends State<_Elapsed> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final elapsed = DateTime.now().difference(widget.since);
+    // Por debajo de tres segundos no se enseña: casi todo termina ahí, y un
+    // contador que aparece y desaparece en cada paso marea más que informa.
+    if (elapsed.inSeconds < 3) return const SizedBox.shrink();
+
+    final minutos = elapsed.inMinutes;
+    final segundos = elapsed.inSeconds % 60;
+    return Padding(
+      padding: const EdgeInsets.only(right: NexusSpacing.s3),
+      child: Text(
+        minutos > 0 ? '${minutos}m ${segundos}s' : '${segundos}s',
+        style: NexusTypography.data.copyWith(color: colors.cyan),
       ),
     );
   }

@@ -129,6 +129,26 @@ class WorkspaceController extends Notifier<Workspace> {
     await _persist(state.copyWith(folders: folders));
   }
 
+  /// Lo que Claude no puede ejecutar en esta carpeta.
+  Future<void> setBlockedCommands(String path, List<String> commands) async {
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          PairedFolder(
+            path: folder.path,
+            modality: folder.modality,
+            claudeProfile: folder.claudeProfile,
+            claudeModel: folder.claudeModel,
+            claudeEffort: folder.claudeEffort,
+            activeRepo: folder.activeRepo,
+            blockedCommands: commands,
+          )
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
   Future<void> setClaudeModel(String path, String? model) => _replace(
     path,
     (folder) => folder.claudeModel == model ? null : model,
@@ -158,6 +178,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeModel: model == null ? folder.claudeModel : model(folder),
             claudeEffort: effort == null ? folder.claudeEffort : effort(folder),
             activeRepo: folder.activeRepo,
+            blockedCommands: folder.blockedCommands,
           )
         else
           folder,

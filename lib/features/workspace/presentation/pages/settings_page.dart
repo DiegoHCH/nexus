@@ -111,6 +111,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           children: [
                             for (final section in _Section.values)
                               _SectionLink(
+                                // Con nombre propio: «VOZ» aparece dos veces en
+                                // esta pantalla —el enlace de la izquierda y la
+                                // modalidad de una carpeta— y sin una llave no
+                                // hay forma de decir cuál se pulsa.
+                                key: ValueKey('seccion-${section.name}'),
                                 label: section.title(context.strings),
                                 active: _section == section,
                                 onTap: () => setState(() => _section = section),
@@ -155,6 +160,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
 class _SectionLink extends StatelessWidget {
   const _SectionLink({
+    super.key,
     required this.label,
     required this.active,
     required this.onTap,
@@ -167,10 +173,13 @@ class _SectionLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
-      child: InkWell(
-        onTap: onTap,
+    // El relleno **dentro** del InkWell y no fuera: por fuera, la mitad de
+    // abajo de cada enlace era hueco muerto que no respondía al clic. Lo
+    // destapó la prueba que abre la pantalla, y el ratón lo sufría igual.
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
         child: Text(
           label.toUpperCase(),
           style: NexusTypography.label.copyWith(
@@ -246,19 +255,28 @@ class _SettingsTopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(
-            context.strings.brand,
-            style: NexusTypography.data.copyWith(
-              color: colors.mute,
-              letterSpacing: 4.2,
+          // Flexibles y con puntos suspensivos: en una ventana estrecha esta
+          // fila se salía —lo destapó la primera prueba que abrió la pantalla—
+          // y lo que sobra es el rótulo, no el interruptor de permisos.
+          Flexible(
+            child: Text(
+              context.strings.brand,
+              overflow: TextOverflow.ellipsis,
+              style: NexusTypography.data.copyWith(
+                color: colors.mute,
+                letterSpacing: 4.2,
+              ),
             ),
           ),
           const SizedBox(width: NexusSpacing.s5),
-          Text(
-            context.strings.settings,
-            style: NexusTypography.label.copyWith(
-              color: colors.faint,
-              letterSpacing: 2,
+          Flexible(
+            child: Text(
+              context.strings.settings,
+              overflow: TextOverflow.ellipsis,
+              style: NexusTypography.label.copyWith(
+                color: colors.faint,
+                letterSpacing: 2,
+              ),
             ),
           ),
           const Spacer(),
@@ -351,6 +369,16 @@ class _PermissionsSection extends ConsumerWidget {
           context.strings.foldersExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
+        // De la carpeta activa: lo que tarda en un repo no tarda en otro, así
+        // que una lista global bloquearía en un proyecto lo que en otro es
+        // instantáneo.
+        if (workspace.folders
+                .where((folder) => folder.path == workspace.activePath)
+                .firstOrNull
+            case final activa?) ...[
+          const SizedBox(height: NexusSpacing.s6),
+          _BlockedCommands(folder: activa),
+        ],
       ],
     );
   }
@@ -425,6 +453,83 @@ class _FolderRow extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Lo que Claude no puede ejecutar en la carpeta activa.
+///
+/// Va en Permisos y no en una sección propia porque es un permiso: la
+/// diferencia con el interruptor es que aquel dice si puede escribir y este
+/// dice qué **no** puede correr, y los dos se leen juntos.
+class _BlockedCommands extends ConsumerStatefulWidget {
+  const _BlockedCommands({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  ConsumerState<_BlockedCommands> createState() => _BlockedCommandsState();
+}
+
+class _BlockedCommandsState extends ConsumerState<_BlockedCommands> {
+  late final _controller = TextEditingController(
+    text: widget.folder.blockedCommands.join('\n'),
+  );
+
+  @override
+  void didUpdateWidget(covariant _BlockedCommands oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Al cambiar de carpeta activa hay que traer su lista: sin esto se quedaría
+    // la de la anterior y se guardaría encima de la nueva.
+    if (widget.folder.path == oldWidget.folder.path) return;
+    _controller.text = widget.folder.blockedCommands.join('\n');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.blockedTitle(widget.folder.name),
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.blockedExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s3),
+        TextField(
+          controller: _controller,
+          minLines: 3,
+          maxLines: 6,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(
+            hintText: strings.blockedHint,
+            hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+          ),
+          onChanged: (value) => ref
+              .read(workspaceControllerProvider.notifier)
+              .setBlockedCommands(
+                widget.folder.path,
+                value
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .toList(),
+              ),
+        ),
+      ],
     );
   }
 }
