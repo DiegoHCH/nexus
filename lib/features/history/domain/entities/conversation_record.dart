@@ -15,6 +15,7 @@ class ConversationRecord {
     required this.startedAt,
     required this.messages,
     this.profileName,
+    this.sourcePath,
     String? title,
     // El campo es privado y el parámetro no: quien construye pasa `title`, y
     // adentro se guarda como el título de respaldo que usa el getter.
@@ -36,6 +37,11 @@ class ConversationRecord {
     final parts = folderPath.split('/').where((part) => part.isNotEmpty);
     return parts.isEmpty ? 'sin-proyecto' : parts.last;
   }
+
+  /// El archivo del que se leyó, cuando vino de una carpeta o un vault. Sin
+  /// esto no se podría borrar lo que se está viendo: la nota tiene su propio
+  /// nombre en el disco y no se puede deducir del identificador.
+  final String? sourcePath;
 
   /// El título que traía la nota, si venía con uno. Lo que se lee de un vault
   /// ya tiene título escrito, y deducirlo otra vez del primer mensaje daría uno

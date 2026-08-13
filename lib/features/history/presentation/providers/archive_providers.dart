@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
@@ -258,3 +259,35 @@ final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
     ...delVault.where((record) => !vistas.contains(record.id)),
   ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
 });
+
+/// Borra una conversación de donde esté: del historial de la app y de la nota
+/// del vault, si vino de una.
+///
+/// La nota **se manda a la papelera**, no se destruye: está en una carpeta del
+/// usuario, junto a cosas que no ha escrito esta app, y un clic no puede ser
+/// irreversible ahí. El JSON interno sí se borra: es una copia de trabajo de
+/// Nexus y se puede rehacer.
+final deleteConversationProvider =
+    Provider<Future<void> Function(ConversationRecord)>((ref) {
+      return (record) async {
+        await ref.read(localConversationStoreProvider).delete(record);
+
+        final source = record.sourcePath;
+        if (source != null && source.isNotEmpty) {
+          final file = File(source);
+          if (file.existsSync()) {
+            final home = Platform.environment['HOME'] ?? '';
+            final trash = Directory('$home/.Trash');
+            if (home.isNotEmpty && trash.existsSync()) {
+              final name = source.split('/').last;
+              await file.rename('${trash.path}/$name');
+            } else {
+              await file.delete();
+            }
+          }
+        }
+
+        ref.invalidate(allSavedConversationsProvider);
+        ref.invalidate(savedConversationsProvider(record.folderPath));
+      };
+    });

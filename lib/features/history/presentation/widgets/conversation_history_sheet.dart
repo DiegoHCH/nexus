@@ -140,11 +140,15 @@ class _ConversationHistorySheetState
           Row(
             children: [
               for (final profile in profiles)
-                _Tab(
-                  label: profile,
-                  count: byProfile[profile]!.length,
-                  active: profile == current,
-                  onTap: () => setState(() => _profile = profile),
+                // Repartidas a partes iguales: son hermanas, y con el ancho
+                // pegado al texto la de nombre más largo parecía la principal.
+                Expanded(
+                  child: _Tab(
+                    label: profile,
+                    count: byProfile[profile]!.length,
+                    active: profile == current,
+                    onTap: () => setState(() => _profile = profile),
+                  ),
                 ),
             ],
           ),
@@ -161,6 +165,7 @@ class _ConversationHistorySheetState
                   Navigator.of(context).pop();
                   widget.onPick(record);
                 },
+                onDelete: () => ref.read(deleteConversationProvider)(record),
               );
             },
           ),
@@ -205,6 +210,7 @@ class _Tab extends StatelessWidget {
           ),
         ),
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Text(
               label.toUpperCase(),
@@ -224,14 +230,31 @@ class _Tab extends StatelessWidget {
   }
 }
 
-class _Row extends StatelessWidget {
-  const _Row({required this.record, required this.onTap});
+class _Row extends StatefulWidget {
+  const _Row({
+    required this.record,
+    required this.onTap,
+    required this.onDelete,
+  });
 
   final ConversationRecord record;
   final VoidCallback onTap;
+  final Future<void> Function() onDelete;
+
+  @override
+  State<_Row> createState() => _RowState();
+}
+
+class _RowState extends State<_Row> {
+  /// Borrar pide confirmación **en la propia fila**, no en otro diálogo encima
+  /// de este: lo que se va a borrar es esta línea, y verla mientras decides es
+  /// más claro que un cuadro que repite el título.
+  bool _confirming = false;
 
   @override
   Widget build(BuildContext context) {
+    final record = widget.record;
+    final onTap = widget.onTap;
     final colors = context.colors;
     final when = record.startedAt;
     String two(int value) => value.toString().padLeft(2, '0');
@@ -278,6 +301,30 @@ class _Row extends StatelessWidget {
               '${record.messages.length}',
               style: NexusTypography.data.copyWith(color: colors.faint),
             ),
+            const SizedBox(width: NexusSpacing.s3),
+            if (_confirming) ...[
+              TextButton(
+                onPressed: () => setState(() => _confirming = false),
+                child: Text(
+                  context.strings.cancel,
+                  style: NexusTypography.label.copyWith(color: colors.faint),
+                ),
+              ),
+              TextButton(
+                onPressed: widget.onDelete,
+                child: Text(
+                  context.strings.deleteForReal,
+                  style: NexusTypography.label.copyWith(color: colors.err),
+                ),
+              ),
+            ] else
+              IconButton(
+                onPressed: () => setState(() => _confirming = true),
+                tooltip: context.strings.deleteConversation,
+                iconSize: 14,
+                splashRadius: 14,
+                icon: Icon(Icons.delete_outline, color: colors.faint),
+              ),
           ],
         ),
       ),

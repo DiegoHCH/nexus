@@ -45,6 +45,7 @@ class VaultReader {
       final record = parse(
         await entity.readAsString(),
         fallbackId: entity.path,
+        sourcePath: entity.path,
       );
       if (record == null) continue;
       if (folderPath != null && record.folderPath != folderPath) continue;
@@ -63,6 +64,7 @@ class VaultReader {
   static ConversationRecord? parse(
     String content, {
     required String fallbackId,
+    String? sourcePath,
   }) {
     final front = _frontmatter(content);
     final project = front['proyecto'];
@@ -78,6 +80,7 @@ class VaultReader {
       folderPath: project,
       startedAt: when.toLocal(),
       profileName: front['perfil'],
+      sourcePath: sourcePath,
       messages: _messages(content),
       title: front['titulo'],
     );

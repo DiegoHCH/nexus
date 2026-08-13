@@ -131,6 +131,9 @@ abstract class NexusStrings {
   String get notionMissing;
   String get claudeAccount;
   String get claudeAccountDefault;
+  String get deleteConversation;
+  String get deleteForReal;
+  String get cancel;
   String claudeAccountSignedOut(String name);
 
   // Configuración inicial
@@ -406,6 +409,12 @@ class NexusStringsEs extends NexusStrings {
   String get claudeAccount => 'Cuenta de Claude para esta carpeta';
   @override
   String get claudeAccountDefault => 'cuenta por defecto';
+  @override
+  String get deleteConversation => 'Borrar esta conversación';
+  @override
+  String get deleteForReal => 'BORRAR';
+  @override
+  String get cancel => 'CANCELAR';
   @override
   String claudeAccountSignedOut(String name) => '$name · sin sesión';
 
@@ -719,6 +728,12 @@ class NexusStringsEn extends NexusStrings {
   String get claudeAccount => 'Claude account for this folder';
   @override
   String get claudeAccountDefault => 'default account';
+  @override
+  String get deleteConversation => 'Delete this conversation';
+  @override
+  String get deleteForReal => 'DELETE';
+  @override
+  String get cancel => 'CANCEL';
   @override
   String claudeAccountSignedOut(String name) => '$name · not signed in';
 
