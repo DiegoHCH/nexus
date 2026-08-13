@@ -76,7 +76,7 @@ abstract class NexusStrings {
   String get history;
   String get historyExplainer;
   String get nothingAskedYet;
-  String get startFromScratch;
+  String startFromScratchIn(String folder);
   String get conversationForgotten;
 
   // Ajustes
@@ -274,7 +274,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get nothingAskedYet => 'Todavía no le has pedido nada.';
   @override
-  String get startFromScratch => 'EMPEZAR DE CERO';
+  String startFromScratchIn(String folder) =>
+      'QUE CLAUDE OLVIDE LO HABLADO EN $folder';
   @override
   String get conversationForgotten =>
       'Conversación olvidada: la próxima empieza de cero.';
@@ -595,7 +596,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get nothingAskedYet => 'You have not asked for anything yet.';
   @override
-  String get startFromScratch => 'START FROM SCRATCH';
+  String startFromScratchIn(String folder) =>
+      'MAKE CLAUDE FORGET WHAT WAS SAID IN $folder';
   @override
   String get conversationForgotten =>
       'Conversation forgotten: the next one starts from scratch.';

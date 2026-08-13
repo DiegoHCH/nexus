@@ -323,6 +323,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// leyendo.
   late String _recordId = conversationId;
 
+  /// Si esta conversación es la que se está viendo de ese archivo. Se compara
+  /// con el identificador del registro y no con el de la conversación: al
+  /// retomar una del historial, la conversación adopta el suyo.
+  bool isShowing(String recordId) => _recordId == recordId;
+
   /// Vuelve a abrir una conversación guardada: se pinta entera y lo que sigas
   /// diciendo se añade a ella.
   void resume(ConversationRecord record) {

@@ -1,9 +1,13 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/platform/system_files.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/data/datasources/vault_reader.dart';
 import 'package:nexus/features/history/data/datasources/notion_api.dart';
@@ -273,18 +277,28 @@ final deleteConversationProvider =
         await ref.read(localConversationStoreProvider).delete(record);
 
         final source = record.sourcePath;
-        if (source != null && source.isNotEmpty) {
-          final file = File(source);
-          if (file.existsSync()) {
-            final home = Platform.environment['HOME'] ?? '';
-            final trash = Directory('$home/.Trash');
-            if (home.isNotEmpty && trash.existsSync()) {
-              final name = source.split('/').last;
-              await file.rename('${trash.path}/$name');
-            } else {
-              await file.delete();
-            }
+        if (source != null && source.isNotEmpty && File(source).existsSync()) {
+          // Si el sistema no deja, se queda la nota y se sigue: lo que no puede
+          // pasar es que un fallo aquí impida cerrar la conversación y refrescar
+          // la lista, que era lo que hacía que borrar «a veces no hiciera nada».
+          final movida = await SystemFiles.moveToTrash(source);
+          if (!movida) {
+            developer.log(
+              'la nota no se pudo mandar a la papelera: $source',
+              name: 'nexus.archivo',
+            );
           }
+        }
+
+        // Si esa conversación está abierta, se cierra: borrarla del historial
+        // y dejarla en pantalla sería enseñar algo que ya no existe, y el
+        // siguiente turno la resucitaría escribiéndola otra vez.
+        for (final conversation in ref.read(conversationsProvider).items) {
+          final controller = ref.read(
+            assistantControllerProvider(conversation.id).notifier,
+          );
+          if (!controller.isShowing(record.id)) continue;
+          await ref.read(conversationsProvider.notifier).close(conversation.id);
         }
 
         ref.invalidate(allSavedConversationsProvider);

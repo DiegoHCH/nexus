@@ -19,20 +19,36 @@ class ConversationHistorySheet extends ConsumerStatefulWidget {
     super.key,
     required this.onPick,
     required this.onForget,
+    this.forgetFolder,
   });
 
   final void Function(ConversationRecord record) onPick;
   final VoidCallback onForget;
 
+  /// La carpeta cuya sesión de Claude se olvidaría, o `null` si no hay ninguna
+  /// conversación abierta.
+  ///
+  /// Va con nombre y apellido porque el botón hacía otra cosa de la que
+  /// parecía: no borra nada de esta lista —para eso está la papelera de cada
+  /// fila—, sino que hace que **Claude olvide el hilo** de esa carpeta y el
+  /// siguiente encargo empiece sin contexto arrastrado. Con la ventana
+  /// enseñando conversaciones de varias cuentas y proyectos, un «empezar de
+  /// cero» a secas no decía sobre cuál.
+  final String? forgetFolder;
+
   static Future<void> open(
     BuildContext context, {
     required void Function(ConversationRecord record) onPick,
     required VoidCallback onForget,
+    String? forgetFolder,
   }) {
     return showDialog<void>(
       context: context,
-      builder: (_) =>
-          ConversationHistorySheet(onPick: onPick, onForget: onForget),
+      builder: (_) => ConversationHistorySheet(
+        onPick: onPick,
+        onForget: onForget,
+        forgetFolder: forgetFolder,
+      ),
     );
   }
 
@@ -89,14 +105,16 @@ class _ConversationHistorySheetState
                   data: _body,
                 ),
               ),
-              const SizedBox(height: NexusSpacing.s5),
-              OutlinedButton(
-                onPressed: () {
-                  Navigator.of(context).pop();
-                  widget.onForget();
-                },
-                child: Text(strings.startFromScratch),
-              ),
+              if (widget.forgetFolder case final folder?) ...[
+                const SizedBox(height: NexusSpacing.s5),
+                OutlinedButton(
+                  onPressed: () {
+                    Navigator.of(context).pop();
+                    widget.onForget();
+                  },
+                  child: Text(strings.startFromScratchIn(folder)),
+                ),
+              ],
             ],
           ),
         ),

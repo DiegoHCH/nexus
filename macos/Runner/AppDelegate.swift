@@ -6,6 +6,42 @@ class AppDelegate: FlutterAppDelegate {
   /// Por dónde entran las órdenes del menú de macOS a la app.
   private static let menuChannelName = "com.katanalabs.nexus/menu"
 
+  /// Por dónde se piden operaciones de archivos que el sistema no deja hacer a
+  /// pelo desde Dart.
+  private static let filesChannelName = "com.katanalabs.nexus/files"
+
+  override func applicationDidFinishLaunching(_ notification: Notification) {
+    super.applicationDidFinishLaunching(notification)
+    guard
+      let controller = mainFlutterWindow?.contentViewController as? FlutterViewController
+    else { return }
+
+    FlutterMethodChannel(
+      name: AppDelegate.filesChannelName,
+      binaryMessenger: controller.engine.binaryMessenger
+    ).setMethodCallHandler { call, result in
+      guard call.method == "moveToTrash",
+            let path = (call.arguments as? [String: Any])?["path"] as? String
+      else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+      // `trashItem` y no mover el archivo a mano: renombrarlo hacia `~/.Trash`
+      // lo prohíbe el sistema —«Operation not permitted», comprobado— y además
+      // así la papelera guarda de dónde salió, que es lo que hace funcionar el
+      // «Devolver» del Finder.
+      do {
+        try FileManager.default.trashItem(
+          at: URL(fileURLWithPath: path),
+          resultingItemURL: nil
+        )
+        result(true)
+      } catch {
+        result(FlutterError(code: "trash_failed", message: "\(error)", details: path))
+      }
+    }
+  }
+
   override func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
     return true
   }

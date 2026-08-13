@@ -71,6 +71,7 @@ class _MainAppState extends ConsumerState<MainApp> {
 
     await ConversationHistorySheet.open(
       navigator.context,
+      forgetFolder: focused == null ? null : folder.split('/').last,
       onPick: (record) async {
         // La conversación elegida puede ser de otra carpeta —las pestañas son
         // por cuenta, no por proyecto—, así que se abre sobre **la suya**.
@@ -99,6 +100,10 @@ class _MainAppState extends ConsumerState<MainApp> {
     final locale = ref.watch(localeProvider);
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      // La cinta de «DEBUG» fuera: esta app se usa a diario en compilación de
+      // depuración —es su forma normal de correr, no una prueba de un rato— y
+      // la cinta tapa la esquina del HUD.
+      debugShowCheckedModeBanner: false,
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
       themeMode: ThemeMode.system,
