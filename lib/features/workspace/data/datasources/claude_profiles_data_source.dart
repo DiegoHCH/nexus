@@ -49,13 +49,18 @@ class ClaudeProfilesDataSource {
     await for (final entity in Directory(home).list(followLinks: false)) {
       if (entity is! Directory) continue;
       final name = entity.path.split('/').last;
-      // `.claude` y `.claude-*`, nada más: en el home hay muchas carpetas
-      // ocultas y ninguna otra es una cuenta de Claude.
-      if (name != '.claude' && !name.startsWith('.claude-')) continue;
+      // Solo `.claude-*`: en el home hay muchas carpetas ocultas y ninguna
+      // otra es una cuenta de Claude.
+      //
+      // `.claude` a secas **no se lista**, y no por descuido: es justo lo que
+      // significa «cuenta por defecto», la opción que ya está arriba. Cuando
+      // salía también aquí, la misma cuenta aparecía dos veces con dos nombres
+      // distintos y no había forma de saber en qué se diferenciaban.
+      if (!name.startsWith('.claude-')) continue;
       profiles.add(
         ClaudeProfile(
           path: entity.path,
-          name: name == '.claude' ? 'por defecto' : name.substring(8),
+          name: name.substring(8),
           signedIn: await _hasSession(entity.path),
         ),
       );
@@ -66,19 +71,11 @@ class ClaudeProfilesDataSource {
   }
 
   Future<bool> _hasSession(String configDir) async {
-    for (final service in [
+    final result = await Process.run('security', [
+      'find-generic-password',
+      '-s',
       keychainService(configDir),
-      // El perfil por defecto puede tener la credencial sin sufijo, de antes
-      // de que Claude Code separara cuentas.
-      if (configDir.endsWith('/.claude')) 'Claude Code-credentials',
-    ]) {
-      final result = await Process.run('security', [
-        'find-generic-password',
-        '-s',
-        service,
-      ]);
-      if (result.exitCode == 0) return true;
-    }
-    return false;
+    ]);
+    return result.exitCode == 0;
   }
 }

@@ -61,6 +61,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   _Section _section = _Section.permissions;
 
   @override
+  void initState() {
+    super.initState();
+    // Se relee al abrir Ajustes, no una vez por arranque: crear o borrar un
+    // perfil pasa fuera de la app, y con la lista cacheada seguía ofreciendo
+    // una cuenta que ya no existía.
+    ref.invalidate(claudeProfilesProvider);
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
