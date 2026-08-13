@@ -109,6 +109,26 @@ class WorkspaceController extends Notifier<Workspace> {
 
   /// El modelo y el esfuerzo de esta carpeta. `null` en cualquiera devuelve
   /// esa decisión al CLI.
+  /// Sobre qué repo de dentro se trabaja. `null` vuelve a la carpeta entera,
+  /// que es lo correcto cuando el encargo cruza varios.
+  Future<void> setActiveRepo(String path, String? repo) async {
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          PairedFolder(
+            path: folder.path,
+            modality: folder.modality,
+            claudeProfile: folder.claudeProfile,
+            claudeModel: folder.claudeModel,
+            claudeEffort: folder.claudeEffort,
+            activeRepo: repo,
+          )
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
   Future<void> setClaudeModel(String path, String? model) => _replace(
     path,
     (folder) => folder.claudeModel == model ? null : model,
@@ -137,6 +157,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeProfile: folder.claudeProfile,
             claudeModel: model == null ? folder.claudeModel : model(folder),
             claudeEffort: effort == null ? folder.claudeEffort : effort(folder),
+            activeRepo: folder.activeRepo,
           )
         else
           folder,
@@ -174,4 +195,10 @@ final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
 /// terminal, o el propio Claude—.
 final gitInfoProvider = FutureProvider.family<GitInfo?, String>(
   (ref, folderPath) => const GitDataSource().read(folderPath),
+);
+
+/// Los repos que hay dentro de una carpeta emparejada. Vacío cuando la carpeta
+/// **es** el repo, que es el caso normal y no necesita elegir nada.
+final reposInsideProvider = FutureProvider.family<List<String>, String>(
+  (ref, folderPath) => const GitDataSource().reposInside(folderPath),
 );

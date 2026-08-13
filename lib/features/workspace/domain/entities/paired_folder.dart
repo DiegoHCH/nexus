@@ -27,6 +27,7 @@ class PairedFolder {
     this.claudeProfile,
     this.claudeModel,
     this.claudeEffort,
+    this.activeRepo,
   });
 
   final String path;
@@ -51,6 +52,17 @@ class PairedFolder {
   final String? claudeModel;
   final String? claudeEffort;
 
+  /// El repo de dentro sobre el que se trabaja ahora, cuando esta carpeta es
+  /// una raíz con varios. `null` = la carpeta entera.
+  ///
+  /// Importa más de lo que parece: es el directorio con el que arranca Claude,
+  /// así que decide dónde ocurre un commit, qué rama se ve y qué reglas se
+  /// cargan.
+  final String? activeRepo;
+
+  /// Dónde trabaja Claude de verdad.
+  String get workingDirectory => activeRepo ?? path;
+
   /// Lo que se enseña en la interfaz: la ruta con `~` en vez del home, que es
   /// como la escribe el mockup y como la lee cualquiera.
   String displayPath(String home) {
@@ -74,12 +86,14 @@ class PairedFolder {
     String? claudeProfile,
     String? claudeModel,
     String? claudeEffort,
+    String? activeRepo,
   }) => PairedFolder(
     path: path,
     modality: modality ?? this.modality,
     claudeProfile: claudeProfile ?? this.claudeProfile,
     claudeModel: claudeModel ?? this.claudeModel,
     claudeEffort: claudeEffort ?? this.claudeEffort,
+    activeRepo: activeRepo ?? this.activeRepo,
   );
 
   Map<String, dynamic> toJson() => {
@@ -88,6 +102,7 @@ class PairedFolder {
     if (claudeProfile != null) 'claudeProfile': claudeProfile,
     if (claudeModel != null) 'claudeModel': claudeModel,
     if (claudeEffort != null) 'claudeEffort': claudeEffort,
+    if (activeRepo != null) 'activeRepo': activeRepo,
   };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
@@ -98,6 +113,7 @@ class PairedFolder {
       claudeProfile: json['claudeProfile'] as String?,
       claudeModel: json['claudeModel'] as String?,
       claudeEffort: json['claudeEffort'] as String?,
+      activeRepo: json['activeRepo'] as String?,
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al
       // permisivo: un dato corrupto no puede abrir el micrófono.
       modality: FolderModality.values.firstWhere(

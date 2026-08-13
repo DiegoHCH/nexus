@@ -47,6 +47,33 @@ class GitDataSource {
     );
   }
 
+  /// Los repositorios que hay **dentro** de una carpeta, un nivel abajo.
+  ///
+  /// Es el caso del workspace: una carpeta raíz con varios repos dentro. Sin
+  /// esto, Claude trabaja sobre la raíz y cualquier cosa de git —la rama, un
+  /// commit— se hace en el sitio equivocado o directamente no se puede hacer.
+  ///
+  /// Un nivel y no en profundidad: bajar recursivamente por un workspace grande
+  /// cuesta segundos y encuentra los repos de `node_modules`, que no son
+  /// proyectos de nadie.
+  Future<List<String>> reposInside(String folderPath) async {
+    final directory = Directory(folderPath);
+    if (!directory.existsSync()) return const [];
+
+    final repos = <String>[];
+    await for (final entity in directory.list(followLinks: false)) {
+      if (entity is! Directory) continue;
+      final name = entity.path.split('/').last;
+      if (name.startsWith('.')) continue;
+      if (Directory('${entity.path}/.git').existsSync() ||
+          File('${entity.path}/.git').existsSync()) {
+        repos.add(entity.path);
+      }
+    }
+    repos.sort();
+    return repos;
+  }
+
   Future<String?> _run(String folderPath, List<String> arguments) async {
     try {
       final result = await Process.run('git', [

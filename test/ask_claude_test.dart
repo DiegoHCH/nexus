@@ -50,7 +50,7 @@ class _Memory implements ConversationMemory {
 AskClaude askWith(_Bridge bridge, _Memory memory, {String? folder = '/repo'}) =>
     AskClaude(
       bridge,
-      () async => folder == null
+      (_) async => folder == null
           ? null
           : (
               workingDirectory: folder,

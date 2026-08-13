@@ -33,7 +33,11 @@ class AskClaude {
   /// Se consulta en cada turno, no se guarda: cambiar de carpeta o mover el
   /// interruptor de permisos tiene que valer para el siguiente encargo sin
   /// reconstruir nada.
-  final Future<ClaudeWorkContext?> Function() _readContext;
+  ///
+  /// Recibe **el encargo** porque hay una decisión que depende de lo que se
+  /// pide: con una raíz de varios repos, nombrar uno debería colocar a Claude
+  /// dentro de él.
+  final Future<ClaudeWorkContext?> Function(String instruction) _readContext;
 
   /// Un encargo a la vez por carpeta. Compartido entre conversaciones: es lo
   /// único que impide que dos hilos sobre el mismo repo se pisen la sesión.
@@ -43,7 +47,7 @@ class AskClaude {
   /// comprimir la conversación—: eso no debe aparecer en «lo que le has
   /// pedido», donde la lista sirve para repetir una petición anterior.
   Stream<ClaudeEvent> call(String instruction, {bool remember = true}) async* {
-    final context = await _readContext();
+    final context = await _readContext(instruction);
     // Sin carpeta emparejada no hay dónde trabajar, y lo honesto es decirlo:
     // antes se lanzaba igual y Claude respondía sobre la raíz del disco.
     if (context == null) {

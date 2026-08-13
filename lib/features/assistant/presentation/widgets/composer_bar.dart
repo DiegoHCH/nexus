@@ -175,9 +175,14 @@ class _Chips extends ConsumerWidget {
     final strings = context.strings;
     final workspace = ref.watch(workspaceControllerProvider);
     final paired = folder;
+    // La rama es la del sitio donde va a trabajar Claude, que con una raíz de
+    // varios repos no es la carpeta emparejada sino el repo elegido.
     final git = paired == null
         ? null
-        : ref.watch(gitInfoProvider(paired.path)).value;
+        : ref.watch(gitInfoProvider(paired.workingDirectory)).value;
+    final repos = paired == null
+        ? const <String>[]
+        : ref.watch(reposInsideProvider(paired.path)).value ?? const [];
 
     return Row(
       children: [
@@ -237,14 +242,65 @@ class _Chips extends ConsumerWidget {
             warn: paired == null,
           ),
         ),
-        if (git != null) ...[
+        // Con varios repos dentro, el chip elige. Es el caso de una carpeta
+        // raíz de trabajo: Claude tiene que arrancar **dentro** del repo o
+        // cualquier cosa de git ocurre en el sitio equivocado.
+        if (repos.length > 1 && paired != null)
+          PopupMenuButton<String?>(
+            color: colors.deep,
+            tooltip: '',
+            onSelected: (value) => ref
+                .read(workspaceControllerProvider.notifier)
+                .setActiveRepo(paired.path, value),
+            itemBuilder: (context) => [
+              PopupMenuItem<String?>(
+                child: Row(
+                  children: [
+                    Text(
+                      // Trabajar sobre la raíz sigue siendo válido: hay
+                      // encargos que cruzan repos y ahí bajar a uno sería
+                      // esconderle la mitad.
+                      paired.name,
+                      style: NexusTypography.data.copyWith(color: colors.mute),
+                    ),
+                    if (paired.activeRepo == null) ...[
+                      const SizedBox(width: NexusSpacing.s3),
+                      Icon(Icons.check, size: 13, color: colors.cyan),
+                    ],
+                  ],
+                ),
+              ),
+              for (final repo in repos)
+                PopupMenuItem<String?>(
+                  value: repo,
+                  child: Row(
+                    children: [
+                      Text(
+                        repo.split('/').last,
+                        style: NexusTypography.data.copyWith(color: colors.ink),
+                      ),
+                      if (repo == paired.activeRepo) ...[
+                        const SizedBox(width: NexusSpacing.s3),
+                        Icon(Icons.check, size: 13, color: colors.cyan),
+                      ],
+                    ],
+                  ),
+                ),
+            ],
+            child: _Chip(
+              icon: Icons.hub_outlined,
+              label: git?.repository ?? paired.name,
+            ),
+          )
+        else if (git != null) ...[
           // El repositorio aparte de la carpeta porque no siempre coinciden: se
           // puede trabajar sobre un subdirectorio de un repo, y entonces la
           // carpeta dice una cosa y el repo otra.
           _Chip(icon: Icons.hub_outlined, label: git.repository),
-          if (git.branch case final branch?)
-            _Chip(icon: Icons.alt_route, label: branch),
-        ] else if (paired != null)
+        ],
+        if (git?.branch case final branch?)
+          _Chip(icon: Icons.alt_route, label: branch),
+        if (git == null && paired != null)
           // Sin repositorio no hay nada que deshacer, y eso hay que decirlo
           // donde se ve el permiso: es la red de seguridad que falta.
           _Chip(
