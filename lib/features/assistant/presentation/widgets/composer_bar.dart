@@ -1,3 +1,6 @@
+import 'dart:math' as math;
+
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -7,7 +10,9 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
+import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -53,6 +58,14 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
   final _controller = TextEditingController();
   final _focusNode = FocusNode();
 
+  /// Las rutas que acompañan a lo que se está escribiendo. Viven aquí y no en
+  /// un provider porque son del mensaje a medio escribir, no de la
+  /// conversación: al enviarlo se van con él.
+  var _attachments = <String>[];
+
+  /// Hay algo encima esperando a que lo sueltes.
+  var _dragging = false;
+
   @override
   void initState() {
     super.initState();
@@ -62,24 +75,30 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
   void _handleFocusChange() => widget.onFocusChanged(_focusNode.hasFocus);
 
   void _handleSubmit(String value) {
-    if (value.trim().isEmpty) return;
-    widget.onSubmit(value);
+    if (value.trim().isEmpty && _attachments.isEmpty) return;
+    widget.onSubmit(
+      AttachedFiles.instruction(
+        value,
+        _attachments,
+        label: context.strings.attachedFilesLabel,
+      ),
+    );
     _controller.clear();
+    setState(() => _attachments = const []);
   }
 
-  /// Mete texto en la caja sin pisar lo que ya haya escrito: adjuntar un
-  /// archivo es añadir su ruta a lo que estabas pidiendo, no empezar de nuevo.
-  void _insert(String text) {
-    final actual = _controller.text.trimRight();
-    _controller.text = actual.isEmpty ? text : '$actual $text';
-    _controller.selection = TextSelection.collapsed(
-      offset: _controller.text.length,
-    );
-    _focusNode.requestFocus();
-  }
+  void _attach(Iterable<String> paths) =>
+      setState(() => _attachments = AttachedFiles.add(_attachments, paths));
+
+  void _detach(String path) =>
+      setState(() => _attachments = [..._attachments]..remove(path));
 
   void _handleClear() {
     _controller.clear();
+    // Borrar la caja se lleva también los adjuntos: son parte del mensaje que
+    // se está descartando, y dejarlos pegados a un texto que ya no existe los
+    // colaría en la siguiente petición.
+    setState(() => _attachments = const []);
     _focusNode.requestFocus();
   }
 
@@ -109,50 +128,85 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
             .firstOrNull ??
         workspace.folders.firstOrNull;
 
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        border: Border(
-          top: BorderSide(color: colors.cyan.withValues(alpha: 0.28)),
-        ),
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          stops: const [0.0, 0.7],
-          colors: [
-            colors.cyan.withValues(alpha: 0.045),
-            colors.cyan.withValues(alpha: 0),
-          ],
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(
-          NexusSpacing.s8,
-          NexusSpacing.s4,
-          NexusSpacing.s8,
-          NexusSpacing.s5,
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Chips(folder: folder),
-            const SizedBox(height: NexusSpacing.s3),
-            _Field(
-              controller: _controller,
-              focusNode: _focusNode,
-              onSubmit: _handleSubmit,
-              onClear: _handleClear,
+    return DropTarget(
+      // Alrededor de toda la barra y no solo de la caja de texto: quien
+      // arrastra apunta al sitio donde escribe, no a un rectángulo de 30 px de
+      // alto, y fallar el blanco devuelve el archivo a su carpeta de un salto.
+      onDragEntered: (_) => setState(() => _dragging = true),
+      onDragExited: (_) => setState(() => _dragging = false),
+      onDragDone: (detail) {
+        setState(() => _dragging = false);
+        _attach(detail.files.map((file) => file.path));
+      },
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          border: Border(
+            top: BorderSide(
+              color: colors.cyan.withValues(alpha: _dragging ? 0.9 : 0.28),
+              width: _dragging ? 2 : 1,
             ),
-            const SizedBox(height: NexusSpacing.s3),
-            _Controls(
-              folder: folder,
-              workspace: workspace,
-              meter: widget.meter,
-              voiceActive: widget.voiceActive,
-              onToggleVoice: widget.onToggleVoice,
-              onInsert: _insert,
-            ),
-          ],
+          ),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            stops: const [0.0, 0.7],
+            colors: [
+              colors.cyan.withValues(alpha: _dragging ? 0.16 : 0.045),
+              colors.cyan.withValues(alpha: 0),
+            ],
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            NexusSpacing.s8,
+            NexusSpacing.s4,
+            NexusSpacing.s8,
+            NexusSpacing.s5,
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Chips(folder: folder),
+              const SizedBox(height: NexusSpacing.s3),
+              AttachmentStrip(paths: _attachments, onRemove: _detach),
+              _Field(
+                controller: _controller,
+                focusNode: _focusNode,
+                onSubmit: _handleSubmit,
+                onClear: _handleClear,
+              ),
+              const SizedBox(height: NexusSpacing.s3),
+              _Controls(
+                folder: folder,
+                workspace: workspace,
+                meter: widget.meter,
+                voiceActive: widget.voiceActive,
+                onToggleVoice: widget.onToggleVoice,
+                onAttach: _attach,
+              ),
+              // Solo mientras hay algo encima. macOS ya enseña la miniatura de lo
+              // que llevas colgando del cursor; lo que falta decir es que **este**
+              // sitio lo acepta, y eso se dice una vez y en pequeño.
+              if (_dragging) ...[
+                const SizedBox(height: NexusSpacing.s2),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.file_download_outlined,
+                      size: 13,
+                      color: colors.cyan,
+                    ),
+                    const SizedBox(width: NexusSpacing.s2),
+                    Text(
+                      context.strings.dropHere,
+                      style: NexusTypography.label.copyWith(color: colors.cyan),
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
         ),
       ),
     );
@@ -472,7 +526,7 @@ class _Controls extends ConsumerWidget {
     required this.meter,
     required this.voiceActive,
     required this.onToggleVoice,
-    required this.onInsert,
+    required this.onAttach,
   });
 
   /// La carpeta de esta conversación: de ella salen la cuenta, el modelo y el
@@ -482,7 +536,7 @@ class _Controls extends ConsumerWidget {
   final SessionMeter meter;
   final bool voiceActive;
   final VoidCallback? onToggleVoice;
-  final ValueChanged<String> onInsert;
+  final void Function(Iterable<String>) onAttach;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -542,7 +596,7 @@ class _Controls extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: NexusSpacing.s3),
-        _MoreMenu(onInsert: onInsert),
+        _MoreMenu(onAttach: onAttach),
         const SizedBox(width: NexusSpacing.s2),
         if (onToggleVoice case final toggle?)
           IconButton(
@@ -579,13 +633,17 @@ class _NoScrollbar extends MaterialScrollBehavior {
 
 /// El «+»: lo que se añade a lo que estás pidiendo.
 ///
-/// Adjuntar es **poner la ruta en la caja**, no subir un archivo a ningún
-/// sitio: Claude trabaja en tu disco y lee lo que le señales, así que copiar el
-/// contenido sería duplicarlo y perder el vínculo con el original.
+/// Adjuntar es **señalar una ruta**, no subir un archivo a ningún sitio: Claude
+/// trabaja en tu disco y lee lo que le señales, así que copiar el contenido
+/// sería duplicarlo y perder el vínculo con el original.
+///
+/// Lo que se añade por aquí y lo que se suelta arrastrando acaban en el mismo
+/// sitio —la tira de miniaturas—, porque son el mismo gesto dicho de dos
+/// formas.
 class _MoreMenu extends ConsumerWidget {
-  const _MoreMenu({required this.onInsert});
+  const _MoreMenu({required this.onAttach});
 
-  final ValueChanged<String> onInsert;
+  final void Function(Iterable<String>) onAttach;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -598,8 +656,11 @@ class _MoreMenu extends ConsumerWidget {
       onSelected: (value) async {
         switch (value) {
           case 'file':
-            final file = await openFile();
-            if (file != null) onInsert(file.path);
+            // Varios de una vez, como al arrastrar: elegir tres archivos de una
+            // carpeta y tener que abrir el diálogo tres veces es de las cosas
+            // que hacen que nadie use el botón.
+            final files = await openFiles();
+            if (files.isNotEmpty) onAttach(files.map((file) => file.path));
           case 'folder':
             await ref.read(workspaceControllerProvider.notifier).pairFolder();
           case 'settings':
@@ -818,6 +879,10 @@ class _UsageMenu extends ConsumerWidget {
                     _Gauge(
                       label: strings.contextWindow,
                       percent: context_,
+                      // Sin turno todavía no hay medida: se dice, en vez de
+                      // enseñar «0 / 1,0M», que se leería como una ventana
+                      // vacía comprobada y no como una que nadie ha mirado.
+                      value: meter.contextLabel ?? strings.usageUnavailable,
                       warnAt: 85,
                     ),
                     const SizedBox(height: NexusSpacing.s4),
@@ -864,14 +929,17 @@ class _UsageMenu extends ConsumerWidget {
           ),
         ),
       ],
-      child: SizedBox(
-        width: 15,
-        height: 15,
-        child: CircularProgressIndicator(
-          value: context_ / 100,
-          strokeWidth: 2,
-          backgroundColor: colors.rule,
-          color: context_ >= 85 ? colors.warn : colors.cyan,
+      child: Tooltip(
+        message: meter.contextLabel == null
+            ? strings.contextWindow
+            : '${strings.contextWindow} · ${meter.contextLabel}',
+        child: CustomPaint(
+          size: const Size(15, 15),
+          painter: _ContextDial(
+            fraction: meter.contextFraction,
+            ring: colors.rule,
+            fill: context_ >= 85 ? colors.warn : colors.cyan,
+          ),
         ),
       ),
     );
@@ -889,16 +957,69 @@ class _UsageMenu extends ConsumerWidget {
   }
 }
 
+/// El círculo que se llena según lo ocupada que esté la ventana de contexto.
+///
+/// Relleno y no un arco fino: lo que se mira de reojo mientras se trabaja es
+/// «cuánto queda», y un sector macizo se lee sin enfocar la vista. El aro
+/// alrededor está siempre entero para que se vea **de cuánto** se está
+/// llenando — un sector suelto no dice contra qué se compara.
+class _ContextDial extends CustomPainter {
+  const _ContextDial({
+    required this.fraction,
+    required this.ring,
+    required this.fill,
+  });
+
+  final double fraction;
+  final Color ring;
+  final Color fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    canvas.drawCircle(
+      center,
+      radius - 0.75,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = ring,
+    );
+    if (fraction <= 0) return;
+
+    // Desde arriba y en el sentido del reloj, como se lee un depósito.
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 2.5),
+      -math.pi / 2,
+      2 * math.pi * fraction,
+      true,
+      Paint()..color = fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ContextDial old) =>
+      old.fraction != fraction || old.fill != fill;
+}
+
 class _Gauge extends StatelessWidget {
   const _Gauge({
     required this.label,
     required this.percent,
+    this.value,
     this.note,
     this.warnAt = 90,
   });
 
   final String label;
   final int percent;
+
+  /// Lo que se escribe a la derecha. Sin él va el porcentaje solo, que es lo
+  /// que basta para una cuota; el contexto necesita las tres cifras.
+  final String? value;
+
   final String? note;
   final int warnAt;
 
@@ -924,7 +1045,7 @@ class _Gauge extends StatelessWidget {
             ),
             const SizedBox(width: NexusSpacing.s3),
             Text(
-              '$percent %',
+              value ?? '$percent %',
               style: NexusTypography.data.copyWith(color: colors.faint),
             ),
           ],
