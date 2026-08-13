@@ -87,4 +87,27 @@ license: Proprietary
       contains('description: Úsala al preparar un PR'),
     );
   });
+
+  // De las dieciocho del repo oficial, `claude-api` describe con un bloque de
+  // YAML. Con solo la forma de una línea su descripción salía literalmente como
+  // «|-» — lo destapó listar el repo de verdad, no un ejemplo inventado.
+  test('una descripción en bloque se lee, no se queda en «|-»', () {
+    const skill = '''
+---
+name: claude-api
+description: |-
+  Reference for the Claude API — model ids, pricing, params.
+  TRIGGER: whenever the prompt names Claude.
+license: Complete terms in LICENSE.txt
+---
+
+# Building
+''';
+
+    expect(
+      SkillSource.descriptionOf(skill),
+      'Reference for the Claude API — model ids, pricing, params. '
+      'TRIGGER: whenever the prompt names Claude.',
+    );
+  });
 }

@@ -38,17 +38,35 @@ abstract final class SkillSource {
 
   /// La descripción del frontmatter, sin parser de YAML.
   ///
-  /// Solo hace falta un campo y siempre está en una línea —comprobado en las
-  /// dieciocho del repo oficial—, así que meter una dependencia de YAML para
-  /// esto sería pagar mucho por poco.
+  /// Solo hace falta un campo, así que meter una dependencia de YAML entera
+  /// sería pagar mucho por poco — pero hay que cubrir **dos** formas, no una:
+  /// de las dieciocho del repo oficial, `claude-api` describe con un bloque
+  /// (`description: |-` y el texto indentado debajo). Con solo la forma de una
+  /// línea, su descripción salía literalmente como «|-».
   static String descriptionOf(String skillMd) {
     final match = RegExp(
-      r'^description:\s*(.+)$',
+      r'^description:[ \t]*(.*)$',
       multiLine: true,
     ).firstMatch(skillMd);
-    final raw = match?.group(1)?.trim() ?? '';
-    return raw.replaceAll(RegExp(r'''^["']|["']$'''), '');
+    if (match == null) return '';
+
+    final head = match.group(1)!.trim();
+    if (!RegExp(r'^[|>][-+]?$').hasMatch(head)) return _unquote(head);
+
+    // Un bloque: las líneas indentadas que siguen, hasta la primera que no lo
+    // esté. Se juntan en una sola porque esto se enseña en dos líneas de una
+    // fila, no como documento.
+    final block = <String>[];
+    for (final line in skillMd.substring(match.end).split('\n')) {
+      if (line.trim().isEmpty) continue;
+      if (!line.startsWith(' ') && !line.startsWith('\t')) break;
+      block.add(line.trim());
+    }
+    return block.join(' ');
   }
+
+  static String _unquote(String value) =>
+      value.replaceAll(RegExp("^[\"']|[\"']\$"), '');
 
   /// El esqueleto de una skill propia.
   ///
