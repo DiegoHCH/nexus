@@ -11,8 +11,34 @@ abstract final class ClaudeEnvironment {
   /// trae lo que trae una shell de verdad.
   static const _extraPathDirs = ['/opt/homebrew/bin', '/usr/local/bin'];
 
-  static Map<String, String> forProfile(String? configDir) {
+  /// El entorno para lanzar **cualquier** binario, sin nada de Claude dentro.
+  ///
+  /// Existe aparte porque la trampa del PATH no es de `claude`, es de lanzar
+  /// procesos desde una app de GUI: lo mismo le pasa a `git`. Y a `git` un
+  /// `CLAUDE_CONFIG_DIR` no le dice nada, así que meterlo sería ruido con
+  /// aspecto de intención.
+  ///
+  /// `security` y demás binarios de `/usr/bin` no lo necesitan —ese directorio
+  /// sí está en el PATH por defecto de una app— pero tampoco les estorba.
+  static Map<String, String> forTools() {
     final env = Map<String, String>.from(Platform.environment);
+    final home = env['HOME'] ?? '';
+
+    final extraPaths = [
+      ..._extraPathDirs,
+      if (home.isNotEmpty) '$home/.local/bin',
+    ];
+    final currentPath = env['PATH'] ?? '';
+    env['PATH'] = [
+      ...extraPaths,
+      currentPath,
+    ].where((path) => path.isNotEmpty).join(':');
+
+    return env;
+  }
+
+  static Map<String, String> forProfile(String? configDir) {
+    final env = forTools();
 
     // Fuera del entorno: claude factura por la suscripción, no por API key.
     env.remove('ANTHROPIC_API_KEY');
@@ -28,16 +54,6 @@ abstract final class ClaudeEnvironment {
     } else {
       env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
     }
-
-    final extraPaths = [
-      ..._extraPathDirs,
-      if (home.isNotEmpty) '$home/.local/bin',
-    ];
-    final currentPath = env['PATH'] ?? '';
-    env['PATH'] = [
-      ...extraPaths,
-      currentPath,
-    ].where((path) => path.isNotEmpty).join(':');
 
     return env;
   }

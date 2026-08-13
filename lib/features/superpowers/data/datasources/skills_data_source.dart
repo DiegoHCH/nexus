@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/usecases/skill_source.dart';
 import 'package:path_provider/path_provider.dart';
@@ -137,7 +138,7 @@ class SkillsDataSource {
           cache.path,
           'pull',
           '--ff-only',
-        ]);
+        ], environment: ClaudeEnvironment.forTools());
         // Si el `pull` falla —sin red, o el repo cambió de historia— se usa lo
         // que ya había: una copia de ayer sirve, quedarse sin lista no.
         if (pull.exitCode != 0 && !cache.existsSync()) return null;
@@ -150,7 +151,7 @@ class SkillsDataSource {
         '1',
         'https://github.com/$repo.git',
         cache.path,
-      ]);
+      ], environment: ClaudeEnvironment.forTools());
       return clone.exitCode == 0 ? cache : null;
     } on ProcessException {
       return null;

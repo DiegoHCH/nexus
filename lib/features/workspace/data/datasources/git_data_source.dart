@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/platform/claude_environment.dart';
 
 /// En qué repositorio y en qué rama está una carpeta.
 @immutable
@@ -133,7 +134,7 @@ class GitDataSource {
         '-C',
         folderPath,
         ...arguments,
-      ], runInShell: false);
+      ], runInShell: false, environment: ClaudeEnvironment.forTools());
       if (result.exitCode != 0) return null;
       final output = (result.stdout as String).trim();
       return output.isEmpty ? null : output;
