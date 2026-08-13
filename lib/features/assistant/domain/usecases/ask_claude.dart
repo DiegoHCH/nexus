@@ -11,6 +11,9 @@ typedef ClaudeWorkContext = ({
   bool canEdit,
   List<String> extraDirectories,
   String language,
+  String? claudeProfile,
+  String? model,
+  String? effort,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -30,14 +33,21 @@ class AskClaude {
   /// Se consulta en cada turno, no se guarda: cambiar de carpeta o mover el
   /// interruptor de permisos tiene que valer para el siguiente encargo sin
   /// reconstruir nada.
-  final Future<ClaudeWorkContext?> Function() _readContext;
+  ///
+  /// Recibe **el encargo** porque hay una decisión que depende de lo que se
+  /// pide: con una raíz de varios repos, nombrar uno debería colocar a Claude
+  /// dentro de él.
+  final Future<ClaudeWorkContext?> Function(String instruction) _readContext;
 
   /// Un encargo a la vez por carpeta. Compartido entre conversaciones: es lo
   /// único que impide que dos hilos sobre el mismo repo se pisen la sesión.
   final FolderErrandQueue _queue;
 
-  Stream<ClaudeEvent> call(String instruction) async* {
-    final context = await _readContext();
+  /// [remember] a `false` para lo que no es una petición del usuario —hoy,
+  /// comprimir la conversación—: eso no debe aparecer en «lo que le has
+  /// pedido», donde la lista sirve para repetir una petición anterior.
+  Stream<ClaudeEvent> call(String instruction, {bool remember = true}) async* {
+    final context = await _readContext(instruction);
     // Sin carpeta emparejada no hay dónde trabajar, y lo honesto es decirlo:
     // antes se lanzaba igual y Claude respondía sobre la raíz del disco.
     if (context == null) {
@@ -63,7 +73,7 @@ class AskClaude {
       // la misma sesión de Claude— y dos sobre repos distintos no se enteran el
       // uno del otro. La carpeta es la frontera.
       final memory = await _memory.read(folder);
-      await _memory.rememberPrompt(folder, instruction);
+      if (remember) await _memory.rememberPrompt(folder, instruction);
 
       await for (final event in _bridge.ask(
         // La preferencia de idioma va como preferencia, no como orden: si
@@ -76,6 +86,9 @@ class AskClaude {
         canEdit: context.canEdit,
         extraDirectories: context.extraDirectories,
         resumeSessionId: memory.sessionId,
+        claudeProfile: context.claudeProfile,
+        model: context.model,
+        effort: context.effort,
       )) {
         // El identificador se guarda en cuanto arranca, no al terminar: si el
         // encargo se cancela a media ejecución —cerrar la conversación mata el

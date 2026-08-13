@@ -81,6 +81,14 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// tres opciones estaban sobre la mesa y esta es la elegida.
   private static let warmSeconds = 60.0
 
+  /// Por dónde suena la respuesta, si el usuario eligió un aparato concreto.
+  ///
+  /// `nil` es «el que diga el sistema», que es lo correcto por defecto: cambiar
+  /// de auriculares en macOS ya cambia la salida de todo, y una app que se
+  /// empeña en la suya es la que se queda sonando por el altavoz cuando te
+  /// pones los cascos.
+  private var preferredOutput: AudioDeviceID?
+
   /// Cuándo arrancó el motor, para medir cuánto tarda en llegar el primer
   /// bloque de audio: es el retardo que se nota entre pulsar y poder hablar.
   private var startedAt: Date?
@@ -149,6 +157,16 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       result(nil)
     case "pendingPlaybackMs":
       result(pendingPlaybackMilliseconds())
+    case "outputDevices":
+      result(outputDevices())
+    case "setOutputDevice":
+      let id = (call.arguments as? [String: Any])?["id"] as? Int
+      preferredOutput = id.map(AudioDeviceID.init)
+      // Se desmonta para que el siguiente arranque use el aparato nuevo: el
+      // dispositivo se fija al construir el grafo, no se puede cambiar con el
+      // motor en marcha.
+      teardown()
+      result(nil)
     default:
       result(FlutterMethodNotImplemented)
     }
@@ -188,17 +206,14 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// —`ispk` (altavoz) frente a `hdpn` (auriculares)—. Por eso se mira también
   /// esa fuente, o los auriculares de cable pasarían por altavoces.
   private func outputIsBuiltInSpeaker() -> Bool {
-    var device = AudioDeviceID(0)
-    var deviceSize = UInt32(MemoryLayout<AudioDeviceID>.size)
-    var deviceAddress = AudioObjectPropertyAddress(
-      mSelector: kAudioHardwarePropertyDefaultOutputDevice,
-      mScope: kAudioObjectPropertyScopeGlobal,
-      mElement: kAudioObjectPropertyElementMain
-    )
-    guard AudioObjectGetPropertyData(
-      AudioObjectID(kAudioObjectSystemObject), &deviceAddress, 0, nil, &deviceSize, &device
-    ) == noErr else { return false }
+    // Con un aparato elegido a mano, la pregunta es sobre **ese**: si suena por
+    // unos altavoces USB no hay eco del altavoz interno que cancelar, y
+    // encender el cancelador contra la referencia equivocada rompe la captura
+    // —medido: la entrada llega ~100 veces más baja—.
+    isBuiltInSpeaker(preferredOutput ?? defaultOutputDevice())
+  }
 
+  private func isBuiltInSpeaker(_ device: AudioDeviceID) -> Bool {
     var transport = UInt32(0)
     var transportSize = UInt32(MemoryLayout<UInt32>.size)
     var transportAddress = AudioObjectPropertyAddress(
@@ -228,6 +243,90 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // algo enchufado, así que no hay eco.
     let internalSpeaker: UInt32 = 0x6973_706B
     return source == internalSpeaker
+  }
+
+  /// Los aparatos por los que se puede sacar sonido, con su nombre.
+  ///
+  /// Se filtran los que **no tienen canales de salida**: en el sistema hay
+  /// dispositivos de solo entrada —el micrófono, el agregado del cancelador— y
+  /// ofrecerlos como altavoz sería ofrecer algo que no puede sonar.
+  private func outputDevices() -> [[String: Any]] {
+    var size = UInt32(0)
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDevices,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    guard AudioObjectGetPropertyDataSize(
+      AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size
+    ) == noErr else { return [] }
+
+    let count = Int(size) / MemoryLayout<AudioDeviceID>.size
+    var ids = [AudioDeviceID](repeating: 0, count: count)
+    guard AudioObjectGetPropertyData(
+      AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &ids
+    ) == noErr else { return [] }
+
+    let byDefault = defaultOutputDevice()
+    return ids.compactMap { id in
+      guard hasOutput(id), let name = deviceName(id) else { return nil }
+      return [
+        "id": Int(id),
+        "name": name,
+        "isDefault": id == byDefault,
+      ]
+    }
+  }
+
+  private func hasOutput(_ device: AudioDeviceID) -> Bool {
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioDevicePropertyStreamConfiguration,
+      mScope: kAudioDevicePropertyScopeOutput,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var size = UInt32(0)
+    guard AudioObjectGetPropertyDataSize(device, &address, 0, nil, &size) == noErr,
+          size > 0
+    else { return false }
+
+    let buffer = UnsafeMutableRawPointer.allocate(
+      byteCount: Int(size), alignment: MemoryLayout<AudioBufferList>.alignment
+    )
+    defer { buffer.deallocate() }
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, buffer) == noErr
+    else { return false }
+
+    let list = UnsafeMutableAudioBufferListPointer(
+      buffer.assumingMemoryBound(to: AudioBufferList.self)
+    )
+    return list.reduce(0) { $0 + Int($1.mNumberChannels) } > 0
+  }
+
+  private func deviceName(_ device: AudioDeviceID) -> String? {
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioObjectPropertyName,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    var name: CFString = "" as CFString
+    var size = UInt32(MemoryLayout<CFString>.size)
+    guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &name) == noErr
+    else { return nil }
+    return name as String
+  }
+
+  private func defaultOutputDevice() -> AudioDeviceID {
+    var device = AudioDeviceID(0)
+    var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+    var address = AudioObjectPropertyAddress(
+      mSelector: kAudioHardwarePropertyDefaultOutputDevice,
+      mScope: kAudioObjectPropertyScopeGlobal,
+      mElement: kAudioObjectPropertyElementMain
+    )
+    AudioObjectGetPropertyData(
+      AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device
+    )
+    return device
   }
 
   // MARK: - Motor
@@ -269,6 +368,19 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // el que se le habla: forzando **mono en toda la cadena interna**, los dos
     // lados del cancelador cuadran y el propio nodo de salida se encarga de
     // repartir ese mono en los dos altavoces.
+    // El aparato elegido se fija **antes** de tocar el grafo: cambiarlo con el
+    // motor montado no vale, y por eso elegir otro desmonta el motor.
+    if let preferred = preferredOutput {
+      do {
+        try engine.outputNode.auAudioUnit.setDeviceID(preferred)
+        Self.log.info("salida fijada al aparato \(preferred, privacy: .public)")
+      } catch {
+        Self.log.error(
+          "no se pudo usar el aparato elegido: \(error.localizedDescription, privacy: .public)"
+        )
+      }
+    }
+
     let inputFormat = engine.inputNode.outputFormat(forBus: 0)
     let voiceFormat = AVAudioFormat(
       commonFormat: .pcmFormatFloat32,

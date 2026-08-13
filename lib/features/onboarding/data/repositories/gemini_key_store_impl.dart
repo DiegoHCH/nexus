@@ -1,4 +1,4 @@
-import 'package:nexus/features/onboarding/data/datasources/secure_storage_data_source.dart';
+import 'package:nexus/core/storage/secure_storage_data_source.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
 
 class GeminiKeyStoreImpl implements GeminiKeyStore {

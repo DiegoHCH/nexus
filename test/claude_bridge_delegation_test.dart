@@ -23,6 +23,10 @@ class _RecordedDataSource extends ClaudeCliDataSource {
     required String permissionMode,
     List<String> extraDirectories = const [],
     String? resumeSessionId,
+    String? appendSystemPrompt,
+    String? configDir,
+    String? model,
+    String? effort,
   }) async* {
     final lines = File(
       'test/fixtures/delegacion_real.jsonl',

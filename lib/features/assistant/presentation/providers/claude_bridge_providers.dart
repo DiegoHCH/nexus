@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/domain/repositories/conversation_memory
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/workspace/domain/usecases/repo_from_instruction.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final claudeCliDataSourceProvider = Provider<ClaudeCliDataSource>(
@@ -35,12 +36,37 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
 ) {
   return AskClaude(
     ref.watch(claudeBridgeProvider),
-    () async {
+    (instruction) async {
       final workspace = ref.read(workspaceControllerProvider);
       final folder = ref.read(conversationFolderProvider(conversationId));
       if (folder == null) return null;
+      final paired = workspace.folders
+          .where((item) => item.path == folder)
+          .firstOrNull;
+
+      // Con una raíz de varios repos, nombrar uno en el encargo coloca a Claude
+      // dentro. Se guarda además de usarse, para que la barra enseñe dónde se
+      // movió: un cambio de directorio invisible es de los que luego nadie
+      // entiende al leer un commit.
+      final repos = await ref.read(reposInsideProvider(folder).future);
+      if (repos.length > 1) {
+        final nombrado = RepoFromInstruction.resolve(instruction, repos);
+        if (nombrado != null && nombrado != paired?.activeRepo) {
+          await ref
+              .read(workspaceControllerProvider.notifier)
+              .setActiveRepo(folder, nombrado);
+        }
+      }
+      final activo =
+          ref
+              .read(workspaceControllerProvider)
+              .folders
+              .where((item) => item.path == folder)
+              .firstOrNull
+              ?.workingDirectory ??
+          folder;
       return (
-        workingDirectory: folder,
+        workingDirectory: activo,
         canEdit: workspace.permission.canWrite,
         // **Ninguna otra carpeta.** Antes viajaban todas las emparejadas como
         // `--add-dir` para que un repo pudiera leer sus reglas en una carpeta
@@ -50,6 +76,12 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
         extraDirectories: const <String>[],
         language: ref.read(stringsProvider).languageName,
+        // Modelo, esfuerzo y cuenta salen de **la carpeta**: es la unidad que
+        // organiza todo lo demás —memoria, contexto, archivo— y no había motivo
+        // para que estos dos fueran la excepción global.
+        model: paired?.claudeModel,
+        effort: paired?.claudeEffort,
+        claudeProfile: paired?.claudeProfile,
       );
     },
     ref.watch(conversationMemoryProvider),

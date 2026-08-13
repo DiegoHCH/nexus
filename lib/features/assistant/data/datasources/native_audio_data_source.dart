@@ -38,6 +38,23 @@ class NativeAudioDataSource {
     if (_users == 0) await _methods.invokeMethod<void>('stop');
   }
 
+  /// Los aparatos por los que puede sonar la respuesta.
+  Future<List<Map<String, dynamic>>> outputDevices() async {
+    final devices = await _methods.invokeListMethod<dynamic>('outputDevices');
+    return [
+      for (final device in devices ?? const [])
+        if (device is Map) Map<String, dynamic>.from(device),
+    ];
+  }
+
+  /// Fija por dónde suena, o `null` para seguir al sistema.
+  ///
+  /// Desmonta el motor: el aparato se fija al construir el grafo de audio y no
+  /// se puede cambiar en marcha. La siguiente vez que hables se monta con el
+  /// elegido.
+  Future<void> setOutputDevice(int? id) =>
+      _methods.invokeMethod<void>('setOutputDevice', {'id': id});
+
   /// Trozos de micrófono: PCM 16 bits, 16 kHz, mono.
   Stream<Uint8List> get frames {
     return _frameStream ??= _frames.receiveBroadcastStream().map(

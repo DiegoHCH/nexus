@@ -3,10 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
-import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
-import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
-import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
 /// La barra superior del HUD: wordmark, carpeta activa y el interruptor de
 /// permisos, que según el diseño está **siempre** visible.
@@ -45,10 +42,6 @@ class HudTopBar extends ConsumerWidget {
     final colors = context.colors;
     final workspace = ref.watch(workspaceControllerProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
-    final active = workspace.folders
-        .where((folder) => folder.path == folderPath)
-        .firstOrNull;
-
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: NexusSpacing.s6,
@@ -89,124 +82,17 @@ class HudTopBar extends ConsumerWidget {
             ),
           ),
           const Spacer(),
-          _Meter(meter: meter),
-          const SizedBox(width: NexusSpacing.s5),
-          if (active == null)
+          // Carpeta, medidor y permiso se fueron con la caja de escribir: ahí
+          // es donde se miran —justo antes de pedir algo— y donde se cambian
+          // sin cruzar la pantalla. Aquí arriba se queda lo que no se toca:
+          // qué está pasando, y emparejar la primera carpeta cuando no hay
+          // ninguna y no habría dónde trabajar.
+          if (workspace.folders.isEmpty)
             OutlinedButton(
               onPressed: controller.pairFolder,
               child: Text(context.strings.pairFolder),
-            )
-          else
-            _ActiveFolder(
-              folder: active,
-              onTap: () => SettingsPage.open(context),
             ),
-          const SizedBox(width: NexusSpacing.s5),
-          PermissionSwitch(
-            permission: workspace.permission,
-            onChanged: (value) => controller.setPermission(value),
-          ),
         ],
-      ),
-    );
-  }
-}
-
-/// «claude-opus-5 · 12,4k tokens · 18 % contexto», y cada dato desaparece si
-/// no se conoce en vez de mostrar un cero que parecería medido.
-class _Meter extends StatelessWidget {
-  const _Meter({required this.meter});
-
-  final SessionMeter meter;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final model = meter.displayModel;
-    if (model == null) {
-      return Text(
-        context.strings.noConversation,
-        style: NexusTypography.data.copyWith(color: colors.faint),
-      );
-    }
-
-    final tokens = meter.tokensLabel;
-    final context_ = meter.contextPercent;
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Text(model, style: NexusTypography.data.copyWith(color: colors.mute)),
-        if (tokens != null) ...[
-          _dot(colors),
-          Text(
-            tokens,
-            style: NexusTypography.data.copyWith(color: colors.mute),
-          ),
-          Text(
-            ' tokens',
-            style: NexusTypography.data.copyWith(color: colors.faint),
-          ),
-        ],
-        if (context_ != null) ...[
-          _dot(colors),
-          Text(
-            '$context_ %',
-            style: NexusTypography.data.copyWith(color: colors.mute),
-          ),
-          Text(
-            ' contexto',
-            style: NexusTypography.data.copyWith(color: colors.faint),
-          ),
-        ],
-      ],
-    );
-  }
-
-  Widget _dot(NexusColors colors) => Padding(
-    padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3),
-    child: Text('·', style: NexusTypography.data.copyWith(color: colors.rule2)),
-  );
-}
-
-class _ActiveFolder extends ConsumerWidget {
-  const _ActiveFolder({required this.folder, required this.onTap});
-
-  final PairedFolder folder;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final home = ref.watch(homeDirectoryProvider);
-    // El modo de la carpeta se enseña junto a la ruta y no en Ajustes: es la
-    // diferencia entre poder hablarle o no, y descubrirlo al pulsar el atajo
-    // sería descubrirlo tarde.
-    final voice = folder.modality.allowsVoice;
-
-    return InkWell(
-      onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: NexusSpacing.s2,
-          vertical: 4,
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              folder.displayPath(home),
-              style: NexusTypography.data.copyWith(color: colors.mute),
-            ),
-            const SizedBox(width: NexusSpacing.s3),
-            Text(
-              voice ? 'VOZ' : context.strings.textOnly,
-              style: NexusTypography.label.copyWith(
-                color: voice ? colors.cyan : colors.faint,
-                letterSpacing: 1.4,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }

@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/usecase/usecase.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
-import 'package:nexus/features/onboarding/data/datasources/secure_storage_data_source.dart';
+import 'package:nexus/core/storage/secure_storage_data_source.dart';
 import 'package:nexus/features/onboarding/data/repositories/gemini_key_store_impl.dart';
 import 'package:nexus/features/onboarding/domain/entities/onboarding_status.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';

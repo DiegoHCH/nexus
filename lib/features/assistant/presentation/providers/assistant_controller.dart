@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -6,11 +7,14 @@ import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -192,6 +196,21 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Le llegó el turno: la espera se da por terminada en cuanto arranca.
     _onClaudeToolFinished(_queueItemId);
     if (model.isEmpty) return;
+    // Se apunta con qué cuenta corrió: es lo único que permite enseñar el
+    // modelo de un perfil que no fija ninguno en su configuración.
+    final folder = _folder;
+    if (folder != null) {
+      final paired = ref
+          .read(workspaceControllerProvider)
+          .folders
+          .where((item) => item.path == folder)
+          .firstOrNull;
+      unawaited(
+        ref
+            .read(seenModelsProvider.notifier)
+            .remember(paired?.claudeProfile, model),
+      );
+    }
     state = state.copyWith(meter: state.meter.copyWith(model: model));
   }
 
@@ -246,7 +265,179 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
+    // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
+    if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
+    unawaited(_archive());
+    unawaited(_compactIfNeeded());
   }
+
+  /// Deja la conversación guardada donde el usuario haya dicho.
+  ///
+  /// Se escribe **al terminar cada turno**, no al cerrar: cerrar puede no
+  /// ocurrir nunca —se cierra la app, se va la luz— y entonces lo hablado se
+  /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
+  /// resultado, que es justo lo que se quiere de un archivo idempotente.
+  Future<void> _archive() async {
+    final folder = _folder;
+    if (folder == null) return;
+    final record = ConversationRecord(
+      id: _recordId,
+      folderPath: folder,
+      startedAt: _startedAt,
+      messages: state.messages,
+      // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale de la
+      // carpeta, que es donde se elige la cuenta.
+      profileName: _profileName(folder),
+      model: state.meter.model,
+      contextTokens: state.meter.contextTokens,
+    );
+
+    // Primero el historial de la app, que no depende de nada externo. Si
+    // dependiera del vault o de Notion, elegir «en ningún sitio» dejaría a
+    // Nexus sin memoria de lo que hiciste.
+    try {
+      await ref.read(localConversationStoreProvider).save(record);
+      ref.invalidate(savedConversationsProvider(folder));
+    } catch (error) {
+      developer.log(
+        'no se pudo guardar en local: $error',
+        name: 'nexus.archivo',
+      );
+    }
+
+    final archive = await ref.read(conversationArchiveProvider.future);
+    if (archive == null) return;
+    try {
+      await archive.save(record);
+    } catch (error) {
+      // Que falle guardar no puede tumbar la conversación: la carpeta puede
+      // haberse desconectado, o el vault puede no existir ya. Se dice y se
+      // sigue — el historial de la app nunca depende del destino externo.
+      developer.log('no se pudo archivar: $error', name: 'nexus.archivo');
+    }
+  }
+
+  /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
+  String? _profileName(String folder) {
+    final paired = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull;
+    final profile = paired?.claudeProfile;
+    if (profile == null || profile.isEmpty) return null;
+    final name = profile.split('/').last;
+    return name.startsWith('.claude-') ? name.substring(8) : name;
+  }
+
+  /// Cuándo empezó, para fechar el archivo. Se fija al construir el
+  /// controlador: la conversación existe desde que se abre, no desde que
+  /// alguien dice algo.
+  DateTime _startedAt = DateTime.now();
+
+  /// Con qué identidad se guarda. Es la de esta conversación salvo que se
+  /// retome una del historial: entonces se adopta la suya, o la siguiente
+  /// respuesta crearía un archivo nuevo en vez de continuar el que estás
+  /// leyendo.
+  late String _recordId = conversationId;
+
+  /// Si esta conversación es la que se está viendo de ese archivo. Se compara
+  /// con el identificador del registro y no con el de la conversación: al
+  /// retomar una del historial, la conversación adopta el suyo.
+  bool isShowing(String recordId) => _recordId == recordId;
+
+  /// Vuelve a abrir una conversación guardada: se pinta entera y lo que sigas
+  /// diciendo se añade a ella.
+  void resume(ConversationRecord record) {
+    _recordId = record.id;
+    _startedAt = record.startedAt;
+    state = state.copyWith(
+      messages: record.messages,
+      subtitle: '',
+      activity: const [],
+      errorMessage: null,
+      // Con lo que decía el medidor al guardarla. Si no, retomar una
+      // conversación dejaba la barra superior en blanco hasta el siguiente
+      // turno, como si el contexto se hubiera perdido — y no se ha perdido:
+      // Claude reanuda su sesión con todo dentro.
+      meter: SessionMeter(
+        model: record.model ?? state.meter.model,
+        contextTokens: record.contextTokens ?? state.meter.contextTokens,
+      ),
+    );
+  }
+
+  /// A partir de aquí se comprime la conversación.
+  ///
+  /// Antes del tope a propósito: al llenarse, Claude resume solo y **se pierde
+  /// el detalle sin que nadie lo decida**. Con margen, la compresión ocurre
+  /// cuando conviene y se puede contar.
+  static const _compactAtPercent = 85;
+
+  bool _compacting = false;
+
+  /// Comprime la conversación con `/compact`, el mismo comando de la terminal.
+  ///
+  /// Medido contra el binario antes de cablearlo, porque no era obvio que
+  /// funcionara en modo headless: en una sesión de 39.890 tokens de contexto,
+  /// después de `/compact` el siguiente turno arrancó con 31.841 — y seguía
+  /// recordando un dato del principio. No baja a cero: el suelo son las
+  /// instrucciones y las reglas del proyecto, que viajan en cada encargo y no
+  /// se pueden resumir.
+  ///
+  /// Se lanza **al terminar un turno**, nunca en medio: comprimir mientras
+  /// Claude trabaja sería cambiarle el suelo bajo los pies.
+  /// Dos conversaciones sobre la misma carpeta comparten sesión, así que las
+  /// dos podrían pedir compresión casi a la vez. No se coordina a propósito:
+  /// la cola por carpeta las serializa y la segunda encuentra el contexto ya
+  /// bajado, así que lo peor que pasa es un turno de más — bastante menos
+  /// aparato que un candado compartido para un caso raro e inofensivo.
+  Future<void> _compactIfNeeded() async {
+    if (_compacting) return;
+    final before = state.meter.contextPercent;
+    if (before == null || before < _compactAtPercent) return;
+
+    _compacting = true;
+    final strings = ref.read(stringsProvider);
+    state = state.copyWith(
+      activity: [
+        ...state.activity,
+        ActivityItem(
+          id: _compactItemId,
+          description: strings.compacting(before),
+          writes: false,
+        ),
+      ],
+    );
+
+    try {
+      await for (final event in ref.read(askClaudeProvider(conversationId))(
+        '/compact',
+        remember: false,
+      )) {
+        if (event case ClaudeTurnCompleted(:final contextTokens)) {
+          state = state.copyWith(
+            meter: state.meter.copyWith(contextTokens: contextTokens),
+          );
+        }
+      }
+      _onClaudeToolFinished(_compactItemId);
+      final after = state.meter.contextPercent;
+      if (after != null) {
+        _say(ChatAuthor.nexus, strings.compacted(before, after));
+        _sealLast();
+      }
+    } catch (error) {
+      // Que falle la compresión no puede tumbar la conversación: se sigue con
+      // el contexto lleno, que es exactamente como se estaba antes.
+      _onClaudeToolFinished(_compactItemId);
+    } finally {
+      _compacting = false;
+    }
+  }
+
+  static const _compactItemId = 'comprimiendo';
 
   void _onFailed(String message) {
     _sealLast();
@@ -309,9 +500,18 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     _heard.clear();
     _reply.clear();
-    state = const AssistantHudState(
+    // `copyWith` y no un estado nuevo: construirlo de cero **borraba la
+    // conversación entera**. Al tocar el orbe para hablar, los mensajes
+    // desaparecían y con ellos la ventana de la derecha, así que el orbe se
+    // volvía a poner en medio como si nunca hubieras dicho nada. Lo único que
+    // empieza de cero al abrir la voz es la actividad de este turno.
+    state = state.copyWith(
       orbState: NexusOrbState.think,
       voiceActive: true,
+      isStreaming: false,
+      subtitle: '',
+      activity: const [],
+      errorMessage: null,
     );
 
     final conversation = ref.read(

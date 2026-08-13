@@ -7,7 +7,11 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/platform/app_menu_channel.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 
 Future<void> main() async {
@@ -34,13 +38,55 @@ class _MainAppState extends ConsumerState<MainApp> {
   @override
   void initState() {
     super.initState();
-    AppMenuChannel.listen(onOpenSettings: _openSettings);
+    AppMenuChannel.listen(
+      onOpenSettings: _openSettings,
+      onOpenHistory: _openHistory,
+    );
   }
 
   void _openSettings() {
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
     SettingsPage.open(navigator.context);
+  }
+
+  /// El historial es **de una carpeta**, no de una conversación abierta.
+  ///
+  /// Esa confusión lo dejaba mudo justo cuando más se necesita: recién abierta
+  /// la app, sin ningún chat en marcha, pedir el historial es exactamente lo
+  /// que uno hace para retomar algo de ayer. Así que si no hay conversación en
+  /// foco se usa la carpeta activa, y al elegir una conversación se abre una
+  /// conversación nueva sobre esa carpeta para volcarla dentro.
+  Future<void> _openHistory() async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    final focused = ref.read(conversationsProvider).focused;
+    final workspace = ref.read(workspaceControllerProvider);
+    final folder =
+        focused?.folderPath ??
+        workspace.activePath ??
+        workspace.folders.firstOrNull?.path;
+    if (folder == null) return;
+
+    await ConversationHistorySheet.open(
+      navigator.context,
+      forgetFolder: focused == null ? null : folder.split('/').last,
+      onPick: (record) async {
+        // La conversación elegida puede ser de otra carpeta —las pestañas son
+        // por cuenta, no por proyecto—, así que se abre sobre **la suya**.
+        final id = await ref
+            .read(conversationsProvider.notifier)
+            .open(record.folderPath);
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).resume(record);
+      },
+      onForget: () {
+        final id = focused?.id;
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).forgetConversation();
+      },
+    );
   }
 
   @override
@@ -54,6 +100,10 @@ class _MainAppState extends ConsumerState<MainApp> {
     final locale = ref.watch(localeProvider);
     return MaterialApp(
       navigatorKey: _navigatorKey,
+      // La cinta de «DEBUG» fuera: esta app se usa a diario en compilación de
+      // depuración —es su forma normal de correr, no una prueba de un rato— y
+      // la cinta tapa la esquina del HUD.
+      debugShowCheckedModeBanner: false,
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
       themeMode: ThemeMode.system,
@@ -66,10 +116,14 @@ class _MainAppState extends ConsumerState<MainApp> {
         GlobalWidgetsLocalizations.delegate,
         GlobalCupertinoLocalizations.delegate,
       ],
-      home: StringsScope(
-        strings: NexusStrings.of(locale),
-        child: const AppRoot(),
-      ),
+      // Por encima del Navigator, no envolviendo `home`: Ajustes se abre como
+      // una ruta nueva, y esas se construyen **fuera** del hijo de `home`. Con
+      // el scope ahí abajo, abrir Ajustes reventaba con «falta un
+      // StringsScope» — y solo en esa pantalla, que es lo que lo hacía fácil
+      // de no ver hasta usarla.
+      builder: (context, child) =>
+          StringsScope(strings: NexusStrings.of(locale), child: child!),
+      home: const AppRoot(),
     );
   }
 }

@@ -99,6 +99,10 @@ class ConversationsController extends Notifier<Conversations> {
     await _persist(
       Conversations(items: [...state.items, conversation], focusedId: id),
     );
+    // La carpeta de la conversación en foco **es** la carpeta activa. Sin esto,
+    // Ajustes marcaba una y la barra enseñaba otra: dos sitios contando cosas
+    // distintas sobre dónde se está trabajando.
+    await ref.read(workspaceControllerProvider.notifier).setActive(folderPath);
     return id;
   }
 
@@ -114,9 +118,38 @@ class ConversationsController extends Notifier<Conversations> {
     );
   }
 
+  /// Mueve una conversación a otra carpeta.
+  ///
+  /// Se usa cuando la que está abierta **no tiene nada dicho todavía**: cambiar
+  /// de carpeta ahí es corregir el rumbo antes de empezar, no empezar otra
+  /// cosa. Abrir una segunda dejaría una pestaña vacía por cada vez que dudas
+  /// dónde ibas a trabajar.
+  ///
+  /// Con algo ya hablado no se mueve nunca: esa conversación tiene la memoria y
+  /// la sesión de **su** carpeta, y llevársela a otra sería mezclar dos
+  /// contextos que el producto mantiene separados a propósito.
+  Future<void> moveTo(String id, String folderPath) async {
+    final conversation = state.byId(id);
+    if (conversation == null || conversation.folderPath == folderPath) return;
+
+    final items = [
+      for (final item in state.items)
+        if (item.id == id)
+          Conversation(id: item.id, folderPath: folderPath)
+        else
+          item,
+    ];
+    await _persist(state.copyWith(items: items));
+    await ref.read(workspaceControllerProvider.notifier).setActive(folderPath);
+  }
+
   Future<void> focus(String id) async {
-    if (state.focusedId == id || state.byId(id) == null) return;
+    final conversation = state.byId(id);
+    if (state.focusedId == id || conversation == null) return;
     await _persist(state.copyWith(focusedId: id));
+    await ref
+        .read(workspaceControllerProvider.notifier)
+        .setActive(conversation.folderPath);
   }
 }
 

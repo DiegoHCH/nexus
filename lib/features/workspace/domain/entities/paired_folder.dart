@@ -21,10 +21,47 @@ enum FolderModality {
 /// Una carpeta emparejada: el sitio donde Nexus tiene permiso para trabajar.
 @immutable
 class PairedFolder {
-  const PairedFolder({required this.path, required this.modality});
+  const PairedFolder({
+    required this.path,
+    required this.modality,
+    this.claudeProfile,
+    this.claudeModel,
+    this.claudeEffort,
+    this.activeRepo,
+  });
 
   final String path;
   final FolderModality modality;
+
+  /// Con qué cuenta de Claude se trabaja aquí — el `CLAUDE_CONFIG_DIR` del
+  /// perfil—, o `null` para el de siempre.
+  ///
+  /// Va por carpeta y no por app porque así es como se usa: los repos del
+  /// trabajo con la cuenta del trabajo, los personales con la personal. Un
+  /// interruptor global obligaría a acordarse de cambiarlo al saltar de
+  /// proyecto, y equivocarse ahí significa gastar el cupo de la cuenta que no
+  /// era —o que el CLI ni siquiera arranque, si esa no tiene sesión.
+  final String? claudeProfile;
+
+  /// Con qué modelo y con cuánto esfuerzo se trabaja aquí, o `null` para dejar
+  /// lo que tenga el CLI.
+  ///
+  /// Va por carpeta por lo mismo que la cuenta: un repo grande pide Opus y una
+  /// nota rápida se contesta con Haiku, y tenerlo global obliga a acordarse de
+  /// cambiarlo al saltar de proyecto — que es justo cuando no te acuerdas.
+  final String? claudeModel;
+  final String? claudeEffort;
+
+  /// El repo de dentro sobre el que se trabaja ahora, cuando esta carpeta es
+  /// una raíz con varios. `null` = la carpeta entera.
+  ///
+  /// Importa más de lo que parece: es el directorio con el que arranca Claude,
+  /// así que decide dónde ocurre un commit, qué rama se ve y qué reglas se
+  /// cargan.
+  final String? activeRepo;
+
+  /// Dónde trabaja Claude de verdad.
+  String get workingDirectory => activeRepo ?? path;
 
   /// Lo que se enseña en la interfaz: la ruta con `~` en vez del home, que es
   /// como la escribe el mockup y como la lee cualquiera.
@@ -44,16 +81,39 @@ class PairedFolder {
     return slash == -1 ? trimmed : trimmed.substring(slash + 1);
   }
 
-  PairedFolder copyWith({FolderModality? modality}) =>
-      PairedFolder(path: path, modality: modality ?? this.modality);
+  PairedFolder copyWith({
+    FolderModality? modality,
+    String? claudeProfile,
+    String? claudeModel,
+    String? claudeEffort,
+    String? activeRepo,
+  }) => PairedFolder(
+    path: path,
+    modality: modality ?? this.modality,
+    claudeProfile: claudeProfile ?? this.claudeProfile,
+    claudeModel: claudeModel ?? this.claudeModel,
+    claudeEffort: claudeEffort ?? this.claudeEffort,
+    activeRepo: activeRepo ?? this.activeRepo,
+  );
 
-  Map<String, dynamic> toJson() => {'path': path, 'modality': modality.name};
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'modality': modality.name,
+    if (claudeProfile != null) 'claudeProfile': claudeProfile,
+    if (claudeModel != null) 'claudeModel': claudeModel,
+    if (claudeEffort != null) 'claudeEffort': claudeEffort,
+    if (activeRepo != null) 'activeRepo': activeRepo,
+  };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
     final path = json['path'] as String?;
     if (path == null || path.isEmpty) return null;
     return PairedFolder(
       path: path,
+      claudeProfile: json['claudeProfile'] as String?,
+      claudeModel: json['claudeModel'] as String?,
+      claudeEffort: json['claudeEffort'] as String?,
+      activeRepo: json['activeRepo'] as String?,
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al
       // permisivo: un dato corrupto no puede abrir el micrófono.
       modality: FolderModality.values.firstWhere(

@@ -17,6 +17,9 @@ class MainFlutterWindow: NSWindow {
     NexusAudioEngine.register(
       with: flutterViewController.registrar(forPlugin: "NexusAudioEngine")
     )
+    NexusFiles.register(
+      with: flutterViewController.registrar(forPlugin: "NexusFiles")
+    )
 
     // Marco oscuro, no sin marco: la barra de título se funde con --void
     // (#04070D) en vez del cromo claro por defecto de macOS. Se fuerza

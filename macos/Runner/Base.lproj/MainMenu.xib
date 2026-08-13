@@ -43,6 +43,11 @@
                                     <action selector="openNexusSettings:" target="-1" id="nXs-St-gS1"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Historial" keyEquivalent="y" id="hst-Ny-001">
+                                <connections>
+                                    <action selector="openNexusHistory:" target="-1" id="hst-Ac-001"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>

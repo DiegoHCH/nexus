@@ -11,9 +11,17 @@ class AppMenuChannel {
 
   static const _channel = MethodChannel('com.katanalabs.nexus/menu');
 
-  static void listen({required void Function() onOpenSettings}) {
+  static void listen({
+    required void Function() onOpenSettings,
+    required void Function() onOpenHistory,
+  }) {
     _channel.setMethodCallHandler((call) async {
-      if (call.method == 'openSettings') onOpenSettings();
+      switch (call.method) {
+        case 'openSettings':
+          onOpenSettings();
+        case 'openHistory':
+          onOpenHistory();
+      }
     });
   }
 }
