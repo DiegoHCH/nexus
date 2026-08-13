@@ -54,6 +54,11 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// oye. Se anota aquí porque el dato solo existe en una sesión real —no hay
   /// forma de fabricarlo— y sin él, cambiar el número sería adivinar.
   private var starvedAt: Date?
+
+  /// Por encima de esto ya no es un corte a media frase, es que la respuesta
+  /// se acabó. Dos segundos: ninguna frase hablada deja ese silencio dentro.
+  private static let maxGapMs = 2000
+
   private var gapCount = 0
   private var worstGapMs = 0
   private var playedAnything = false
@@ -572,9 +577,16 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // llega tarde: el altavoz estuvo callado en medio de una frase.
     if let emptiedAt = starvedAt, playedAnything {
       let gap = Int(Date().timeIntervalSince(emptiedAt) * 1000)
-      gapCount += 1
-      worstGapMs = max(worstGapMs, gap)
-      Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
+      // Un silencio largo no es un corte: es que la respuesta terminó y lo que
+      // llega ya es del turno siguiente. Sin este tope, la primera medición
+      // apuntó un «hueco» de 9,5 s que en realidad era el rato entre una
+      // respuesta y la otra — y un número así ensucia justo la conclusión que
+      // se quiere sacar.
+      if gap < Self.maxGapMs {
+        gapCount += 1
+        worstGapMs = max(worstGapMs, gap)
+        Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
+      }
     }
     starvedAt = nil
     pendingFrames += frameCount
