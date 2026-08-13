@@ -94,9 +94,18 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final workspace = ref.watch(workspaceControllerProvider);
-    final folder = workspace.folders
-        .where((item) => item.path == widget.folderPath)
-        .firstOrNull;
+    // La carpeta de esta conversación; y sin conversación abierta —el primer
+    // arranque, antes de escribir nada— la activa, que es donde iría a parar lo
+    // que escribas. Sin esto, al abrir la app no salía ni modelo ni esfuerzo y
+    // tampoco había dónde elegirlos: los controles existían apagados.
+    final folder =
+        workspace.folders
+            .where((item) => item.path == widget.folderPath)
+            .firstOrNull ??
+        workspace.folders
+            .where((item) => item.path == workspace.activePath)
+            .firstOrNull ??
+        workspace.folders.firstOrNull;
 
     return DecoratedBox(
       decoration: BoxDecoration(
