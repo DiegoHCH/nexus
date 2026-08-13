@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_usage_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// Los modelos que se pueden pedir por su alias.
@@ -96,8 +98,23 @@ final modelPreferenceProvider =
       ModelPreference.new,
     );
 
-/// El cupo de la suscripción. Se refresca al abrir el panel, no en bucle: es
-/// una llamada de red y el dato cambia despacio.
-final claudeUsageProvider = FutureProvider<ClaudeUsage?>(
-  (ref) => const ClaudeUsageDataSource().read(),
+/// El cupo de la suscripción **de la cuenta que va a trabajar**, no de la de
+/// fábrica: si esta carpeta corre con `work`, el cupo que importa es el de
+/// `work`. Se refresca al abrir el panel, no en bucle: es una llamada de red y
+/// el dato cambia despacio.
+final claudeUsageProvider = FutureProvider.family<ClaudeUsage?, String?>(
+  (ref, configDir) => const ClaudeUsageDataSource().read(configDir: configDir),
 );
+
+/// Lo que el CLI tiene configurado en ese perfil. Sirve para que los botones
+/// digan el modelo de verdad en vez de «el del sistema».
+final claudeDefaultsProvider =
+    FutureProvider.family<({String? model, String? effort}), String?>((
+      ref,
+      configDir,
+    ) {
+      final home = Platform.environment['HOME'] ?? '';
+      return const ClaudeProfilesDataSource().defaults(
+        configDir ?? '$home/.claude',
+      );
+    });

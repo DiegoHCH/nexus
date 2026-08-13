@@ -134,6 +134,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
             ),
             const SizedBox(height: NexusSpacing.s3),
             _Controls(
+              claudeProfile: folder?.claudeProfile,
               workspace: workspace,
               meter: widget.meter,
               voiceActive: widget.voiceActive,
@@ -294,6 +295,7 @@ class _Field extends StatelessWidget {
 /// Lo que se toca a menudo: permiso, micrófono, y a la derecha lo que informa.
 class _Controls extends ConsumerWidget {
   const _Controls({
+    required this.claudeProfile,
     required this.workspace,
     required this.meter,
     required this.voiceActive,
@@ -301,6 +303,9 @@ class _Controls extends ConsumerWidget {
     required this.onInsert,
   });
 
+  /// La cuenta de esta carpeta: decide de quién es el cupo que se enseña y
+  /// qué modelo tiene configurado el CLI.
+  final String? claudeProfile;
   final Workspace workspace;
   final SessionMeter meter;
   final bool voiceActive;
@@ -379,11 +384,11 @@ class _Controls extends ConsumerWidget {
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
         const Spacer(),
-        const _ModelMenu(),
+        _ModelMenu(claudeProfile: claudeProfile, meter: meter),
         const SizedBox(width: NexusSpacing.s3),
-        const _EffortMenu(),
+        _EffortMenu(claudeProfile: claudeProfile),
         const SizedBox(width: NexusSpacing.s3),
-        _UsageMenu(meter: meter),
+        _UsageMenu(meter: meter, claudeProfile: claudeProfile),
       ],
     );
   }
@@ -464,13 +469,21 @@ class _MoreMenu extends ConsumerWidget {
 /// se usa también desde la terminal, y pisar su configuración desde aquí
 /// sorprendería allí.
 class _ModelMenu extends ConsumerWidget {
-  const _ModelMenu();
+  const _ModelMenu({required this.claudeProfile, required this.meter});
+
+  final String? claudeProfile;
+  final SessionMeter meter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
     final (model, _) = ref.watch(modelPreferenceProvider);
+    // Lo que se usaría sin elegir nada: primero lo que reportó el CLI en este
+    // turno, y si no ha corrido ninguno, lo que tenga configurado ese perfil.
+    final actual =
+        meter.displayModel ??
+        ref.watch(claudeDefaultsProvider(claudeProfile)).value?.model;
 
     return PopupMenuButton<ClaudeModel?>(
       color: colors.deep,
@@ -479,7 +492,9 @@ class _ModelMenu extends ConsumerWidget {
       itemBuilder: (context) => [
         PopupMenuItem<ClaudeModel?>(
           child: Text(
-            strings.modelFromCli,
+            // Con nombre y apellido: «el del CLI» a secas obliga a ir a
+            // buscarlo a otro sitio para saber con qué se está trabajando.
+            actual == null ? strings.modelFromCli : _clean(actual),
             style: NexusTypography.data.copyWith(color: colors.mute),
           ),
         ),
@@ -501,24 +516,37 @@ class _ModelMenu extends ConsumerWidget {
           ),
       ],
       child: Text(
-        model?.label ?? strings.modelTitle,
+        model?.label ?? (actual == null ? strings.modelTitle : _clean(actual)),
         style: NexusTypography.label.copyWith(
           color: model == null ? colors.faint : colors.mute,
         ),
       ),
     );
   }
+
+  /// `claude-opus-5[1m]` se enseña sin el corchete: dice el tamaño de ventana,
+  /// no el modelo, y en un botón de dos centímetros estorba.
+  static String _clean(String model) {
+    final bracket = model.indexOf('[');
+    return bracket == -1 ? model : model.substring(0, bracket);
+  }
 }
 
 /// Cuánto razona antes de contestar, de más rápido a más listo.
 class _EffortMenu extends ConsumerWidget {
-  const _EffortMenu();
+  const _EffortMenu({required this.claudeProfile});
+
+  final String? claudeProfile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
     final (_, effort) = ref.watch(modelPreferenceProvider);
+    final actual = ref
+        .watch(claudeDefaultsProvider(claudeProfile))
+        .value
+        ?.effort;
 
     return PopupMenuButton<ClaudeEffort?>(
       color: colors.deep,
@@ -527,7 +555,7 @@ class _EffortMenu extends ConsumerWidget {
       itemBuilder: (context) => [
         PopupMenuItem<ClaudeEffort?>(
           child: Text(
-            strings.modelFromCli,
+            actual ?? strings.modelFromCli,
             style: NexusTypography.data.copyWith(color: colors.mute),
           ),
         ),
@@ -562,7 +590,7 @@ class _EffortMenu extends ConsumerWidget {
           ),
       ],
       child: Text(
-        effort?.flag ?? strings.effortTitle,
+        effort?.flag ?? actual ?? strings.effortTitle,
         style: NexusTypography.label.copyWith(
           color: effort == null ? colors.faint : colors.mute,
         ),
@@ -579,9 +607,10 @@ class _EffortMenu extends ConsumerWidget {
 /// cada turno; el cupo sale del mismo endpoint que usa la app de la barra de
 /// menús.
 class _UsageMenu extends ConsumerWidget {
-  const _UsageMenu({required this.meter});
+  const _UsageMenu({required this.meter, required this.claudeProfile});
 
   final SessionMeter meter;
+  final String? claudeProfile;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -592,7 +621,7 @@ class _UsageMenu extends ConsumerWidget {
     return PopupMenuButton<void>(
       color: colors.deep,
       tooltip: '',
-      onOpened: () => ref.invalidate(claudeUsageProvider),
+      onOpened: () => ref.invalidate(claudeUsageProvider(claudeProfile)),
       itemBuilder: (context) => [
         PopupMenuItem<void>(
           enabled: false,
@@ -600,7 +629,9 @@ class _UsageMenu extends ConsumerWidget {
             width: 300,
             child: Consumer(
               builder: (context, ref, _) {
-                final usage = ref.watch(claudeUsageProvider).value;
+                final usage = ref
+                    .watch(claudeUsageProvider(claudeProfile))
+                    .value;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -612,7 +643,9 @@ class _UsageMenu extends ConsumerWidget {
                     ),
                     const SizedBox(height: NexusSpacing.s4),
                     Text(
-                      strings.usageLimits,
+                      usage == null
+                          ? strings.usageLimits
+                          : '${strings.usageLimits} · ${usage.account}',
                       style: NexusTypography.label.copyWith(
                         color: colors.faint,
                       ),

@@ -8,11 +8,19 @@ import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_s
 @immutable
 class ClaudeUsage {
   const ClaudeUsage({
+    required this.account,
     required this.fiveHourPercent,
     required this.weeklyPercent,
     this.fiveHourResetsAt,
     this.weeklyResetsAt,
   });
+
+  /// De qué cuenta son estos números — `work`, `private`, «por defecto»—.
+  ///
+  /// Se dice siempre, y no solo cuando hay varias: el cupo es de una cuenta
+  /// concreta, y una cifra sin dueño invita a leerla como la de la que estabas
+  /// mirando.
+  final String account;
 
   final int fiveHourPercent;
   final int weeklyPercent;
@@ -34,8 +42,9 @@ class ClaudeUsageDataSource {
   /// ese perfil, con el token caducado o sin red, lo honesto es no dibujar una
   /// barra vacía que se leería como «no has gastado nada».
   Future<ClaudeUsage?> read({String? configDir}) async {
-    final token = await _accessToken(configDir);
-    if (token == null) return null;
+    final found = await _accessToken(configDir);
+    if (found == null) return null;
+    final (token, account) = found;
 
     final client = HttpClient();
     try {
@@ -56,6 +65,7 @@ class ClaudeUsageDataSource {
       final decoded = jsonDecode(raw);
       if (decoded is! Map<String, dynamic>) return null;
       return ClaudeUsage(
+        account: account,
         fiveHourPercent: _percent(decoded['five_hour']),
         weeklyPercent: _percent(decoded['seven_day']),
         fiveHourResetsAt: _resetsAt(decoded['five_hour']),
@@ -79,17 +89,45 @@ class ClaudeUsageDataSource {
     return raw == null ? null : DateTime.tryParse(raw)?.toLocal();
   }
 
-  /// El token de ese perfil, si lo hay y **si no ha caducado**.
+  /// El token con el que preguntar, y de qué cuenta es.
   ///
+  /// Primero la cuenta de esta carpeta, que es la que va a correr el encargo.
+  /// Si esa no tiene sesión utilizable se prueban las demás del Mac, porque un
+  /// panel vacío teniendo el dato en otra cuenta es peor que un dato con su
+  /// nombre encima — y el nombre es justo lo que evita confundirlos.
+  Future<(String, String)?> _accessToken(String? configDir) async {
+    final home = Platform.environment['HOME'] ?? '';
+    final candidates = <String>[
+      if (configDir != null && configDir.isNotEmpty) configDir,
+      '$home/.claude',
+      for (final profile in await const ClaudeProfilesDataSource().list())
+        profile.path,
+    ];
+
+    for (final dir in candidates) {
+      final token = await _tokenFor(dir);
+      if (token != null) return (token, _accountName(dir));
+    }
+    return null;
+  }
+
+  static String _accountName(String configDir) {
+    final name = configDir.split('/').last;
+    return name.startsWith('.claude-') ? name.substring(8) : 'por defecto';
+  }
+
   /// La caducidad se mira aquí en vez de dejar que la API conteste 401: es una
   /// petición de red menos, y sobre todo permite distinguir «esta cuenta no
   /// tiene sesión» de «el servicio no responde».
-  Future<String?> _accessToken(String? configDir) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final service = ClaudeProfilesDataSource.keychainService(
-      configDir ?? '$home/.claude',
-    );
-    for (final name in [service, 'Claude Code-credentials']) {
+  Future<String?> _tokenFor(String configDir) async {
+    final services = [
+      ClaudeProfilesDataSource.keychainService(configDir),
+      // El perfil por defecto puede guardar la credencial sin sufijo, de antes
+      // de que Claude Code separara cuentas.
+      if (configDir.endsWith('/.claude')) 'Claude Code-credentials',
+    ];
+
+    for (final name in services) {
       final result = await Process.run('security', [
         'find-generic-password',
         '-s',

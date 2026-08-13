@@ -41,6 +41,26 @@ class ClaudeProfilesDataSource {
     return 'Claude Code-credentials-${hash.substring(0, 8)}';
   }
 
+  /// Lo que ese perfil tiene configurado: modelo y esfuerzo, si los fijó.
+  ///
+  /// Se lee de su `settings.json` para poder **enseñar el valor de verdad** en
+  /// vez de un «el del CLI» que no dice nada: quien mira ese botón quiere saber
+  /// con qué modelo va a trabajar, no que la app no ha decidido.
+  Future<({String? model, String? effort})> defaults(String configDir) async {
+    final file = File('$configDir/settings.json');
+    if (!file.existsSync()) return (model: null, effort: null);
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic>) return (model: null, effort: null);
+      return (
+        model: decoded['model'] as String?,
+        effort: decoded['effort'] as String?,
+      );
+    } on FormatException {
+      return (model: null, effort: null);
+    }
+  }
+
   Future<List<ClaudeProfile>> list() async {
     final home = Platform.environment['HOME'] ?? '';
     if (home.isEmpty) return const [];
