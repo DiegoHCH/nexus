@@ -1,4 +1,6 @@
 PODS:
+  - desktop_drop (0.0.1):
+    - FlutterMacOS
   - file_selector_macos (0.0.1):
     - FlutterMacOS
   - flutter_secure_storage_darwin (10.0.0):
@@ -16,6 +18,7 @@ PODS:
     - FlutterMacOS
 
 DEPENDENCIES:
+  - desktop_drop (from `Flutter/ephemeral/.symlinks/plugins/desktop_drop/macos`)
   - file_selector_macos (from `Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos`)
   - flutter_secure_storage_darwin (from `Flutter/ephemeral/.symlinks/plugins/flutter_secure_storage_darwin/darwin`)
   - FlutterMacOS (from `Flutter/ephemeral`)
@@ -28,6 +31,8 @@ SPEC REPOS:
     - HotKey
 
 EXTERNAL SOURCES:
+  desktop_drop:
+    :path: Flutter/ephemeral/.symlinks/plugins/desktop_drop/macos
   file_selector_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/file_selector_macos/macos
   flutter_secure_storage_darwin:
@@ -42,6 +47,7 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos
 
 SPEC CHECKSUMS:
+  desktop_drop: 10a3e6a7fa9dbe350541f2574092fecfa345a07b
   file_selector_macos: 9e9e068e90ebee155097d00e89ae91edb2374db7
   flutter_secure_storage_darwin: 46e401699982ee74142909676535e0f6a7321e58
   FlutterMacOS: c232990155153907050900a2e175c7773903ba4e

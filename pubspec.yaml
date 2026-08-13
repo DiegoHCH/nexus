@@ -8,6 +8,7 @@ environment:
 
 dependencies:
   crypto: ^3.0.7
+  desktop_drop: ^0.7.1
   file_selector: ^1.1.0
   flutter:
     sdk: flutter

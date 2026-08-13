@@ -42,6 +42,12 @@ abstract class NexusStrings {
   String get readOnlyExplainer;
   String contextUsed(int percent);
   String get attachFile;
+
+  /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
+  String get dropHere;
+
+  /// La cabecera de la lista de rutas que acompaña al encargo.
+  String get attachedFilesLabel;
   String get chooseFolder;
   String get noGitRepo;
   String get addFolderShort;
@@ -225,6 +231,10 @@ class NexusStringsEs extends NexusStrings {
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
   @override
   String get attachFile => 'Adjuntar un archivo';
+  @override
+  String get dropHere => 'Suéltalo aquí';
+  @override
+  String get attachedFilesLabel => 'Archivos adjuntos:';
   @override
   String get chooseFolder => 'Elegir carpeta';
   @override
@@ -594,6 +604,10 @@ class NexusStringsEn extends NexusStrings {
       'Context used: $percent%. At 85% the conversation compacts itself.';
   @override
   String get attachFile => 'Attach a file';
+  @override
+  String get dropHere => 'Drop it here';
+  @override
+  String get attachedFilesLabel => 'Attached files:';
   @override
   String get chooseFolder => 'Choose folder';
   @override
