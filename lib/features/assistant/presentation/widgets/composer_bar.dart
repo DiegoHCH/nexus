@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
@@ -877,6 +879,10 @@ class _UsageMenu extends ConsumerWidget {
                     _Gauge(
                       label: strings.contextWindow,
                       percent: context_,
+                      // Sin turno todavía no hay medida: se dice, en vez de
+                      // enseñar «0 / 1,0M», que se leería como una ventana
+                      // vacía comprobada y no como una que nadie ha mirado.
+                      value: meter.contextLabel ?? strings.usageUnavailable,
                       warnAt: 85,
                     ),
                     const SizedBox(height: NexusSpacing.s4),
@@ -923,14 +929,17 @@ class _UsageMenu extends ConsumerWidget {
           ),
         ),
       ],
-      child: SizedBox(
-        width: 15,
-        height: 15,
-        child: CircularProgressIndicator(
-          value: context_ / 100,
-          strokeWidth: 2,
-          backgroundColor: colors.rule,
-          color: context_ >= 85 ? colors.warn : colors.cyan,
+      child: Tooltip(
+        message: meter.contextLabel == null
+            ? strings.contextWindow
+            : '${strings.contextWindow} · ${meter.contextLabel}',
+        child: CustomPaint(
+          size: const Size(15, 15),
+          painter: _ContextDial(
+            fraction: meter.contextFraction,
+            ring: colors.rule,
+            fill: context_ >= 85 ? colors.warn : colors.cyan,
+          ),
         ),
       ),
     );
@@ -948,16 +957,69 @@ class _UsageMenu extends ConsumerWidget {
   }
 }
 
+/// El círculo que se llena según lo ocupada que esté la ventana de contexto.
+///
+/// Relleno y no un arco fino: lo que se mira de reojo mientras se trabaja es
+/// «cuánto queda», y un sector macizo se lee sin enfocar la vista. El aro
+/// alrededor está siempre entero para que se vea **de cuánto** se está
+/// llenando — un sector suelto no dice contra qué se compara.
+class _ContextDial extends CustomPainter {
+  const _ContextDial({
+    required this.fraction,
+    required this.ring,
+    required this.fill,
+  });
+
+  final double fraction;
+  final Color ring;
+  final Color fill;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.width / 2;
+
+    canvas.drawCircle(
+      center,
+      radius - 0.75,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5
+        ..color = ring,
+    );
+    if (fraction <= 0) return;
+
+    // Desde arriba y en el sentido del reloj, como se lee un depósito.
+    canvas.drawArc(
+      Rect.fromCircle(center: center, radius: radius - 2.5),
+      -math.pi / 2,
+      2 * math.pi * fraction,
+      true,
+      Paint()..color = fill,
+    );
+  }
+
+  @override
+  bool shouldRepaint(_ContextDial old) =>
+      old.fraction != fraction || old.fill != fill;
+}
+
 class _Gauge extends StatelessWidget {
   const _Gauge({
     required this.label,
     required this.percent,
+    this.value,
     this.note,
     this.warnAt = 90,
   });
 
   final String label;
   final int percent;
+
+  /// Lo que se escribe a la derecha. Sin él va el porcentaje solo, que es lo
+  /// que basta para una cuota; el contexto necesita las tres cifras.
+  final String? value;
+
   final String? note;
   final int warnAt;
 
@@ -983,7 +1045,7 @@ class _Gauge extends StatelessWidget {
             ),
             const SizedBox(width: NexusSpacing.s3),
             Text(
-              '$percent %',
+              value ?? '$percent %',
               style: NexusTypography.data.copyWith(color: colors.faint),
             ),
           ],
