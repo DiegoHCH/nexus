@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
@@ -194,10 +195,33 @@ class _Chips extends ConsumerWidget {
               await ref.read(workspaceControllerProvider.notifier).pairFolder();
               return;
             }
-            // Cambiar de carpeta abre —o trae al frente— una conversación sobre
-            // ella: cada conversación tiene la suya, así que mover la de una
-            // abierta sería cambiarle el suelo a mitad de charla.
-            await ref.read(conversationsProvider.notifier).open(value);
+            final abierta = ref.read(conversationsProvider).focused;
+            if (abierta == null) {
+              // Sin ninguna abierta no se crea nada: se apunta la carpeta y la
+              // conversación nacerá cuando escribas o hables. Crear una aquí
+              // llenaría el dock de conversaciones vacías cada vez que miras
+              // dónde ibas a trabajar.
+              await ref
+                  .read(workspaceControllerProvider.notifier)
+                  .setActive(value);
+              return;
+            }
+
+            final dicho = ref
+                .read(assistantControllerProvider(abierta.id))
+                .messages
+                .isEmpty;
+            if (dicho) {
+              // Vacía: se mueve, y con ella su nombre en el dock. Es corregir
+              // el rumbo antes de empezar, no empezar otra cosa.
+              await ref
+                  .read(conversationsProvider.notifier)
+                  .moveTo(abierta.id, value);
+            } else {
+              // Con algo hablado, la nueva carpeta merece su propia
+              // conversación: la de al lado tiene la memoria de la suya.
+              await ref.read(conversationsProvider.notifier).open(value);
+            }
           },
           itemBuilder: (context) => [
             for (final option in workspace.folders)
