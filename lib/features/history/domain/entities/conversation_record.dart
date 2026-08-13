@@ -16,6 +16,8 @@ class ConversationRecord {
     required this.messages,
     this.profileName,
     this.sourcePath,
+    this.model,
+    this.contextTokens,
     String? title,
     // El campo es privado y el parámetro no: quien construye pasa `title`, y
     // adentro se guarda como el título de respaldo que usa el getter.
@@ -37,6 +39,14 @@ class ConversationRecord {
     final parts = folderPath.split('/').where((part) => part.isNotEmpty);
     return parts.isEmpty ? 'sin-proyecto' : parts.last;
   }
+
+  /// Lo último que dijo el medidor: qué modelo y cuánto contexto llevaba
+  /// ocupado. Se guarda con la conversación porque al retomarla la barra
+  /// superior se quedaba en blanco —modelo y contexto desaparecían— hasta el
+  /// siguiente turno, y eso se lee como «esto empieza de cero» cuando no es
+  /// verdad: Claude sigue teniendo su sesión.
+  final String? model;
+  final int? contextTokens;
 
   /// El archivo del que se leyó, cuando vino de una carpeta o un vault. Sin
   /// esto no se podría borrar lo que se está viendo: la nota tiene su propio

@@ -36,6 +36,9 @@ class LocalConversationStore {
         'id': record.id,
         'carpeta': record.folderPath,
         'fecha': record.startedAt.toIso8601String(),
+        if (record.model != null) 'modelo': record.model,
+        if (record.contextTokens != null) 'contexto': record.contextTokens,
+        if (record.profileName != null) 'perfil': record.profileName,
         'mensajes': [
           for (final message in record.messages)
             {
@@ -104,6 +107,9 @@ class LocalConversationStore {
         id: decoded['id'] as String? ?? '',
         folderPath: decoded['carpeta'] as String? ?? '',
         startedAt: when,
+        model: decoded['modelo'] as String?,
+        contextTokens: (decoded['contexto'] as num?)?.toInt(),
+        profileName: decoded['perfil'] as String?,
         messages: [
           for (final message
               in decoded['mensajes'] as List<dynamic>? ?? const [])

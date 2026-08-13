@@ -270,6 +270,8 @@ class AssistantController extends Notifier<AssistantHudState> {
       // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale de la
       // carpeta, que es donde se elige la cuenta.
       profileName: _profileName(folder),
+      model: state.meter.model,
+      contextTokens: state.meter.contextTokens,
     );
 
     // Primero el historial de la app, que no depende de nada externo. Si
@@ -331,6 +333,14 @@ class AssistantController extends Notifier<AssistantHudState> {
       subtitle: '',
       activity: const [],
       errorMessage: null,
+      // Con lo que decía el medidor al guardarla. Si no, retomar una
+      // conversación dejaba la barra superior en blanco hasta el siguiente
+      // turno, como si el contexto se hubiera perdido — y no se ha perdido:
+      // Claude reanuda su sesión con todo dentro.
+      meter: SessionMeter(
+        model: record.model ?? state.meter.model,
+        contextTokens: record.contextTokens ?? state.meter.contextTokens,
+      ),
     );
   }
 

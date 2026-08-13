@@ -83,6 +83,8 @@ class HoldVoiceConversation {
     // faltaba para decidir si hace falta la salida cara.
     String? lastAsked;
     var answeredAlone = 0;
+    var sentFrames = 0;
+    var eventsSeen = 0;
 
     Future<void> shutdown() async {
       closing = true;
@@ -133,6 +135,11 @@ class HoldVoiceConversation {
           idleTimer = Timer(pending + _idleTimeout, () => keepAlive());
           return;
         }
+        developer.log(
+          'cierre por inactividad · $sentFrames trozos enviados, '
+          '$eventsSeen eventos recibidos',
+          name: 'nexus.voz',
+        );
         await shutdown();
         if (!controller.isClosed) await controller.close();
       });
@@ -329,6 +336,7 @@ class HoldVoiceConversation {
           // vuelve a cero. Si no, tres cortes en toda una tarde acabarían
           // pareciendo un servicio caído.
           reconnects = 0;
+          eventsSeen++;
           keepAlive();
           switch (event) {
             // El audio no sale hacia la interfaz: se reproduce y punto. Lo
@@ -399,7 +407,19 @@ class HoldVoiceConversation {
           // Se lee `session` en cada trozo a propósito: tras un reenganche es
           // otra sesión, y capturarla en una variable mandaría el audio a la
           // conexión muerta.
-          (frame) => session?.sendAudio(frame.pcm),
+          (frame) {
+            session?.sendAudio(frame.pcm);
+            // Un recuento cada dos segundos, no un evento por trozo: es lo que
+            // distingue «el micro no llega» de «el servicio no contesta»,
+            // que se arreglan en sitios opuestos y desde fuera se ven igual.
+            sentFrames++;
+            if (sentFrames % 25 == 0) {
+              developer.log(
+                '$sentFrames trozos enviados · $eventsSeen eventos recibidos',
+                name: 'nexus.voz',
+              );
+            }
+          },
           onError: (Object error) =>
               controller.add(VoiceSessionFailed('$error')),
         );
