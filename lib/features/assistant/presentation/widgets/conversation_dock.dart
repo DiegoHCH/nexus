@@ -30,7 +30,11 @@ class ConversationDock extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationsProvider);
     final all = conversations.items;
-    if (conversations.isEmpty) return const SizedBox.shrink();
+    // **Sin conversaciones no desaparece**: se queda el hueco de «NUEVA», que
+    // es justo lo que hace falta en la pantalla de arranque. Antes se escondía
+    // el dock entero y la única forma de empezar era ponerse a escribir — un
+    // botón que existe para crear la primera no puede faltar cuando no hay
+    // ninguna.
 
     // En columna: las fichas se apilan hacia arriba desde la esquina. Cada
     // ficha sigue siendo horizontal —orbe y nombre en línea— así que la

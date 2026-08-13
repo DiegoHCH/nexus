@@ -56,6 +56,14 @@ class ConversationsController extends Notifier<Conversations> {
       for (final item in items) item.id: item,
     };
 
+    // Lo guardado se recupera **una sola vez**. Antes se volvía a fusionar en
+    // cada cambio del espacio de trabajo —y cambiar el permiso es uno—, así que
+    // una conversación cerrada reaparecía sola en cuanto tocabas cualquier
+    // ajuste: parecía que la app abría un chat por su cuenta, y encima sobre
+    // otra carpeta. A partir de aquí esto solo poda lo que ya no tiene carpeta.
+    _saved = const [];
+    _savedFocusId = null;
+
     // Ninguna se abre sola al arrancar. Antes se abría una con la primera carpeta para no
     // dejar la pantalla vacía, y el efecto era encontrarte trabajando en un
     // sitio que no elegiste: la comodidad no compensaba la sorpresa. La
