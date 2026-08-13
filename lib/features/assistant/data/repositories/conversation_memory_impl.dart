@@ -16,10 +16,18 @@ class ConversationMemoryImpl implements ConversationMemory {
     final entry = all[folderPath];
     if (entry is! Map<String, dynamic>) return const FolderMemory();
     return FolderMemory(
-      sessionId: entry['sessionId'] as String?,
+      // Comprobado en vez de convertido a la fuerza: esto se lee al abrir la
+      // app, y una preferencia escrita por una versión anterior —o tocada a
+      // mano— con otro tipo aquí dentro tumbaba la lectura entera. Perder la
+      // memoria de una carpeta es molesto; no arrancar, inaceptable.
+      sessionId: switch (entry['sessionId']) {
+        final String id when id.isNotEmpty => id,
+        _ => null,
+      },
       prompts: [
-        for (final prompt in entry['prompts'] as List<dynamic>? ?? const [])
-          if (prompt is String && prompt.isNotEmpty) prompt,
+        if (entry['prompts'] case final List<dynamic> stored)
+          for (final prompt in stored)
+            if (prompt is String && prompt.isNotEmpty) prompt,
       ],
     );
   }

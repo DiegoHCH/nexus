@@ -293,16 +293,13 @@ class AssistantController extends Notifier<AssistantHudState> {
         .firstOrNull;
     if (paired == null) {
       state = state.copyWith(
-        errorMessage:
-            'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.',
+        errorMessage: ref.read(stringsProvider).noFolderForConversation,
       );
       return;
     }
     if (!paired.modality.allowsVoice) {
       state = state.copyWith(
-        errorMessage:
-            'La carpeta ${paired.name} está en modo solo texto, así que no se '
-            'abre el micrófono. Escríbele por abajo o cambia el modo en Ajustes.',
+        errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
       );
       return;
     }

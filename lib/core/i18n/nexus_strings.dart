@@ -67,6 +67,8 @@ abstract class NexusStrings {
   String get stillRunning;
   String get waitingForOtherConversation;
   String get waitingByVoice;
+  String get noFolderForConversation;
+  String textOnlyFolder(String folder);
 
   // Historial
   String get history;
@@ -215,6 +217,13 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get waitingByVoice =>
       'Espero turno: hay otra conversación trabajando en esa carpeta.';
+  @override
+  String get noFolderForConversation =>
+      'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.';
+  @override
+  String textOnlyFolder(String folder) =>
+      'La carpeta $folder está en modo solo texto, así que no se abre el '
+      'micrófono. Escríbele por abajo o cambia el modo en Ajustes.';
 
   @override
   String get history => 'HISTORIAL';
@@ -448,6 +457,13 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get waitingByVoice =>
       'I am waiting my turn: another conversation is working on that folder.';
+  @override
+  String get noFolderForConversation =>
+      'This conversation has no folder paired: there is nowhere to work.';
+  @override
+  String textOnlyFolder(String folder) =>
+      'The folder $folder is in text-only mode, so the microphone stays shut. '
+      'Type below, or change the mode in Settings.';
 
   @override
   String get history => 'HISTORY';
