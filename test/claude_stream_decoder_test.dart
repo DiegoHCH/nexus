@@ -22,6 +22,8 @@ class _Cli extends ClaudeCliDataSource {
     String? resumeSessionId,
     String? appendSystemPrompt,
     String? configDir,
+    String? model,
+    String? effort,
   }) async* {
     if (failFirst && resumeSessionId != null) {
       throw const ClaudeProcessException(1, 'no such session');

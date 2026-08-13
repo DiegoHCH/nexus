@@ -25,6 +25,8 @@ class _RecordedDataSource extends ClaudeCliDataSource {
     String? resumeSessionId,
     String? appendSystemPrompt,
     String? configDir,
+    String? model,
+    String? effort,
   }) async* {
     final lines = File(
       'test/fixtures/delegacion_real.jsonl',

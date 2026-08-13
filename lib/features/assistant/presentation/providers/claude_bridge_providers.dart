@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/data/repositories/conversation_memory_i
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
+import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -50,6 +51,8 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
         extraDirectories: const <String>[],
         language: ref.read(stringsProvider).languageName,
+        model: ref.read(modelPreferenceProvider).$1?.alias,
+        effort: ref.read(modelPreferenceProvider).$2?.flag,
         claudeProfile: workspace.folders
             .where((item) => item.path == folder)
             .firstOrNull

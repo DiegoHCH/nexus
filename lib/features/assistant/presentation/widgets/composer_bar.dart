@@ -1,8 +1,12 @@
+import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
@@ -59,6 +63,17 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
     if (value.trim().isEmpty) return;
     widget.onSubmit(value);
     _controller.clear();
+  }
+
+  /// Mete texto en la caja sin pisar lo que ya haya escrito: adjuntar un
+  /// archivo es añadir su ruta a lo que estabas pidiendo, no empezar de nuevo.
+  void _insert(String text) {
+    final actual = _controller.text.trimRight();
+    _controller.text = actual.isEmpty ? text : '$actual $text';
+    _controller.selection = TextSelection.collapsed(
+      offset: _controller.text.length,
+    );
+    _focusNode.requestFocus();
   }
 
   void _handleClear() {
@@ -123,6 +138,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
               meter: widget.meter,
               voiceActive: widget.voiceActive,
               onToggleVoice: widget.onToggleVoice,
+              onInsert: _insert,
             ),
           ],
         ),
@@ -282,12 +298,14 @@ class _Controls extends ConsumerWidget {
     required this.meter,
     required this.voiceActive,
     required this.onToggleVoice,
+    required this.onInsert,
   });
 
   final Workspace workspace;
   final SessionMeter meter;
   final bool voiceActive;
   final VoidCallback? onToggleVoice;
+  final ValueChanged<String> onInsert;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -346,7 +364,9 @@ class _Controls extends ConsumerWidget {
             ],
           ),
         ),
-        const SizedBox(width: NexusSpacing.s4),
+        const SizedBox(width: NexusSpacing.s3),
+        _MoreMenu(onInsert: onInsert),
+        const SizedBox(width: NexusSpacing.s2),
         if (onToggleVoice case final toggle?)
           IconButton(
             onPressed: toggle,
@@ -359,41 +379,11 @@ class _Controls extends ConsumerWidget {
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
         const Spacer(),
-        if (meter.displayModel case final model?)
-          Text(
-            model,
-            style: NexusTypography.label.copyWith(color: colors.faint),
-          ),
-        if (meter.contextPercent case final percent?) ...[
-          const SizedBox(width: NexusSpacing.s3),
-          Tooltip(
-            message: strings.contextUsed(percent),
-            child: Row(
-              children: [
-                SizedBox(
-                  width: 46,
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(2),
-                    child: LinearProgressIndicator(
-                      value: percent / 100,
-                      minHeight: 3,
-                      backgroundColor: colors.rule,
-                      // Ámbar al acercarse al tope: a partir del 85% la
-                      // conversación se comprime sola, y verlo venir explica
-                      // por qué de pronto hay un turno de más.
-                      color: percent >= 85 ? colors.warn : colors.cyan,
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 6),
-                Text(
-                  '$percent%',
-                  style: NexusTypography.data.copyWith(color: colors.faint),
-                ),
-              ],
-            ),
-          ),
-        ],
+        const _ModelMenu(),
+        const SizedBox(width: NexusSpacing.s3),
+        const _EffortMenu(),
+        const SizedBox(width: NexusSpacing.s3),
+        _UsageMenu(meter: meter),
       ],
     );
   }
@@ -408,4 +398,331 @@ class _NoScrollbar extends MaterialScrollBehavior {
     Widget child,
     ScrollableDetails details,
   ) => child;
+}
+
+/// El «+»: lo que se añade a lo que estás pidiendo.
+///
+/// Adjuntar es **poner la ruta en la caja**, no subir un archivo a ningún
+/// sitio: Claude trabaja en tu disco y lee lo que le señales, así que copiar el
+/// contenido sería duplicarlo y perder el vínculo con el original.
+class _MoreMenu extends ConsumerWidget {
+  const _MoreMenu({required this.onInsert});
+
+  final ValueChanged<String> onInsert;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return PopupMenuButton<String>(
+      color: colors.deep,
+      tooltip: '',
+      onSelected: (value) async {
+        switch (value) {
+          case 'file':
+            final file = await openFile();
+            if (file != null) onInsert(file.path);
+          case 'folder':
+            await ref.read(workspaceControllerProvider.notifier).pairFolder();
+          case 'settings':
+            if (context.mounted) await SettingsPage.open(context);
+        }
+      },
+      itemBuilder: (context) => [
+        _item('file', Icons.attach_file, strings.attachFile, colors),
+        _item(
+          'folder',
+          Icons.create_new_folder_outlined,
+          strings.addFolderShort,
+          colors,
+        ),
+        _item('settings', Icons.tune, strings.openSettings, colors),
+      ],
+      child: Icon(Icons.add, size: 16, color: colors.faint),
+    );
+  }
+
+  PopupMenuItem<String> _item(
+    String value,
+    IconData icon,
+    String label,
+    NexusColors colors,
+  ) => PopupMenuItem<String>(
+    value: value,
+    child: Row(
+      children: [
+        Icon(icon, size: 14, color: colors.faint),
+        const SizedBox(width: NexusSpacing.s3),
+        Text(label, style: NexusTypography.data.copyWith(color: colors.ink)),
+      ],
+    ),
+  );
+}
+
+/// Qué modelo pide Nexus. «El del CLI» es lo de fábrica y no un hueco: Claude
+/// se usa también desde la terminal, y pisar su configuración desde aquí
+/// sorprendería allí.
+class _ModelMenu extends ConsumerWidget {
+  const _ModelMenu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final (model, _) = ref.watch(modelPreferenceProvider);
+
+    return PopupMenuButton<ClaudeModel?>(
+      color: colors.deep,
+      tooltip: '',
+      onSelected: ref.read(modelPreferenceProvider.notifier).selectModel,
+      itemBuilder: (context) => [
+        PopupMenuItem<ClaudeModel?>(
+          child: Text(
+            strings.modelFromCli,
+            style: NexusTypography.data.copyWith(color: colors.mute),
+          ),
+        ),
+        for (final option in ClaudeModel.values)
+          PopupMenuItem<ClaudeModel?>(
+            value: option,
+            child: Row(
+              children: [
+                Text(
+                  option.label,
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
+                if (option == model) ...[
+                  const SizedBox(width: NexusSpacing.s3),
+                  Icon(Icons.check, size: 13, color: colors.cyan),
+                ],
+              ],
+            ),
+          ),
+      ],
+      child: Text(
+        model?.label ?? strings.modelTitle,
+        style: NexusTypography.label.copyWith(
+          color: model == null ? colors.faint : colors.mute,
+        ),
+      ),
+    );
+  }
+}
+
+/// Cuánto razona antes de contestar, de más rápido a más listo.
+class _EffortMenu extends ConsumerWidget {
+  const _EffortMenu();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final (_, effort) = ref.watch(modelPreferenceProvider);
+
+    return PopupMenuButton<ClaudeEffort?>(
+      color: colors.deep,
+      tooltip: '',
+      onSelected: ref.read(modelPreferenceProvider.notifier).selectEffort,
+      itemBuilder: (context) => [
+        PopupMenuItem<ClaudeEffort?>(
+          child: Text(
+            strings.modelFromCli,
+            style: NexusTypography.data.copyWith(color: colors.mute),
+          ),
+        ),
+        for (final option in ClaudeEffort.values)
+          PopupMenuItem<ClaudeEffort?>(
+            value: option,
+            child: Row(
+              children: [
+                Text(
+                  option.flag,
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
+                const SizedBox(width: NexusSpacing.s3),
+                // Los extremos se nombran, porque «xhigh» no dice por sí solo
+                // hacia qué lado tira.
+                if (option == ClaudeEffort.low)
+                  Text(
+                    strings.effortFaster,
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
+                  ),
+                if (option == ClaudeEffort.max)
+                  Text(
+                    strings.effortSmarter,
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
+                  ),
+                if (option == effort) ...[
+                  const SizedBox(width: NexusSpacing.s3),
+                  Icon(Icons.check, size: 13, color: colors.cyan),
+                ],
+              ],
+            ),
+          ),
+      ],
+      child: Text(
+        effort?.flag ?? strings.effortTitle,
+        style: NexusTypography.label.copyWith(
+          color: effort == null ? colors.faint : colors.mute,
+        ),
+      ),
+    );
+  }
+}
+
+/// El círculo de la derecha: contexto de esta conversación y cupo de la
+/// suscripción.
+///
+/// Son dos cosas distintas y por eso están juntas: puedes tener la ventana medio
+/// vacía y el cupo de la semana en las últimas. El contexto lo reporta el CLI en
+/// cada turno; el cupo sale del mismo endpoint que usa la app de la barra de
+/// menús.
+class _UsageMenu extends ConsumerWidget {
+  const _UsageMenu({required this.meter});
+
+  final SessionMeter meter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final context_ = meter.contextPercent ?? 0;
+
+    return PopupMenuButton<void>(
+      color: colors.deep,
+      tooltip: '',
+      onOpened: () => ref.invalidate(claudeUsageProvider),
+      itemBuilder: (context) => [
+        PopupMenuItem<void>(
+          enabled: false,
+          child: SizedBox(
+            width: 300,
+            child: Consumer(
+              builder: (context, ref, _) {
+                final usage = ref.watch(claudeUsageProvider).value;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    _Gauge(
+                      label: strings.contextWindow,
+                      percent: context_,
+                      warnAt: 85,
+                    ),
+                    const SizedBox(height: NexusSpacing.s4),
+                    Text(
+                      strings.usageLimits,
+                      style: NexusTypography.label.copyWith(
+                        color: colors.faint,
+                      ),
+                    ),
+                    const SizedBox(height: NexusSpacing.s3),
+                    if (usage == null)
+                      // Sin dato no se dibuja una barra a cero: se leería como
+                      // «no has gastado nada», que es lo contrario de «no se
+                      // sabe».
+                      Text(
+                        strings.usageUnavailable,
+                        style: NexusTypography.mono.copyWith(
+                          color: colors.faint,
+                        ),
+                      )
+                    else ...[
+                      _Gauge(
+                        label: strings.usageFiveHour,
+                        percent: usage.fiveHourPercent,
+                        note: _resets(strings, usage.fiveHourResetsAt),
+                      ),
+                      const SizedBox(height: NexusSpacing.s3),
+                      _Gauge(
+                        label: strings.usageWeekly,
+                        percent: usage.weeklyPercent,
+                        note: _resets(strings, usage.weeklyResetsAt),
+                      ),
+                    ],
+                  ],
+                );
+              },
+            ),
+          ),
+        ),
+      ],
+      child: SizedBox(
+        width: 15,
+        height: 15,
+        child: CircularProgressIndicator(
+          value: context_ / 100,
+          strokeWidth: 2,
+          backgroundColor: colors.rule,
+          color: context_ >= 85 ? colors.warn : colors.cyan,
+        ),
+      ),
+    );
+  }
+
+  static String? _resets(NexusStrings strings, DateTime? when) {
+    if (when == null) return null;
+    final falta = when.difference(DateTime.now());
+    if (falta.isNegative) return null;
+    final horas = falta.inHours;
+    final minutos = falta.inMinutes % 60;
+    return strings.resetsIn(
+      horas > 0 ? 'en ${horas}h ${minutos}m' : 'en ${minutos}m',
+    );
+  }
+}
+
+class _Gauge extends StatelessWidget {
+  const _Gauge({
+    required this.label,
+    required this.percent,
+    this.note,
+    this.warnAt = 90,
+  });
+
+  final String label;
+  final int percent;
+  final String? note;
+  final int warnAt;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Text(
+              label,
+              style: NexusTypography.mono.copyWith(color: colors.mute),
+            ),
+            const Spacer(),
+            if (note case final texto?)
+              Text(
+                texto,
+                style: NexusTypography.mono.copyWith(color: colors.faint),
+              ),
+            const SizedBox(width: NexusSpacing.s3),
+            Text(
+              '$percent %',
+              style: NexusTypography.data.copyWith(color: colors.faint),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(2),
+          child: LinearProgressIndicator(
+            value: percent / 100,
+            minHeight: 3,
+            backgroundColor: colors.rule,
+            color: percent >= warnAt ? colors.warn : colors.cyan,
+          ),
+        ),
+      ],
+    );
+  }
 }

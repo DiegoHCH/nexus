@@ -32,6 +32,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     List<String> extraDirectories = const [],
     String? resumeSessionId,
     String? claudeProfile,
+    String? model,
+    String? effort,
   }) async* {
     var emitted = false;
     try {
@@ -43,6 +45,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         extraDirectories: extraDirectories,
         resumeSessionId: resumeSessionId,
         configDir: claudeProfile,
+        model: model,
+        effort: effort,
         appendSystemPrompt: ProjectContextPrompt.compose(
           rules: context.rules,
           sharedContext: context.sharedContext,
@@ -65,6 +69,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           canEdit: canEdit,
           extraDirectories: extraDirectories,
           claudeProfile: claudeProfile,
+          model: model,
+          effort: effort,
         );
         return;
       }

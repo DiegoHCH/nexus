@@ -28,6 +28,8 @@ class ClaudeCliDataSource {
     String? resumeSessionId,
     String? appendSystemPrompt,
     String? configDir,
+    String? model,
+    String? effort,
   }) async* {
     final process = await Process.start(
       'claude',

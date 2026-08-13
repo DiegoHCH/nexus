@@ -18,5 +18,9 @@ abstract class ClaudeBridge {
     /// El `CLAUDE_CONFIG_DIR` con el que trabajar: es lo que decide **con qué
     /// cuenta** corre el encargo.
     String? claudeProfile,
+
+    /// Alias del modelo y nivel de esfuerzo. `null` deja lo que el CLI tenga.
+    String? model,
+    String? effort,
   });
 }

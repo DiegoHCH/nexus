@@ -41,6 +41,20 @@ abstract class NexusStrings {
   String get canEditExplainer;
   String get readOnlyExplainer;
   String contextUsed(int percent);
+  String get attachFile;
+  String get addFolderShort;
+  String get openSettings;
+  String get modelTitle;
+  String get modelFromCli;
+  String get effortTitle;
+  String get effortFaster;
+  String get effortSmarter;
+  String get contextWindow;
+  String get usageLimits;
+  String get usageFiveHour;
+  String get usageWeekly;
+  String get usageUnavailable;
+  String resetsIn(String when);
   String get sayStopToInterrupt;
   String get stopWithShortcut;
   String get workingCancelHint;
@@ -208,6 +222,35 @@ class NexusStringsEs extends NexusStrings {
   @override
   String contextUsed(int percent) =>
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
+  @override
+  String get attachFile => 'Adjuntar un archivo';
+  @override
+  String get addFolderShort => 'Emparejar otra carpeta';
+  @override
+  String get openSettings => 'Ajustes…';
+  @override
+  String get modelTitle => 'Modelo';
+  @override
+  String get modelFromCli => 'El del CLI';
+  @override
+  String get effortTitle => 'Esfuerzo';
+  @override
+  String get effortFaster => 'Más rápido';
+  @override
+  String get effortSmarter => 'Más listo';
+  @override
+  String get contextWindow => 'Ventana de contexto';
+  @override
+  String get usageLimits => 'Tu cupo de la suscripción';
+  @override
+  String get usageFiveHour => 'Límite de 5 horas';
+  @override
+  String get usageWeekly => 'Semanal';
+  @override
+  String get usageUnavailable =>
+      'Sin dato: esa cuenta no tiene sesión abierta o el acceso caducó.';
+  @override
+  String resetsIn(String when) => 'Se renueva $when';
   @override
   String get sayStopToInterrupt => 'Di «para» para interrumpir';
   @override
@@ -546,6 +589,35 @@ class NexusStringsEn extends NexusStrings {
   @override
   String contextUsed(int percent) =>
       'Context used: $percent%. At 85% the conversation compacts itself.';
+  @override
+  String get attachFile => 'Attach a file';
+  @override
+  String get addFolderShort => 'Pair another folder';
+  @override
+  String get openSettings => 'Settings…';
+  @override
+  String get modelTitle => 'Model';
+  @override
+  String get modelFromCli => 'Whatever the CLI uses';
+  @override
+  String get effortTitle => 'Effort';
+  @override
+  String get effortFaster => 'Faster';
+  @override
+  String get effortSmarter => 'Smarter';
+  @override
+  String get contextWindow => 'Context window';
+  @override
+  String get usageLimits => 'Your subscription limits';
+  @override
+  String get usageFiveHour => '5-hour limit';
+  @override
+  String get usageWeekly => 'Weekly';
+  @override
+  String get usageUnavailable =>
+      'No reading: that account has no session open, or its access expired.';
+  @override
+  String resetsIn(String when) => 'Resets $when';
   @override
   String get sayStopToInterrupt => 'Say “stop” to interrupt';
   @override
