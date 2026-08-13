@@ -260,18 +260,32 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
   /// resultado, que es justo lo que se quiere de un archivo idempotente.
   Future<void> _archive() async {
-    final archive = await ref.read(conversationArchiveProvider.future);
     final folder = _folder;
-    if (archive == null || folder == null) return;
+    if (folder == null) return;
+    final record = ConversationRecord(
+      id: _recordId,
+      folderPath: folder,
+      startedAt: _startedAt,
+      messages: state.messages,
+    );
+
+    // Primero el historial de la app, que no depende de nada externo. Si
+    // dependiera del vault o de Notion, elegir «en ningún sitio» dejaría a
+    // Nexus sin memoria de lo que hiciste.
     try {
-      await archive.save(
-        ConversationRecord(
-          id: conversationId,
-          folderPath: folder,
-          startedAt: _startedAt,
-          messages: state.messages,
-        ),
+      await ref.read(localConversationStoreProvider).save(record);
+      ref.invalidate(savedConversationsProvider(folder));
+    } catch (error) {
+      developer.log(
+        'no se pudo guardar en local: $error',
+        name: 'nexus.archivo',
       );
+    }
+
+    final archive = await ref.read(conversationArchiveProvider.future);
+    if (archive == null) return;
+    try {
+      await archive.save(record);
     } catch (error) {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
       // haberse desconectado, o el vault puede no existir ya. Se dice y se
@@ -283,7 +297,26 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Cuándo empezó, para fechar el archivo. Se fija al construir el
   /// controlador: la conversación existe desde que se abre, no desde que
   /// alguien dice algo.
-  final DateTime _startedAt = DateTime.now();
+  DateTime _startedAt = DateTime.now();
+
+  /// Con qué identidad se guarda. Es la de esta conversación salvo que se
+  /// retome una del historial: entonces se adopta la suya, o la siguiente
+  /// respuesta crearía un archivo nuevo en vez de continuar el que estás
+  /// leyendo.
+  late String _recordId = conversationId;
+
+  /// Vuelve a abrir una conversación guardada: se pinta entera y lo que sigas
+  /// diciendo se añade a ella.
+  void resume(ConversationRecord record) {
+    _recordId = record.id;
+    _startedAt = record.startedAt;
+    state = state.copyWith(
+      messages: record.messages,
+      subtitle: '',
+      activity: const [],
+      errorMessage: null,
+    );
+  }
 
   /// A partir de aquí se comprime la conversación.
   ///

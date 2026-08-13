@@ -3,10 +3,12 @@ import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/data/datasources/notion_api.dart';
 import 'package:nexus/features/history/data/repositories/markdown_archive.dart';
 import 'package:nexus/features/history/data/repositories/notion_archive.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -193,3 +195,17 @@ final conversationArchiveProvider = FutureProvider<ConversationArchive?>((
     wikilinks: settings.destination == ArchiveDestination.obsidian,
   );
 });
+
+/// El historial de la app: siempre encendido, pase lo que pase con el destino
+/// que haya elegido el usuario.
+final localConversationStoreProvider = Provider<LocalConversationStore>(
+  (ref) => const LocalConversationStore(),
+);
+
+/// Las conversaciones guardadas de una carpeta. Se recarga sola al invalidar,
+/// que es lo que se hace al terminar un turno.
+final savedConversationsProvider =
+    FutureProvider.family<List<ConversationRecord>, String>(
+      (ref, folderPath) =>
+          ref.watch(localConversationStoreProvider).list(folderPath),
+    );

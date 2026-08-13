@@ -14,8 +14,8 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
-import 'package:nexus/features/assistant/presentation/widgets/history_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/hud_bottom_bar.dart';
+import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/subtitle_strip.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -110,10 +110,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         const SingleActivator(LogicalKeyboardKey.period, meta: true):
             controller.stopWork,
         const SingleActivator(LogicalKeyboardKey.keyH, meta: true): () =>
-            HistorySheet.open(
+            ConversationHistorySheet.open(
               context,
-              entries: hud.history,
-              onPick: controller.submit,
+              folderPath: focused.folderPath,
+              onPick: controller.resume,
               onForget: controller.forgetConversation,
             ),
       },
