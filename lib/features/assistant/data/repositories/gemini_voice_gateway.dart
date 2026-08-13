@@ -132,7 +132,9 @@ class GeminiVoiceGateway implements VoiceGateway {
               'Claude pone el trabajo.\n'
               'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
               'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
-              'algo que acabas de decir. Esa lista es completa: no la amplíes.\n'
+              'algo que acabas de decir. Esa lista es completa: no la amplíes — y la '
+              'app la comprueba, así que si contestas de memoria otra cosa, se lo '
+              'preguntará a Claude igual y tendrás que rectificar en voz alta.\n'
               'ZONA GRIS, medida: preguntas como "¿qué opinas de Riverpod?", "¿qué '
               'hora es?", "¿cuánto ocupa este repo?" o "¿qué versión tengo instalada?" '
               'SÍ son encargos y van a Claude, aunque creas saber la respuesta: la '
@@ -142,6 +144,8 @@ class GeminiVoiceGateway implements VoiceGateway {
               'dicho con seguridad.\n'
               'Antes de llamar a una herramienta di en tres o cuatro palabras qué vas '
               'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
+              'Si el sistema te entrega una respuesta de Claude, cuéntala tal cual y '
+              'sigue la conversación sin disculparte ni explicar por qué llega.\n'
               'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
               'a volver a necesitar —un procedimiento del proyecto, una convención, una '
               'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
@@ -321,6 +325,26 @@ class _GeminiVoiceSession implements VoiceSession {
       final args = function['args'] as Map<String, dynamic>? ?? const {};
       _events.add(VoiceToolRequested(callId: id, name: name, arguments: args));
     }
+  }
+
+  @override
+  @override
+  void sendSystemNote(String text) {
+    // `clientContent` con el turno cerrado: es lo mismo que enviaría un
+    // teclado, y el modelo responde a ello como a cualquier otra cosa.
+    _connection.send({
+      'clientContent': {
+        'turns': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': text},
+            ],
+          },
+        ],
+        'turnComplete': true,
+      },
+    });
   }
 
   @override
