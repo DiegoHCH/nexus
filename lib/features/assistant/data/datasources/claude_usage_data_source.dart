@@ -41,10 +41,18 @@ class ClaudeUsageDataSource {
   /// `null` cuando no se puede saber, que es distinto de cero: sin sesión en
   /// ese perfil, con el token caducado o sin red, lo honesto es no dibujar una
   /// barra vacía que se leería como «no has gastado nada».
+  ///
+  /// Y es **de la cuenta que se pide, o de ninguna**. Antes, si esa no servía,
+  /// se caía a otra: enseñaba el cupo de `work` estando en `private`, que es
+  /// justo el número que no había que mirar.
   Future<ClaudeUsage?> read({String? configDir}) async {
-    final found = await _accessToken(configDir);
-    if (found == null) return null;
-    final (token, account) = found;
+    final home = Platform.environment['HOME'] ?? '';
+    final dir = (configDir == null || configDir.isEmpty)
+        ? '$home/.claude'
+        : configDir;
+    final token = await _tokenFor(dir);
+    if (token == null) return null;
+    final account = _accountName(dir);
 
     final client = HttpClient();
     try {
@@ -87,28 +95,6 @@ class ClaudeUsageDataSource {
     if (bucket is! Map<String, dynamic>) return null;
     final raw = bucket['resets_at'] as String?;
     return raw == null ? null : DateTime.tryParse(raw)?.toLocal();
-  }
-
-  /// El token con el que preguntar, y de qué cuenta es.
-  ///
-  /// Primero la cuenta de esta carpeta, que es la que va a correr el encargo.
-  /// Si esa no tiene sesión utilizable se prueban las demás del Mac, porque un
-  /// panel vacío teniendo el dato en otra cuenta es peor que un dato con su
-  /// nombre encima — y el nombre es justo lo que evita confundirlos.
-  Future<(String, String)?> _accessToken(String? configDir) async {
-    final home = Platform.environment['HOME'] ?? '';
-    final candidates = <String>[
-      if (configDir != null && configDir.isNotEmpty) configDir,
-      '$home/.claude',
-      for (final profile in await const ClaudeProfilesDataSource().list())
-        profile.path,
-    ];
-
-    for (final dir in candidates) {
-      final token = await _tokenFor(dir);
-      if (token != null) return (token, _accountName(dir));
-    }
-    return null;
   }
 
   static String _accountName(String configDir) {

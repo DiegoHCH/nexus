@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Lo que abre `⌘Y`: las conversaciones guardadas, **por perfil**.
 ///
@@ -144,17 +145,24 @@ class _ConversationHistorySheetState
           .add(record);
     }
 
-    final profiles = byProfile.keys.toList()..sort();
+    // Las pestañas son para separar cuentas, así que **solo existen si hay más
+    // de una configurada en el Mac**. Con una sola, dividir en pestañas es
+    // inventar una frontera donde no la hay — y aun así podían salir dos, si
+    // algunas conversaciones venían de antes de que existieran los perfiles.
+    final cuentas = ref.watch(claudeProfilesProvider).value ?? const [];
+    final agrupa = cuentas.length > 1;
+    final profiles = agrupa ? (byProfile.keys.toList()..sort()) : <String>[];
     final current = byProfile.containsKey(_profile)
         ? _profile!
-        : profiles.first;
+        : (profiles.isEmpty ? '' : profiles.first);
+    final visibles = agrupa ? byProfile[current]! : records;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // Con una sola cuenta no se dibuja la fila de pestañas: una pestaña
         // suelta no organiza nada, solo ocupa sitio.
-        if (profiles.length > 1)
+        if (agrupa && profiles.length > 1)
           Row(
             children: [
               for (final profile in profiles)
@@ -174,9 +182,9 @@ class _ConversationHistorySheetState
         Flexible(
           child: ListView.builder(
             shrinkWrap: true,
-            itemCount: byProfile[current]!.length,
+            itemCount: visibles.length,
             itemBuilder: (context, index) {
-              final record = byProfile[current]![index];
+              final record = visibles[index];
               return _Row(
                 record: record,
                 onTap: () {

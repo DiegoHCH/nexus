@@ -308,9 +308,13 @@ class _Chips extends ConsumerWidget {
             label: strings.noGitRepo,
             warn: true,
           ),
-        if (paired?.claudeProfile?.split('/').last case final profile?)
-          if (profile.startsWith('.claude-'))
-            _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
+        // La cuenta solo se enseña si hay más de una en el Mac: con una sola,
+        // decir cuál se usa es contestar una pregunta que nadie tiene.
+        if (ref.watch(claudeProfilesProvider).value case final cuentas?)
+          if (cuentas.length > 1)
+            if (paired?.claudeProfile?.split('/').last case final profile?)
+              if (profile.startsWith('.claude-'))
+                _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
@@ -627,7 +631,10 @@ class _ModelMenu extends ConsumerWidget {
     // turno, y si no ha corrido ninguno, lo que tenga configurado ese perfil.
     final actual =
         meter.displayModel ??
-        ref.watch(claudeDefaultsProvider(folder?.claudeProfile)).value?.model;
+        ref.watch(claudeDefaultsProvider(folder?.claudeProfile)).value?.model ??
+        // Un perfil puede no fijar modelo —`private` no lo hace—: entonces vale
+        // el último con el que se le vio trabajar.
+        ref.watch(seenModelsProvider)[folder?.claudeProfile ?? 'por-defecto'];
     // El que está en uso: el elegido para esta carpeta, o el del CLI.
     final vigente = model ?? ClaudeModel.fromCliName(actual);
 
@@ -791,7 +798,11 @@ class _UsageMenu extends ConsumerWidget {
                     ),
                     const SizedBox(height: NexusSpacing.s4),
                     Text(
-                      usage == null
+                      usage == null ||
+                              (ref.watch(claudeProfilesProvider).value ??
+                                          const [])
+                                      .length <
+                                  2
                           ? strings.usageLimits
                           : '${strings.usageLimits} · ${usage.account}',
                       style: NexusTypography.label.copyWith(

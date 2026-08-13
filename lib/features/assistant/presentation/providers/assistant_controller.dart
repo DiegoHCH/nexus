@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
@@ -195,6 +196,21 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Le llegó el turno: la espera se da por terminada en cuanto arranca.
     _onClaudeToolFinished(_queueItemId);
     if (model.isEmpty) return;
+    // Se apunta con qué cuenta corrió: es lo único que permite enseñar el
+    // modelo de un perfil que no fija ninguno en su configuración.
+    final folder = _folder;
+    if (folder != null) {
+      final paired = ref
+          .read(workspaceControllerProvider)
+          .folders
+          .where((item) => item.path == folder)
+          .firstOrNull;
+      unawaited(
+        ref
+            .read(seenModelsProvider.notifier)
+            .remember(paired?.claudeProfile, model),
+      );
+    }
     state = state.copyWith(meter: state.meter.copyWith(model: model));
   }
 

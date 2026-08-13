@@ -1,8 +1,11 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_usage_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 /// Los modelos que se pueden pedir por su alias.
 ///
@@ -80,4 +83,43 @@ final claudeDefaultsProvider =
 /// el dato cambia despacio.
 final claudeUsageProvider = FutureProvider.family<ClaudeUsage?, String?>(
   (ref, configDir) => const ClaudeUsageDataSource().read(configDir: configDir),
+);
+
+/// Lo último que reportó el CLI para cada cuenta.
+///
+/// Existe porque un perfil puede **no fijar modelo** en su `settings.json`
+/// —`private` no lo hace— y entonces no había nada que enseñar hasta que
+/// corriera un turno: el botón decía «Modelo» y parecía roto. Con esto, en
+/// cuanto ha corrido uno, la barra sabe con qué se está trabajando aunque
+/// reinicies la app.
+class SeenModels extends Notifier<Map<String, String>> {
+  static const _key = 'seen_models';
+
+  @override
+  Map<String, String> build() {
+    unawaited(_load());
+    return const {};
+  }
+
+  Future<void> _load() async {
+    final prefs = await SharedPreferences.getInstance();
+    final raw = prefs.getString(_key);
+    if (raw == null) return;
+    final decoded = jsonDecode(raw);
+    if (decoded is! Map<String, dynamic>) return;
+    state = decoded.map((key, value) => MapEntry(key, value.toString()));
+  }
+
+  Future<void> remember(String? configDir, String model) async {
+    if (model.isEmpty) return;
+    final key = configDir ?? 'por-defecto';
+    if (state[key] == model) return;
+    state = {...state, key: model};
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString(_key, jsonEncode(state));
+  }
+}
+
+final seenModelsProvider = NotifierProvider<SeenModels, Map<String, String>>(
+  SeenModels.new,
 );
