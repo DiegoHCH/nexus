@@ -88,6 +88,14 @@ class _Speaker implements AudioOutput {
 /// Se guarda **sin la coletilla del idioma** que `AskClaude` le pega detrás:
 /// aquí se mira qué se pidió, no cómo se envuelve.
 class _Bridge implements ClaudeBridge {
+  _Bridge({this.tarda = Duration.zero});
+
+  /// Lo que tarda Claude en contestar. Con `Duration.zero` el encargo va y
+  /// vuelve dentro del mismo turno; alargándolo se reproduce lo que pasa de
+  /// verdad — que la respuesta buena llega cuando ya estás hablando de otra
+  /// cosa.
+  final Duration tarda;
+
   final _raw = <String>[];
 
   List<String> get asked =>
@@ -107,7 +115,8 @@ class _Bridge implements ClaudeBridge {
     List<String> disallowedTools = const [],
   }) async* {
     _raw.add(instruction);
-    yield const ClaudeTurnCompleted(result: 'hecho');
+    if (tarda > Duration.zero) await Future<void>.delayed(tarda);
+    yield ClaudeTurnCompleted(result: 'lo de «${instruction.split('\n\n').first}»');
   }
 }
 
@@ -127,6 +136,20 @@ class _Awake implements StaysAwake {
   @override
   Future<void Function()> hold(String reason) async => () {};
 }
+
+/// Un doble de `HoldVoiceConversation` con todo cableado menos lo que la
+/// prueba quiera mirar.
+HoldVoiceConversation _conversation(
+  _Session session,
+  _Bridge bridge, {
+  void Function(String)? log,
+}) => HoldVoiceConversation(
+  _Mic(),
+  _Gateway(session),
+  _Speaker(),
+  _askClaude(bridge),
+  log ?? (_) {},
+);
 
 AskClaude _askClaude(_Bridge bridge) => AskClaude(
   bridge,
@@ -220,6 +243,73 @@ void main() {
 
     await subscription.cancel();
   });
+
+  test(
+    'una corrección que llega tarde no interrumpe: ya hablabas de otra cosa',
+    () async {
+      final session = _Session();
+      // Claude tarda: para cuando contesta lo primero, el usuario ya preguntó
+      // otra cosa. Es la sesión real del 13 ago, donde dos correcciones se
+      // pisaron y la segunda dejó a la primera a medias.
+      final bridge = _Bridge(tarda: const Duration(milliseconds: 120));
+      final registro = <String>[];
+      final conversation = _conversation(
+        session,
+        bridge,
+        log: registro.add,
+      );
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      // Turno 1: se pide algo que tenía que ir a Claude, y el modelo contesta
+      // de memoria — así que arranca la corrección, que tardará.
+      session.emit(const VoiceUserTranscript('dame un resumen de gitflow'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // Turno 2: el usuario no espera y pregunta otra cosa.
+      session.emit(const VoiceUserTranscript('enséñame cómo es un flujo'));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(
+        session.notes,
+        isEmpty,
+        reason:
+            'la respuesta del turno 1 llegó cuando ya se hablaba del 2: '
+            'entregarla hace que el modelo abandone lo que está diciendo',
+      );
+      expect(
+        registro.where((l) => l.contains('descartada por vieja')),
+        hasLength(1),
+        reason: 'y se cuenta, para saber cuántas veces pasa de verdad',
+      );
+
+      await subscription.cancel();
+    },
+  );
+
+  test(
+    'la corrección sí entra si sigues callado: no se pierde por ir lenta',
+    () async {
+      final session = _Session();
+      final bridge = _Bridge(tarda: const Duration(milliseconds: 120));
+      final conversation = _conversation(session, bridge);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(const VoiceUserTranscript('dame un resumen de gitflow'));
+      session.emit(const VoiceTurnCompleted());
+      // Nadie habla encima: el turno sigue siendo el mismo cuando Claude vuelve.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(session.notes, hasLength(1));
+      expect(session.notes.single, contains('dame un resumen de gitflow'));
+
+      await subscription.cancel();
+    },
+  );
 
   test(
     'un saludo suelto sigue sin ir a Claude, aunque ahora se acumule',

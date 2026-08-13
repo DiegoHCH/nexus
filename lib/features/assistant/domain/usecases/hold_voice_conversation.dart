@@ -102,6 +102,19 @@ class HoldVoiceConversation {
     // porque caben en un pedazo.
     final asked = StringBuffer();
     var answeredAlone = 0;
+
+    /// Sube con **cada frase nueva** del usuario. Existe para saber si una
+    /// corrección que tardó sigue siendo de lo que se está hablando.
+    ///
+    /// Un encargo a Claude tarda segundos y la conversación no espera: para
+    /// cuando vuelve la respuesta buena, puedes haber preguntado otra cosa. Sin
+    /// esto, la corrección entraba igual y el modelo abandonaba lo que estaba
+    /// diciendo para narrar la respuesta de dos turnos atrás — medido en una
+    /// sesión real: dos correcciones seguidas se pisaron entre ellas y la
+    /// segunda dejó a la primera a medias.
+    var turn = 0;
+    var stale = 0;
+
     var micFrames = 0;
     var sentFrames = 0;
     var eventsSeen = 0;
@@ -158,7 +171,8 @@ class HoldVoiceConversation {
         _log(
           'voz · cierre por inactividad tras ${_idleTimeout.inSeconds} s · '
           '$micFrames trozos del micro, $sentFrames enviados, '
-          '$eventsSeen eventos recibidos',
+          '$eventsSeen eventos recibidos · $turn turnos, '
+          '$answeredAlone corregidos, $stale descartados por viejos',
         );
         await shutdown();
         if (!controller.isClosed) await controller.close();
@@ -282,10 +296,25 @@ class HoldVoiceConversation {
     /// la hace este código con lo que el usuario dijo de verdad. Lo que ya se
     /// esté oyendo se corta —igual que una interrupción— y en su lugar suena la
     /// respuesta buena.
-    Future<void> enforceClaude(String utterance) async {
+    Future<void> enforceClaude(String utterance, int askedAt) async {
       unawaited(_output.discard());
       final answer = await runErrand(utterance, utterance);
       if (answer == null || closing) return;
+
+      // **Solo si sigue siendo de este turno.** Si mientras Claude trabajaba
+      // volviste a hablar, esta respuesta ya no viene a cuento: entregarla
+      // interrumpe lo que el modelo esté diciendo para contar lo de antes, que
+      // es peor que no corregir. Se descarta y se cuenta, porque cuántas veces
+      // pasa es lo que dirá si hace falta algo más fino que esto —encolarla
+      // para el final del turno, por ejemplo— o si con no estorbar basta.
+      if (turn != askedAt) {
+        stale++;
+        _log(
+          'b6 · corrección descartada por vieja ($stale en esta sesión): se '
+          'pidió en el turno $askedAt y vamos por el $turn — «$utterance»',
+        );
+        return;
+      }
       session?.sendSystemNote(VoiceRouting.correction(answer));
     }
 
@@ -375,6 +404,9 @@ class HoldVoiceConversation {
               asked.clear();
               unawaited(runTool(event));
             case VoiceUserTranscript(:final text):
+              // El primer pedazo de una frase es el que estrena turno: los
+              // siguientes son la misma frase llegando a trozos.
+              if (asked.isEmpty) turn++;
               asked.write(text);
               controller.add(event);
             case VoiceTurnCompleted():
@@ -393,7 +425,7 @@ class HoldVoiceConversation {
                     'b6 · contestó sin pasar por Claude ($answeredAlone en esta '
                     'sesión) y se corrige: «$utterance»',
                   );
-                  unawaited(enforceClaude(utterance));
+                  unawaited(enforceClaude(utterance, turn));
                   break;
                 }
               }
