@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -28,7 +27,18 @@ class HoldVoiceConversation {
     this._gateway,
     this._output,
     this._askClaude,
+    this._log,
   );
+
+  /// A dónde van los diagnósticos de la sesión. **Se inyecta y no se elige
+  /// aquí** por una razón medida: los de b11 se escribieron con
+  /// `dart:developer`, que era lo único que el dominio podía usar sin depender
+  /// de Flutter — y `developer.log` no sale ni en el registro del sistema ni en
+  /// la consola de `flutter run`. La sesión falló otra vez y no dejó rastro:
+  /// ese silencio es la razón de que b11 siga sin diagnóstico. Recibiendo la
+  /// función, el dominio sigue sin conocer Flutter y quien cablea la app le
+  /// pasa `debugPrint`, que sí se lee.
+  final void Function(String message) _log;
 
   /// Cuánto se espera sin actividad antes de cerrar sola la sesión.
   ///
@@ -81,8 +91,18 @@ class HoldVoiceConversation {
     // memoria sin avisar. No se puede impedir —la respuesta ya va en audio
     // cuando nos enteramos— pero sí contar cuántas veces pasa, que es lo que
     // faltaba para decidir si hace falta la salida cara.
-    String? lastAsked;
+    // **Se acumula, no se sobrescribe.** La transcripción de lo que dices llega
+    // en pedazos —lo dice el propio evento—, así que quedarse con el último
+    // dejaba una frase larga reducida a su cola: dos o tres palabras. Y eso
+    // rompía las dos cosas que dependen de aquí. `needsClaude` juzga con un
+    // tope de cuatro palabras, pensado para separar «hola» de «hola, mira el
+    // historial de git»; con un trozo suelto ese tope no distingue nada. Y la
+    // corrección le mandaba a Claude ese mismo trozo como encargo, que es la
+    // frase cortada a mitad que se veía (b11). Con las cortas no se notaba
+    // porque caben en un pedazo.
+    final asked = StringBuffer();
     var answeredAlone = 0;
+    var micFrames = 0;
     var sentFrames = 0;
     var eventsSeen = 0;
 
@@ -135,10 +155,10 @@ class HoldVoiceConversation {
           idleTimer = Timer(pending + _idleTimeout, () => keepAlive());
           return;
         }
-        developer.log(
-          'cierre por inactividad · $sentFrames trozos enviados, '
+        _log(
+          'voz · cierre por inactividad tras ${_idleTimeout.inSeconds} s · '
+          '$micFrames trozos del micro, $sentFrames enviados, '
           '$eventsSeen eventos recibidos',
-          name: 'nexus.voz',
         );
         await shutdown();
         if (!controller.isClosed) await controller.close();
@@ -352,27 +372,28 @@ class HoldVoiceConversation {
             // empezar y avanzar, no la fontanería.
             case VoiceToolRequested():
               // Lo pasó a Claude: este turno cumplió la regla.
-              lastAsked = null;
+              asked.clear();
               unawaited(runTool(event));
             case VoiceUserTranscript(:final text):
-              lastAsked = text;
+              asked.write(text);
               controller.add(event);
             case VoiceTurnCompleted():
               // Terminó un turno sin que el modelo llamara a nadie. Si lo que
               // se pidió no era de la lista corta —saludos, «para», «repite»—,
               // aquí se corrige: va a Claude y lo que suena es su respuesta.
-              if (lastAsked case final asked? when asked.trim().isNotEmpty) {
-                lastAsked = null;
-                if (VoiceRouting.needsClaude(asked)) {
+              // El turno cierra la frase: lo acumulado hasta aquí es lo que
+              // dijo el usuario entero, y a partir del siguiente pedazo empieza
+              // otra.
+              final utterance = asked.toString().trim();
+              asked.clear();
+              if (utterance.isNotEmpty) {
+                if (VoiceRouting.needsClaude(utterance)) {
                   answeredAlone++;
-                  // `dart:developer` y no `debugPrint`: esto es dominio y no
-                  // puede depender de Flutter.
-                  developer.log(
-                    'contestó sin pasar por Claude ($answeredAlone en esta '
-                    'sesión) y se corrige: «$asked»',
-                    name: 'nexus.b6',
+                  _log(
+                    'b6 · contestó sin pasar por Claude ($answeredAlone en esta '
+                    'sesión) y se corrige: «$utterance»',
                   );
-                  unawaited(enforceClaude(asked));
+                  unawaited(enforceClaude(utterance));
                   break;
                 }
               }
@@ -408,15 +429,24 @@ class HoldVoiceConversation {
           // otra sesión, y capturarla en una variable mandaría el audio a la
           // conexión muerta.
           (frame) {
-            session?.sendAudio(frame.pcm);
+            // Se cuentan los dos por separado y no uno solo: antes se sumaba
+            // siempre, hubiera sesión o no, así que el registro decía «trozos
+            // enviados» de audio que no salió de la máquina — que es
+            // exactamente la mitad del diagnóstico que este contador existe
+            // para dar.
+            micFrames++;
+            final live = session;
+            if (live != null) {
+              live.sendAudio(frame.pcm);
+              sentFrames++;
+            }
             // Un recuento cada dos segundos, no un evento por trozo: es lo que
             // distingue «el micro no llega» de «el servicio no contesta»,
             // que se arreglan en sitios opuestos y desde fuera se ven igual.
-            sentFrames++;
-            if (sentFrames % 25 == 0) {
-              developer.log(
-                '$sentFrames trozos enviados · $eventsSeen eventos recibidos',
-                name: 'nexus.voz',
+            if (micFrames % 25 == 0) {
+              _log(
+                'voz · $micFrames trozos del micro, $sentFrames enviados · '
+                '$eventsSeen eventos recibidos',
               );
             }
           },

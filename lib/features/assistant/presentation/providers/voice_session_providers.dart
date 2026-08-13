@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
@@ -44,5 +45,9 @@ final holdVoiceConversationProvider =
         ref.watch(voiceGatewayProvider),
         ref.watch(audioOutputProvider),
         ref.watch(askClaudeProvider(conversationId)),
+        // `debugPrint` y no `developer.log`: es lo único que sale por la
+        // consola de `flutter run`, que es donde se leen estas sesiones. Aquí
+        // sí se puede, porque esto es cableado y ya conoce Flutter.
+        debugPrint,
       ),
     );
