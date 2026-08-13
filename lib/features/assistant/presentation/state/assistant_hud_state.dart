@@ -7,7 +7,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 /// Una acción de Claude, para la columna «Ahora mismo».
 @immutable
 class ActivityItem {
-  const ActivityItem({
+  ActivityItem({
     required this.id,
     required this.description,
     required this.writes,
@@ -15,7 +15,8 @@ class ActivityItem {
     this.output,
     this.done = false,
     this.parentId,
-  });
+    DateTime? startedAt,
+  }) : startedAt = startedAt ?? DateTime.now();
 
   final String id;
   final String description;
@@ -24,6 +25,11 @@ class ActivityItem {
 
   /// La delegación de la que cuelga este paso, si lo dio un subagente.
   final String? parentId;
+
+  /// Cuándo empezó, para poder decir cuánto lleva. Un comando de cuatro minutos
+  /// y uno colgado se ven igual mirando una línea quieta; el contador es lo que
+  /// los separa sin tener que adivinar.
+  final DateTime startedAt;
 
   /// El comando o la ruta completos, sin recortar: la línea de la columna va
   /// abreviada para leerse de un vistazo, esto es para cuando quieres saber
@@ -46,6 +52,7 @@ class ActivityItem {
     output: output ?? this.output,
     done: true,
     parentId: parentId,
+    startedAt: startedAt,
   );
 }
 
