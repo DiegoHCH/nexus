@@ -41,11 +41,10 @@ void main() {
     // Cada ruta en su línea porque las hay con espacios: en una lista separada
     // por comas no habría forma de saber dónde acaba una.
     test('con adjuntos, las rutas van detrás y una por línea', () {
-      final salida = AttachedFiles.instruction(
-        'compara estos dos',
-        const ['/Users/x/Mis cosas/uno.png', '/Users/x/dos.png'],
-        label: 'Archivos adjuntos:',
-      );
+      final salida = AttachedFiles.instruction('compara estos dos', const [
+        '/Users/x/Mis cosas/uno.png',
+        '/Users/x/dos.png',
+      ], label: 'Archivos adjuntos:');
 
       expect(salida, '''
 compara estos dos

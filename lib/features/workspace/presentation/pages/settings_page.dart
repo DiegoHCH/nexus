@@ -14,6 +14,7 @@ import 'package:nexus/features/assistant/presentation/widgets/microphone_tester.
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/stats/presentation/widgets/stats_section.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
@@ -50,14 +51,17 @@ class SettingsPage extends ConsumerStatefulWidget {
 }
 
 class _SettingsPageState extends ConsumerState<SettingsPage> {
-  /// «Móvil» y «Modelo» siguen apagadas: pertenecen a fases que no existen, y
-  /// fingirlas sería peor que dejarlas a la vista como lo que son.
+  /// «Móvil» sigue apagada: pertenece a una fase que no existe, y fingirla
+  /// sería peor que dejarla a la vista como lo que es. Donde estaba «Modelo»
+  /// ahora hay estadísticas: el modelo se elige por carpeta desde la barra
+  /// —le12—, así que esa sección se quedó sin contenido antes de tenerlo.
   /// Las secciones vivas, en el orden en que se leen. Son claves, no textos:
   /// el nombre visible sale del diccionario.
   static const _sections = [
     _Section.voice,
     _Section.permissions,
     _Section.history,
+    _Section.stats,
     _Section.language,
   ];
   _Section _section = _Section.permissions;
@@ -112,7 +116,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 onTap: () => setState(() => _section = section),
                               ),
                             _disabled(context.strings.sectionMobile, colors),
-                            _disabled(context.strings.sectionModel, colors),
                           ],
                         ),
                       ),
@@ -124,6 +127,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             _Section.voice => const _VoiceSection(),
                             _Section.permissions => const _PermissionsSection(),
                             _Section.history => const _HistorySection(),
+                            _Section.stats => const StatsSection(),
                             _Section.language => const _LanguageSection(),
                           },
                         ),
@@ -531,12 +535,14 @@ enum _Section {
   voice,
   permissions,
   history,
+  stats,
   language;
 
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
     _Section.permissions => strings.sectionPermissions,
     _Section.history => strings.sectionHistory,
+    _Section.stats => strings.sectionStats,
     _Section.language => strings.sectionLanguage,
   };
 }
