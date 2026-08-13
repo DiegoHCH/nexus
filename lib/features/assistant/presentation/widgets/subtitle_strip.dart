@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 
 /// La caja para escribirle, siempre disponible — también mientras habla o
 /// trabaja.
@@ -122,8 +123,7 @@ class _SubtitleStripState extends State<SubtitleStrip> {
                     keyboardType: TextInputType.multiline,
                     textInputAction: TextInputAction.newline,
                     decoration: InputDecoration(
-                      hintText:
-                          'Escribe una instrucción…   ⇧↵ para salto de línea',
+                      hintText: context.strings.composerHint,
                       hintStyle: NexusTypography.body.copyWith(
                         color: colors.faint,
                       ),
@@ -133,7 +133,7 @@ class _SubtitleStripState extends State<SubtitleStrip> {
                       suffixIcon: value.text.isEmpty
                           ? null
                           : Tooltip(
-                              message: 'Borrar lo escrito',
+                              message: context.strings.clearWhatYouWrote,
                               child: IconButton(
                                 onPressed: _handleClear,
                                 padding: EdgeInsets.zero,

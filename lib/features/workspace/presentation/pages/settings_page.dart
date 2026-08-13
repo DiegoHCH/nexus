@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
@@ -44,8 +47,14 @@ class SettingsPage extends ConsumerStatefulWidget {
 class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// «Móvil» y «Modelo» siguen apagadas: pertenecen a fases que no existen, y
   /// fingirlas sería peor que dejarlas a la vista como lo que son.
-  static const _sections = ['Voz', 'Permisos'];
-  String _section = 'Permisos';
+  /// Las secciones vivas, en el orden en que se leen. Son claves, no textos:
+  /// el nombre visible sale del diccionario.
+  static const _sections = [
+    _Section.voice,
+    _Section.permissions,
+    _Section.language,
+  ];
+  _Section _section = _Section.permissions;
 
   @override
   Widget build(BuildContext context) {
@@ -74,14 +83,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final name in _sections)
+                            for (final section in _sections)
                               _SectionLink(
-                                label: name,
-                                active: _section == name,
-                                onTap: () => setState(() => _section = name),
+                                label: section.title(context.strings),
+                                active: _section == section,
+                                onTap: () => setState(() => _section = section),
                               ),
-                            _disabled('Móvil', colors),
-                            _disabled('Modelo', colors),
+                            _disabled(context.strings.sectionMobile, colors),
+                            _disabled(context.strings.sectionModel, colors),
                           ],
                         ),
                       ),
@@ -89,9 +98,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       Expanded(
                         child: SizedBox(
                           width: 600,
-                          child: _section == 'Voz'
-                              ? const _VoiceSection()
-                              : const _PermissionsSection(),
+                          child: switch (_section) {
+                            _Section.voice => const _VoiceSection(),
+                            _Section.permissions => const _PermissionsSection(),
+                            _Section.language => const _LanguageSection(),
+                          },
                         ),
                       ),
                     ],
@@ -158,13 +169,12 @@ class _VoiceSection extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'VOZ DE NEXUS',
+          context.strings.nexusVoice,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
-          'Se fija al abrir la sesión, así que un cambio vale desde la próxima vez que '
-          'le hables. El idioma no se elige: lo detecta de lo que dices.',
+          context.strings.voiceExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s5),
@@ -233,7 +243,7 @@ class _SettingsTopBar extends ConsumerWidget {
       child: Row(
         children: [
           Text(
-            'N E X U S',
+            context.strings.brand,
             style: NexusTypography.data.copyWith(
               color: colors.mute,
               letterSpacing: 4.2,
@@ -241,7 +251,7 @@ class _SettingsTopBar extends ConsumerWidget {
           ),
           const SizedBox(width: NexusSpacing.s5),
           Text(
-            'AJUSTES',
+            context.strings.settings,
             style: NexusTypography.label.copyWith(
               color: colors.faint,
               letterSpacing: 2,
@@ -255,7 +265,10 @@ class _SettingsTopBar extends ConsumerWidget {
                 .setPermission,
           ),
           const SizedBox(width: NexusSpacing.s5),
-          OutlinedButton(onPressed: onClose, child: const Text('CERRAR  ESC')),
+          OutlinedButton(
+            onPressed: onClose,
+            child: Text(context.strings.closeEsc),
+          ),
         ],
       ),
     );
@@ -274,7 +287,7 @@ class _PermissionsSection extends ConsumerWidget {
     return ListView(
       children: [
         Text(
-          'PERMISOS SOBRE TUS ARCHIVOS',
+          context.strings.filePermissionsTitle,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
@@ -287,22 +300,19 @@ class _PermissionsSection extends ConsumerWidget {
         ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
-          'Este interruptor está siempre visible en la barra superior. En «solo leer», Nexus '
-          'puede abrir archivos y correr comandos que no escriben; en «puede editar», también '
-          'modifica archivos.',
+          context.strings.filePermissionsExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s7),
 
         Text(
-          'CARPETAS CON PERMISO',
+          context.strings.foldersWithPermission,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
         if (workspace.isEmpty)
           Text(
-            'Todavía no hay ninguna. Sin carpeta emparejada no hay dónde trabajar: '
-            'Claude correría sobre la raíz del disco.',
+            context.strings.noFoldersYet,
             style: NexusTypography.mono.copyWith(color: colors.faint),
           )
         else
@@ -322,7 +332,7 @@ class _PermissionsSection extends ConsumerWidget {
           alignment: Alignment.centerLeft,
           child: OutlinedButton(
             onPressed: controller.pairFolder,
-            child: const Text('AÑADIR CARPETA'),
+            child: Text(context.strings.addFolder),
           ),
         ),
         const SizedBox(height: NexusSpacing.s3),
@@ -330,9 +340,11 @@ class _PermissionsSection extends ConsumerWidget {
         // decide: emparejar solo el repo carga sus reglas y luego no puede
         // leerlas si viven en una carpeta hermana.
         Text(
-          'La carpeta activa es donde trabaja Claude; las demás se le pasan como acceso '
-          'adicional. Si las reglas de un repo viven fuera de él —un ai-context al lado, por '
-          'ejemplo— empareja también esa carpeta, o Claude cargará instrucciones que no puede seguir.',
+          // Decía que las demás carpetas viajan como acceso adicional, y eso
+          // dejó de ser verdad en 3.4: la carpeta es la frontera del contexto y
+          // `--add-dir` se quitó. Un ajuste que explica algo que el código ya no
+          // hace es peor que no explicar nada.
+          context.strings.foldersExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
       ],
@@ -380,7 +392,9 @@ class _FolderRow extends ConsumerWidget {
             // trabajo, y el resto acompañan.
             IconButton(
               onPressed: isActive ? null : onActivate,
-              tooltip: isActive ? 'Es la carpeta activa' : 'Trabajar aquí',
+              tooltip: isActive
+                  ? context.strings.isActiveFolder
+                  : context.strings.workHere,
               icon: Icon(
                 isActive
                     ? Icons.radio_button_checked
@@ -400,7 +414,7 @@ class _FolderRow extends ConsumerWidget {
             _ModalityToggle(modality: folder.modality, onChanged: onModality),
             IconButton(
               onPressed: onRemove,
-              tooltip: 'Quitar',
+              tooltip: context.strings.remove,
               icon: Icon(Icons.remove, size: 16, color: colors.faint),
             ),
           ],
@@ -426,19 +440,96 @@ class _ModalityToggle extends StatelessWidget {
 
     return Tooltip(
       message: voice
-          ? 'Se puede hablar con esta carpeta: tu voz y lo que Claude lea salen hacia Google'
-          : 'Solo texto: nada de esta carpeta sale hacia el servicio de voz',
+          ? context.strings.voiceAllowedExplainer
+          : context.strings.textOnlyExplainer,
       child: TextButton(
         onPressed: () =>
             onChanged(voice ? FolderModality.textOnly : FolderModality.voice),
         child: Text(
-          voice ? 'VOZ' : 'SOLO TEXTO',
+          voice ? 'VOZ' : context.strings.textOnly,
           style: NexusTypography.label.copyWith(
             color: voice ? colors.cyan : colors.faint,
             letterSpacing: 1.4,
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Las secciones de Ajustes, como claves. El nombre visible sale del
+/// diccionario: aquí solo se decide cuáles hay y en qué orden.
+enum _Section {
+  voice,
+  permissions,
+  language;
+
+  String title(NexusStrings strings) => switch (this) {
+    _Section.voice => strings.sectionVoice,
+    _Section.permissions => strings.sectionPermissions,
+    _Section.language => strings.sectionLanguage,
+  };
+}
+
+/// El idioma de la app — y de lo que te responden.
+///
+/// Existe porque la regla del proyecto pide español e inglés como mínimo, y
+/// hasta ahora la interfaz estaba escrita a mano en español. Cambiarlo aquí
+/// cambia también cómo contestan los modelos: una app en inglés con una voz que
+/// responde en español sería lo peor de los dos mundos.
+class _LanguageSection extends ConsumerWidget {
+  const _LanguageSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final choice = ref.watch(languageControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.languageTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.languageExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        for (final option in LanguageChoice.values)
+          InkWell(
+            onTap: () =>
+                ref.read(languageControllerProvider.notifier).select(option),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
+              child: Row(
+                children: [
+                  Icon(
+                    option == choice
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 15,
+                    color: option == choice ? colors.cyan : colors.faint,
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Text(
+                    switch (option) {
+                      LanguageChoice.system => strings.languageSystem,
+                      LanguageChoice.spanish => strings.languageSpanish,
+                      LanguageChoice.english => strings.languageEnglish,
+                    },
+                    style: NexusTypography.data.copyWith(
+                      color: option == choice ? colors.ink : colors.mute,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
@@ -73,7 +74,7 @@ class HudTopBar extends ConsumerWidget {
             const SizedBox(width: NexusSpacing.s3),
           ],
           Text(
-            'N E X U S',
+            context.strings.brand,
             style: NexusTypography.data.copyWith(
               color: colors.mute,
               letterSpacing: 4.2,
@@ -93,7 +94,7 @@ class HudTopBar extends ConsumerWidget {
           if (active == null)
             OutlinedButton(
               onPressed: controller.pairFolder,
-              child: const Text('EMPAREJAR CARPETA'),
+              child: Text(context.strings.pairFolder),
             )
           else
             _ActiveFolder(
@@ -124,7 +125,7 @@ class _Meter extends StatelessWidget {
     final model = meter.displayModel;
     if (model == null) {
       return Text(
-        'sin conversación',
+        context.strings.noConversation,
         style: NexusTypography.data.copyWith(color: colors.faint),
       );
     }
@@ -198,7 +199,7 @@ class _ActiveFolder extends ConsumerWidget {
             ),
             const SizedBox(width: NexusSpacing.s3),
             Text(
-              voice ? 'VOZ' : 'SOLO TEXTO',
+              voice ? 'VOZ' : context.strings.textOnly,
               style: NexusTypography.label.copyWith(
                 color: voice ? colors.cyan : colors.faint,
                 letterSpacing: 1.4,

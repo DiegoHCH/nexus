@@ -5,6 +5,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
@@ -121,7 +123,7 @@ class _HomePageState extends ConsumerState<HomePage> {
           body: Column(
             children: [
               HudTopBar(
-                status: _statusFor(hud.orbState),
+                status: _statusFor(hud.orbState, context.strings),
                 live: working || hud.voiceActive,
                 meter: hud.meter,
                 folderPath: focused.folderPath,
@@ -203,10 +205,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                 ),
               ),
               HudBottomBar(
-                consequence: _consequence(ref, focused.folderPath),
+                consequence: _consequence(
+                  ref,
+                  focused.folderPath,
+                  context.strings,
+                ),
                 escape: hud.voiceActive
-                    ? 'Di «para» para interrumpir'
-                    : (working ? 'Detener con ⌘.' : null),
+                    ? context.strings.sayStopToInterrupt
+                    : (working ? context.strings.stopWithShortcut : null),
               ),
               // Sin el texto de la respuesta: ahora vive en la ventana de la
               // derecha. Abajo queda solo la caja, que **siempre** está
@@ -273,7 +279,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         child: Scaffold(
           body: Column(
             children: [
-              const HudTopBar(status: 'Dormido'),
+              HudTopBar(status: context.strings.asleep),
               Expanded(
                 child: Stack(
                   children: [
@@ -294,7 +300,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                           child: TextButton(
                             onPressed: () => SettingsPage.open(context),
                             child: Text(
-                              'EMPAREJA UNA CARPETA PARA EMPEZAR',
+                              context.strings.pairAFolderToStart,
                               style: NexusTypography.label.copyWith(
                                 color: colors.cyan,
                               ),
@@ -319,23 +325,23 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
 /// El diseño insiste en que «el permiso y su consecuencia se ven juntos», y la
 /// diferencia es real: «puede editar» no dice nada, «puede editar archivos en
 /// front-mobile-b2c» sí.
-String _consequence(WidgetRef ref, String folderPath) {
+String _consequence(WidgetRef ref, String folderPath, NexusStrings strings) {
   final workspace = ref.watch(workspaceControllerProvider);
   final folder = workspace.folders
       .where((item) => item.path == folderPath)
       .firstOrNull;
-  if (folder == null) return 'Sin carpeta emparejada — nada que tocar todavía';
+  if (folder == null) return strings.noFolderNothingToTouch;
   return workspace.permission.canWrite
-      ? 'Puede editar archivos en ${folder.name}'
-      : 'Solo lectura en ${folder.name}';
+      ? strings.canEditFilesIn(folder.name)
+      : strings.readOnlyIn(folder.name);
 }
 
 /// Una palabra para lo que está pasando, como el «Dormido» del mockup.
-String _statusFor(NexusOrbState state) => switch (state) {
-  NexusOrbState.sleep => 'Dormido',
-  NexusOrbState.listen => 'Escuchando',
-  NexusOrbState.think => 'Trabajando',
-  NexusOrbState.speak => 'Hablando',
+String _statusFor(NexusOrbState state, NexusStrings strings) => switch (state) {
+  NexusOrbState.sleep => strings.asleep,
+  NexusOrbState.listen => strings.listening,
+  NexusOrbState.think => strings.working,
+  NexusOrbState.speak => strings.speaking,
 };
 
 class _LiveBadge extends StatelessWidget {
@@ -364,8 +370,8 @@ class _LiveBadge extends StatelessWidget {
           ),
           child: Text(
             working
-                ? 'TRABAJANDO · ⌥ESPACIO PARA CANCELAR'
-                : 'MICRÓFONO ABIERTO · SE CIERRA SOLO AL CALLARTE',
+                ? context.strings.workingCancelHint
+                : context.strings.micOpenHint,
             style: NexusTypography.label.copyWith(color: color),
           ),
         ),

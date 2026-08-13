@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
@@ -81,7 +82,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
             left: 0,
             right: 0,
             child: Text(
-              'N E X U S',
+              context.strings.brand,
               textAlign: TextAlign.center,
               style: NexusTypography.brand.copyWith(color: colors.mute),
             ),
@@ -102,14 +103,14 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                       mainAxisSize: MainAxisSize.min,
                       children: [
                         Text(
-                          'ANTES DE EMPEZAR',
+                          context.strings.beforeWeStart,
                           style: NexusTypography.label.copyWith(
                             color: colors.cyan,
                           ),
                         ),
                         const SizedBox(height: NexusSpacing.s3),
                         Text(
-                          'Dos cosas antes de poder hablar contigo',
+                          context.strings.setupTitle,
                           style: NexusTypography.title.copyWith(
                             color: colors.ink,
                             fontSize: 26,
@@ -117,8 +118,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                         ),
                         const SizedBox(height: NexusSpacing.s3),
                         Text(
-                          'Nexus necesita tu micrófono para escucharte y una llave de '
-                          'Gemini para darte voz. Ninguna de las dos se comparte con nada más.',
+                          context.strings.setupExplainer,
                           style: NexusTypography.body.copyWith(
                             color: colors.mute,
                           ),
@@ -144,7 +144,9 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                         if (setup.errorMessage != null) ...[
                           const SizedBox(height: NexusSpacing.s4),
                           Text(
-                            'No se pudo guardar la llave: ${setup.errorMessage}',
+                            context.strings.keySaveFailed(
+                              setup.errorMessage ?? '',
+                            ),
                             style: NexusTypography.label.copyWith(
                               color: colors.err,
                               letterSpacing: 0.4,
@@ -171,13 +173,13 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                                         color: colors.void_,
                                       ),
                                     )
-                                  : const Text('EMPEZAR A USAR NEXUS'),
+                                  : Text(context.strings.startUsingNexus),
                             ),
                           ),
                         ),
                         const SizedBox(height: NexusSpacing.s5),
                         Text(
-                          'Puedes cambiar esto después en Ajustes · Voz',
+                          context.strings.changeLaterHint,
                           textAlign: TextAlign.center,
                           style: NexusTypography.mono.copyWith(
                             color: colors.faint,
@@ -212,30 +214,28 @@ class _MicrophoneField extends StatelessWidget {
     final colors = context.colors;
     final (chipText, chipColor, dataText, hint) = switch (status) {
       MicrophoneStatus.idle => (
-        'SOLICITAR',
+        context.strings.request,
         colors.cyan,
-        'Nexus necesita tu micrófono para escucharte',
-        'Vas a ver el diálogo de permiso de macOS. En cuanto lo aceptes, la '
-            'prueba de sonido en vivo empieza sola.',
+        context.strings.micPending,
+        context.strings.micPendingExplainer,
       ),
       MicrophoneStatus.checking => (
-        'PENDIENTE',
+        context.strings.micPending,
         colors.warn,
-        'Pidiendo acceso al micrófono…',
-        'Respondé al diálogo del sistema para continuar.',
+        context.strings.micAsking,
+        context.strings.micAskingExplainer,
       ),
       MicrophoneStatus.granted => (
-        'CONCEDIDO',
+        context.strings.micGranted,
         colors.ok,
-        'Nexus puede escucharte',
-        'Habla un momento — si el trazo se mueve, tu voz llega bien a Nexus.',
+        context.strings.micGranted,
+        context.strings.micGrantedExplainer,
       ),
       MicrophoneStatus.denied => (
-        'DENEGADO',
+        context.strings.micDenied,
         colors.err,
-        'Actívalo en Ajustes del Sistema',
-        'Nexus no puede escucharte todavía. Actívalo en Ajustes del Sistema › '
-            'Privacidad y seguridad › Micrófono.',
+        context.strings.micDeniedShort,
+        context.strings.micDeniedExplainer,
       ),
     };
 
@@ -243,7 +243,7 @@ class _MicrophoneField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'MICRÓFONO',
+          context.strings.microphone,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
@@ -276,7 +276,7 @@ class _MicrophoneField extends StatelessWidget {
                 Expanded(child: _MicWaveform(amplitude: amplitude)),
                 const SizedBox(width: NexusSpacing.s4),
                 Text(
-                  'TE ESCUCHO',
+                  context.strings.iHearYou,
                   style: NexusTypography.label.copyWith(color: colors.cyan),
                 ),
               ],
@@ -398,22 +398,23 @@ class _WorkFolderField extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'CARPETA DE TRABAJO',
+          context.strings.workFolder,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
         Row(
           children: [
             _StatusChip(
-              text: folder == null ? 'ELEGIR' : 'ELEGIDA',
+              text: folder == null
+                  ? context.strings.choose
+                  : context.strings.chosen,
               color: folder == null ? colors.cyan : colors.ok,
               onTap: ref.read(workspaceControllerProvider.notifier).pairFolder,
             ),
             const SizedBox(width: NexusSpacing.s4),
             Expanded(
               child: Text(
-                folder?.displayPath(home) ??
-                    'Nexus solo trabaja donde le digas',
+                folder?.displayPath(home) ?? context.strings.workFolderTitle,
                 style: NexusTypography.data.copyWith(color: colors.faint),
                 overflow: TextOverflow.ellipsis,
               ),
@@ -422,8 +423,7 @@ class _WorkFolderField extends ConsumerWidget {
         ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
-          'Puede ser un proyecto o la carpeta que los contiene a todos. Si las reglas de un '
-          'repo viven fuera de él, elige la carpeta padre. Después puedes añadir más en Ajustes.',
+          context.strings.workFolderExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
       ],
@@ -449,7 +449,7 @@ class _GeminiKeyField extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'LLAVE DE VOZ (GEMINI)',
+          context.strings.geminiKey,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
@@ -458,19 +458,17 @@ class _GeminiKeyField extends StatelessWidget {
           onChanged: onChanged,
           obscureText: true,
           style: NexusTypography.mono.copyWith(color: colors.ink),
-          decoration: const InputDecoration(
-            hintText: 'Pega tu llave de API aquí',
-          ),
+          decoration: InputDecoration(hintText: context.strings.geminiKeyHint),
         ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
-          'Se guarda cifrada en este Mac. Solo viaja hacia Google para sostener la voz en tiempo real.',
+          context.strings.geminiKeyExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s2),
         OutlinedButton(
           onPressed: onGetKey,
-          child: const Text('CONSEGUIR UNA LLAVE GRATIS ↗'),
+          child: Text(context.strings.getFreeKey),
         ),
       ],
     );

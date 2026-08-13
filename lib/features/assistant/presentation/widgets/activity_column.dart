@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/activity_layout.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 
@@ -34,7 +35,7 @@ class ActivityColumn extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
-              'AHORA MISMO',
+              context.strings.rightNow,
               style: NexusTypography.label.copyWith(color: colors.cyan),
             ),
             const Spacer(),
@@ -59,7 +60,10 @@ class ActivityColumn extends StatelessWidget {
           ),
         ),
         const SizedBox(height: NexusSpacing.s6),
-        OutlinedButton(onPressed: onStop, child: const Text('DETENER  ⌘.')),
+        OutlinedButton(
+          onPressed: onStop,
+          child: Text(context.strings.stopButton),
+        ),
       ],
     );
   }
@@ -162,7 +166,7 @@ class _ActivityRowState extends State<_ActivityRow> {
                           // dice que puede escribir y esta etiqueta dice cuándo
                           // lo está haciendo de verdad.
                           child: Text(
-                            'ESCRIBE',
+                            context.strings.writesTag,
                             style: NexusTypography.label.copyWith(
                               color: colors.warn,
                             ),
@@ -218,7 +222,7 @@ class _Detail extends StatelessWidget {
         children: [
           if (item.detail case final detail?) ...[
             Text(
-              'SE EJECUTÓ',
+              context.strings.ranLabel,
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
             const SizedBox(height: 4),
@@ -233,7 +237,7 @@ class _Detail extends StatelessWidget {
           if (item.output case final output?) ...[
             if (item.detail != null) const SizedBox(height: NexusSpacing.s3),
             Text(
-              'DEVOLVIÓ',
+              context.strings.returnedLabel,
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
             const SizedBox(height: 4),
@@ -251,7 +255,7 @@ class _Detail extends StatelessWidget {
             ),
           ] else if (!item.done)
             Text(
-              'todavía corriendo…',
+              context.strings.stillRunning,
               style: NexusTypography.mono.copyWith(color: colors.faint),
             ),
         ],

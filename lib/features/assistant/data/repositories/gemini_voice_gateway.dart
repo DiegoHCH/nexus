@@ -8,7 +8,12 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
 class GeminiVoiceGateway implements VoiceGateway {
-  GeminiVoiceGateway(this._dataSource, this._readApiKey, this._readVoiceName);
+  GeminiVoiceGateway(
+    this._dataSource,
+    this._readApiKey,
+    this._readVoiceName,
+    this._readLanguage,
+  );
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
   /// llave cambiada en Ajustes vale desde la siguiente sesión sin reconstruir
@@ -18,6 +23,11 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// Se consulta al conectar, no se guarda: así una voz cambiada en Ajustes
   /// vale desde la siguiente sesión sin reconstruir nada.
   final String Function() _readVoiceName;
+
+  /// El idioma elegido en Ajustes. Se consulta al conectar, como la voz: una
+  /// app en inglés con una voz que responde en español sería lo peor de los dos
+  /// mundos.
+  final String Function() _readLanguage;
 
   final GeminiLiveDataSource _dataSource;
 
@@ -78,7 +88,9 @@ class GeminiVoiceGateway implements VoiceGateway {
     'sessionResumption': {'handle': _resumptionHandle},
   };
 
-  static Map<String, dynamic> get _setup => {
+  /// Dejó de ser `static` al meter el idioma: la instrucción de sistema ya no
+  /// es la misma siempre, depende de en qué idioma se responde.
+  Map<String, dynamic> get _setup => {
     'model': 'models/${GeminiLiveDataSource.model}',
     'generationConfig': {
       'responseModalities': ['AUDIO'],
@@ -111,7 +123,8 @@ class GeminiVoiceGateway implements VoiceGateway {
         {
           'text':
               'Eres Nexus, un asistente de voz que vive en el Mac de quien te habla. '
-              'Respondes en español, en frases cortas: esto se escucha, no se lee.\n'
+              'Respondes en ${_readLanguage()}, en frases cortas: esto se escucha, '
+              'no se lee.\n'
               'REGLA PRINCIPAL: absolutamente todo lo que te pidan —cualquier '
               'pregunta, consulta, tarea o encargo, sea de código o no— se lo pasas a '
               'Claude llamando a pedir_a_claude, y después cuentas lo que devolvió. '

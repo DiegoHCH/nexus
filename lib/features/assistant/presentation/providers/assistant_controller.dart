@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
@@ -88,7 +89,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (folder == null) return;
     await ref.read(conversationMemoryProvider).forget(folder);
     state = state.copyWith(
-      subtitle: 'Conversación olvidada: la próxima empieza de cero.',
+      subtitle: ref.read(stringsProvider).conversationForgotten,
       meter: const SessionMeter(),
     );
   }
@@ -178,9 +179,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       orbState: NexusOrbState.think,
       activity: [
         ...state.activity,
-        const ActivityItem(
+        ActivityItem(
           id: _queueItemId,
-          description: 'Esperando a la otra conversación sobre esta carpeta',
+          description: ref.read(stringsProvider).waitingForOtherConversation,
           writes: false,
         ),
       ],

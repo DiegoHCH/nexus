@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 
 /// La conversación entera a la derecha: lo que pediste y lo que respondió.
@@ -47,7 +48,7 @@ class _ChatPanelState extends State<ChatPanel> {
     if (widget.messages.isEmpty) {
       return Center(
         child: Text(
-          'PÍDELE ALGO — POR VOZ CON ⌥ESPACIO O ESCRIBIENDO ABAJO',
+          context.strings.askSomething,
           textAlign: TextAlign.center,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
@@ -81,7 +82,7 @@ class _Turn extends StatelessWidget {
           Row(
             children: [
               Text(
-                isUser ? 'TÚ' : 'NEXUS',
+                isUser ? context.strings.you : context.strings.nexus,
                 style: NexusTypography.label.copyWith(
                   color: isUser ? colors.faint : colors.cyan,
                 ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
@@ -203,7 +204,7 @@ class _OpenAnother extends ConsumerWidget {
     if (folders.isEmpty) return const SizedBox.shrink();
 
     return PopupMenuButton<String>(
-      tooltip: 'Abrir otra conversación',
+      tooltip: context.strings.openAnotherConversation,
       onSelected: (path) => ref.read(conversationsProvider.notifier).open(path),
       itemBuilder: (context) => [
         for (final folder in folders)
@@ -230,7 +231,7 @@ class _OpenAnother extends ConsumerWidget {
             ),
             const SizedBox(width: NexusSpacing.s2),
             Text(
-              'NUEVA',
+              context.strings.newConversation,
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
           ],

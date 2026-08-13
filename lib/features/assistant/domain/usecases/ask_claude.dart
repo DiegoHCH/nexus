@@ -10,6 +10,7 @@ typedef ClaudeWorkContext = ({
   String workingDirectory,
   bool canEdit,
   List<String> extraDirectories,
+  String language,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -65,7 +66,12 @@ class AskClaude {
       await _memory.rememberPrompt(folder, instruction);
 
       await for (final event in _bridge.ask(
-        instruction,
+        // La preferencia de idioma va como preferencia, no como orden: si
+        // escribes en otro idioma, gana lo que escribiste. Imponerlo haría que
+        // preguntar algo en español con la app en inglés te contestara en
+        // inglés, que es exactamente lo contrario de lo que se pidió.
+        '$instruction\n\n(Si no se te pide otra cosa, responde en '
+        '${context.language}.)',
         workingDirectory: folder,
         canEdit: context.canEdit,
         extraDirectories: context.extraDirectories,

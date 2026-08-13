@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 
 /// El interruptor «Solo leer / Puede editar» del mockup, siempre visible en la
@@ -32,13 +33,13 @@ class PermissionSwitch extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             _Option(
-              label: 'SOLO LEER',
+              label: context.strings.readOnly,
               selected: permission == FilePermission.readOnly,
               dotColor: colors.cyan,
               onTap: () => onChanged(FilePermission.readOnly),
             ),
             _Option(
-              label: 'PUEDE EDITAR',
+              label: context.strings.canEdit,
               selected: permission == FilePermission.canEdit,
               dotColor: colors.warn,
               onTap: () => onChanged(FilePermission.canEdit),

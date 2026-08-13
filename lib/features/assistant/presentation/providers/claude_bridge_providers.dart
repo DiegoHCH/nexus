@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
@@ -48,6 +49,7 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // listando los archivos del otro. Si las reglas viven fuera del repo, la
         // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
         extraDirectories: const <String>[],
+        language: ref.read(stringsProvider).languageName,
       );
     },
     ref.watch(conversationMemoryProvider),
