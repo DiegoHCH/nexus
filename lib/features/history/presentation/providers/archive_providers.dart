@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:developer' as developer;
 import 'dart:io';
 import 'dart:convert';
 
@@ -290,6 +289,13 @@ final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
 final deleteConversationProvider =
     Provider<Future<void> Function(ConversationRecord)>((ref) {
       return (record) async {
+        // `debugPrint` y no `developer.log`: lo segundo no aparece ni en el log
+        // del sistema ni en la consola de `flutter run`, y por eso los primeros
+        // intentos de diagnosticar esto no enseñaron nada.
+        debugPrint(
+          'nexus.archivo · borrando «${record.title}» · id ${record.id} · '
+          'nota ${record.sourcePath ?? 'ninguna'}',
+        );
         await ref.read(localConversationStoreProvider).delete(record);
 
         // De dónde salió lo que se está viendo, y **su nota**: son dos copias
@@ -303,9 +309,8 @@ final deleteConversationProvider =
           // la lista, que era lo que hacía que borrar «a veces no hiciera nada».
           final movida = await SystemFiles.moveToTrash(source);
           if (!movida) {
-            developer.log(
-              'la nota no se pudo mandar a la papelera: $source',
-              name: 'nexus.archivo',
+            debugPrint(
+              'nexus.archivo · la nota no se fue a la papelera: $source',
             );
           }
         }
