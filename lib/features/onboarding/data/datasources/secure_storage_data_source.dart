@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 /// Envuelve el almacén cifrado del sistema (Keychain en macOS). Lo único que
@@ -22,7 +24,25 @@ class SecureStorageDataSource {
 
   final FlutterSecureStorage _storage;
 
-  Future<String?> read(String key) => _storage.read(key: key);
+  /// Devuelve `null` también cuando el llavero **no se deja leer**, no solo
+  /// cuando no hay nada guardado.
+  ///
+  /// Es el caso que la deuda b5 dejó anotado: la llave vive en el llavero del
+  /// login, así que el día que se cambie de llavero —o que el sistema niegue
+  /// el acceso— esta lectura falla. Dejar subir la excepción tenía una
+  /// consecuencia peor que perder la llave: el arranque se quedaba esperando
+  /// una respuesta que no llegaba nunca y la app se quedaba en el splash, con
+  /// el orbe girando y sin decir nada. Sin llave legible hay que volver a
+  /// pedirla, que es reparable; colgarse no.
+  Future<String?> read(String key) async {
+    try {
+      return await _storage.read(key: key);
+    } on PlatformException catch (error) {
+      debugPrint('No se pudo leer «$key» del llavero: ${error.message}');
+      return null;
+    }
+  }
 
-  Future<void> write(String key, String value) => _storage.write(key: key, value: value);
+  Future<void> write(String key, String value) =>
+      _storage.write(key: key, value: value);
 }

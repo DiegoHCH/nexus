@@ -49,6 +49,14 @@ abstract class VoiceSession {
   /// [VoiceSessionFormat.inputSampleRate].
   void sendAudio(Uint8List pcm);
 
+  /// Le mete a la conversación un texto que no vino del micrófono.
+  ///
+  /// Se usa para corregir al modelo cuando contesta por su cuenta algo que
+  /// tenía que haber pasado por Claude: se le entrega la respuesta buena y la
+  /// cuenta él. Sin esto, la única forma de meter texto en la conversación
+  /// sería fingir que lo dijo el usuario.
+  void sendSystemNote(String text);
+
   /// Devuelve el resultado de un [VoiceToolRequested].
   ///
   /// Es obligatorio contestar siempre, también cuando la herramienta falla:

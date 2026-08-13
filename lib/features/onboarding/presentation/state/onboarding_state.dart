@@ -41,7 +41,9 @@ class SetupState {
   final String? errorMessage;
 
   bool get canFinish =>
-      micStatus == MicrophoneStatus.granted && keyText.trim().isNotEmpty && !saving;
+      micStatus == MicrophoneStatus.granted &&
+      keyText.trim().isNotEmpty &&
+      !saving;
 
   SetupState copyWith({
     MicrophoneStatus? micStatus,

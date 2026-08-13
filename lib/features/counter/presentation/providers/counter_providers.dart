@@ -35,5 +35,6 @@ class CounterNotifier extends AsyncNotifier<Counter> {
   }
 }
 
-final counterNotifierProvider =
-    AsyncNotifierProvider<CounterNotifier, Counter>(CounterNotifier.new);
+final counterNotifierProvider = AsyncNotifierProvider<CounterNotifier, Counter>(
+  CounterNotifier.new,
+);

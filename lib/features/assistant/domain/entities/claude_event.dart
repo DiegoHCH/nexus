@@ -4,6 +4,15 @@ sealed class ClaudeEvent {
   const ClaudeEvent();
 }
 
+/// El encargo espera turno: otra conversación está trabajando sobre la misma
+/// carpeta, y esa sesión de Claude no admite dos a la vez.
+///
+/// Se anuncia en vez de esperar en silencio porque un turno de cola y un cuelgue
+/// se ven exactamente igual desde fuera.
+final class ClaudeQueued extends ClaudeEvent {
+  const ClaudeQueued();
+}
+
 /// Arrancó la sesión: llega una sola vez, al principio.
 final class ClaudeSessionStarted extends ClaudeEvent {
   const ClaudeSessionStarted({required this.sessionId, required this.model});
@@ -30,6 +39,7 @@ final class ClaudeToolUsed extends ClaudeEvent {
     required this.description,
     required this.writes,
     this.detail,
+    this.parentId,
   });
 
   /// Identificador de la llamada, para poder marcarla como terminada cuando
@@ -48,6 +58,14 @@ final class ClaudeToolUsed extends ClaudeEvent {
   /// línea de arriba está recortada para leerse de un vistazo; esto es para
   /// cuando quieres saber qué pasó exactamente.
   final String? detail;
+
+  /// Si este paso lo dio un subagente, el identificador de la delegación que
+  /// lo creó; `null` cuando lo dio Claude directamente.
+  ///
+  /// Sin esto los pasos del subagente caen al mismo nivel que los del
+  /// principal y el rastro deja de contar quién hizo qué: se ve a quien delegó
+  /// haciendo el trabajo que acaba de repartir.
+  final String? parentId;
 }
 
 /// Terminó una herramienta: la actividad pasa de «en curso» a «hecha».

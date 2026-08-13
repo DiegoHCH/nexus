@@ -13,8 +13,27 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 class AudioOutputImpl implements AudioOutput {
   AudioOutputImpl(this._audio);
 
+  /// Milisegundos que se retiene el audio, a propósito, para reproducir una
+  /// red mala sin depender de tener una.
+  ///
+  /// Vale 0 salvo que se compile con `--dart-define=NEXUS_PLAYBACK_STALL_MS=…`,
+  /// y siendo constante el compilador se lleva por delante todo lo de abajo en
+  /// una compilación normal. Existe porque la deuda b3 estaba esperando a que
+  /// tocara una conexión mala —«hasta medirlo no se toca»— y esperar a tener
+  /// mala suerte no es un plan: así el corte se provoca cuando uno quiere y se
+  /// mide con el contador de huecos que ya lleva el motor.
+  static const _stallMs = int.fromEnvironment('NEXUS_PLAYBACK_STALL_MS');
+
+  /// Cada cuántos trozos se provoca ese parón. Uno de cada diez son unos dos
+  /// segundos de respuesta entre tirón y tirón.
+  static const _stallEvery = int.fromEnvironment(
+    'NEXUS_PLAYBACK_STALL_EVERY',
+    defaultValue: 10,
+  );
+
   final NativeAudioDataSource _audio;
   bool _started = false;
+  int _chunks = 0;
 
   @override
   Future<void> start() async {
@@ -26,7 +45,24 @@ class AudioOutputImpl implements AudioOutput {
   @override
   void enqueue(Uint8List pcm) {
     if (!_started || pcm.isEmpty) return;
-    _audio.play(pcm);
+    // Camino normal: el trozo va al altavoz en cuanto llega.
+    if (_stallMs <= 0) {
+      _audio.play(pcm);
+      return;
+    }
+    // Camino de medición: cada tantos trozos, este llega tarde. No se pierde
+    // ninguno —una red mala retrasa, no borra— y el orden se conserva, que es
+    // justo lo que hace que el hueco se oiga como un corte y no como un
+    // gallo.
+    _chunks++;
+    if (_chunks % _stallEvery != 0) {
+      _audio.play(pcm);
+      return;
+    }
+    Future<void>.delayed(
+      Duration(milliseconds: _stallMs),
+      () => _started ? _audio.play(pcm) : null,
+    );
   }
 
   @override

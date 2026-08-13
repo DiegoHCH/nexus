@@ -105,7 +105,11 @@ abstract final class NexusTheme {
           side: BorderSide(color: colors.rule),
         ),
       ),
-      dividerTheme: DividerThemeData(color: colors.rule, thickness: 1, space: 1),
+      dividerTheme: DividerThemeData(
+        color: colors.rule,
+        thickness: 1,
+        space: 1,
+      ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: colors.rise,
@@ -128,7 +132,9 @@ abstract final class NexusTheme {
           foregroundColor: WidgetStatePropertyAll(colors.mute),
           textStyle: WidgetStatePropertyAll(NexusTypography.label),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+            ),
           ),
         ),
       ),
@@ -139,7 +145,9 @@ abstract final class NexusTheme {
           minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
           side: WidgetStatePropertyAll(BorderSide(color: colors.rule2)),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+            ),
           ),
         ),
       ),
@@ -147,11 +155,15 @@ abstract final class NexusTheme {
         style: ButtonStyle(
           backgroundColor: WidgetStatePropertyAll(colors.cyan),
           foregroundColor: WidgetStatePropertyAll(colors.void_),
-          textStyle: WidgetStatePropertyAll(NexusTypography.label.copyWith(fontWeight: FontWeight.w600)),
+          textStyle: WidgetStatePropertyAll(
+            NexusTypography.label.copyWith(fontWeight: FontWeight.w600),
+          ),
           elevation: const WidgetStatePropertyAll(0),
           minimumSize: const WidgetStatePropertyAll(Size(0, 44)),
           shape: WidgetStatePropertyAll(
-            RoundedRectangleBorder(borderRadius: BorderRadius.circular(NexusRadius.sm)),
+            RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+            ),
           ),
         ),
       ),

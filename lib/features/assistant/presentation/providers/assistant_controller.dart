@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
@@ -88,7 +89,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (folder == null) return;
     await ref.read(conversationMemoryProvider).forget(folder);
     state = state.copyWith(
-      subtitle: 'Conversación olvidada: la próxima empieza de cero.',
+      subtitle: ref.read(stringsProvider).conversationForgotten,
       meter: const SessionMeter(),
     );
   }
@@ -158,6 +159,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     final ask = ref.read(askClaudeProvider(conversationId));
     _subscription = ask(trimmed).listen(
       (event) => switch (event) {
+        ClaudeQueued() => _onQueued(),
         ClaudeSessionStarted() => _onSessionStarted(event.model),
         ClaudeTextDelta() => _onTextDelta(buffer, event),
         ClaudeToolUsed() => _onClaudeToolUsed(event),
@@ -169,7 +171,26 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
   }
 
+  /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
+  /// trabajando. Se pinta como un paso más porque lo es —el encargo ya está
+  /// aceptado— y porque esperar sin decirlo se ve igual que un cuelgue.
+  void _onQueued() {
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      activity: [
+        ...state.activity,
+        ActivityItem(
+          id: _queueItemId,
+          description: ref.read(stringsProvider).waitingForOtherConversation,
+          writes: false,
+        ),
+      ],
+    );
+  }
+
   void _onSessionStarted(String model) {
+    // Le llegó el turno: la espera se da por terminada en cuanto arranca.
+    _onClaudeToolFinished(_queueItemId);
     if (model.isEmpty) return;
     state = state.copyWith(meter: state.meter.copyWith(model: model));
   }
@@ -185,10 +206,20 @@ class AssistantController extends Notifier<AssistantHudState> {
           id: event.id,
           description: event.description,
           writes: event.writes,
+          // El detalle se estaba tirando aquí: el lector lo traía y la fila no
+          // lo recibía, así que un paso no se podía abrir hasta que terminara
+          // —y entonces solo enseñaba lo que devolvió, nunca lo que se
+          // ejecutó—. Es justo la mitad que 3.2 fue a buscar.
+          detail: event.detail,
+          parentId: event.parentId,
         ),
       ],
     );
   }
+
+  /// Identificador fijo: solo puede haber una espera por turno, y así se cierra
+  /// sin tener que recordar cuál era.
+  static const _queueItemId = 'esperando-turno';
 
   void _onClaudeToolFinished(String id, [String? output]) {
     state = state.copyWith(
@@ -262,16 +293,13 @@ class AssistantController extends Notifier<AssistantHudState> {
         .firstOrNull;
     if (paired == null) {
       state = state.copyWith(
-        errorMessage:
-            'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.',
+        errorMessage: ref.read(stringsProvider).noFolderForConversation,
       );
       return;
     }
     if (!paired.modality.allowsVoice) {
       state = state.copyWith(
-        errorMessage:
-            'La carpeta ${paired.name} está en modo solo texto, así que no se '
-            'abre el micrófono. Escríbele por abajo o cambia el modo en Ajustes.',
+        errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
       );
       return;
     }

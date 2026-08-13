@@ -1,5 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/platform/app_menu_channel.dart';
@@ -15,14 +19,14 @@ Future<void> main() async {
   runApp(const ProviderScope(child: MainApp()));
 }
 
-class MainApp extends StatefulWidget {
+class MainApp extends ConsumerStatefulWidget {
   const MainApp({super.key});
 
   @override
-  State<MainApp> createState() => _MainAppState();
+  ConsumerState<MainApp> createState() => _MainAppState();
 }
 
-class _MainAppState extends State<MainApp> {
+class _MainAppState extends ConsumerState<MainApp> {
   /// Los ajustes se abren desde el menú de macOS, que no tiene un `context` a
   /// mano. Esta llave es ese `context`.
   final _navigatorKey = GlobalKey<NavigatorState>();
@@ -47,12 +51,25 @@ class _MainAppState extends State<MainApp> {
     // que tenía este MaterialApp sin abandonar fromSeed por un ColorScheme
     // literal con sus ~40 campos a mano. El costo real es nulo: light()/
     // dark() ya cachean el resultado en un static final.
+    final locale = ref.watch(localeProvider);
     return MaterialApp(
       navigatorKey: _navigatorKey,
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
       themeMode: ThemeMode.system,
-      home: const AppRoot(),
+      locale: locale,
+      supportedLocales: NexusStrings.supported,
+      // Los de Flutter, para que los widgets de Material —menús, selección de
+      // texto— hablen el mismo idioma que la app y no se queden en inglés.
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      home: StringsScope(
+        strings: NexusStrings.of(locale),
+        child: const AppRoot(),
+      ),
     );
   }
 }

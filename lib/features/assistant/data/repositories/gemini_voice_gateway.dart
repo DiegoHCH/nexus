@@ -8,7 +8,12 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
 class GeminiVoiceGateway implements VoiceGateway {
-  GeminiVoiceGateway(this._dataSource, this._readApiKey, this._readVoiceName);
+  GeminiVoiceGateway(
+    this._dataSource,
+    this._readApiKey,
+    this._readVoiceName,
+    this._readLanguage,
+  );
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
   /// llave cambiada en Ajustes vale desde la siguiente sesión sin reconstruir
@@ -18,6 +23,11 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// Se consulta al conectar, no se guarda: así una voz cambiada en Ajustes
   /// vale desde la siguiente sesión sin reconstruir nada.
   final String Function() _readVoiceName;
+
+  /// El idioma elegido en Ajustes. Se consulta al conectar, como la voz: una
+  /// app en inglés con una voz que responde en español sería lo peor de los dos
+  /// mundos.
+  final String Function() _readLanguage;
 
   final GeminiLiveDataSource _dataSource;
 
@@ -78,7 +88,9 @@ class GeminiVoiceGateway implements VoiceGateway {
     'sessionResumption': {'handle': _resumptionHandle},
   };
 
-  static Map<String, dynamic> get _setup => {
+  /// Dejó de ser `static` al meter el idioma: la instrucción de sistema ya no
+  /// es la misma siempre, depende de en qué idioma se responde.
+  Map<String, dynamic> get _setup => {
     'model': 'models/${GeminiLiveDataSource.model}',
     'generationConfig': {
       'responseModalities': ['AUDIO'],
@@ -111,7 +123,8 @@ class GeminiVoiceGateway implements VoiceGateway {
         {
           'text':
               'Eres Nexus, un asistente de voz que vive en el Mac de quien te habla. '
-              'Respondes en español, en frases cortas: esto se escucha, no se lee.\n'
+              'Respondes en ${_readLanguage()}, en frases cortas: esto se escucha, '
+              'no se lee.\n'
               'REGLA PRINCIPAL: absolutamente todo lo que te pidan —cualquier '
               'pregunta, consulta, tarea o encargo, sea de código o no— se lo pasas a '
               'Claude llamando a pedir_a_claude, y después cuentas lo que devolvió. '
@@ -119,9 +132,20 @@ class GeminiVoiceGateway implements VoiceGateway {
               'Claude pone el trabajo.\n'
               'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
               'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
-              'algo que acabas de decir.\n'
+              'algo que acabas de decir. Esa lista es completa: no la amplíes — y la '
+              'app la comprueba, así que si contestas de memoria otra cosa, se lo '
+              'preguntará a Claude igual y tendrás que rectificar en voz alta.\n'
+              'ZONA GRIS, medida: preguntas como "¿qué opinas de Riverpod?", "¿qué '
+              'hora es?", "¿cuánto ocupa este repo?" o "¿qué versión tengo instalada?" '
+              'SÍ son encargos y van a Claude, aunque creas saber la respuesta: la '
+              'tuya sale de tu memoria y la de Claude sale de esta máquina. Ante la '
+              'duda, llama a la herramienta — equivocarse llamando cuesta unos '
+              'segundos, y equivocarse contestando de memoria cuesta un dato falso '
+              'dicho con seguridad.\n'
               'Antes de llamar a una herramienta di en tres o cuatro palabras qué vas '
               'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
+              'Si el sistema te entrega una respuesta de Claude, cuéntala tal cual y '
+              'sigue la conversación sin disculparte ni explicar por qué llega.\n'
               'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
               'a volver a necesitar —un procedimiento del proyecto, una convención, una '
               'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
@@ -301,6 +325,26 @@ class _GeminiVoiceSession implements VoiceSession {
       final args = function['args'] as Map<String, dynamic>? ?? const {};
       _events.add(VoiceToolRequested(callId: id, name: name, arguments: args));
     }
+  }
+
+  @override
+  @override
+  void sendSystemNote(String text) {
+    // `clientContent` con el turno cerrado: es lo mismo que enviaría un
+    // teclado, y el modelo responde a ello como a cualquier otra cosa.
+    _connection.send({
+      'clientContent': {
+        'turns': [
+          {
+            'role': 'user',
+            'parts': [
+              {'text': text},
+            ],
+          },
+        ],
+        'turnComplete': true,
+      },
+    });
   }
 
   @override

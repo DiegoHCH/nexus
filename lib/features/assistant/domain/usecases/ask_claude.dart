@@ -1,6 +1,7 @@
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
+import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 
 /// Dónde trabaja Claude y con cuánta mano suelta. Lo resuelve quien cablea la
 /// app, no esta feature: así `assistant` no necesita saber que existen
@@ -9,6 +10,7 @@ typedef ClaudeWorkContext = ({
   String workingDirectory,
   bool canEdit,
   List<String> extraDirectories,
+  String language,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -16,7 +18,7 @@ typedef ClaudeWorkContext = ({
 /// como stream — forzarlo al contrato existente escondería justamente lo
 /// que la interfaz necesita escuchar en vivo.
 class AskClaude {
-  const AskClaude(this._bridge, this._readContext, this._memory);
+  const AskClaude(this._bridge, this._readContext, this._memory, this._queue);
 
   final ClaudeBridge _bridge;
 
@@ -29,6 +31,10 @@ class AskClaude {
   /// interruptor de permisos tiene que valer para el siguiente encargo sin
   /// reconstruir nada.
   final Future<ClaudeWorkContext?> Function() _readContext;
+
+  /// Un encargo a la vez por carpeta. Compartido entre conversaciones: es lo
+  /// único que impide que dos hilos sobre el mismo repo se pisen la sesión.
+  final FolderErrandQueue _queue;
 
   Stream<ClaudeEvent> call(String instruction) async* {
     final context = await _readContext();
@@ -43,30 +49,49 @@ class AskClaude {
     }
 
     final folder = context.workingDirectory;
-    // La memoria va **por carpeta**, no por conversación: es la regla del
-    // producto. Dos chats sobre el mismo repo comparten contexto —reanudan la
-    // misma sesión de Claude— y dos sobre repos distintos no se enteran el uno
-    // del otro. La carpeta es la frontera.
-    final memory = await _memory.read(folder);
-    await _memory.rememberPrompt(folder, instruction);
 
-    await for (final event in _bridge.ask(
-      instruction,
-      workingDirectory: folder,
-      canEdit: context.canEdit,
-      extraDirectories: context.extraDirectories,
-      resumeSessionId: memory.sessionId,
-    )) {
-      // El identificador se guarda en cuanto arranca, no al terminar: si el
-      // encargo se cancela a media ejecución —cerrar la conversación mata el
-      // proceso— lo hablado hasta ahí sigue formando parte de la sesión, y
-      // olvidarlo dejaría a Claude repitiendo trabajo ya hecho.
-      if (event case ClaudeSessionStarted(
-        :final sessionId,
-      ) when sessionId.isNotEmpty) {
-        await _memory.rememberSession(folder, sessionId);
+    // Turno para esta carpeta. Si la otra conversación sigue trabajando sobre
+    // ella, se avisa antes de esperar: quedarse callado mientras llega el turno
+    // se ve exactamente igual que estar colgado.
+    if (_queue.isBusy(folder)) {
+      yield const ClaudeQueued();
+    }
+    final release = await _queue.acquire(folder);
+    try {
+      // La memoria va **por carpeta**, no por conversación: es la regla del
+      // producto. Dos chats sobre el mismo repo comparten contexto —reanudan
+      // la misma sesión de Claude— y dos sobre repos distintos no se enteran el
+      // uno del otro. La carpeta es la frontera.
+      final memory = await _memory.read(folder);
+      await _memory.rememberPrompt(folder, instruction);
+
+      await for (final event in _bridge.ask(
+        // La preferencia de idioma va como preferencia, no como orden: si
+        // escribes en otro idioma, gana lo que escribiste. Imponerlo haría que
+        // preguntar algo en español con la app en inglés te contestara en
+        // inglés, que es exactamente lo contrario de lo que se pidió.
+        '$instruction\n\n(Si no se te pide otra cosa, responde en '
+        '${context.language}.)',
+        workingDirectory: folder,
+        canEdit: context.canEdit,
+        extraDirectories: context.extraDirectories,
+        resumeSessionId: memory.sessionId,
+      )) {
+        // El identificador se guarda en cuanto arranca, no al terminar: si el
+        // encargo se cancela a media ejecución —cerrar la conversación mata el
+        // proceso— lo hablado hasta ahí sigue formando parte de la sesión, y
+        // olvidarlo dejaría a Claude repitiendo trabajo ya hecho.
+        if (event case ClaudeSessionStarted(
+          :final sessionId,
+        ) when sessionId.isNotEmpty) {
+          await _memory.rememberSession(folder, sessionId);
+        }
+        yield event;
       }
-      yield event;
+    } finally {
+      // También al cancelar: cerrar la conversación a media ejecución pasa por
+      // aquí, y no soltar el turno dejaría la carpeta bloqueada para siempre.
+      release();
     }
   }
 }

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -8,6 +9,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
+import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 
 /// La conversación completa: micrófono → socket → altavoz, y Claude en medio
 /// cuando hay trabajo de verdad que hacer.
@@ -74,6 +76,14 @@ class HoldVoiceConversation {
     var reconnects = 0;
     var closing = false;
 
+    // Que todo pase por Claude es una instrucción al modelo, no un candado
+    // (b6): nada en el código lo obliga, y en la zona gris puede contestar de
+    // memoria sin avisar. No se puede impedir —la respuesta ya va en audio
+    // cuando nos enteramos— pero sí contar cuántas veces pasa, que es lo que
+    // faltaba para decidir si hace falta la salida cara.
+    String? lastAsked;
+    var answeredAlone = 0;
+
     Future<void> shutdown() async {
       closing = true;
       // Primero el encargo: si hay un `claude -p` en marcha, cerrar la
@@ -135,22 +145,13 @@ class HoldVoiceConversation {
     /// explicación del fallo: el modelo está esperando esta respuesta y sin
     /// ella la conversación se queda muda para siempre, que es peor que una
     /// mala noticia bien contada.
-    Future<void> runTool(VoiceToolRequested request) async {
-      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
-      // Herramienta desconocida o argumentos incompletos: se contesta igual.
-      // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
-      // y la conversación muda para siempre.
-      if (instruction == null || instruction.isEmpty) {
-        session?.sendToolResult(
-          callId: request.callId,
-          name: request.name,
-          result:
-              'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
-        );
-        return;
-      }
-
-      controller.add(VoiceToolStarted(_headline(request)));
+    /// Le pasa un encargo a Claude y devuelve lo que respondió, o `null` si se
+    /// canceló por el camino.
+    ///
+    /// Lo usan los dos caminos: cuando el modelo pide la herramienta, y cuando
+    /// **no** la pidió debiendo hacerlo y hay que corregirlo.
+    Future<String?> runErrand(String instruction, String headline) async {
+      controller.add(VoiceToolStarted(headline));
       final answer = StringBuffer();
       var ok = true;
       var aborted = false;
@@ -166,6 +167,16 @@ class HoldVoiceConversation {
           // inactividad justo mientras se trabaja para ella.
           keepAlive();
           switch (event) {
+            // Otra conversación tiene la carpeta ocupada. Hablando esto hay
+            // que decirlo en voz alta: la pantalla puede estar detrás y el
+            // silencio se interpreta como que no oyó.
+            case ClaudeQueued():
+              controller.add(
+                const VoiceToolProgress(
+                  'Espero turno: hay otra conversación trabajando en esa '
+                  'carpeta.',
+                ),
+              );
             case ClaudeTextDelta(:final text):
               answer.write(text);
               controller.add(VoiceToolProgress(text));
@@ -228,19 +239,51 @@ class HoldVoiceConversation {
       abortErrand = null;
       await errand.cancel();
 
-      // Cancelado: no hay a quién contestar, la sesión se está cerrando. Y sin
-      // este corte, el `sendToolResult` iría a una sesión ya muerta.
-      if (aborted || closing) return;
+      // Cancelado: no hay a quién contestar, la sesión se está cerrando.
+      if (aborted || closing) return null;
 
+      controller.add(VoiceToolFinished(ok: ok));
+      keepAlive();
+      return answer.isEmpty
+          ? 'La tarea terminó sin devolver nada.'
+          : answer.toString();
+    }
+
+    /// El modelo contestó por su cuenta algo que tenía que haber ido a Claude.
+    ///
+    /// Aquí está el candado que b6 pedía: la comprobación no la hace el modelo,
+    /// la hace este código con lo que el usuario dijo de verdad. Lo que ya se
+    /// esté oyendo se corta —igual que una interrupción— y en su lugar suena la
+    /// respuesta buena.
+    Future<void> enforceClaude(String utterance) async {
+      unawaited(_output.discard());
+      final answer = await runErrand(utterance, utterance);
+      if (answer == null || closing) return;
+      session?.sendSystemNote(VoiceRouting.correction(answer));
+    }
+
+    Future<void> runTool(VoiceToolRequested request) async {
+      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
+      // Herramienta desconocida o argumentos incompletos: se contesta igual.
+      // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
+      // y la conversación muda para siempre.
+      if (instruction == null || instruction.isEmpty) {
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result:
+              'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
+        );
+        return;
+      }
+
+      final answer = await runErrand(instruction, _headline(request));
+      if (answer == null) return;
       session?.sendToolResult(
         callId: request.callId,
         name: request.name,
-        result: answer.isEmpty
-            ? 'La tarea terminó sin devolver nada.'
-            : answer.toString(),
+        result: answer,
       );
-      controller.add(VoiceToolFinished(ok: ok));
-      keepAlive();
     }
 
     /// Reengancha la conversación cuando el servicio corta la conexión.
@@ -300,7 +343,32 @@ class HoldVoiceConversation {
             // uso, que es quien tiene el puente. La pantalla ve el trabajo
             // empezar y avanzar, no la fontanería.
             case VoiceToolRequested():
+              // Lo pasó a Claude: este turno cumplió la regla.
+              lastAsked = null;
               unawaited(runTool(event));
+            case VoiceUserTranscript(:final text):
+              lastAsked = text;
+              controller.add(event);
+            case VoiceTurnCompleted():
+              // Terminó un turno sin que el modelo llamara a nadie. Si lo que
+              // se pidió no era de la lista corta —saludos, «para», «repite»—,
+              // aquí se corrige: va a Claude y lo que suena es su respuesta.
+              if (lastAsked case final asked? when asked.trim().isNotEmpty) {
+                lastAsked = null;
+                if (VoiceRouting.needsClaude(asked)) {
+                  answeredAlone++;
+                  // `dart:developer` y no `debugPrint`: esto es dominio y no
+                  // puede depender de Flutter.
+                  developer.log(
+                    'contestó sin pasar por Claude ($answeredAlone en esta '
+                    'sesión) y se corrige: «$asked»',
+                    name: 'nexus.b6',
+                  );
+                  unawaited(enforceClaude(asked));
+                  break;
+                }
+              }
+              controller.add(event);
             default:
               controller.add(event);
           }

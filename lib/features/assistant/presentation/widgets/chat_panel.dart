@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 
 /// La conversación entera a la derecha: lo que pediste y lo que respondió.
@@ -46,7 +48,7 @@ class _ChatPanelState extends State<ChatPanel> {
     if (widget.messages.isEmpty) {
       return Center(
         child: Text(
-          'PÍDELE ALGO — POR VOZ CON ⌥ESPACIO O ESCRIBIENDO ABAJO',
+          context.strings.askSomething,
           textAlign: TextAlign.center,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
@@ -80,7 +82,7 @@ class _Turn extends StatelessWidget {
           Row(
             children: [
               Text(
-                isUser ? 'TÚ' : 'NEXUS',
+                isUser ? context.strings.you : context.strings.nexus,
                 style: NexusTypography.label.copyWith(
                   color: isUser ? colors.faint : colors.cyan,
                 ),
@@ -94,14 +96,85 @@ class _Turn extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
-          SelectableText(
-            message.text,
-            style: NexusTypography.body.copyWith(
-              color: isUser ? colors.mute : colors.ink,
-              height: 1.5,
+          // Lo tuyo se enseña tal cual lo escribiste: interpretar markdown en
+          // lo que uno teclea convertiría un `*` en cursiva sin haberlo
+          // pedido. Lo que responde Claude sí viene en markdown —tablas,
+          // listas, bloques de código— y hasta ahora salía crudo.
+          if (isUser)
+            SelectableText(
+              message.text,
+              style: NexusTypography.body.copyWith(
+                color: colors.mute,
+                height: 1.5,
+              ),
+            )
+          else
+            _Answer(text: message.text),
+        ],
+      ),
+    );
+  }
+}
+
+/// La respuesta de Claude, con su markdown puesto.
+///
+/// Nació como texto plano porque la franja de subtítulos pintaba una frase
+/// hablada, y por ahí entraron respuestas escritas de cuarenta líneas: tablas
+/// con `| Commit | Qué hace |` a la vista y asteriscos por todas partes.
+///
+/// El estilo no es el de una app de notas: monoespaciada para el código, cian
+/// para lo que se ejecuta y tablas ajustadas al ancho en vez de desbordar la
+/// ventana — esto sigue siendo un panel de control.
+class _Answer extends StatelessWidget {
+  const _Answer({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final body = NexusTypography.body.copyWith(color: colors.ink, height: 1.5);
+    final mono = NexusTypography.mono.copyWith(color: colors.cyan);
+
+    return MarkdownBody(
+      data: text,
+      selectable: true,
+      styleSheet: MarkdownStyleSheet(
+        p: body,
+        a: body.copyWith(color: colors.cyan),
+        strong: body.copyWith(fontWeight: FontWeight.w600),
+        em: body.copyWith(fontStyle: FontStyle.italic),
+        h1: NexusTypography.title.copyWith(color: colors.ink),
+        h2: NexusTypography.title.copyWith(color: colors.ink),
+        h3: body.copyWith(fontWeight: FontWeight.w600),
+        listBullet: body,
+        code: mono,
+        codeblockPadding: const EdgeInsets.all(NexusSpacing.s3),
+        codeblockDecoration: BoxDecoration(
+          color: colors.void_.withValues(alpha: 0.5),
+          border: Border.all(color: colors.rule),
+          borderRadius: BorderRadius.circular(NexusRadius.sm),
+        ),
+        blockquote: body.copyWith(color: colors.mute),
+        blockquotePadding: const EdgeInsets.only(left: NexusSpacing.s3),
+        blockquoteDecoration: BoxDecoration(
+          border: Border(
+            left: BorderSide(
+              color: colors.cyan.withValues(alpha: 0.4),
+              width: 2,
             ),
           ),
-        ],
+        ),
+        tableHead: NexusTypography.label.copyWith(color: colors.faint),
+        tableBody: NexusTypography.mono.copyWith(color: colors.mute),
+        tableBorder: TableBorder.all(color: colors.rule),
+        tableCellsPadding: const EdgeInsets.symmetric(
+          horizontal: NexusSpacing.s3,
+          vertical: 6,
+        ),
+        horizontalRuleDecoration: BoxDecoration(
+          border: Border(top: BorderSide(color: colors.rule)),
+        ),
       ),
     );
   }

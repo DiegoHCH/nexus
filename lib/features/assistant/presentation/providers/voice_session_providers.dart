@@ -1,4 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
@@ -23,6 +24,7 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
     ref.watch(geminiLiveDataSourceProvider),
     keyStore.read,
     () => ref.read(voicePreferenceProvider).name,
+    () => ref.read(stringsProvider).languageName,
   );
 });
 

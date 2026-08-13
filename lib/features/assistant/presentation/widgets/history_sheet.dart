@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 
 /// Lo que abre «HISTORIAL ⌘H»: todo lo pedido en esta sesión, y tocar una
 /// entrada la vuelve a pedir.
@@ -51,20 +52,19 @@ class HistorySheet extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'HISTORIAL',
+                context.strings.history,
                 style: NexusTypography.label.copyWith(color: colors.cyan),
               ),
               const SizedBox(height: NexusSpacing.s2),
               Text(
-                'De esta carpeta, y se conserva entre arranques. Claude retoma la '
-                'conversación anterior, así que sabe lo que ya hicisteis.',
+                context.strings.historyExplainer,
                 style: NexusTypography.mono.copyWith(color: colors.faint),
               ),
               const SizedBox(height: NexusSpacing.s5),
               Flexible(
                 child: entries.isEmpty
                     ? Text(
-                        'Todavía no le has pedido nada.',
+                        context.strings.nothingAskedYet,
                         style: NexusTypography.mono.copyWith(
                           color: colors.faint,
                         ),
@@ -108,7 +108,7 @@ class HistorySheet extends StatelessWidget {
                     Navigator.of(context).pop();
                     onForget();
                   },
-                  child: const Text('EMPEZAR DE CERO'),
+                  child: Text(context.strings.startFromScratch),
                 ),
               ),
             ],

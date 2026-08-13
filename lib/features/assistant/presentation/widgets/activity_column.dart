@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/presentation/state/activity_layout.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 
 /// La columna «Ahora mismo» (D03 del mockup): qué archivo lee, qué comando
@@ -19,6 +21,10 @@ class ActivityColumn extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final done = items.where((item) => item.done).length;
+    // Claude reparte trabajo solo: lo que hace un subagente cuelga de la
+    // delegación que lo mandó, en vez de caer al mismo nivel y hacer parecer
+    // que quien delegó está haciendo el trabajo que acaba de repartir.
+    final rows = layoutActivity(items);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -29,7 +35,7 @@ class ActivityColumn extends StatelessWidget {
           textBaseline: TextBaseline.alphabetic,
           children: [
             Text(
-              'AHORA MISMO',
+              context.strings.rightNow,
               style: NexusTypography.label.copyWith(color: colors.cyan),
             ),
             const Spacer(),
@@ -45,27 +51,28 @@ class ActivityColumn extends StatelessWidget {
           child: ListView.builder(
             shrinkWrap: true,
             reverse: true,
-            itemCount: items.length,
+            itemCount: rows.length,
             itemBuilder: (context, index) {
               // Al revés: lo último que hace es lo que importa, y con la lista
               // invertida se queda pegado abajo sin tener que perseguirlo.
-              final item = items[items.length - 1 - index];
-              return _ActivityRow(item: item, isLast: index == 0);
+              return _ActivityRow(row: rows[rows.length - 1 - index]);
             },
           ),
         ),
         const SizedBox(height: NexusSpacing.s6),
-        OutlinedButton(onPressed: onStop, child: const Text('DETENER  ⌘.')),
+        OutlinedButton(
+          onPressed: onStop,
+          child: Text(context.strings.stopButton),
+        ),
       ],
     );
   }
 }
 
 class _ActivityRow extends StatefulWidget {
-  const _ActivityRow({required this.item, required this.isLast});
+  const _ActivityRow({required this.row});
 
-  final ActivityItem item;
-  final bool isLast;
+  final ActivityRow row;
 
   @override
   State<_ActivityRow> createState() => _ActivityRowState();
@@ -78,19 +85,28 @@ class _ActivityRowState extends State<_ActivityRow> {
 
   @override
   Widget build(BuildContext context) {
-    final item = widget.item;
-    final isLast = widget.isLast;
+    final item = widget.row.item;
     final colors = context.colors;
-    // En curso es la última que llegó y todavía no terminó: es la que lleva el
-    // punto cian encendido, para saber dónde está el trabajo sin leer.
-    final running = isLast && !item.done;
+    // En curso es el paso más hondo que sigue vivo: es el que lleva el punto
+    // cian encendido, para saber dónde está el trabajo sin leer.
+    final running = widget.row.running;
+    final isChild = widget.row.depth > 0;
     final dotColor = item.done
         ? colors.ok
         : (running ? colors.cyan : colors.rule2);
 
     return Container(
+      // Los pasos del subagente van metidos hacia dentro y con una guía a la
+      // izquierda: se lee de un vistazo que ese trabajo es de quien recibió el
+      // encargo, no de quien lo repartió.
+      padding: EdgeInsets.only(left: isChild ? NexusSpacing.s5 : 0),
       decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: colors.rule)),
+        border: Border(
+          bottom: BorderSide(color: colors.rule),
+          left: isChild
+              ? BorderSide(color: colors.cyan.withValues(alpha: 0.25), width: 2)
+              : BorderSide.none,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -150,7 +166,7 @@ class _ActivityRowState extends State<_ActivityRow> {
                           // dice que puede escribir y esta etiqueta dice cuándo
                           // lo está haciendo de verdad.
                           child: Text(
-                            'ESCRIBE',
+                            context.strings.writesTag,
                             style: NexusTypography.label.copyWith(
                               color: colors.warn,
                             ),
@@ -206,7 +222,7 @@ class _Detail extends StatelessWidget {
         children: [
           if (item.detail case final detail?) ...[
             Text(
-              'SE EJECUTÓ',
+              context.strings.ranLabel,
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
             const SizedBox(height: 4),
@@ -221,7 +237,7 @@ class _Detail extends StatelessWidget {
           if (item.output case final output?) ...[
             if (item.detail != null) const SizedBox(height: NexusSpacing.s3),
             Text(
-              'DEVOLVIÓ',
+              context.strings.returnedLabel,
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
             const SizedBox(height: 4),
@@ -239,7 +255,7 @@ class _Detail extends StatelessWidget {
             ),
           ] else if (!item.done)
             Text(
-              'todavía corriendo…',
+              context.strings.stillRunning,
               style: NexusTypography.mono.copyWith(color: colors.faint),
             ),
         ],

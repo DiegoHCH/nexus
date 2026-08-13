@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
@@ -32,9 +33,12 @@ class SplashPage extends StatelessWidget {
             left: 0,
             right: 0,
             child: Text(
-              'N E X U S',
+              context.strings.brand,
               textAlign: TextAlign.center,
-              style: NexusTypography.brand.copyWith(color: colors.mute, letterSpacing: 6.16),
+              style: NexusTypography.brand.copyWith(
+                color: colors.mute,
+                letterSpacing: 6.16,
+              ),
             ),
           ),
           Positioned(
@@ -42,9 +46,12 @@ class SplashPage extends StatelessWidget {
             left: 0,
             right: 0,
             child: Text(
-              'INICIANDO',
+              context.strings.starting,
               textAlign: TextAlign.center,
-              style: NexusTypography.label.copyWith(color: colors.faint, letterSpacing: 3.5),
+              style: NexusTypography.label.copyWith(
+                color: colors.faint,
+                letterSpacing: 3.5,
+              ),
             ),
           ),
         ],
