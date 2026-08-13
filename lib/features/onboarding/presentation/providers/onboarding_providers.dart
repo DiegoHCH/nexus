@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/usecase/usecase.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
@@ -41,14 +42,24 @@ class AppRouteController extends Notifier<AppRouteState> {
   }
 
   Future<void> _resolve() async {
-    final results = await (
-      Future<void>.delayed(_minimumSplash),
-      ref.read(checkOnboardingStatusProvider)(const NoParams()),
-    ).wait;
-    final OnboardingStatus status = results.$2;
-    state = status.hasGeminiKey
-        ? const AppRouteReady()
-        : const AppRouteNeedsSetup();
+    // Pase lo que pase, de aquí se sale a alguna pantalla. Esto corre sin que
+    // nadie espere su resultado, así que una excepción no aparece por ningún
+    // lado: deja el estado en «cargando» para siempre y la app se queda en el
+    // splash sin explicar nada. Ante la duda, se pide la configuración —que se
+    // puede completar— en vez de quedarse mirando el orbe.
+    try {
+      final results = await (
+        Future<void>.delayed(_minimumSplash),
+        ref.read(checkOnboardingStatusProvider)(const NoParams()),
+      ).wait;
+      final OnboardingStatus status = results.$2;
+      state = status.hasGeminiKey
+          ? const AppRouteReady()
+          : const AppRouteNeedsSetup();
+    } catch (error) {
+      debugPrint('No se pudo resolver el arranque: $error');
+      state = const AppRouteNeedsSetup();
+    }
   }
 
   void completeSetup() => state = const AppRouteReady();
