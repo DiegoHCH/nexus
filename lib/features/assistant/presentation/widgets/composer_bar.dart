@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
@@ -157,46 +158,120 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
   }
 }
 
-/// Lo que describe dónde estás, en fila y sin ruido: carpeta, cuenta y si se le
-/// puede hablar a este proyecto.
-class _Chips extends StatelessWidget {
+/// Dónde estás, en fila: carpeta, repositorio, rama, cuenta y si se le puede
+/// hablar a este proyecto.
+///
+/// La carpeta **se puede cambiar desde aquí**: antes, sin ninguna emparejada,
+/// esto era una etiqueta que decía que no había carpeta y no hacía nada — un
+/// cartel en el sitio donde uno va a arreglarlo.
+class _Chips extends ConsumerWidget {
   const _Chips({required this.folder});
 
   final PairedFolder? folder;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
     final strings = context.strings;
+    final workspace = ref.watch(workspaceControllerProvider);
     final paired = folder;
-    if (paired == null) {
-      return _Chip(
-        icon: Icons.folder_off_outlined,
-        label: strings.noFolderNothingToTouch,
-      );
-    }
+    final git = paired == null
+        ? null
+        : ref.watch(gitInfoProvider(paired.path)).value;
 
-    final profile = paired.claudeProfile?.split('/').last;
     return Row(
       children: [
-        _Chip(icon: Icons.folder_outlined, label: paired.name),
-        if (profile != null && profile.startsWith('.claude-'))
-          _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
-        _Chip(
-          icon: paired.modality.allowsVoice ? Icons.graphic_eq : Icons.keyboard,
-          label: paired.modality.allowsVoice
-              ? strings.sectionVoice
-              : strings.textOnly,
+        PopupMenuButton<String>(
+          color: colors.deep,
+          tooltip: '',
+          onSelected: (value) async {
+            if (value == '__pair__') {
+              await ref.read(workspaceControllerProvider.notifier).pairFolder();
+              return;
+            }
+            // Cambiar de carpeta abre —o trae al frente— una conversación sobre
+            // ella: cada conversación tiene la suya, así que mover la de una
+            // abierta sería cambiarle el suelo a mitad de charla.
+            await ref.read(conversationsProvider.notifier).open(value);
+          },
+          itemBuilder: (context) => [
+            for (final option in workspace.folders)
+              PopupMenuItem<String>(
+                value: option.path,
+                child: Row(
+                  children: [
+                    Text(
+                      option.name,
+                      style: NexusTypography.data.copyWith(color: colors.ink),
+                    ),
+                    if (option.path == paired?.path) ...[
+                      const SizedBox(width: NexusSpacing.s3),
+                      Icon(Icons.check, size: 13, color: colors.cyan),
+                    ],
+                  ],
+                ),
+              ),
+            PopupMenuItem<String>(
+              value: '__pair__',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.create_new_folder_outlined,
+                    size: 14,
+                    color: colors.faint,
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Text(
+                    strings.addFolderShort,
+                    style: NexusTypography.data.copyWith(color: colors.mute),
+                  ),
+                ],
+              ),
+            ),
+          ],
+          child: _Chip(
+            icon: paired == null
+                ? Icons.folder_off_outlined
+                : Icons.folder_outlined,
+            label: paired?.name ?? strings.chooseFolder,
+            warn: paired == null,
+          ),
         ),
+        if (git != null) ...[
+          // El repositorio aparte de la carpeta porque no siempre coinciden: se
+          // puede trabajar sobre un subdirectorio de un repo, y entonces la
+          // carpeta dice una cosa y el repo otra.
+          _Chip(icon: Icons.hub_outlined, label: git.repository),
+          if (git.branch case final branch?)
+            _Chip(icon: Icons.alt_route, label: branch),
+        ] else if (paired != null)
+          // Sin repositorio no hay nada que deshacer, y eso hay que decirlo
+          // donde se ve el permiso: es la red de seguridad que falta.
+          _Chip(
+            icon: Icons.warning_amber,
+            label: strings.noGitRepo,
+            warn: true,
+          ),
+        if (paired?.claudeProfile?.split('/').last case final profile?)
+          if (profile.startsWith('.claude-'))
+            _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
+        // La modalidad de voz no se repite aquí: se decide por carpeta en
+        // Ajustes, y tenerla también en la barra creaba dos sitios que decían
+        // lo mismo con distinta forma —uno como estado, el otro como
+        // interruptor— y se contradecían a la vista.
       ],
     );
   }
 }
 
 class _Chip extends StatelessWidget {
-  const _Chip({required this.icon, required this.label});
+  const _Chip({required this.icon, required this.label, this.warn = false});
 
   final IconData icon;
   final String label;
+
+  /// Algo que falta o que conviene mirar: sin carpeta, sin git.
+  final bool warn;
 
   @override
   Widget build(BuildContext context) {
@@ -206,17 +281,21 @@ class _Chip extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
         decoration: BoxDecoration(
-          border: Border.all(color: colors.rule),
+          border: Border.all(
+            color: warn ? colors.warn.withValues(alpha: 0.5) : colors.rule,
+          ),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 12, color: colors.faint),
+            Icon(icon, size: 12, color: warn ? colors.warn : colors.faint),
             const SizedBox(width: 6),
             Text(
               label,
-              style: NexusTypography.mono.copyWith(color: colors.mute),
+              style: NexusTypography.mono.copyWith(
+                color: warn ? colors.warn : colors.mute,
+              ),
             ),
           ],
         ),

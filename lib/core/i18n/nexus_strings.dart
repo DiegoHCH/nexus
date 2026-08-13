@@ -42,6 +42,8 @@ abstract class NexusStrings {
   String get readOnlyExplainer;
   String contextUsed(int percent);
   String get attachFile;
+  String get chooseFolder;
+  String get noGitRepo;
   String get addFolderShort;
   String get openSettings;
   String get modelTitle;
@@ -223,6 +225,10 @@ class NexusStringsEs extends NexusStrings {
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
   @override
   String get attachFile => 'Adjuntar un archivo';
+  @override
+  String get chooseFolder => 'Elegir carpeta';
+  @override
+  String get noGitRepo => 'sin git';
   @override
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
@@ -588,6 +594,10 @@ class NexusStringsEn extends NexusStrings {
       'Context used: $percent%. At 85% the conversation compacts itself.';
   @override
   String get attachFile => 'Attach a file';
+  @override
+  String get chooseFolder => 'Choose folder';
+  @override
+  String get noGitRepo => 'no git';
   @override
   String get addFolderShort => 'Pair another folder';
   @override

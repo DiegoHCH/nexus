@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
@@ -166,4 +167,11 @@ final workspaceControllerProvider =
 /// perfil nuevo no es algo que pase mientras Ajustes está abierto.
 final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
   (ref) => const ClaudeProfilesDataSource().list(),
+);
+
+/// El repositorio y la rama de una carpeta. Se relee al terminar cada turno,
+/// porque la rama cambia también por fuera de la app —un `checkout` en la
+/// terminal, o el propio Claude—.
+final gitInfoProvider = FutureProvider.family<GitInfo?, String>(
+  (ref, folderPath) => const GitDataSource().read(folderPath),
 );

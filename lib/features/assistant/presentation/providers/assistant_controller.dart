@@ -249,6 +249,9 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
+    // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
+    if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
     unawaited(_archive());
     unawaited(_compactIfNeeded());
   }
