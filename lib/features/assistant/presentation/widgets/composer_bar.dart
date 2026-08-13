@@ -8,6 +8,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
@@ -167,7 +169,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              _Chips(folder: folder),
+              _Chips(folder: folder, folderPath: widget.folderPath),
               const SizedBox(height: NexusSpacing.s3),
               AttachmentStrip(paths: _attachments, onRemove: _detach),
               _Field(
@@ -220,9 +222,14 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
 /// esto era una etiqueta que decía que no había carpeta y no hacía nada — un
 /// cartel en el sitio donde uno va a arreglarlo.
 class _Chips extends ConsumerWidget {
-  const _Chips({required this.folder});
+  const _Chips({required this.folder, this.folderPath});
 
   final PairedFolder? folder;
+
+  /// La carpeta de **esta** conversación, emparejada o no. Hace falta aparte
+  /// porque «sin proyecto» trabaja sobre la carpeta de documentos, que no está
+  /// emparejada y por tanto no aparece como `PairedFolder`.
+  final String? folderPath;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -230,6 +237,11 @@ class _Chips extends ConsumerWidget {
     final strings = context.strings;
     final workspace = ref.watch(workspaceControllerProvider);
     final paired = folder;
+    // «Sin proyecto»: se trabaja en la carpeta de documentos. No es un modo
+    // aparte con reglas propias —sería otra cosa que mantener—, es una carpeta
+    // más, la que ya elegiste para lo que sale de las conversaciones.
+    final documentos = ref.watch(artifactsFolderProvider);
+    final suelta = folderPath != null && folderPath == documentos;
     // La rama es la del sitio donde va a trabajar Claude, que con una raíz de
     // varios repos no es la carpeta emparejada sino el repo elegido.
     final git = paired == null
@@ -249,12 +261,25 @@ class _Chips extends ConsumerWidget {
               await ref.read(workspaceControllerProvider.notifier).pairFolder();
               return;
             }
+            if (value == '__loose__') {
+              // Sin carpeta de documentos todavía no hay dónde trabajar, así
+              // que se abre justo la ventana donde se elige, en vez de un
+              // aviso que manda a buscarla.
+              if (documentos == null) {
+                await ArtifactsSheet.open(context);
+                return;
+              }
+              value = documentos;
+            }
             final abierta = ref.read(conversationsProvider).focused;
             if (abierta == null) {
               // Sin ninguna abierta no se crea nada: se apunta la carpeta y la
               // conversación nacerá cuando escribas o hables. Crear una aquí
               // llenaría el dock de conversaciones vacías cada vez que miras
               // dónde ibas a trabajar.
+              //
+              // Lo que sí tiene que valer es **esa** carpeta y no otra: la que
+              // se apunte aquí es la que se usa al escribir.
               await ref
                   .read(workspaceControllerProvider.notifier)
                   .setActive(value);
@@ -295,6 +320,27 @@ class _Chips extends ConsumerWidget {
                 ),
               ),
             PopupMenuItem<String>(
+              value: '__loose__',
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 14,
+                    color: colors.faint,
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Text(
+                    strings.noProject,
+                    style: NexusTypography.data.copyWith(color: colors.mute),
+                  ),
+                  if (suelta) ...[
+                    const SizedBox(width: NexusSpacing.s3),
+                    Icon(Icons.check, size: 13, color: colors.cyan),
+                  ],
+                ],
+              ),
+            ),
+            PopupMenuItem<String>(
               value: '__pair__',
               child: Row(
                 children: [
@@ -313,11 +359,17 @@ class _Chips extends ConsumerWidget {
             ),
           ],
           child: _Chip(
-            icon: paired == null
+            icon: suelta
+                ? Icons.auto_awesome_outlined
+                : paired == null
                 ? Icons.folder_off_outlined
                 : Icons.folder_outlined,
-            label: paired?.name ?? strings.chooseFolder,
-            warn: paired == null,
+            label: suelta
+                ? strings.noProject
+                : paired?.name ?? strings.chooseFolder,
+            // Sin proyecto no es un aviso: es una elección legítima, y pintarla
+            // en ámbar la haría parecer un estado a medio arreglar.
+            warn: paired == null && !suelta,
           ),
         ),
         // Con varios repos dentro, el chip elige. Es el caso de una carpeta

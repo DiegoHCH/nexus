@@ -15,6 +15,7 @@ import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/stats/presentation/widgets/stats_section.dart';
+import 'package:nexus/features/superpowers/presentation/widgets/superpowers_section.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
@@ -57,13 +58,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// —le12—, así que esa sección se quedó sin contenido antes de tenerlo.
   /// Las secciones vivas, en el orden en que se leen. Son claves, no textos:
   /// el nombre visible sale del diccionario.
-  static const _sections = [
-    _Section.voice,
-    _Section.permissions,
-    _Section.history,
-    _Section.stats,
-    _Section.language,
-  ];
+  ///
+  /// Sale de `values` y **no de una lista escrita a mano**: esa lista ya se
+  /// olvidó dos veces —el Historial primero y los Superpoderes después—, y el
+  /// resultado es siempre el mismo, una sección que existe, se pinta bien y no
+  /// tiene forma de abrirse. Con el orden de declaración como orden del menú,
+  /// añadir una al enum basta para que aparezca.
   _Section _section = _Section.permissions;
 
   @override
@@ -109,7 +109,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            for (final section in _sections)
+                            for (final section in _Section.values)
                               _SectionLink(
                                 // Con nombre propio: «VOZ» aparece dos veces en
                                 // esta pantalla —el enlace de la izquierda y la
@@ -133,6 +133,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             _Section.permissions => const _PermissionsSection(),
                             _Section.history => const _HistorySection(),
                             _Section.stats => const StatsSection(),
+                            _Section.superpowers => const SuperpowersSection(),
                             _Section.language => const _LanguageSection(),
                           },
                         ),
@@ -641,6 +642,7 @@ enum _Section {
   permissions,
   history,
   stats,
+  superpowers,
   language;
 
   String title(NexusStrings strings) => switch (this) {
@@ -648,6 +650,7 @@ enum _Section {
     _Section.permissions => strings.sectionPermissions,
     _Section.history => strings.sectionHistory,
     _Section.stats => strings.sectionStats,
+    _Section.superpowers => strings.sectionSuperpowers,
     _Section.language => strings.sectionLanguage,
   };
 }

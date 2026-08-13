@@ -23,6 +23,9 @@ class MainFlutterWindow: NSWindow {
     NexusThumbnails.register(
       with: flutterViewController.registrar(forPlugin: "NexusThumbnails")
     )
+    NexusArtifacts.register(
+      with: flutterViewController.registrar(forPlugin: "NexusArtifacts")
+    )
     NexusPower.register(
       with: flutterViewController.registrar(forPlugin: "NexusPower")
     )

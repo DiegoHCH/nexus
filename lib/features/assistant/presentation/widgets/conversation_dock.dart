@@ -5,6 +5,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -29,7 +30,11 @@ class ConversationDock extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationsProvider);
     final all = conversations.items;
-    if (conversations.isEmpty) return const SizedBox.shrink();
+    // **Sin conversaciones no desaparece**: se queda el hueco de «NUEVA», que
+    // es justo lo que hace falta en la pantalla de arranque. Antes se escondía
+    // el dock entero y la única forma de empezar era ponerse a escribir — un
+    // botón que existe para crear la primera no puede faltar cuando no hay
+    // ninguna.
 
     // En columna: las fichas se apilan hacia arriba desde la esquina. Cada
     // ficha sigue siendo horizontal —orbe y nombre en línea— así que la
@@ -201,7 +206,12 @@ class _OpenAnother extends ConsumerWidget {
     // es legítimo —una para revisar, otra para escribir— y cada una lleva su
     // propia memoria.
     final folders = ref.watch(workspaceControllerProvider).folders;
-    if (folders.isEmpty) return const SizedBox.shrink();
+    // La carpeta de documentos es un destino más: sin ella y sin carpetas
+    // emparejadas no hay nada que ofrecer, pero con una sola de las dos sí — y
+    // antes el botón desaparecía en cuanto no había proyectos, que es
+    // justamente cuando más falta hace poder empezar algo suelto.
+    final documentos = ref.watch(artifactsFolderProvider);
+    if (folders.isEmpty && documentos == null) return const SizedBox.shrink();
 
     return PopupMenuButton<String>(
       tooltip: context.strings.openAnotherConversation,
@@ -211,6 +221,21 @@ class _OpenAnother extends ConsumerWidget {
           PopupMenuItem(
             value: folder.path,
             child: Text(folder.displayPath(home)),
+          ),
+        if (documentos != null)
+          PopupMenuItem(
+            value: documentos,
+            child: Row(
+              children: [
+                Icon(
+                  Icons.auto_awesome_outlined,
+                  size: 14,
+                  color: colors.faint,
+                ),
+                const SizedBox(width: NexusSpacing.s3),
+                Text(context.strings.noProject),
+              ],
+            ),
           ),
       ],
       child: Container(

@@ -17,6 +17,7 @@ typedef ClaudeWorkContext = ({
   String? effort,
   List<String> disallowedTools,
   String? constraintsNotice,
+  String? artifactsFolder,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -110,6 +111,7 @@ class AskClaude {
           model: context.model,
           effort: context.effort,
           disallowedTools: context.disallowedTools,
+          artifactsFolder: context.artifactsFolder,
         )) {
           // El identificador se guarda en cuanto arranca, no al terminar: si el
           // encargo se cancela a media ejecución —cerrar la conversación mata el

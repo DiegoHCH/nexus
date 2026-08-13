@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/data/repositories/stays_awake_impl.dart';
@@ -91,6 +92,7 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         model: paired?.claudeModel,
         effort: paired?.claudeEffort,
         claudeProfile: paired?.claudeProfile,
+        artifactsFolder: ref.read(artifactsFolderProvider),
       );
     },
     ref.watch(conversationMemoryProvider),

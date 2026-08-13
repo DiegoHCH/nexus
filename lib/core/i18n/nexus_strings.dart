@@ -66,6 +66,72 @@ abstract class NexusStrings {
   String statsDayTooltip(String day, int messages);
   String statsInOut(String input, String output);
 
+  // Superpoderes: servidores MCP de cada cuenta.
+  String get sectionSuperpowers;
+  String get mcpExplainer;
+  String get mcpInstalled;
+  String get mcpNone;
+  String get mcpCatalog;
+  String get mcpManual;
+  String get mcpNameHint;
+  String get mcpSpecHint;
+  String get mcpAdd;
+  String get mcpRemove;
+  String get mcpCheck;
+  String get mcpCheckNote;
+  String get mcpChecking;
+  String get mcpCheckFailed;
+
+  // Superpoderes: skills instaladas en la cuenta.
+  String get superpowersMcp;
+  String get superpowersSkills;
+  String get skillsExplainer;
+  String get skillsInstalled;
+  String get skillsNone;
+  String get skillsFromRepo;
+  String get skillsBrowse;
+  String get skillsInstall;
+  String get skillsUpdate;
+  String get skillsRemove;
+  String get skillsFetching;
+  String get skillsRepoFailed;
+  String get skillsOwn;
+  String get skillsOwnHint;
+  String get skillsCreate;
+
+  // Superpoderes: plugins y marketplaces.
+  String get superpowersPlugins;
+  String get pluginsExplainer;
+  String get pluginsInstalled;
+  String get pluginsNone;
+  String get pluginsLoading;
+  String get pluginsMarketplaces;
+  String get pluginsMarketplaceHint;
+  String get pluginsAddMarketplace;
+  String get pluginsRemoveMarketplace;
+  String get pluginsSearchHint;
+  String get pluginsInstall;
+  String get pluginsUninstall;
+  String get pluginsEnable;
+  String get pluginsDisable;
+  String get pluginsUpdate;
+  String get pluginsDetails;
+  String get pluginsNoDetails;
+  String get close;
+  String pluginsCatalog(int total);
+  String pluginsMore(int rest);
+
+  // Los documentos generados.
+  String get artifacts;
+  String get noProject;
+  String get artifactsExplainer;
+  String get artifactsNoFolder;
+  String get artifactsEmpty;
+  String get artifactsChoose;
+  String get artifactsChange;
+  String get artifactsReveal;
+  String get artifactsTrash;
+
   /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
   String get dropHere;
 
@@ -307,6 +373,135 @@ class NexusStringsEs extends NexusStrings {
   @override
   String statsInOut(String input, String output) =>
       '$input entrada · $output salida';
+  @override
+  String get sectionSuperpowers => 'Superpoderes';
+  @override
+  String get mcpExplainer =>
+      'Un servidor MCP le da a Claude manos fuera del disco: un navegador, la '
+      'documentación de una librería, tu Jira. Se configuran por cuenta.';
+  @override
+  String get mcpInstalled => 'Puestos en esta cuenta';
+  @override
+  String get mcpNone => 'Ninguno todavía.';
+  @override
+  String get mcpCatalog => 'Para poner de un clic';
+  @override
+  String get mcpManual => 'Otro, a mano';
+  @override
+  String get mcpNameHint => 'nombre';
+  @override
+  String get mcpSpecHint => 'https://… o el comando que lo arranca';
+  @override
+  String get mcpAdd => 'Añadir';
+  @override
+  String get mcpRemove => 'Quitar';
+  @override
+  String get mcpCheck => 'Comprobar';
+  @override
+  String get mcpCheckNote =>
+      'Pregunta a cada servidor si responde. Tarda, y trae también los '
+      'conectores de tu cuenta de claude.ai.';
+  @override
+  String get mcpChecking => 'Preguntando a cada uno…';
+  @override
+  String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
+  @override
+  String get superpowersMcp => 'Servidores MCP';
+  @override
+  String get superpowersSkills => 'Skills';
+  @override
+  String get skillsExplainer =>
+      'Una skill es un procedimiento escrito que el agente activa solo cuando '
+      'la tarea lo pide. Instalada en la cuenta la usa cualquier proyecto; '
+      'escrita dentro de un repo, solo ese.';
+  @override
+  String get skillsInstalled => 'Instaladas en esta cuenta';
+  @override
+  String get skillsNone => 'Ninguna todavía.';
+  @override
+  String get skillsFromRepo => 'Traer de un repositorio';
+  @override
+  String get skillsBrowse => 'Ver qué trae';
+  @override
+  String get skillsInstall => 'Instalar';
+  @override
+  String get skillsUpdate => 'Actualizar';
+  @override
+  String get skillsRemove => 'Quitar';
+  @override
+  String get skillsFetching => 'Trayendo el repositorio…';
+  @override
+  String get skillsRepoFailed => 'No se pudo leer ese repositorio.';
+  @override
+  String get skillsOwn => 'Escribir una propia';
+  @override
+  String get skillsOwnHint => 'cómo se llama';
+  @override
+  String get skillsCreate => 'Crear y abrir';
+  @override
+  String get superpowersPlugins => 'Plugins';
+  @override
+  String get pluginsExplainer =>
+      'Un plugin reparte skills, agentes y comandos juntos. Salen de los '
+      'marketplaces que tengas dados de alta.';
+  @override
+  String get pluginsInstalled => 'Instalados en esta cuenta';
+  @override
+  String get pluginsNone => 'Ninguno todavía.';
+  @override
+  String get pluginsLoading => 'Preguntando al CLI…';
+  @override
+  String get pluginsMarketplaces => 'Marketplaces';
+  @override
+  String get pluginsMarketplaceHint => 'usuario/repo, o una URL';
+  @override
+  String get pluginsAddMarketplace => 'Dar de alta';
+  @override
+  String get pluginsRemoveMarketplace => 'Quitar el marketplace';
+  @override
+  String get pluginsSearchHint => 'buscar entre los disponibles';
+  @override
+  String get pluginsInstall => 'Instalar';
+  @override
+  String get pluginsUninstall => 'Desinstalar';
+  @override
+  String get pluginsEnable => 'Encender';
+  @override
+  String get pluginsDisable => 'Apagar sin desinstalar';
+  @override
+  String get pluginsUpdate => 'Actualizar';
+  @override
+  String get pluginsDetails => 'Qué trae y cuánto contexto ocupa';
+  @override
+  String get pluginsNoDetails => 'El CLI no dio detalles de este plugin.';
+  @override
+  String get close => 'Cerrar';
+  @override
+  String pluginsCatalog(int total) => 'Disponibles ($total)';
+  @override
+  String pluginsMore(int rest) => 'Y $rest más. Busca para verlos.';
+  @override
+  String get artifacts => 'Documentos';
+  @override
+  String get noProject => 'Sin proyecto';
+  @override
+  String get artifactsExplainer =>
+      'La carpeta para lo que no es de ningún proyecto: ahí trabajan las '
+      'conversaciones sin proyecto y ahí deja Claude lo que genere.';
+  @override
+  String get artifactsNoFolder =>
+      'Elige una carpeta para lo que no es de ningún proyecto. Ahí trabajarán '
+      'las conversaciones sin proyecto y ahí dejará Claude lo que genere.';
+  @override
+  String get artifactsEmpty => 'Todavía no hay nada en esa carpeta.';
+  @override
+  String get artifactsChoose => 'Elegir carpeta';
+  @override
+  String get artifactsChange => 'Cambiar de carpeta';
+  @override
+  String get artifactsReveal => 'Enseñar en el Finder';
+  @override
+  String get artifactsTrash => 'Mover a la papelera';
   @override
   String get dropHere => 'Suéltalo aquí';
   @override
@@ -743,6 +938,135 @@ class NexusStringsEn extends NexusStrings {
       '$day · $messages messages';
   @override
   String statsInOut(String input, String output) => '$input in · $output out';
+  @override
+  String get sectionSuperpowers => 'Superpowers';
+  @override
+  String get mcpExplainer =>
+      'An MCP server gives Claude hands beyond the disk: a browser, a '
+      "library's documentation, your Jira. They are set per account.";
+  @override
+  String get mcpInstalled => 'Set up in this account';
+  @override
+  String get mcpNone => 'None yet.';
+  @override
+  String get mcpCatalog => 'One click away';
+  @override
+  String get mcpManual => 'Another one, by hand';
+  @override
+  String get mcpNameHint => 'name';
+  @override
+  String get mcpSpecHint => 'https://… or the command that starts it';
+  @override
+  String get mcpAdd => 'Add';
+  @override
+  String get mcpRemove => 'Remove';
+  @override
+  String get mcpCheck => 'Check';
+  @override
+  String get mcpCheckNote =>
+      'Asks every server whether it answers. Slow, and it also brings in your '
+      'claude.ai account connectors.';
+  @override
+  String get mcpChecking => 'Asking each one…';
+  @override
+  String get mcpCheckFailed => 'The CLI could not produce the list.';
+  @override
+  String get superpowersMcp => 'MCP servers';
+  @override
+  String get superpowersSkills => 'Skills';
+  @override
+  String get skillsExplainer =>
+      'A skill is a written procedure the agent activates on its own when the '
+      'task calls for it. Installed on the account any project can use it; '
+      'written inside a repo, only that one.';
+  @override
+  String get skillsInstalled => 'Installed on this account';
+  @override
+  String get skillsNone => 'None yet.';
+  @override
+  String get skillsFromRepo => 'Bring some from a repository';
+  @override
+  String get skillsBrowse => 'See what it has';
+  @override
+  String get skillsInstall => 'Install';
+  @override
+  String get skillsUpdate => 'Update';
+  @override
+  String get skillsRemove => 'Remove';
+  @override
+  String get skillsFetching => 'Fetching the repository…';
+  @override
+  String get skillsRepoFailed => 'That repository could not be read.';
+  @override
+  String get skillsOwn => 'Write your own';
+  @override
+  String get skillsOwnHint => 'what it is called';
+  @override
+  String get skillsCreate => 'Create and open';
+  @override
+  String get superpowersPlugins => 'Plugins';
+  @override
+  String get pluginsExplainer =>
+      'A plugin ships skills, agents and commands together. They come from the '
+      'marketplaces you have registered.';
+  @override
+  String get pluginsInstalled => 'Installed on this account';
+  @override
+  String get pluginsNone => 'None yet.';
+  @override
+  String get pluginsLoading => 'Asking the CLI…';
+  @override
+  String get pluginsMarketplaces => 'Marketplaces';
+  @override
+  String get pluginsMarketplaceHint => 'user/repo, or a URL';
+  @override
+  String get pluginsAddMarketplace => 'Register';
+  @override
+  String get pluginsRemoveMarketplace => 'Remove the marketplace';
+  @override
+  String get pluginsSearchHint => 'search the available ones';
+  @override
+  String get pluginsInstall => 'Install';
+  @override
+  String get pluginsUninstall => 'Uninstall';
+  @override
+  String get pluginsEnable => 'Turn on';
+  @override
+  String get pluginsDisable => 'Turn off without uninstalling';
+  @override
+  String get pluginsUpdate => 'Update';
+  @override
+  String get pluginsDetails => 'What it brings and how much context it costs';
+  @override
+  String get pluginsNoDetails => 'The CLI gave no details for this plugin.';
+  @override
+  String get close => 'Close';
+  @override
+  String pluginsCatalog(int total) => 'Available ($total)';
+  @override
+  String pluginsMore(int rest) => 'And $rest more. Search to see them.';
+  @override
+  String get artifacts => 'Documents';
+  @override
+  String get noProject => 'No project';
+  @override
+  String get artifactsExplainer =>
+      "The folder for whatever isn't part of a project: conversations with no "
+      'project work there, and Claude leaves what it produces there.';
+  @override
+  String get artifactsNoFolder =>
+      "Pick a folder for whatever isn't part of a project. Conversations with "
+      'no project will work there, and Claude will leave what it makes there.';
+  @override
+  String get artifactsEmpty => 'Nothing in that folder yet.';
+  @override
+  String get artifactsChoose => 'Pick a folder';
+  @override
+  String get artifactsChange => 'Change folder';
+  @override
+  String get artifactsReveal => 'Show in Finder';
+  @override
+  String get artifactsTrash => 'Move to trash';
   @override
   String get dropHere => 'Drop it here';
   @override

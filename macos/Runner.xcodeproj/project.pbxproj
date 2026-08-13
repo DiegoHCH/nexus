@@ -31,6 +31,7 @@
 		NX0000000000000000000001 /* NexusAudioEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000002 /* NexusAudioEngine.swift */; };
 		NX0000000000000000000003 /* NexusFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000004 /* NexusFiles.swift */; };
 		NX0000000000000000000007 /* NexusThumbnails.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000008 /* NexusThumbnails.swift */; };
+		NX0000000000000000000009 /* NexusArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000010 /* NexusArtifacts.swift */; };
 		NX0000000000000000000005 /* NexusPower.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000006 /* NexusPower.swift */; };
 		B79091042B003EE0C324C4E9 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65620568385C29DBBF69B342 /* Pods_RunnerTests.framework */; };
 /* End PBXBuildFile section */
@@ -82,6 +83,7 @@
 		NX0000000000000000000002 /* NexusAudioEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusAudioEngine.swift; sourceTree = "<group>"; };
 		NX0000000000000000000004 /* NexusFiles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusFiles.swift; sourceTree = "<group>"; };
 		NX0000000000000000000008 /* NexusThumbnails.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusThumbnails.swift; sourceTree = "<group>"; };
+		NX0000000000000000000010 /* NexusArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusArtifacts.swift; sourceTree = "<group>"; };
 		NX0000000000000000000006 /* NexusPower.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusPower.swift; sourceTree = "<group>"; };
 		33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Debug.xcconfig"; sourceTree = "<group>"; };
 		33CEB47422A05771004F2AC0 /* Flutter-Release.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Release.xcconfig"; sourceTree = "<group>"; };
@@ -188,6 +190,7 @@
 				NX0000000000000000000002 /* NexusAudioEngine.swift */,
 				NX0000000000000000000004 /* NexusFiles.swift */,
 				NX0000000000000000000008 /* NexusThumbnails.swift */,
+				NX0000000000000000000010 /* NexusArtifacts.swift */,
 				NX0000000000000000000006 /* NexusPower.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
 				33E51914231749380026EE4D /* Release.entitlements */,
@@ -453,6 +456,7 @@
 				NX0000000000000000000001 /* NexusAudioEngine.swift in Sources */,
 				NX0000000000000000000003 /* NexusFiles.swift in Sources */,
 				NX0000000000000000000007 /* NexusThumbnails.swift in Sources */,
+				NX0000000000000000000009 /* NexusArtifacts.swift in Sources */,
 				NX0000000000000000000005 /* NexusPower.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,
 				335BBD1B22A9A15E00E9071D /* GeneratedPluginRegistrant.swift in Sources */,
