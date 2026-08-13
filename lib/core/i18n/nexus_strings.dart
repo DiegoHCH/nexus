@@ -38,6 +38,9 @@ abstract class NexusStrings {
   String get textOnly;
   String get readOnly;
   String get canEdit;
+  String get canEditExplainer;
+  String get readOnlyExplainer;
+  String contextUsed(int percent);
   String get sayStopToInterrupt;
   String get stopWithShortcut;
   String get workingCancelHint;
@@ -198,6 +201,13 @@ class NexusStringsEs extends NexusStrings {
   String get readOnly => 'SOLO LEER';
   @override
   String get canEdit => 'PUEDE EDITAR';
+  @override
+  String get canEditExplainer => 'Modifica archivos sin preguntar';
+  @override
+  String get readOnlyExplainer => 'Lee y ejecuta, pero no escribe';
+  @override
+  String contextUsed(int percent) =>
+      'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
   @override
   String get sayStopToInterrupt => 'Di «para» para interrumpir';
   @override
@@ -529,6 +539,13 @@ class NexusStringsEn extends NexusStrings {
   String get readOnly => 'READ ONLY';
   @override
   String get canEdit => 'CAN EDIT';
+  @override
+  String get canEditExplainer => 'Changes files without asking';
+  @override
+  String get readOnlyExplainer => 'Reads and runs, but never writes';
+  @override
+  String contextUsed(int percent) =>
+      'Context used: $percent%. At 85% the conversation compacts itself.';
   @override
   String get sayStopToInterrupt => 'Say “stop” to interrupt';
   @override

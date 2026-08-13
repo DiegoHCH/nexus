@@ -152,7 +152,7 @@ void main() {
       final sent = <String, int>{};
 
       await archiveWith(api, pages: pages, sent: sent).save(record());
-      final tras_el_primero = api.anexados.length;
+      final trasElPrimero = api.anexados.length;
 
       await archiveWith(api, pages: pages, sent: sent).save(
         record(
@@ -168,7 +168,7 @@ void main() {
       );
 
       // Un encabezado y un párrafo del mensaje nuevo, y nada más.
-      expect(api.anexados.length, tras_el_primero + 2);
+      expect(api.anexados.length, trasElPrimero + 2);
     });
 
     test(

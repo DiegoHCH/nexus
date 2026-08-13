@@ -14,9 +14,8 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
-import 'package:nexus/features/assistant/presentation/widgets/hud_bottom_bar.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
-import 'package:nexus/features/assistant/presentation/widgets/subtitle_strip.dart';
+import 'package:nexus/features/assistant/presentation/widgets/composer_bar.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/hud_top_bar.dart';
@@ -208,22 +207,16 @@ class _HomePageState extends ConsumerState<HomePage> {
                   ],
                 ),
               ),
-              HudBottomBar(
-                consequence: _consequence(
-                  ref,
-                  focused.folderPath,
-                  context.strings,
-                ),
-                escape: hud.voiceActive
-                    ? context.strings.sayStopToInterrupt
-                    : (working ? context.strings.stopWithShortcut : null),
-              ),
-              // Sin el texto de la respuesta: ahora vive en la ventana de la
-              // derecha. Abajo queda solo la caja, que **siempre** está
-              // disponible — también mientras habla o trabaja.
-              SubtitleStrip(
+              // Los ajustes de la conversación viven aquí, junto a la
+              // caja, y ya no arriba del todo: se leen justo antes de pedir
+              // algo y se cambian sin cruzar la pantalla.
+              ComposerBar(
                 onSubmit: controller.submit,
                 onFocusChanged: controller.setListening,
+                folderPath: focused.folderPath,
+                meter: hud.meter,
+                voiceActive: hud.voiceActive,
+                onToggleVoice: controller.toggleVoice,
               ),
             ],
           ),
@@ -315,29 +308,13 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                   ],
                 ),
               ),
-              SubtitleStrip(onSubmit: _startWith, onFocusChanged: (_) {}),
+              ComposerBar(onSubmit: _startWith, onFocusChanged: (_) {}),
             ],
           ),
         ),
       ),
     );
   }
-}
-
-/// El permiso dicho sobre la carpeta concreta, no en abstracto.
-///
-/// El diseño insiste en que «el permiso y su consecuencia se ven juntos», y la
-/// diferencia es real: «puede editar» no dice nada, «puede editar archivos en
-/// front-mobile-b2c» sí.
-String _consequence(WidgetRef ref, String folderPath, NexusStrings strings) {
-  final workspace = ref.watch(workspaceControllerProvider);
-  final folder = workspace.folders
-      .where((item) => item.path == folderPath)
-      .firstOrNull;
-  if (folder == null) return strings.noFolderNothingToTouch;
-  return workspace.permission.canWrite
-      ? strings.canEditFilesIn(folder.name)
-      : strings.readOnlyIn(folder.name);
 }
 
 /// Una palabra para lo que está pasando, como el «Dormido» del mockup.
