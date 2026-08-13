@@ -726,18 +726,19 @@ class _Gauge extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // Encima de la barra solo el nombre y el número: son los dos datos que
+        // se leen de un vistazo y caben siempre. Cuándo se renueva va **debajo**
+        // — es un dato secundario y, apretado en la misma línea, desbordaba el
+        // panel en cuanto el plazo pasaba de las horas a los días («129 h 27 m»).
         Row(
           children: [
-            Text(
-              label,
-              style: NexusTypography.mono.copyWith(color: colors.mute),
-            ),
-            const Spacer(),
-            if (note case final texto?)
-              Text(
-                texto,
-                style: NexusTypography.mono.copyWith(color: colors.faint),
+            Expanded(
+              child: Text(
+                label,
+                overflow: TextOverflow.ellipsis,
+                style: NexusTypography.mono.copyWith(color: colors.mute),
               ),
+            ),
             const SizedBox(width: NexusSpacing.s3),
             Text(
               '$percent %',
@@ -755,6 +756,13 @@ class _Gauge extends StatelessWidget {
             color: percent >= warnAt ? colors.warn : colors.cyan,
           ),
         ),
+        if (note case final texto?) ...[
+          const SizedBox(height: 3),
+          Text(
+            texto,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+        ],
       ],
     );
   }
