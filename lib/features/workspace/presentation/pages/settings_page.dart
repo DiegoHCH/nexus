@@ -107,6 +107,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           children: [
                             for (final section in _sections)
                               _SectionLink(
+                                // Con nombre propio: «VOZ» aparece dos veces en
+                                // esta pantalla —el enlace de la izquierda y la
+                                // modalidad de una carpeta— y sin una llave no
+                                // hay forma de decir cuál se pulsa.
+                                key: ValueKey('seccion-${section.name}'),
                                 label: section.title(context.strings),
                                 active: _section == section,
                                 onTap: () => setState(() => _section = section),
@@ -150,6 +155,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
 class _SectionLink extends StatelessWidget {
   const _SectionLink({
+    super.key,
     required this.label,
     required this.active,
     required this.onTap,
@@ -162,10 +168,13 @@ class _SectionLink extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
-      child: InkWell(
-        onTap: onTap,
+    // El relleno **dentro** del InkWell y no fuera: por fuera, la mitad de
+    // abajo de cada enlace era hueco muerto que no respondía al clic. Lo
+    // destapó la prueba que abre la pantalla, y el ratón lo sufría igual.
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
         child: Text(
           label.toUpperCase(),
           style: NexusTypography.label.copyWith(
@@ -241,19 +250,28 @@ class _SettingsTopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          Text(
-            context.strings.brand,
-            style: NexusTypography.data.copyWith(
-              color: colors.mute,
-              letterSpacing: 4.2,
+          // Flexibles y con puntos suspensivos: en una ventana estrecha esta
+          // fila se salía —lo destapó la primera prueba que abrió la pantalla—
+          // y lo que sobra es el rótulo, no el interruptor de permisos.
+          Flexible(
+            child: Text(
+              context.strings.brand,
+              overflow: TextOverflow.ellipsis,
+              style: NexusTypography.data.copyWith(
+                color: colors.mute,
+                letterSpacing: 4.2,
+              ),
             ),
           ),
           const SizedBox(width: NexusSpacing.s5),
-          Text(
-            context.strings.settings,
-            style: NexusTypography.label.copyWith(
-              color: colors.faint,
-              letterSpacing: 2,
+          Flexible(
+            child: Text(
+              context.strings.settings,
+              overflow: TextOverflow.ellipsis,
+              style: NexusTypography.label.copyWith(
+                color: colors.faint,
+                letterSpacing: 2,
+              ),
             ),
           ),
           const Spacer(),
