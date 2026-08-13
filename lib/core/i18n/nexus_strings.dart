@@ -66,6 +66,22 @@ abstract class NexusStrings {
   String statsDayTooltip(String day, int messages);
   String statsInOut(String input, String output);
 
+  // Superpoderes: servidores MCP de cada cuenta.
+  String get sectionSuperpowers;
+  String get mcpExplainer;
+  String get mcpInstalled;
+  String get mcpNone;
+  String get mcpCatalog;
+  String get mcpManual;
+  String get mcpNameHint;
+  String get mcpSpecHint;
+  String get mcpAdd;
+  String get mcpRemove;
+  String get mcpCheck;
+  String get mcpCheckNote;
+  String get mcpChecking;
+  String get mcpCheckFailed;
+
   /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
   String get dropHere;
 
@@ -301,6 +317,38 @@ class NexusStringsEs extends NexusStrings {
   @override
   String statsInOut(String input, String output) =>
       '$input entrada · $output salida';
+  @override
+  String get sectionSuperpowers => 'Superpoderes';
+  @override
+  String get mcpExplainer =>
+      'Un servidor MCP le da a Claude manos fuera del disco: un navegador, la '
+      'documentación de una librería, tu Jira. Se configuran por cuenta.';
+  @override
+  String get mcpInstalled => 'Puestos en esta cuenta';
+  @override
+  String get mcpNone => 'Ninguno todavía.';
+  @override
+  String get mcpCatalog => 'Para poner de un clic';
+  @override
+  String get mcpManual => 'Otro, a mano';
+  @override
+  String get mcpNameHint => 'nombre';
+  @override
+  String get mcpSpecHint => 'https://… o el comando que lo arranca';
+  @override
+  String get mcpAdd => 'Añadir';
+  @override
+  String get mcpRemove => 'Quitar';
+  @override
+  String get mcpCheck => 'Comprobar';
+  @override
+  String get mcpCheckNote =>
+      'Pregunta a cada servidor si responde. Tarda, y trae también los '
+      'conectores de tu cuenta de claude.ai.';
+  @override
+  String get mcpChecking => 'Preguntando a cada uno…';
+  @override
+  String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
   @override
   String get dropHere => 'Suéltalo aquí';
   @override
@@ -720,6 +768,38 @@ class NexusStringsEn extends NexusStrings {
       '$day · $messages messages';
   @override
   String statsInOut(String input, String output) => '$input in · $output out';
+  @override
+  String get sectionSuperpowers => 'Superpowers';
+  @override
+  String get mcpExplainer =>
+      'An MCP server gives Claude hands beyond the disk: a browser, a '
+      "library's documentation, your Jira. They are set per account.";
+  @override
+  String get mcpInstalled => 'Set up in this account';
+  @override
+  String get mcpNone => 'None yet.';
+  @override
+  String get mcpCatalog => 'One click away';
+  @override
+  String get mcpManual => 'Another one, by hand';
+  @override
+  String get mcpNameHint => 'name';
+  @override
+  String get mcpSpecHint => 'https://… or the command that starts it';
+  @override
+  String get mcpAdd => 'Add';
+  @override
+  String get mcpRemove => 'Remove';
+  @override
+  String get mcpCheck => 'Check';
+  @override
+  String get mcpCheckNote =>
+      'Asks every server whether it answers. Slow, and it also brings in your '
+      'claude.ai account connectors.';
+  @override
+  String get mcpChecking => 'Asking each one…';
+  @override
+  String get mcpCheckFailed => 'The CLI could not produce the list.';
   @override
   String get dropHere => 'Drop it here';
   @override

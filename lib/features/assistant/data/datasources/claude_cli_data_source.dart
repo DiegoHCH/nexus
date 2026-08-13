@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:nexus/core/platform/claude_environment.dart';
+
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
 /// decodificada. No sabe nada de dominio: eso lo traduce el repositorio.
 class ClaudeCliDataSource {
   const ClaudeCliDataSource();
-
-  static const _extraPathDirs = ['/opt/homebrew/bin', '/usr/local/bin'];
 
   /// [workingDirectory] es dónde trabaja Claude, y no es opcional de verdad:
   /// sin él el proceso hereda el directorio de la app, que para un bundle
@@ -58,7 +58,7 @@ class ClaudeCliDataSource {
         if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
       ],
       workingDirectory: workingDirectory,
-      environment: _buildEnvironment(configDir),
+      environment: ClaudeEnvironment.forProfile(configDir),
       includeParentEnvironment: false,
     );
     // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
@@ -101,36 +101,6 @@ class ClaudeCliDataSource {
   /// que `CLAUDE_CONFIG_DIR` venga seteado igual en cada lanzamiento: se
   /// parte del entorno completo del proceso (HOME, USER, etc.) y se fuerza
   /// lo que el bridge necesita, en vez de dejarlo a lo que herede.
-  Map<String, String> _buildEnvironment(String? configDir) {
-    final env = Map<String, String>.from(Platform.environment);
-
-    // Fuera del entorno: claude factura por la suscripción, no por API key.
-    env.remove('ANTHROPIC_API_KEY');
-    env.remove('ANTHROPIC_AUTH_TOKEN');
-
-    final home = env['HOME'] ?? '';
-    // El perfil es de la carpeta: los repos del trabajo con la cuenta del
-    // trabajo, los personales con la personal. Si la carpeta no dice nada se
-    // respeta lo que traiga el entorno —lanzar desde una shell con el alias
-    // exportado sigue funcionando— y en último caso, el de fábrica.
-    if (configDir != null && configDir.isNotEmpty) {
-      env['CLAUDE_CONFIG_DIR'] = configDir;
-    } else {
-      env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
-    }
-
-    final extraPaths = [
-      ..._extraPathDirs,
-      if (home.isNotEmpty) '$home/.local/bin',
-    ];
-    final currentPath = env['PATH'] ?? '';
-    env['PATH'] = [
-      ...extraPaths,
-      currentPath,
-    ].where((p) => p.isNotEmpty).join(':');
-
-    return env;
-  }
 }
 
 class ClaudeProcessException implements Exception {
