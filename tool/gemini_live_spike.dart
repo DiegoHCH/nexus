@@ -173,8 +173,9 @@ class _LiveSession {
         if (inline != null) _audio.add(base64Decode(inline['data'] as String));
       }
       if (server['interrupted'] == true) print('← interrupted');
-      if (server['turnComplete'] == true && !_turn.isCompleted)
+      if (server['turnComplete'] == true && !_turn.isCompleted) {
         _turn.complete();
+      }
     }
 
     final toolCall = message['toolCall'] as Map<String, dynamic>?;
@@ -185,10 +186,12 @@ class _LiveSession {
       );
     }
 
-    if (message['goAway'] != null)
+    if (message['goAway'] != null) {
       print('← goAway ${jsonEncode(message['goAway'])}');
-    if (message['error'] != null)
+    }
+    if (message['error'] != null) {
       print('!! error ${jsonEncode(message['error'])}');
+    }
   }
 
   void _onDone() {
@@ -347,8 +350,9 @@ Uint8List _pcmFromWav(Uint8List wav) {
   while (offset + 8 <= wav.length) {
     final id = String.fromCharCodes(wav.sublist(offset, offset + 4));
     final size = view.getUint32(offset + 4, Endian.little);
-    if (id == 'data')
+    if (id == 'data') {
       return Uint8List.sublistView(wav, offset + 8, offset + 8 + size);
+    }
     offset += 8 + size + (size.isOdd ? 1 : 0);
   }
   throw StateError('No se encontró el trozo data en el WAV de say');

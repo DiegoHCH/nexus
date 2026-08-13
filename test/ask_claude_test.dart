@@ -47,30 +47,33 @@ class _Memory implements ConversationMemory {
   Future<void> forget(String folderPath) async {}
 }
 
-AskClaude askWith(_Bridge bridge, _Memory memory, {String? folder = '/repo'}) =>
-    AskClaude(
-      bridge,
-      (_) async => folder == null
-          ? null
-          : (
-              workingDirectory: folder,
-              canEdit: false,
-              extraDirectories: const <String>[],
-              language: 'español',
-              claudeProfile: null,
-              model: null,
-              effort: null,
-            ),
-      memory,
-      FolderErrandQueue(),
-    );
+AskClaude _askWith(
+  _Bridge bridge,
+  _Memory memory, {
+  String? folder = '/repo',
+}) => AskClaude(
+  bridge,
+  (_) async => folder == null
+      ? null
+      : (
+          workingDirectory: folder,
+          canEdit: false,
+          extraDirectories: const <String>[],
+          language: 'español',
+          claudeProfile: null,
+          model: null,
+          effort: null,
+        ),
+  memory,
+  FolderErrandQueue(),
+);
 
 void main() {
   test(
     'sin carpeta emparejada lo dice, en vez de trabajar sobre la raíz',
     () async {
       final bridge = _Bridge();
-      final events = await askWith(bridge, _Memory(), folder: null)(
+      final events = await _askWith(bridge, _Memory(), folder: null)(
         'algo',
       ).toList();
 
@@ -83,7 +86,7 @@ void main() {
     final bridge = _Bridge();
     final memory = _Memory();
 
-    await askWith(bridge, memory)('mira el historial').toList();
+    await _askWith(bridge, memory)('mira el historial').toList();
 
     expect(memory.prompts, ['mira el historial']);
     expect(bridge.asked.single, startsWith('mira el historial'));
@@ -96,7 +99,7 @@ void main() {
   test('la sesión se recuerda y se reanuda en el siguiente encargo', () async {
     final bridge = _Bridge();
     final memory = _Memory();
-    final ask = askWith(bridge, memory);
+    final ask = _askWith(bridge, memory);
 
     await ask('primero').toList();
     await ask('segundo').toList();
@@ -110,7 +113,7 @@ void main() {
   test('comprimir no ensucia el historial de peticiones', () async {
     final bridge = _Bridge();
     final memory = _Memory();
-    final ask = askWith(bridge, memory);
+    final ask = _askWith(bridge, memory);
 
     await ask('mira el historial').toList();
     await ask('/compact', remember: false).toList();

@@ -57,7 +57,7 @@ ConversationRecord record({
       ],
 );
 
-NotionArchive archiveWith(
+NotionArchive _archiveWith(
   _FakeApi api, {
   Map<String, String>? pages,
   Map<String, int>? sent,
@@ -111,14 +111,14 @@ void main() {
     test('una página por proyecto, y la conversación dentro', () async {
       final api = _FakeApi();
 
-      await archiveWith(api).save(record());
+      await _archiveWith(api).save(record());
 
       expect(api.creadas, ['raiz/workspace', 'pagina-0/mira el historial']);
     });
 
     test('dos proyectos no se mezclan', () async {
       final api = _FakeApi();
-      final archive = archiveWith(api);
+      final archive = _archiveWith(api);
 
       await archive.save(record());
       await archive.save(
@@ -138,7 +138,7 @@ void main() {
     test('si la página del proyecto ya existe, se reutiliza', () async {
       final api = _FakeApi()..existentes['raiz/workspace'] = 'ya-existia';
 
-      await archiveWith(api).save(record());
+      await _archiveWith(api).save(record());
 
       expect(api.creadas, isNot(contains('raiz/workspace')));
       expect(api.creadas.single, startsWith('ya-existia/'));
@@ -151,10 +151,10 @@ void main() {
       final pages = <String, String>{};
       final sent = <String, int>{};
 
-      await archiveWith(api, pages: pages, sent: sent).save(record());
+      await _archiveWith(api, pages: pages, sent: sent).save(record());
       final trasElPrimero = api.anexados.length;
 
-      await archiveWith(api, pages: pages, sent: sent).save(
+      await _archiveWith(api, pages: pages, sent: sent).save(
         record(
           messages: const [
             ChatMessage(author: ChatAuthor.user, text: 'mira el historial'),
@@ -176,7 +176,7 @@ void main() {
       () async {
         final api = _FakeApi();
 
-        await archiveWith(api).save(
+        await _archiveWith(api).save(
           record(
             messages: [
               const ChatMessage(
@@ -204,7 +204,7 @@ void main() {
     test('una conversación vacía no crea nada', () async {
       final api = _FakeApi();
 
-      await archiveWith(api).save(record(messages: const []));
+      await _archiveWith(api).save(record(messages: const []));
 
       expect(api.creadas, isEmpty);
       expect(api.anexados, isEmpty);
