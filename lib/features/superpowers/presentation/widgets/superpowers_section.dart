@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/mcp_panel.dart';
+import 'package:nexus/features/superpowers/presentation/widgets/plugins_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -20,7 +21,7 @@ class SuperpowersSection extends ConsumerStatefulWidget {
 }
 
 /// Las dos mitades: manos fuera del disco y procedimientos aprendidos.
-enum _Kind { mcp, skills }
+enum _Kind { mcp, skills, plugins }
 
 class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   String? _profile;
@@ -68,6 +69,7 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
                 label: switch (kind) {
                   _Kind.mcp => strings.superpowersMcp,
                   _Kind.skills => strings.superpowersSkills,
+                  _Kind.plugins => strings.superpowersPlugins,
                 },
                 active: _kind == kind,
                 onTap: () => setState(() => _kind = kind),
@@ -88,6 +90,10 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
             ),
             _Kind.skills => SkillsPanel(
               key: ValueKey('skills-$current'),
+              configDir: current,
+            ),
+            _Kind.plugins => PluginsPanel(
+              key: ValueKey('plugins-$current'),
               configDir: current,
             ),
           },

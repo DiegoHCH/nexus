@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
+import 'package:nexus/features/superpowers/data/datasources/plugins_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/skills_data_source.dart';
+import 'package:nexus/features/superpowers/domain/entities/claude_plugin.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 
@@ -39,3 +41,18 @@ final repoSkillsProvider =
     FutureProvider.family<({List<Skill> skills, String? error}), String>(
       (ref, repo) => ref.watch(skillsDataSourceProvider).scan(repo),
     );
+
+final pluginsDataSourceProvider = Provider<PluginsDataSource>(
+  (ref) => const PluginsDataSource(),
+);
+
+/// Instalados y disponibles, en una sola lista: el CLI los da juntos y
+/// separarlos en dos llamadas sería pedir dos veces lo mismo.
+final pluginsProvider = FutureProvider.family<List<ClaudePlugin>, String>(
+  (ref, configDir) => ref.watch(pluginsDataSourceProvider).list(configDir),
+);
+
+final marketplacesProvider = FutureProvider.family<List<Marketplace>, String>(
+  (ref, configDir) =>
+      ref.watch(pluginsDataSourceProvider).marketplaces(configDir),
+);

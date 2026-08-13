@@ -99,6 +99,28 @@ abstract class NexusStrings {
   String get skillsOwnHint;
   String get skillsCreate;
 
+  // Superpoderes: plugins y marketplaces.
+  String get superpowersPlugins;
+  String get pluginsExplainer;
+  String get pluginsInstalled;
+  String get pluginsNone;
+  String get pluginsLoading;
+  String get pluginsMarketplaces;
+  String get pluginsMarketplaceHint;
+  String get pluginsAddMarketplace;
+  String get pluginsRemoveMarketplace;
+  String get pluginsSearchHint;
+  String get pluginsInstall;
+  String get pluginsUninstall;
+  String get pluginsEnable;
+  String get pluginsDisable;
+  String get pluginsUpdate;
+  String get pluginsDetails;
+  String get pluginsNoDetails;
+  String get close;
+  String pluginsCatalog(int total);
+  String pluginsMore(int rest);
+
   /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
   String get dropHere;
 
@@ -399,6 +421,48 @@ class NexusStringsEs extends NexusStrings {
   String get skillsOwnHint => 'cómo se llama';
   @override
   String get skillsCreate => 'Crear y abrir';
+  @override
+  String get superpowersPlugins => 'Plugins';
+  @override
+  String get pluginsExplainer =>
+      'Un plugin reparte skills, agentes y comandos juntos. Salen de los '
+      'marketplaces que tengas dados de alta.';
+  @override
+  String get pluginsInstalled => 'Instalados en esta cuenta';
+  @override
+  String get pluginsNone => 'Ninguno todavía.';
+  @override
+  String get pluginsLoading => 'Preguntando al CLI…';
+  @override
+  String get pluginsMarketplaces => 'Marketplaces';
+  @override
+  String get pluginsMarketplaceHint => 'usuario/repo, o una URL';
+  @override
+  String get pluginsAddMarketplace => 'Dar de alta';
+  @override
+  String get pluginsRemoveMarketplace => 'Quitar el marketplace';
+  @override
+  String get pluginsSearchHint => 'buscar entre los disponibles';
+  @override
+  String get pluginsInstall => 'Instalar';
+  @override
+  String get pluginsUninstall => 'Desinstalar';
+  @override
+  String get pluginsEnable => 'Encender';
+  @override
+  String get pluginsDisable => 'Apagar sin desinstalar';
+  @override
+  String get pluginsUpdate => 'Actualizar';
+  @override
+  String get pluginsDetails => 'Qué trae y cuánto contexto ocupa';
+  @override
+  String get pluginsNoDetails => 'El CLI no dio detalles de este plugin.';
+  @override
+  String get close => 'Cerrar';
+  @override
+  String pluginsCatalog(int total) => 'Disponibles ($total)';
+  @override
+  String pluginsMore(int rest) => 'Y \$rest más. Busca para verlos.';
   @override
   String get dropHere => 'Suéltalo aquí';
   @override
@@ -883,6 +947,48 @@ class NexusStringsEn extends NexusStrings {
   String get skillsOwnHint => 'what it is called';
   @override
   String get skillsCreate => 'Create and open';
+  @override
+  String get superpowersPlugins => 'Plugins';
+  @override
+  String get pluginsExplainer =>
+      'A plugin ships skills, agents and commands together. They come from the '
+      'marketplaces you have registered.';
+  @override
+  String get pluginsInstalled => 'Installed on this account';
+  @override
+  String get pluginsNone => 'None yet.';
+  @override
+  String get pluginsLoading => 'Asking the CLI…';
+  @override
+  String get pluginsMarketplaces => 'Marketplaces';
+  @override
+  String get pluginsMarketplaceHint => 'user/repo, or a URL';
+  @override
+  String get pluginsAddMarketplace => 'Register';
+  @override
+  String get pluginsRemoveMarketplace => 'Remove the marketplace';
+  @override
+  String get pluginsSearchHint => 'search the available ones';
+  @override
+  String get pluginsInstall => 'Install';
+  @override
+  String get pluginsUninstall => 'Uninstall';
+  @override
+  String get pluginsEnable => 'Turn on';
+  @override
+  String get pluginsDisable => 'Turn off without uninstalling';
+  @override
+  String get pluginsUpdate => 'Update';
+  @override
+  String get pluginsDetails => 'What it brings and how much context it costs';
+  @override
+  String get pluginsNoDetails => 'The CLI gave no details for this plugin.';
+  @override
+  String get close => 'Close';
+  @override
+  String pluginsCatalog(int total) => 'Available ($total)';
+  @override
+  String pluginsMore(int rest) => 'And \$rest more. Search to see them.';
   @override
   String get dropHere => 'Drop it here';
   @override
