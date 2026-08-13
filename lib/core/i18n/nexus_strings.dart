@@ -85,6 +85,7 @@ abstract class NexusStrings {
   String get sectionVoice;
   String get sectionPermissions;
   String get sectionLanguage;
+  String get sectionHistory;
   String get sectionMobile;
   String get sectionModel;
   String get nexusVoice;
@@ -105,6 +106,21 @@ abstract class NexusStrings {
   String get languageSystem;
   String get languageSpanish;
   String get languageEnglish;
+
+  // Archivo de conversaciones
+  String get archiveTitle;
+  String get archiveExplainer;
+  String get archiveNone;
+  String get archiveNoneHint;
+  String get archiveFolder;
+  String get archiveFolderHint;
+  String get archiveObsidian;
+  String get archiveObsidianHint;
+  String get archiveNotion;
+  String get archiveNotionHint;
+  String get archiveChooseFolder;
+  String get archiveNoFolderYet;
+  String archiveLayout(String folder);
 
   // Configuración inicial
   String get beforeWeStart;
@@ -314,6 +330,44 @@ class NexusStringsEs extends NexusStrings {
   String get languageSpanish => 'Español';
   @override
   String get languageEnglish => 'English';
+
+  @override
+  String get sectionHistory => 'Historial';
+  @override
+  String get archiveTitle => 'DÓNDE SE GUARDAN LAS CONVERSACIONES';
+  @override
+  String get archiveExplainer =>
+      'Cada conversación se guarda al terminar cada turno, agrupada por '
+      'proyecto: las de una carpeta van juntas y las de otra, aparte.';
+  @override
+  String get archiveNone => 'En ningún sitio';
+  @override
+  String get archiveNoneHint =>
+      'Lo hablado vive solo mientras la conversación esté abierta';
+  @override
+  String get archiveFolder => 'Una carpeta tuya';
+  @override
+  String get archiveFolderHint =>
+      'Markdown normal, legible en cualquier editor';
+  @override
+  String get archiveObsidian => 'Un vault de Obsidian';
+  @override
+  String get archiveObsidianHint =>
+      'Lo mismo, con enlaces [[wiki]]: cada proyecto forma su propio grafo';
+  @override
+  String get archiveNotion => 'Notion';
+  @override
+  String get archiveNotionHint => 'Todavía no: falta conectar su API';
+  @override
+  String get archiveChooseFolder => 'ELEGIR CARPETA';
+  @override
+  String get archiveNoFolderYet =>
+      'Falta elegir la carpeta: sin ella no se guarda nada, no se inventa un '
+      'sitio donde dejar tus conversaciones.';
+  @override
+  String archiveLayout(String folder) =>
+      'Se guardan en $folder/Nexus/<proyecto>/, con una nota por proyecto que '
+      'enlaza sus conversaciones.';
 
   @override
   String get beforeWeStart => 'ANTES DE EMPEZAR';
@@ -562,6 +616,43 @@ class NexusStringsEn extends NexusStrings {
   String get languageSpanish => 'Español';
   @override
   String get languageEnglish => 'English';
+
+  @override
+  String get sectionHistory => 'History';
+  @override
+  String get archiveTitle => 'WHERE CONVERSATIONS ARE KEPT';
+  @override
+  String get archiveExplainer =>
+      'Each conversation is saved as every turn ends, grouped by project: the '
+      'ones from a folder stay together, and another folder\'s stay apart.';
+  @override
+  String get archiveNone => 'Nowhere';
+  @override
+  String get archiveNoneHint =>
+      'What is said lives only while the conversation is open';
+  @override
+  String get archiveFolder => 'A folder of yours';
+  @override
+  String get archiveFolderHint => 'Plain Markdown, readable in any editor';
+  @override
+  String get archiveObsidian => 'An Obsidian vault';
+  @override
+  String get archiveObsidianHint =>
+      'The same, with [[wiki]] links: each project forms its own graph';
+  @override
+  String get archiveNotion => 'Notion';
+  @override
+  String get archiveNotionHint => 'Not yet: its API is still to be wired';
+  @override
+  String get archiveChooseFolder => 'CHOOSE FOLDER';
+  @override
+  String get archiveNoFolderYet =>
+      'A folder is still missing: without one nothing is saved — no place to '
+      'leave your conversations gets invented for you.';
+  @override
+  String archiveLayout(String folder) =>
+      'Kept in $folder/Nexus/<project>/, with one note per project linking its '
+      'conversations.';
 
   @override
   String get beforeWeStart => 'BEFORE WE START';

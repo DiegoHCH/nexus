@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_selector/file_selector.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
@@ -9,6 +10,8 @@ import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
@@ -101,6 +104,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           child: switch (_section) {
                             _Section.voice => const _VoiceSection(),
                             _Section.permissions => const _PermissionsSection(),
+                            _Section.history => const _HistorySection(),
                             _Section.language => const _LanguageSection(),
                           },
                         ),
@@ -462,13 +466,142 @@ class _ModalityToggle extends StatelessWidget {
 enum _Section {
   voice,
   permissions,
+  history,
   language;
 
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
     _Section.permissions => strings.sectionPermissions,
+    _Section.history => strings.sectionHistory,
     _Section.language => strings.sectionLanguage,
   };
+}
+
+/// Dónde acaban las conversaciones.
+///
+/// Los tres destinos son del usuario, no del programa, y por eso el estado de
+/// partida es «en ningún sitio»: sacar lo que hablas de esta máquina es una
+/// decisión suya, no algo que pase por omisión.
+class _HistorySection extends ConsumerWidget {
+  const _HistorySection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final settings = ref.watch(archiveControllerProvider);
+    final controller = ref.read(archiveControllerProvider.notifier);
+
+    String label(ArchiveDestination option) => switch (option) {
+      ArchiveDestination.none => strings.archiveNone,
+      ArchiveDestination.folder => strings.archiveFolder,
+      ArchiveDestination.obsidian => strings.archiveObsidian,
+      ArchiveDestination.notion => strings.archiveNotion,
+    };
+    String hint(ArchiveDestination option) => switch (option) {
+      ArchiveDestination.none => strings.archiveNoneHint,
+      ArchiveDestination.folder => strings.archiveFolderHint,
+      ArchiveDestination.obsidian => strings.archiveObsidianHint,
+      ArchiveDestination.notion => strings.archiveNotionHint,
+    };
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.archiveTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.archiveExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        for (final option in ArchiveDestination.values)
+          InkWell(
+            // Notion se ve pero no se puede elegir: dibujarlo como disponible
+            // sería prometer algo que todavía no guarda nada.
+            onTap: option == ArchiveDestination.notion
+                ? null
+                : () => controller.selectDestination(option),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    option == settings.destination
+                        ? Icons.radio_button_checked
+                        : Icons.radio_button_unchecked,
+                    size: 15,
+                    color: option == ArchiveDestination.notion
+                        ? colors.rule2
+                        : (option == settings.destination
+                              ? colors.cyan
+                              : colors.faint),
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          label(option),
+                          style: NexusTypography.data.copyWith(
+                            color: option == ArchiveDestination.notion
+                                ? colors.rule2
+                                : (option == settings.destination
+                                      ? colors.ink
+                                      : colors.mute),
+                          ),
+                        ),
+                        Text(
+                          hint(option),
+                          style: NexusTypography.mono.copyWith(
+                            color: colors.faint,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        if (settings.destination.needsFolder) ...[
+          const SizedBox(height: NexusSpacing.s5),
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: () async {
+                  final chosen = await getDirectoryPath();
+                  if (chosen != null) await controller.selectFolder(chosen);
+                },
+                child: Text(strings.archiveChooseFolder),
+              ),
+              const SizedBox(width: NexusSpacing.s4),
+              Expanded(
+                child: Text(
+                  settings.folderPath ?? '',
+                  style: NexusTypography.mono.copyWith(color: colors.mute),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: NexusSpacing.s3),
+          Text(
+            settings.isReady
+                ? strings.archiveLayout(settings.folderPath!)
+                : strings.archiveNoFolderYet,
+            style: NexusTypography.mono.copyWith(
+              color: settings.isReady ? colors.faint : colors.warn,
+            ),
+          ),
+        ],
+      ],
+    );
+  }
 }
 
 /// El idioma de la app — y de lo que te responden.

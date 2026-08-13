@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -11,6 +12,8 @@ import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -246,8 +249,41 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    unawaited(_archive());
     unawaited(_compactIfNeeded());
   }
+
+  /// Deja la conversación guardada donde el usuario haya dicho.
+  ///
+  /// Se escribe **al terminar cada turno**, no al cerrar: cerrar puede no
+  /// ocurrir nunca —se cierra la app, se va la luz— y entonces lo hablado se
+  /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
+  /// resultado, que es justo lo que se quiere de un archivo idempotente.
+  Future<void> _archive() async {
+    final archive = ref.read(conversationArchiveProvider);
+    final folder = _folder;
+    if (archive == null || folder == null) return;
+    try {
+      await archive.save(
+        ConversationRecord(
+          id: conversationId,
+          folderPath: folder,
+          startedAt: _startedAt,
+          messages: state.messages,
+        ),
+      );
+    } catch (error) {
+      // Que falle guardar no puede tumbar la conversación: la carpeta puede
+      // haberse desconectado, o el vault puede no existir ya. Se dice y se
+      // sigue — el historial de la app nunca depende del destino externo.
+      developer.log('no se pudo archivar: $error', name: 'nexus.archivo');
+    }
+  }
+
+  /// Cuándo empezó, para fechar el archivo. Se fija al construir el
+  /// controlador: la conversación existe desde que se abre, no desde que
+  /// alguien dice algo.
+  final DateTime _startedAt = DateTime.now();
 
   /// A partir de aquí se comprime la conversación.
   ///
