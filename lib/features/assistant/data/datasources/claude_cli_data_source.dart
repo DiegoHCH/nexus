@@ -30,6 +30,7 @@ class ClaudeCliDataSource {
     String? configDir,
     String? model,
     String? effort,
+    List<String> disallowedTools = const [],
   }) async* {
     final process = await Process.start(
       'claude',
