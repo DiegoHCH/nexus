@@ -21,10 +21,24 @@ enum FolderModality {
 /// Una carpeta emparejada: el sitio donde Nexus tiene permiso para trabajar.
 @immutable
 class PairedFolder {
-  const PairedFolder({required this.path, required this.modality});
+  const PairedFolder({
+    required this.path,
+    required this.modality,
+    this.claudeProfile,
+  });
 
   final String path;
   final FolderModality modality;
+
+  /// Con qué cuenta de Claude se trabaja aquí — el `CLAUDE_CONFIG_DIR` del
+  /// perfil—, o `null` para el de siempre.
+  ///
+  /// Va por carpeta y no por app porque así es como se usa: los repos del
+  /// trabajo con la cuenta del trabajo, los personales con la personal. Un
+  /// interruptor global obligaría a acordarse de cambiarlo al saltar de
+  /// proyecto, y equivocarse ahí significa gastar el cupo de la cuenta que no
+  /// era —o que el CLI ni siquiera arranque, si esa no tiene sesión.
+  final String? claudeProfile;
 
   /// Lo que se enseña en la interfaz: la ruta con `~` en vez del home, que es
   /// como la escribe el mockup y como la lee cualquiera.
@@ -44,16 +58,25 @@ class PairedFolder {
     return slash == -1 ? trimmed : trimmed.substring(slash + 1);
   }
 
-  PairedFolder copyWith({FolderModality? modality}) =>
-      PairedFolder(path: path, modality: modality ?? this.modality);
+  PairedFolder copyWith({FolderModality? modality, String? claudeProfile}) =>
+      PairedFolder(
+        path: path,
+        modality: modality ?? this.modality,
+        claudeProfile: claudeProfile ?? this.claudeProfile,
+      );
 
-  Map<String, dynamic> toJson() => {'path': path, 'modality': modality.name};
+  Map<String, dynamic> toJson() => {
+    'path': path,
+    'modality': modality.name,
+    if (claudeProfile != null) 'claudeProfile': claudeProfile,
+  };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
     final path = json['path'] as String?;
     if (path == null || path.isEmpty) return null;
     return PairedFolder(
       path: path,
+      claudeProfile: json['claudeProfile'] as String?,
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al
       // permisivo: un dato corrupto no puede abrir el micrófono.
       modality: FolderModality.values.firstWhere(

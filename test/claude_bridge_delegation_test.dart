@@ -24,6 +24,7 @@ class _RecordedDataSource extends ClaudeCliDataSource {
     List<String> extraDirectories = const [],
     String? resumeSessionId,
     String? appendSystemPrompt,
+    String? configDir,
   }) async* {
     final lines = File(
       'test/fixtures/delegacion_real.jsonl',

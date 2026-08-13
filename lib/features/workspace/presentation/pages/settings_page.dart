@@ -384,6 +384,7 @@ class _FolderRow extends ConsumerWidget {
                 ),
               ),
             ),
+            _AccountPicker(folder: folder),
             _ModalityToggle(modality: folder.modality, onChanged: onModality),
             IconButton(
               onPressed: onRemove,
@@ -391,6 +392,74 @@ class _FolderRow extends ConsumerWidget {
               icon: Icon(Icons.remove, size: 16, color: colors.faint),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Con qué cuenta de Claude trabaja esta carpeta.
+///
+/// Va aquí, junto a la carpeta, por lo mismo que la modalidad de voz: se decide
+/// **por carpeta**. Los repos del trabajo con la cuenta del trabajo y los
+/// personales con la personal; un interruptor global obligaría a acordarse de
+/// cambiarlo al saltar de proyecto, y equivocarse ahí gasta el cupo de la
+/// cuenta que no era.
+///
+/// Solo aparece si hay más de una cuenta en la máquina: con una sola, elegir no
+/// es una decisión, es un adorno.
+class _AccountPicker extends ConsumerWidget {
+  const _AccountPicker({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final profiles = ref.watch(claudeProfilesProvider).value ?? const [];
+    if (profiles.length < 2) return const SizedBox.shrink();
+
+    final current = profiles
+        .where((profile) => profile.path == folder.claudeProfile)
+        .firstOrNull;
+
+    return Tooltip(
+      message: strings.claudeAccount,
+      child: PopupMenuButton<String?>(
+        color: colors.deep,
+        tooltip: '',
+        onSelected: (value) => ref
+            .read(workspaceControllerProvider.notifier)
+            .setClaudeProfile(folder.path, value),
+        itemBuilder: (context) => [
+          PopupMenuItem<String?>(
+            child: Text(
+              strings.claudeAccountDefault,
+              style: NexusTypography.mono.copyWith(color: colors.mute),
+            ),
+          ),
+          for (final profile in profiles)
+            PopupMenuItem<String?>(
+              value: profile.path,
+              child: Text(
+                // Un perfil sin sesión se puede elegir, pero se dice: el
+                // encargo fallaría con un error del CLI que no explica nada.
+                profile.signedIn
+                    ? profile.name
+                    : strings.claudeAccountSignedOut(profile.name),
+                style: NexusTypography.mono.copyWith(
+                  color: profile.signedIn ? colors.ink : colors.warn,
+                ),
+              ),
+            ),
+        ],
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3),
+          child: Text(
+            current?.name ?? strings.claudeAccountDefault,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
         ),
       ),
     );

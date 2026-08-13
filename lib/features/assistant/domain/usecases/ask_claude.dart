@@ -11,6 +11,7 @@ typedef ClaudeWorkContext = ({
   bool canEdit,
   List<String> extraDirectories,
   String language,
+  String? claudeProfile,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -79,6 +80,7 @@ class AskClaude {
         canEdit: context.canEdit,
         extraDirectories: context.extraDirectories,
         resumeSessionId: memory.sessionId,
+        claudeProfile: context.claudeProfile,
       )) {
         // El identificador se guarda en cuanto arranca, no al terminar: si el
         // encargo se cancela a media ejecución —cerrar la conversación mata el

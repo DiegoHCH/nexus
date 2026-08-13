@@ -50,6 +50,10 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
         extraDirectories: const <String>[],
         language: ref.read(stringsProvider).languageName,
+        claudeProfile: workspace.folders
+            .where((item) => item.path == folder)
+            .firstOrNull
+            ?.claudeProfile,
       );
     },
     ref.watch(conversationMemoryProvider),

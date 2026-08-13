@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
@@ -88,6 +89,23 @@ class WorkspaceController extends Notifier<Workspace> {
     await _persist(state.copyWith(folders: folders));
   }
 
+  /// Con qué cuenta de Claude trabaja esta carpeta. `null` vuelve a la de
+  /// siempre.
+  Future<void> setClaudeProfile(String path, String? profile) async {
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          PairedFolder(
+            path: folder.path,
+            modality: folder.modality,
+            claudeProfile: profile,
+          )
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
   Future<void> setPermission(FilePermission permission) async {
     if (state.permission == permission) return;
     await _persist(state.copyWith(permission: permission));
@@ -106,3 +124,9 @@ class WorkspaceController extends Notifier<Workspace> {
 
 final workspaceControllerProvider =
     NotifierProvider<WorkspaceController, Workspace>(WorkspaceController.new);
+
+/// Las cuentas de Claude que hay en esta máquina. Se leen una vez: crear un
+/// perfil nuevo no es algo que pase mientras Ajustes está abierto.
+final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
+  (ref) => const ClaudeProfilesDataSource().list(),
+);

@@ -16,6 +16,7 @@ class _Bridge implements ClaudeBridge {
     required bool canEdit,
     List<String> extraDirectories = const [],
     String? resumeSessionId,
+    String? claudeProfile,
   }) async* {
     asked.add(instruction);
     resumed.add(resumeSessionId);
@@ -54,6 +55,7 @@ AskClaude askWith(_Bridge bridge, _Memory memory, {String? folder = '/repo'}) =>
               canEdit: false,
               extraDirectories: const <String>[],
               language: 'español',
+              claudeProfile: null,
             ),
       memory,
       FolderErrandQueue(),

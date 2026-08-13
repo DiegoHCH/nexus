@@ -27,6 +27,7 @@ class ClaudeCliDataSource {
     List<String> extraDirectories = const [],
     String? resumeSessionId,
     String? appendSystemPrompt,
+    String? configDir,
   }) async* {
     final process = await Process.start(
       'claude',
@@ -55,7 +56,7 @@ class ClaudeCliDataSource {
         if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
       ],
       workingDirectory: workingDirectory,
-      environment: _buildEnvironment(),
+      environment: _buildEnvironment(configDir),
       includeParentEnvironment: false,
     );
     // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
@@ -98,7 +99,7 @@ class ClaudeCliDataSource {
   /// que `CLAUDE_CONFIG_DIR` venga seteado igual en cada lanzamiento: se
   /// parte del entorno completo del proceso (HOME, USER, etc.) y se fuerza
   /// lo que el bridge necesita, en vez de dejarlo a lo que herede.
-  Map<String, String> _buildEnvironment() {
+  Map<String, String> _buildEnvironment(String? configDir) {
     final env = Map<String, String>.from(Platform.environment);
 
     // Fuera del entorno: claude factura por la suscripción, no por API key.
@@ -106,12 +107,15 @@ class ClaudeCliDataSource {
     env.remove('ANTHROPIC_AUTH_TOKEN');
 
     final home = env['HOME'] ?? '';
-    // TODO(nexus): decidir qué perfil de Claude Code usa Nexus por defecto
-    // (~/.claude, ~/.claude-work, ~/.claude-private) — no todos están
-    // autenticados en toda máquina. Por ahora, si el entorno ya trae uno
-    // (p.ej. lanzado desde una shell con el alias exportado) se respeta;
-    // si no, se cae al de fábrica.
-    env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
+    // El perfil es de la carpeta: los repos del trabajo con la cuenta del
+    // trabajo, los personales con la personal. Si la carpeta no dice nada se
+    // respeta lo que traiga el entorno —lanzar desde una shell con el alias
+    // exportado sigue funcionando— y en último caso, el de fábrica.
+    if (configDir != null && configDir.isNotEmpty) {
+      env['CLAUDE_CONFIG_DIR'] = configDir;
+    } else {
+      env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
+    }
 
     final extraPaths = [
       ..._extraPathDirs,

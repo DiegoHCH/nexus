@@ -129,6 +129,9 @@ abstract class NexusStrings {
   String get notionPageExplainer;
   String get notionReady;
   String get notionMissing;
+  String get claudeAccount;
+  String get claudeAccountDefault;
+  String claudeAccountSignedOut(String name);
 
   // Configuración inicial
   String get beforeWeStart;
@@ -399,6 +402,12 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get notionMissing =>
       'Falta el token o la página: todavía no se guarda nada.';
+  @override
+  String get claudeAccount => 'Cuenta de Claude para esta carpeta';
+  @override
+  String get claudeAccountDefault => 'cuenta por defecto';
+  @override
+  String claudeAccountSignedOut(String name) => '$name · sin sesión';
 
   @override
   String get beforeWeStart => 'ANTES DE EMPEZAR';
@@ -706,6 +715,12 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get notionMissing =>
       'Token or page missing: nothing is being saved yet.';
+  @override
+  String get claudeAccount => 'Claude account for this folder';
+  @override
+  String get claudeAccountDefault => 'default account';
+  @override
+  String claudeAccountSignedOut(String name) => '$name · not signed in';
 
   @override
   String get beforeWeStart => 'BEFORE WE START';

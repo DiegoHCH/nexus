@@ -14,5 +14,9 @@ abstract class ClaudeBridge {
     required bool canEdit,
     List<String> extraDirectories,
     String? resumeSessionId,
+
+    /// El `CLAUDE_CONFIG_DIR` con el que trabajar: es lo que decide **con qué
+    /// cuenta** corre el encargo.
+    String? claudeProfile,
   });
 }
