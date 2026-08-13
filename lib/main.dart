@@ -11,6 +11,7 @@ import 'package:nexus/features/assistant/presentation/providers/assistant_contro
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 
 Future<void> main() async {
@@ -49,21 +50,40 @@ class _MainAppState extends ConsumerState<MainApp> {
     SettingsPage.open(navigator.context);
   }
 
-  /// El historial es **de una conversación**, así que sin ninguna abierta no
-  /// hay nada que enseñar: se calla en vez de abrir una lista vacía que no
-  /// explica de qué carpeta estaría hablando.
-  void _openHistory() {
+  /// El historial es **de una carpeta**, no de una conversación abierta.
+  ///
+  /// Esa confusión lo dejaba mudo justo cuando más se necesita: recién abierta
+  /// la app, sin ningún chat en marcha, pedir el historial es exactamente lo
+  /// que uno hace para retomar algo de ayer. Así que si no hay conversación en
+  /// foco se usa la carpeta activa, y al elegir una conversación se abre una
+  /// conversación nueva sobre esa carpeta para volcarla dentro.
+  Future<void> _openHistory() async {
     final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
     final focused = ref.read(conversationsProvider).focused;
-    if (navigator == null || focused == null) return;
-    final controller = ref.read(
-      assistantControllerProvider(focused.id).notifier,
-    );
-    ConversationHistorySheet.open(
+    final workspace = ref.read(workspaceControllerProvider);
+    final folder =
+        focused?.folderPath ??
+        workspace.activePath ??
+        workspace.folders.firstOrNull?.path;
+    if (folder == null) return;
+
+    await ConversationHistorySheet.open(
       navigator.context,
-      folderPath: focused.folderPath,
-      onPick: controller.resume,
-      onForget: controller.forgetConversation,
+      folderPath: folder,
+      onPick: (record) async {
+        final id =
+            focused?.id ??
+            await ref.read(conversationsProvider.notifier).open(folder);
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).resume(record);
+      },
+      onForget: () {
+        final id = focused?.id;
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).forgetConversation();
+      },
     );
   }
 
