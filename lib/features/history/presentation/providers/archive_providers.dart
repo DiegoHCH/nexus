@@ -245,6 +245,22 @@ final savedConversationsProvider =
       return todas;
     });
 
+/// La nota de esa conversación en el vault, si la hay. Se busca por el
+/// identificador porque el nombre del archivo lo pone el título, y un título se
+/// recorta y se normaliza: reconstruirlo para adivinar la ruta sería adivinar.
+Future<String?> _noteFor(Ref ref, ConversationRecord record) async {
+  final settings = ref.read(archiveControllerProvider);
+  if (!settings.destination.needsFolder) return null;
+  final root = settings.folderPath;
+  if (root == null || root.isEmpty) return null;
+
+  final notas = await const VaultReader().read(root);
+  for (final nota in notas) {
+    if (nota.id == record.id) return nota.sourcePath;
+  }
+  return null;
+}
+
 /// Todo lo guardado, sin filtrar por carpeta: la vista por perfiles necesita el
 /// vault entero, porque un perfil abarca varios proyectos.
 final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
@@ -276,7 +292,11 @@ final deleteConversationProvider =
       return (record) async {
         await ref.read(localConversationStoreProvider).delete(record);
 
-        final source = record.sourcePath;
+        // De dónde salió lo que se está viendo, y **su nota**: son dos copias
+        // de la misma conversación. Borrando solo la de la app, la del vault
+        // reaparecía sola en la lista —dejaba de estar duplicada— y parecía que
+        // el borrado no había hecho nada.
+        final source = record.sourcePath ?? await _noteFor(ref, record);
         if (source != null && source.isNotEmpty && File(source).existsSync()) {
           // Si el sistema no deja, se queda la nota y se sigue: lo que no puede
           // pasar es que un fallo aquí impida cerrar la conversación y refrescar
