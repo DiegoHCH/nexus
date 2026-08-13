@@ -68,7 +68,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     // Se relee al abrir Ajustes, no una vez por arranque: crear o borrar un
     // perfil pasa fuera de la app, y con la lista cacheada seguía ofreciendo
     // una cuenta que ya no existía.
-    ref.invalidate(claudeProfilesProvider);
+    //
+    // Después del primer fotograma y no aquí mismo: invalidar durante la
+    // construcción del árbol marca el scope como sucio en mitad de su propio
+    // build, y Flutter lo corta con «setState() called during build» — la
+    // pantalla entera en rojo al abrir Ajustes.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) ref.invalidate(claudeProfilesProvider);
+    });
   }
 
   @override
