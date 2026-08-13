@@ -158,6 +158,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     final ask = ref.read(askClaudeProvider(conversationId));
     _subscription = ask(trimmed).listen(
       (event) => switch (event) {
+        ClaudeQueued() => _onQueued(),
         ClaudeSessionStarted() => _onSessionStarted(event.model),
         ClaudeTextDelta() => _onTextDelta(buffer, event),
         ClaudeToolUsed() => _onClaudeToolUsed(event),
@@ -169,7 +170,26 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
   }
 
+  /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
+  /// trabajando. Se pinta como un paso más porque lo es —el encargo ya está
+  /// aceptado— y porque esperar sin decirlo se ve igual que un cuelgue.
+  void _onQueued() {
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      activity: [
+        ...state.activity,
+        const ActivityItem(
+          id: _queueItemId,
+          description: 'Esperando a la otra conversación sobre esta carpeta',
+          writes: false,
+        ),
+      ],
+    );
+  }
+
   void _onSessionStarted(String model) {
+    // Le llegó el turno: la espera se da por terminada en cuanto arranca.
+    _onClaudeToolFinished(_queueItemId);
     if (model.isEmpty) return;
     state = state.copyWith(meter: state.meter.copyWith(model: model));
   }
@@ -195,6 +215,10 @@ class AssistantController extends Notifier<AssistantHudState> {
       ],
     );
   }
+
+  /// Identificador fijo: solo puede haber una espera por turno, y así se cierra
+  /// sin tener que recordar cuál era.
+  static const _queueItemId = 'esperando-turno';
 
   void _onClaudeToolFinished(String id, [String? output]) {
     state = state.copyWith(

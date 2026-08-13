@@ -4,6 +4,15 @@ sealed class ClaudeEvent {
   const ClaudeEvent();
 }
 
+/// El encargo espera turno: otra conversación está trabajando sobre la misma
+/// carpeta, y esa sesión de Claude no admite dos a la vez.
+///
+/// Se anuncia en vez de esperar en silencio porque un turno de cola y un cuelgue
+/// se ven exactamente igual desde fuera.
+final class ClaudeQueued extends ClaudeEvent {
+  const ClaudeQueued();
+}
+
 /// Arrancó la sesión: llega una sola vez, al principio.
 final class ClaudeSessionStarted extends ClaudeEvent {
   const ClaudeSessionStarted({required this.sessionId, required this.model});

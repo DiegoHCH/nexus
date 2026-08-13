@@ -175,6 +175,16 @@ class HoldVoiceConversation {
           // inactividad justo mientras se trabaja para ella.
           keepAlive();
           switch (event) {
+            // Otra conversación tiene la carpeta ocupada. Hablando esto hay
+            // que decirlo en voz alta: la pantalla puede estar detrás y el
+            // silencio se interpreta como que no oyó.
+            case ClaudeQueued():
+              controller.add(
+                const VoiceToolProgress(
+                  'Espero turno: hay otra conversación trabajando en esa '
+                  'carpeta.',
+                ),
+              );
             case ClaudeTextDelta(:final text):
               answer.write(text);
               controller.add(VoiceToolProgress(text));

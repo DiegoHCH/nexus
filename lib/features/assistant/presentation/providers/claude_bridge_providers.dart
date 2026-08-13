@@ -6,6 +6,7 @@ import 'package:nexus/features/assistant/data/datasources/conversation_memory_da
 import 'package:nexus/features/assistant/data/repositories/conversation_memory_impl.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -31,20 +32,31 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
   ref,
   conversationId,
 ) {
-  return AskClaude(ref.watch(claudeBridgeProvider), () async {
-    final workspace = ref.read(workspaceControllerProvider);
-    final folder = ref.read(conversationFolderProvider(conversationId));
-    if (folder == null) return null;
-    return (
-      workingDirectory: folder,
-      canEdit: workspace.permission.canWrite,
-      // **Ninguna otra carpeta.** Antes viajaban todas las emparejadas como
-      // `--add-dir` para que un repo pudiera leer sus reglas en una carpeta
-      // hermana, y con varias conversaciones eso significaba que el trabajo de
-      // un proyecto se metía en otro — se vio en vivo: un encargo sobre un repo
-      // listando los archivos del otro. Si las reglas viven fuera del repo, la
-      // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
-      extraDirectories: const <String>[],
-    );
-  }, ref.watch(conversationMemoryProvider));
+  return AskClaude(
+    ref.watch(claudeBridgeProvider),
+    () async {
+      final workspace = ref.read(workspaceControllerProvider);
+      final folder = ref.read(conversationFolderProvider(conversationId));
+      if (folder == null) return null;
+      return (
+        workingDirectory: folder,
+        canEdit: workspace.permission.canWrite,
+        // **Ninguna otra carpeta.** Antes viajaban todas las emparejadas como
+        // `--add-dir` para que un repo pudiera leer sus reglas en una carpeta
+        // hermana, y con varias conversaciones eso significaba que el trabajo de
+        // un proyecto se metía en otro — se vio en vivo: un encargo sobre un repo
+        // listando los archivos del otro. Si las reglas viven fuera del repo, la
+        // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
+        extraDirectories: const <String>[],
+      );
+    },
+    ref.watch(conversationMemoryProvider),
+    ref.watch(folderErrandQueueProvider),
+  );
 });
+
+/// Una sola cola para toda la app, no una por conversación: su trabajo es
+/// justamente coordinar entre conversaciones distintas.
+final folderErrandQueueProvider = Provider<FolderErrandQueue>(
+  (ref) => FolderErrandQueue(),
+);
