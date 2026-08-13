@@ -1,12 +1,22 @@
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
+import 'package:nexus/features/assistant/data/datasources/project_context_data_source.dart';
+import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 
 class ClaudeBridgeImpl implements ClaudeBridge {
-  const ClaudeBridgeImpl(this._dataSource);
+  const ClaudeBridgeImpl(
+    this._dataSource, [
+    this._projectContext = const ProjectContextDataSource(),
+  ]);
 
   final ClaudeCliDataSource _dataSource;
+
+  /// Lo que Claude debería saber antes de empezar. Se lee **en cada encargo**,
+  /// no una vez: editar el `CLAUDE.md` a media conversación tiene que valer
+  /// para el siguiente.
+  final ProjectContextDataSource _projectContext;
 
   /// `manual` deniega la escritura —también la que intente colarse por Bash,
   /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
@@ -24,12 +34,17 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   }) async* {
     var emitted = false;
     try {
+      final context = await _projectContext.read(workingDirectory);
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
         permissionMode: _permissionMode(canEdit: canEdit),
         extraDirectories: extraDirectories,
         resumeSessionId: resumeSessionId,
+        appendSystemPrompt: ProjectContextPrompt.compose(
+          rules: context.rules,
+          sharedContext: context.sharedContext,
+        ),
       )) {
         for (final event in _decode(json, workingDirectory)) {
           emitted = true;

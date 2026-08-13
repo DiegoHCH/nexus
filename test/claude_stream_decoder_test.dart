@@ -20,6 +20,7 @@ class _Cli extends ClaudeCliDataSource {
     required String permissionMode,
     List<String> extraDirectories = const [],
     String? resumeSessionId,
+    String? appendSystemPrompt,
   }) async* {
     if (failFirst && resumeSessionId != null) {
       throw const ClaudeProcessException(1, 'no such session');

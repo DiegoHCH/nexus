@@ -46,7 +46,9 @@ void main() async {
   session.sendText('Saluda y di en qué puedes ayudar. Una frase.');
   await session.waitForTurn();
   print('dijo  : "${session.takeOutputTranscript()}"');
-  print('audio : ${session.audioSeconds.toStringAsFixed(2)} s a $_outputSampleRate Hz\n');
+  print(
+    'audio : ${session.audioSeconds.toStringAsFixed(2)} s a $_outputSampleRate Hz\n',
+  );
 
   print('--- 2. TURNO DE VOZ ---');
   await session.sendSpeech('Hola, ¿me escuchas bien?');
@@ -55,7 +57,9 @@ void main() async {
   print('dijo  : "${session.takeOutputTranscript()}"\n');
 
   print('--- 3. LA COSTURA pedir_a_claude ---');
-  await session.sendSpeech('Revisa qué cambios tengo sin commitear en el proyecto.');
+  await session.sendSpeech(
+    'Revisa qué cambios tengo sin commitear en el proyecto.',
+  );
   final call = await session.waitForToolCall();
   if (call == null) {
     print('!! no llamó a la herramienta — la decisión c2 habría que revisarla');
@@ -88,7 +92,8 @@ class _LiveSession {
   final _inputTranscript = StringBuffer();
   final _outputTranscript = StringBuffer();
   Completer<void> _turn = Completer<void>();
-  Completer<Map<String, dynamic>?> _toolCall = Completer<Map<String, dynamic>?>();
+  Completer<Map<String, dynamic>?> _toolCall =
+      Completer<Map<String, dynamic>?>();
 
   double get audioSeconds => _audio.length / (_outputSampleRate * 2);
 
@@ -96,49 +101,54 @@ class _LiveSession {
     final socket = await WebSocket.connect('$_endpoint?key=$key');
     final session = _LiveSession._(socket);
     socket.listen(session._onMessage, onDone: session._onDone);
-    socket.add(jsonEncode({
-      'setup': {
-        'model': 'models/$_model',
-        'generationConfig': {
-          'responseModalities': ['AUDIO'],
-        },
-        // Sin esto no hay texto de lo hablado: con esto, la franja de
-        // subtítulos no tiene que transcribir nada por su cuenta.
-        'inputAudioTranscription': <String, dynamic>{},
-        'outputAudioTranscription': <String, dynamic>{},
-        'systemInstruction': {
-          'parts': [
-            {
-              'text': 'Eres Nexus, un asistente de voz en un Mac. Responde en español y '
-                  'breve. Para cualquier cosa sobre código, archivos, git o el estado '
-                  'del proyecto NO respondas de memoria: llama a la herramienta '
-                  'pedir_a_claude con la instrucción, y luego cuenta el resultado.',
-            },
-          ],
-        },
-        'tools': [
-          {
-            'functionDeclarations': [
+    socket.add(
+      jsonEncode({
+        'setup': {
+          'model': 'models/$_model',
+          'generationConfig': {
+            'responseModalities': ['AUDIO'],
+          },
+          // Sin esto no hay texto de lo hablado: con esto, la franja de
+          // subtítulos no tiene que transcribir nada por su cuenta.
+          'inputAudioTranscription': <String, dynamic>{},
+          'outputAudioTranscription': <String, dynamic>{},
+          'systemInstruction': {
+            'parts': [
               {
-                'name': 'pedir_a_claude',
-                'description': 'Le encarga a Claude Code una tarea real sobre el Mac: leer '
-                    'o editar archivos, mirar el estado de git, ejecutar comandos.',
-                'parameters': {
-                  'type': 'OBJECT',
-                  'properties': {
-                    'instruccion': {
-                      'type': 'STRING',
-                      'description': 'La tarea, tal como se le diría a un programador.',
-                    },
-                  },
-                  'required': ['instruccion'],
-                },
+                'text':
+                    'Eres Nexus, un asistente de voz en un Mac. Responde en español y '
+                    'breve. Para cualquier cosa sobre código, archivos, git o el estado '
+                    'del proyecto NO respondas de memoria: llama a la herramienta '
+                    'pedir_a_claude con la instrucción, y luego cuenta el resultado.',
               },
             ],
           },
-        ],
-      },
-    }));
+          'tools': [
+            {
+              'functionDeclarations': [
+                {
+                  'name': 'pedir_a_claude',
+                  'description':
+                      'Le encarga a Claude Code una tarea real sobre el Mac: leer '
+                      'o editar archivos, mirar el estado de git, ejecutar comandos.',
+                  'parameters': {
+                    'type': 'OBJECT',
+                    'properties': {
+                      'instruccion': {
+                        'type': 'STRING',
+                        'description':
+                            'La tarea, tal como se le diría a un programador.',
+                      },
+                    },
+                    'required': ['instruccion'],
+                  },
+                },
+              ],
+            },
+          ],
+        },
+      }),
+    );
     return session;
   }
 
@@ -153,46 +163,59 @@ class _LiveSession {
       final output = server['outputTranscription'] as Map<String, dynamic>?;
       if (output != null) _outputTranscript.write(output['text']);
 
-      final parts = (server['modelTurn'] as Map<String, dynamic>?)?['parts'] as List<dynamic>?;
+      final parts =
+          (server['modelTurn'] as Map<String, dynamic>?)?['parts']
+              as List<dynamic>?;
       for (final part in parts ?? const []) {
-        final inline = (part as Map<String, dynamic>)['inlineData'] as Map<String, dynamic>?;
+        final inline =
+            (part as Map<String, dynamic>)['inlineData']
+                as Map<String, dynamic>?;
         if (inline != null) _audio.add(base64Decode(inline['data'] as String));
       }
       if (server['interrupted'] == true) print('← interrupted');
-      if (server['turnComplete'] == true && !_turn.isCompleted) _turn.complete();
+      if (server['turnComplete'] == true && !_turn.isCompleted)
+        _turn.complete();
     }
 
     final toolCall = message['toolCall'] as Map<String, dynamic>?;
     if (toolCall != null && !_toolCall.isCompleted) {
       final calls = toolCall['functionCalls'] as List<dynamic>? ?? const [];
-      _toolCall.complete(calls.isEmpty ? null : calls.first as Map<String, dynamic>);
+      _toolCall.complete(
+        calls.isEmpty ? null : calls.first as Map<String, dynamic>,
+      );
     }
 
-    if (message['goAway'] != null) print('← goAway ${jsonEncode(message['goAway'])}');
-    if (message['error'] != null) print('!! error ${jsonEncode(message['error'])}');
+    if (message['goAway'] != null)
+      print('← goAway ${jsonEncode(message['goAway'])}');
+    if (message['error'] != null)
+      print('!! error ${jsonEncode(message['error'])}');
   }
 
   void _onDone() {
-    print('socket cerrado · code=${_socket.closeCode} reason=${_socket.closeReason}');
+    print(
+      'socket cerrado · code=${_socket.closeCode} reason=${_socket.closeReason}',
+    );
     if (!_turn.isCompleted) _turn.complete();
     if (!_toolCall.isCompleted) _toolCall.complete(null);
   }
 
   void sendText(String text) {
     _turn = Completer<void>();
-    _socket.add(jsonEncode({
-      'clientContent': {
-        'turns': [
-          {
-            'role': 'user',
-            'parts': [
-              {'text': text},
-            ],
-          },
-        ],
-        'turnComplete': true,
-      },
-    }));
+    _socket.add(
+      jsonEncode({
+        'clientContent': {
+          'turns': [
+            {
+              'role': 'user',
+              'parts': [
+                {'text': text},
+              ],
+            },
+          ],
+          'turnComplete': true,
+        },
+      }),
+    );
   }
 
   /// Habla [text] con la voz del sistema y lo empuja por el socket en trozos de
@@ -200,39 +223,47 @@ class _LiveSession {
   Future<void> sendSpeech(String text) async {
     _turn = Completer<void>();
     final pcm = await _synthesize(text);
-    print('dije  : "$text"  (${(pcm.length / (_inputSampleRate * 2)).toStringAsFixed(2)} s)');
+    print(
+      'dije  : "$text"  (${(pcm.length / (_inputSampleRate * 2)).toStringAsFixed(2)} s)',
+    );
 
     const chunkBytes = 3200;
     for (var i = 0; i < pcm.length; i += chunkBytes) {
       final end = (i + chunkBytes < pcm.length) ? i + chunkBytes : pcm.length;
-      _socket.add(jsonEncode({
-        'realtimeInput': {
-          'audio': {
-            'data': base64Encode(Uint8List.sublistView(pcm, i, end)),
-            'mimeType': 'audio/pcm;rate=$_inputSampleRate',
+      _socket.add(
+        jsonEncode({
+          'realtimeInput': {
+            'audio': {
+              'data': base64Encode(Uint8List.sublistView(pcm, i, end)),
+              'mimeType': 'audio/pcm;rate=$_inputSampleRate',
+            },
           },
-        },
-      }));
+        }),
+      );
       await Future<void>.delayed(const Duration(milliseconds: 20));
     }
-    _socket.add(jsonEncode({
-      'realtimeInput': {'audioStreamEnd': true},
-    }));
+    _socket.add(
+      jsonEncode({
+        'realtimeInput': {'audioStreamEnd': true},
+      }),
+    );
   }
 
   void sendToolResponse(Map<String, dynamic> call, String result) {
     _turn = Completer<void>();
-    _socket.add(jsonEncode({
-      'toolResponse': {
-        'functionResponses': [
-          {
-            'id': call['id'],
-            'name': call['name'],
-            'response': {'result': result},
-          },
-        ],
-      },
-    }));
+    _socket.add(
+      jsonEncode({
+        'toolResponse': {
+          'functionResponses': [
+            {
+              'id': call['id'],
+              'name': call['name'],
+              'response': {'result': result},
+            },
+          ],
+        },
+      }),
+    );
   }
 
   Future<void> waitForTurn() => _turn.future.timeout(
@@ -242,7 +273,10 @@ class _LiveSession {
 
   Future<Map<String, dynamic>?> waitForToolCall() {
     _toolCall = Completer<Map<String, dynamic>?>();
-    return _toolCall.future.timeout(const Duration(seconds: 45), onTimeout: () => null);
+    return _toolCall.future.timeout(
+      const Duration(seconds: 45),
+      onTimeout: () => null,
+    );
   }
 
   String takeInputTranscript() {
@@ -313,7 +347,8 @@ Uint8List _pcmFromWav(Uint8List wav) {
   while (offset + 8 <= wav.length) {
     final id = String.fromCharCodes(wav.sublist(offset, offset + 4));
     final size = view.getUint32(offset + 4, Endian.little);
-    if (id == 'data') return Uint8List.sublistView(wav, offset + 8, offset + 8 + size);
+    if (id == 'data')
+      return Uint8List.sublistView(wav, offset + 8, offset + 8 + size);
     offset += 8 + size + (size.isOdd ? 1 : 0);
   }
   throw StateError('No se encontró el trozo data en el WAV de say');

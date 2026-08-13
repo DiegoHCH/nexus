@@ -26,6 +26,7 @@ class ClaudeCliDataSource {
     required String permissionMode,
     List<String> extraDirectories = const [],
     String? resumeSessionId,
+    String? appendSystemPrompt,
   }) async* {
     final process = await Process.start(
       'claude',
@@ -41,6 +42,14 @@ class ClaudeCliDataSource {
         // Con esto Claude recuerda lo de antes; sin esto, cada encargo empieza
         // de cero y no sabe ni lo que hizo hace un minuto.
         if (resumeSessionId != null) ...['--resume', resumeSessionId],
+        // Las reglas del árbol y el contexto del repo, repetidos aquí a
+        // propósito. Claude ya carga los CLAUDE.md por su cuenta, pero los
+        // aplica todos al mismo nivel: sin esto, el protocolo de la carpeta de
+        // arriba diluye las reglas del proyecto.
+        if (appendSystemPrompt != null && appendSystemPrompt.isNotEmpty) ...[
+          '--append-system-prompt',
+          appendSystemPrompt,
+        ],
         // Al final y de una sola vez: el flag es variádico, así que cualquier
         // argumento que fuera detrás se lo tragaría como si fuera una carpeta.
         if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
