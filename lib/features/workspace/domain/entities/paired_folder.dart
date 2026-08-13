@@ -28,6 +28,7 @@ class PairedFolder {
     this.claudeModel,
     this.claudeEffort,
     this.activeRepo,
+    this.blockedCommands = const [],
   });
 
   final String path;
@@ -60,6 +61,13 @@ class PairedFolder {
   /// cargan.
   final String? activeRepo;
 
+  /// Lo que Claude **no** puede ejecutar aquí: fragmentos de comando, uno por
+  /// entrada —`build_runner`, `pod install`, `make generate`—.
+  ///
+  /// Por carpeta porque lo que tarda en un repo no tarda en otro. Y no es un
+  /// ruego en el prompt: el CLI los deniega, así que no hay rodeo posible.
+  final List<String> blockedCommands;
+
   /// Dónde trabaja Claude de verdad.
   String get workingDirectory => activeRepo ?? path;
 
@@ -87,6 +95,7 @@ class PairedFolder {
     String? claudeModel,
     String? claudeEffort,
     String? activeRepo,
+    List<String>? blockedCommands,
   }) => PairedFolder(
     path: path,
     modality: modality ?? this.modality,
@@ -94,6 +103,7 @@ class PairedFolder {
     claudeModel: claudeModel ?? this.claudeModel,
     claudeEffort: claudeEffort ?? this.claudeEffort,
     activeRepo: activeRepo ?? this.activeRepo,
+    blockedCommands: blockedCommands ?? this.blockedCommands,
   );
 
   Map<String, dynamic> toJson() => {
@@ -103,6 +113,7 @@ class PairedFolder {
     if (claudeModel != null) 'claudeModel': claudeModel,
     if (claudeEffort != null) 'claudeEffort': claudeEffort,
     if (activeRepo != null) 'activeRepo': activeRepo,
+    if (blockedCommands.isNotEmpty) 'blockedCommands': blockedCommands,
   };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
@@ -114,6 +125,11 @@ class PairedFolder {
       claudeModel: json['claudeModel'] as String?,
       claudeEffort: json['claudeEffort'] as String?,
       activeRepo: json['activeRepo'] as String?,
+      blockedCommands: [
+        for (final command
+            in json['blockedCommands'] as List<dynamic>? ?? const [])
+          if (command is String && command.trim().isNotEmpty) command.trim(),
+      ],
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al
       // permisivo: un dato corrupto no puede abrir el micrófono.
       modality: FolderModality.values.firstWhere(
