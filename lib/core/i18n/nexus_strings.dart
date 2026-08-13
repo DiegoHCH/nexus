@@ -45,7 +45,6 @@ abstract class NexusStrings {
   String get addFolderShort;
   String get openSettings;
   String get modelTitle;
-  String get modelFromCli;
   String get effortTitle;
   String get effortFaster;
   String get effortSmarter;
@@ -230,8 +229,6 @@ class NexusStringsEs extends NexusStrings {
   String get openSettings => 'Ajustes…';
   @override
   String get modelTitle => 'Modelo';
-  @override
-  String get modelFromCli => 'El del CLI';
   @override
   String get effortTitle => 'Esfuerzo';
   @override
@@ -597,8 +594,6 @@ class NexusStringsEn extends NexusStrings {
   String get openSettings => 'Settings…';
   @override
   String get modelTitle => 'Model';
-  @override
-  String get modelFromCli => 'Whatever the CLI uses';
   @override
   String get effortTitle => 'Effort';
   @override

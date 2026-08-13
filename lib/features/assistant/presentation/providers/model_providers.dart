@@ -28,6 +28,19 @@ enum ClaudeModel {
     }
     return null;
   }
+
+  /// El que el CLI tiene puesto, que viene con su nombre largo:
+  /// `claude-opus-5[1m]` es `opus`. Se busca el alias dentro del nombre en vez
+  /// de una tabla de nombres completos, que habría que ampliar con cada modelo
+  /// nuevo — y quedaría en blanco justo el día que salga uno.
+  static ClaudeModel? fromCliName(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final lower = value.toLowerCase();
+    for (final model in values) {
+      if (lower.contains(model.alias)) return model;
+    }
+    return null;
+  }
 }
 
 /// Cuánto razona antes de contestar.

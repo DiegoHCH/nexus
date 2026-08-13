@@ -484,20 +484,17 @@ class _ModelMenu extends ConsumerWidget {
     final actual =
         meter.displayModel ??
         ref.watch(claudeDefaultsProvider(claudeProfile)).value?.model;
+    // El que está en uso: el elegido aquí, o el que ya tiene puesto el CLI.
+    final vigente = model ?? ClaudeModel.fromCliName(actual);
 
     return PopupMenuButton<ClaudeModel?>(
       color: colors.deep,
       tooltip: '',
       onSelected: ref.read(modelPreferenceProvider.notifier).selectModel,
+      // Sin opción «el del CLI»: lo que el CLI ya usa **es** uno de estos, y
+      // sale marcado. Una entrada aparte para lo mismo obliga a saber de
+      // antemano a qué modelo equivale.
       itemBuilder: (context) => [
-        PopupMenuItem<ClaudeModel?>(
-          child: Text(
-            // Con nombre y apellido: «el del CLI» a secas obliga a ir a
-            // buscarlo a otro sitio para saber con qué se está trabajando.
-            actual == null ? strings.modelFromCli : _clean(actual),
-            style: NexusTypography.data.copyWith(color: colors.mute),
-          ),
-        ),
         for (final option in ClaudeModel.values)
           PopupMenuItem<ClaudeModel?>(
             value: option,
@@ -507,7 +504,7 @@ class _ModelMenu extends ConsumerWidget {
                   option.label,
                   style: NexusTypography.data.copyWith(color: colors.ink),
                 ),
-                if (option == model) ...[
+                if (option == vigente) ...[
                   const SizedBox(width: NexusSpacing.s3),
                   Icon(Icons.check, size: 13, color: colors.cyan),
                 ],
@@ -516,7 +513,8 @@ class _ModelMenu extends ConsumerWidget {
           ),
       ],
       child: Text(
-        model?.label ?? (actual == null ? strings.modelTitle : _clean(actual)),
+        vigente?.label ??
+            (actual == null ? strings.modelTitle : _clean(actual)),
         style: NexusTypography.label.copyWith(
           color: model == null ? colors.faint : colors.mute,
         ),
@@ -547,18 +545,14 @@ class _EffortMenu extends ConsumerWidget {
         .watch(claudeDefaultsProvider(claudeProfile))
         .value
         ?.effort;
+    // El vigente: el elegido aquí, o el que ese perfil tenga fijado.
+    final vigente = effort ?? ClaudeEffort.fromStored(actual);
 
     return PopupMenuButton<ClaudeEffort?>(
       color: colors.deep,
       tooltip: '',
       onSelected: ref.read(modelPreferenceProvider.notifier).selectEffort,
       itemBuilder: (context) => [
-        PopupMenuItem<ClaudeEffort?>(
-          child: Text(
-            actual ?? strings.modelFromCli,
-            style: NexusTypography.data.copyWith(color: colors.mute),
-          ),
-        ),
         for (final option in ClaudeEffort.values)
           PopupMenuItem<ClaudeEffort?>(
             value: option,
@@ -581,7 +575,7 @@ class _EffortMenu extends ConsumerWidget {
                     strings.effortSmarter,
                     style: NexusTypography.mono.copyWith(color: colors.faint),
                   ),
-                if (option == effort) ...[
+                if (option == vigente) ...[
                   const SizedBox(width: NexusSpacing.s3),
                   Icon(Icons.check, size: 13, color: colors.cyan),
                 ],
@@ -590,7 +584,7 @@ class _EffortMenu extends ConsumerWidget {
           ),
       ],
       child: Text(
-        effort?.flag ?? actual ?? strings.effortTitle,
+        vigente?.flag ?? strings.effortTitle,
         style: NexusTypography.label.copyWith(
           color: effort == null ? colors.faint : colors.mute,
         ),
