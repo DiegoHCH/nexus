@@ -239,3 +239,22 @@ final savedConversationsProvider =
       ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
       return todas;
     });
+
+/// Todo lo guardado, sin filtrar por carpeta: la vista por perfiles necesita el
+/// vault entero, porque un perfil abarca varios proyectos.
+final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
+  ref,
+) async {
+  final propias = await ref.watch(localConversationStoreProvider).listAll();
+
+  final settings = ref.watch(archiveControllerProvider);
+  final root = settings.destination.needsFolder ? settings.folderPath : null;
+  if (root == null || root.isEmpty) return propias;
+
+  final delVault = await const VaultReader().read(root);
+  final vistas = {for (final record in propias) record.id};
+  return [
+    ...propias,
+    ...delVault.where((record) => !vistas.contains(record.id)),
+  ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+});

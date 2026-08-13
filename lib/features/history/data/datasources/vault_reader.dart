@@ -22,9 +22,11 @@ class VaultReader {
   /// apertura del historial.
   static const _maxDepth = 4;
 
+  /// [folderPath] a `null` trae **todo el vault**, que es lo que hace falta
+  /// para enseñarlo por perfiles: un perfil abarca varios proyectos.
   Future<List<ConversationRecord>> read(
     String root, {
-    required String folderPath,
+    String? folderPath,
   }) async {
     final directory = Directory(root);
     if (!directory.existsSync()) return const [];
@@ -45,7 +47,7 @@ class VaultReader {
         fallbackId: entity.path,
       );
       if (record == null) continue;
-      if (record.folderPath != folderPath) continue;
+      if (folderPath != null && record.folderPath != folderPath) continue;
       records.add(record);
     }
 

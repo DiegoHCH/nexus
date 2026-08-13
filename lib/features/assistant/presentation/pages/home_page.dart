@@ -116,7 +116,6 @@ class _HomePageState extends ConsumerState<HomePage> {
         const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () =>
             ConversationHistorySheet.open(
               context,
-              folderPath: focused.folderPath,
               onPick: controller.resume,
               onForget: controller.forgetConversation,
             ),

@@ -71,11 +71,12 @@ class _MainAppState extends ConsumerState<MainApp> {
 
     await ConversationHistorySheet.open(
       navigator.context,
-      folderPath: folder,
       onPick: (record) async {
-        final id =
-            focused?.id ??
-            await ref.read(conversationsProvider.notifier).open(folder);
+        // La conversación elegida puede ser de otra carpeta —las pestañas son
+        // por cuenta, no por proyecto—, así que se abre sobre **la suya**.
+        final id = await ref
+            .read(conversationsProvider.notifier)
+            .open(record.folderPath);
         if (id == null) return;
         ref.read(assistantControllerProvider(id).notifier).resume(record);
       },

@@ -67,6 +67,27 @@ class LocalConversationStore {
     return records;
   }
 
+  /// Todas las conversaciones guardadas, de todas las carpetas. Es lo que pide
+  /// la vista por perfiles: ahí no se mira un proyecto, se mira una cuenta.
+  Future<List<ConversationRecord>> listAll() async {
+    final support = await getApplicationSupportDirectory();
+    final root = Directory('${support.path}/conversaciones');
+    if (!root.existsSync()) return const [];
+
+    final records = <ConversationRecord>[];
+    await for (final folder in root.list()) {
+      if (folder is! Directory) continue;
+      await for (final entity in folder.list()) {
+        if (entity is! File || !entity.path.endsWith('.json')) continue;
+        final record = _decode(await entity.readAsString());
+        if (record != null) records.add(record);
+      }
+    }
+
+    records.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    return records;
+  }
+
   Future<void> delete(ConversationRecord record) async {
     final directory = await _folderFor(record.folderPath);
     final file = File('${directory.path}/${record.id}.json');
