@@ -123,6 +123,7 @@ abstract class NexusStrings {
 
   // Los documentos generados.
   String get artifacts;
+  String get noProject;
   String get artifactsExplainer;
   String get artifactsNoFolder;
   String get artifactsEmpty;
@@ -475,6 +476,8 @@ class NexusStringsEs extends NexusStrings {
   String pluginsMore(int rest) => 'Y $rest más. Busca para verlos.';
   @override
   String get artifacts => 'Documentos';
+  @override
+  String get noProject => 'Sin proyecto';
   @override
   String get artifactsExplainer =>
       'Lo que Claude genera —mockups, informes, hojas— va a la carpeta que '
@@ -1020,6 +1023,8 @@ class NexusStringsEn extends NexusStrings {
   String pluginsMore(int rest) => 'And $rest more. Search to see them.';
   @override
   String get artifacts => 'Documents';
+  @override
+  String get noProject => 'No project';
   @override
   String get artifactsExplainer =>
       'What Claude produces — mockups, reports, sheets — goes to the folder you '
