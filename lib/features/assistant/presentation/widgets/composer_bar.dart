@@ -134,7 +134,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
             ),
             const SizedBox(height: NexusSpacing.s3),
             _Controls(
-              claudeProfile: folder?.claudeProfile,
+              folder: folder,
               workspace: workspace,
               meter: widget.meter,
               voiceActive: widget.voiceActive,
@@ -295,7 +295,7 @@ class _Field extends StatelessWidget {
 /// Lo que se toca a menudo: permiso, micrófono, y a la derecha lo que informa.
 class _Controls extends ConsumerWidget {
   const _Controls({
-    required this.claudeProfile,
+    required this.folder,
     required this.workspace,
     required this.meter,
     required this.voiceActive,
@@ -303,9 +303,9 @@ class _Controls extends ConsumerWidget {
     required this.onInsert,
   });
 
-  /// La cuenta de esta carpeta: decide de quién es el cupo que se enseña y
-  /// qué modelo tiene configurado el CLI.
-  final String? claudeProfile;
+  /// La carpeta de esta conversación: de ella salen la cuenta, el modelo y el
+  /// esfuerzo, porque los tres se deciden por carpeta.
+  final PairedFolder? folder;
   final Workspace workspace;
   final SessionMeter meter;
   final bool voiceActive;
@@ -384,11 +384,11 @@ class _Controls extends ConsumerWidget {
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
         const Spacer(),
-        _ModelMenu(claudeProfile: claudeProfile, meter: meter),
+        _ModelMenu(folder: folder, meter: meter),
         const SizedBox(width: NexusSpacing.s3),
-        _EffortMenu(claudeProfile: claudeProfile),
+        _EffortMenu(folder: folder),
         const SizedBox(width: NexusSpacing.s3),
-        _UsageMenu(meter: meter, claudeProfile: claudeProfile),
+        _UsageMenu(meter: meter, claudeProfile: folder?.claudeProfile),
       ],
     );
   }
@@ -469,28 +469,34 @@ class _MoreMenu extends ConsumerWidget {
 /// se usa también desde la terminal, y pisar su configuración desde aquí
 /// sorprendería allí.
 class _ModelMenu extends ConsumerWidget {
-  const _ModelMenu({required this.claudeProfile, required this.meter});
+  const _ModelMenu({required this.folder, required this.meter});
 
-  final String? claudeProfile;
+  final PairedFolder? folder;
   final SessionMeter meter;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
-    final (model, _) = ref.watch(modelPreferenceProvider);
+    final model = ClaudeModel.fromStored(folder?.claudeModel);
     // Lo que se usaría sin elegir nada: primero lo que reportó el CLI en este
     // turno, y si no ha corrido ninguno, lo que tenga configurado ese perfil.
     final actual =
         meter.displayModel ??
-        ref.watch(claudeDefaultsProvider(claudeProfile)).value?.model;
-    // El que está en uso: el elegido aquí, o el que ya tiene puesto el CLI.
+        ref.watch(claudeDefaultsProvider(folder?.claudeProfile)).value?.model;
+    // El que está en uso: el elegido para esta carpeta, o el del CLI.
     final vigente = model ?? ClaudeModel.fromCliName(actual);
 
     return PopupMenuButton<ClaudeModel?>(
       color: colors.deep,
       tooltip: '',
-      onSelected: ref.read(modelPreferenceProvider.notifier).selectModel,
+      // Sin carpeta no hay dónde guardarlo: el menú se abre igual, pero elegir
+      // no haría nada, así que no se ofrece.
+      onSelected: folder == null
+          ? null
+          : (option) => ref
+                .read(workspaceControllerProvider.notifier)
+                .setClaudeModel(folder!.path, option?.alias),
       // Sin opción «el del CLI»: lo que el CLI ya usa **es** uno de estos, y
       // sale marcado. Una entrada aparte para lo mismo obliga a saber de
       // antemano a qué modelo equivale.
@@ -532,17 +538,17 @@ class _ModelMenu extends ConsumerWidget {
 
 /// Cuánto razona antes de contestar, de más rápido a más listo.
 class _EffortMenu extends ConsumerWidget {
-  const _EffortMenu({required this.claudeProfile});
+  const _EffortMenu({required this.folder});
 
-  final String? claudeProfile;
+  final PairedFolder? folder;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
-    final (_, effort) = ref.watch(modelPreferenceProvider);
+    final effort = ClaudeEffort.fromStored(folder?.claudeEffort);
     final actual = ref
-        .watch(claudeDefaultsProvider(claudeProfile))
+        .watch(claudeDefaultsProvider(folder?.claudeProfile))
         .value
         ?.effort;
     // El vigente: el elegido aquí, o el que ese perfil tenga fijado.
@@ -551,7 +557,11 @@ class _EffortMenu extends ConsumerWidget {
     return PopupMenuButton<ClaudeEffort?>(
       color: colors.deep,
       tooltip: '',
-      onSelected: ref.read(modelPreferenceProvider.notifier).selectEffort,
+      onSelected: folder == null
+          ? null
+          : (option) => ref
+                .read(workspaceControllerProvider.notifier)
+                .setClaudeEffort(folder!.path, option?.flag),
       itemBuilder: (context) => [
         for (final option in ClaudeEffort.values)
           PopupMenuItem<ClaudeEffort?>(

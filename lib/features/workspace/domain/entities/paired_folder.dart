@@ -25,6 +25,8 @@ class PairedFolder {
     required this.path,
     required this.modality,
     this.claudeProfile,
+    this.claudeModel,
+    this.claudeEffort,
   });
 
   final String path;
@@ -39,6 +41,15 @@ class PairedFolder {
   /// proyecto, y equivocarse ahí significa gastar el cupo de la cuenta que no
   /// era —o que el CLI ni siquiera arranque, si esa no tiene sesión.
   final String? claudeProfile;
+
+  /// Con qué modelo y con cuánto esfuerzo se trabaja aquí, o `null` para dejar
+  /// lo que tenga el CLI.
+  ///
+  /// Va por carpeta por lo mismo que la cuenta: un repo grande pide Opus y una
+  /// nota rápida se contesta con Haiku, y tenerlo global obliga a acordarse de
+  /// cambiarlo al saltar de proyecto — que es justo cuando no te acuerdas.
+  final String? claudeModel;
+  final String? claudeEffort;
 
   /// Lo que se enseña en la interfaz: la ruta con `~` en vez del home, que es
   /// como la escribe el mockup y como la lee cualquiera.
@@ -58,17 +69,25 @@ class PairedFolder {
     return slash == -1 ? trimmed : trimmed.substring(slash + 1);
   }
 
-  PairedFolder copyWith({FolderModality? modality, String? claudeProfile}) =>
-      PairedFolder(
-        path: path,
-        modality: modality ?? this.modality,
-        claudeProfile: claudeProfile ?? this.claudeProfile,
-      );
+  PairedFolder copyWith({
+    FolderModality? modality,
+    String? claudeProfile,
+    String? claudeModel,
+    String? claudeEffort,
+  }) => PairedFolder(
+    path: path,
+    modality: modality ?? this.modality,
+    claudeProfile: claudeProfile ?? this.claudeProfile,
+    claudeModel: claudeModel ?? this.claudeModel,
+    claudeEffort: claudeEffort ?? this.claudeEffort,
+  );
 
   Map<String, dynamic> toJson() => {
     'path': path,
     'modality': modality.name,
     if (claudeProfile != null) 'claudeProfile': claudeProfile,
+    if (claudeModel != null) 'claudeModel': claudeModel,
+    if (claudeEffort != null) 'claudeEffort': claudeEffort,
   };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
@@ -77,6 +96,8 @@ class PairedFolder {
     return PairedFolder(
       path: path,
       claudeProfile: json['claudeProfile'] as String?,
+      claudeModel: json['claudeModel'] as String?,
+      claudeEffort: json['claudeEffort'] as String?,
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al
       // permisivo: un dato corrupto no puede abrir el micrófono.
       modality: FolderModality.values.firstWhere(

@@ -46,6 +46,32 @@ void main() {
       expect(leida.modality, FolderModality.voice);
     });
 
+    // Modelo y esfuerzo viven donde la cuenta, y por lo mismo: un repo grande
+    // pide Opus y una nota rápida se contesta con Haiku.
+    test('el modelo y el esfuerzo también van con la carpeta', () {
+      const folder = PairedFolder(
+        path: '/repo',
+        modality: FolderModality.voice,
+        claudeModel: 'opus',
+        claudeEffort: 'high',
+      );
+
+      final leida = PairedFolder.fromJson(folder.toJson())!;
+
+      expect(leida.claudeModel, 'opus');
+      expect(leida.claudeEffort, 'high');
+    });
+
+    test('una carpeta sin modelo deja decidir al CLI', () {
+      final leida = PairedFolder.fromJson({
+        'path': '/repo',
+        'modality': 'voice',
+      })!;
+
+      expect(leida.claudeModel, isNull);
+      expect(leida.claudeEffort, isNull);
+    });
+
     test('cambiar de cuenta no toca el permiso de voz', () {
       const folder = PairedFolder(
         path: '/repo',

@@ -8,7 +8,6 @@ import 'package:nexus/features/assistant/data/repositories/conversation_memory_i
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
-import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -40,6 +39,9 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
       final workspace = ref.read(workspaceControllerProvider);
       final folder = ref.read(conversationFolderProvider(conversationId));
       if (folder == null) return null;
+      final paired = workspace.folders
+          .where((item) => item.path == folder)
+          .firstOrNull;
       return (
         workingDirectory: folder,
         canEdit: workspace.permission.canWrite,
@@ -51,12 +53,12 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // solución es emparejar la carpeta padre, no abrirle la puerta a todo.
         extraDirectories: const <String>[],
         language: ref.read(stringsProvider).languageName,
-        model: ref.read(modelPreferenceProvider).$1?.alias,
-        effort: ref.read(modelPreferenceProvider).$2?.flag,
-        claudeProfile: workspace.folders
-            .where((item) => item.path == folder)
-            .firstOrNull
-            ?.claudeProfile,
+        // Modelo, esfuerzo y cuenta salen de **la carpeta**: es la unidad que
+        // organiza todo lo demás —memoria, contexto, archivo— y no había motivo
+        // para que estos dos fueran la excepción global.
+        model: paired?.claudeModel,
+        effort: paired?.claudeEffort,
+        claudeProfile: paired?.claudeProfile,
       );
     },
     ref.watch(conversationMemoryProvider),

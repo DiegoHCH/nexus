@@ -1,10 +1,8 @@
-import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_usage_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 /// Los modelos que se pueden pedir por su alias.
 ///
@@ -63,62 +61,6 @@ enum ClaudeEffort {
   }
 }
 
-/// Modelo y esfuerzo elegidos. `null` en cualquiera de los dos significa **lo
-/// que ya tenga configurado el CLI**, que es lo correcto por defecto: Nexus no
-/// es el único sitio desde el que se usa Claude, y pisar su configuración desde
-/// aquí sorprendería en la terminal.
-class ModelPreference extends Notifier<(ClaudeModel?, ClaudeEffort?)> {
-  static const _modelKey = 'claude_model';
-  static const _effortKey = 'claude_effort';
-
-  @override
-  (ClaudeModel?, ClaudeEffort?) build() {
-    unawaited(_load());
-    return (null, null);
-  }
-
-  Future<void> _load() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = (
-      ClaudeModel.fromStored(prefs.getString(_modelKey)),
-      ClaudeEffort.fromStored(prefs.getString(_effortKey)),
-    );
-  }
-
-  Future<void> selectModel(ClaudeModel? model) async {
-    state = (model, state.$2);
-    final prefs = await SharedPreferences.getInstance();
-    if (model == null) {
-      await prefs.remove(_modelKey);
-    } else {
-      await prefs.setString(_modelKey, model.alias);
-    }
-  }
-
-  Future<void> selectEffort(ClaudeEffort? effort) async {
-    state = (state.$1, effort);
-    final prefs = await SharedPreferences.getInstance();
-    if (effort == null) {
-      await prefs.remove(_effortKey);
-    } else {
-      await prefs.setString(_effortKey, effort.flag);
-    }
-  }
-}
-
-final modelPreferenceProvider =
-    NotifierProvider<ModelPreference, (ClaudeModel?, ClaudeEffort?)>(
-      ModelPreference.new,
-    );
-
-/// El cupo de la suscripción **de la cuenta que va a trabajar**, no de la de
-/// fábrica: si esta carpeta corre con `work`, el cupo que importa es el de
-/// `work`. Se refresca al abrir el panel, no en bucle: es una llamada de red y
-/// el dato cambia despacio.
-final claudeUsageProvider = FutureProvider.family<ClaudeUsage?, String?>(
-  (ref, configDir) => const ClaudeUsageDataSource().read(configDir: configDir),
-);
-
 /// Lo que el CLI tiene configurado en ese perfil. Sirve para que los botones
 /// digan el modelo de verdad en vez de «el del sistema».
 final claudeDefaultsProvider =
@@ -131,3 +73,11 @@ final claudeDefaultsProvider =
         configDir ?? '$home/.claude',
       );
     });
+
+/// El cupo de la suscripción **de la cuenta que va a trabajar**, no de la de
+/// fábrica: si esta carpeta corre con `work`, el cupo que importa es el de
+/// `work`. Se refresca al abrir el panel, no en bucle: es una llamada de red y
+/// el dato cambia despacio.
+final claudeUsageProvider = FutureProvider.family<ClaudeUsage?, String?>(
+  (ref, configDir) => const ClaudeUsageDataSource().read(configDir: configDir),
+);

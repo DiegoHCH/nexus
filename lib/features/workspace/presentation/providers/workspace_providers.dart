@@ -106,6 +106,43 @@ class WorkspaceController extends Notifier<Workspace> {
     await _persist(state.copyWith(folders: folders));
   }
 
+  /// El modelo y el esfuerzo de esta carpeta. `null` en cualquiera devuelve
+  /// esa decisión al CLI.
+  Future<void> setClaudeModel(String path, String? model) => _replace(
+    path,
+    (folder) => folder.claudeModel == model ? null : model,
+    null,
+  );
+
+  Future<void> setClaudeEffort(String path, String? effort) => _replace(
+    path,
+    null,
+    (folder) => folder.claudeEffort == effort ? null : effort,
+  );
+
+  /// Volver a elegir lo que ya estaba puesto lo quita: es la forma de decir
+  /// «lo que decida el CLI» sin una opción aparte para eso.
+  Future<void> _replace(
+    String path,
+    String? Function(PairedFolder)? model,
+    String? Function(PairedFolder)? effort,
+  ) async {
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          PairedFolder(
+            path: folder.path,
+            modality: folder.modality,
+            claudeProfile: folder.claudeProfile,
+            claudeModel: model == null ? folder.claudeModel : model(folder),
+            claudeEffort: effort == null ? folder.claudeEffort : effort(folder),
+          )
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
   Future<void> setPermission(FilePermission permission) async {
     if (state.permission == permission) return;
     await _persist(state.copyWith(permission: permission));
