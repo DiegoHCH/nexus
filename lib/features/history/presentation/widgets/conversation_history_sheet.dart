@@ -5,7 +5,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 
-/// Lo que abre `⌘H`: las conversaciones guardadas de esta carpeta.
+/// Lo que abre `⌘Y`: las conversaciones guardadas de esta carpeta.
 ///
 /// Antes enseñaba las últimas peticiones sueltas —el texto de lo que pediste,
 /// sin la respuesta— porque no había nada más que enseñar. Ahora hay

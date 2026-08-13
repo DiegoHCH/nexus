@@ -109,7 +109,11 @@ class _HomePageState extends ConsumerState<HomePage> {
         // diseño junto al botón Detener.
         const SingleActivator(LogicalKeyboardKey.period, meta: true):
             controller.stopWork,
-        const SingleActivator(LogicalKeyboardKey.keyH, meta: true): () =>
+        // ⌘Y y no ⌘H: en macOS **⌘H es «ocultar la aplicación»**, y el menú se
+        // lo queda antes de que la tecla llegue a Flutter — así que el atajo no
+        // fallaba, escondía la ventana. Es la misma trampa de ⌘, y no se pelea
+        // con ella: ocultar con ⌘H lo espera cualquiera que use un Mac.
+        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () =>
             ConversationHistorySheet.open(
               context,
               folderPath: focused.folderPath,

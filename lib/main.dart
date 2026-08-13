@@ -7,6 +7,9 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/platform/app_menu_channel.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 
@@ -34,13 +37,34 @@ class _MainAppState extends ConsumerState<MainApp> {
   @override
   void initState() {
     super.initState();
-    AppMenuChannel.listen(onOpenSettings: _openSettings);
+    AppMenuChannel.listen(
+      onOpenSettings: _openSettings,
+      onOpenHistory: _openHistory,
+    );
   }
 
   void _openSettings() {
     final navigator = _navigatorKey.currentState;
     if (navigator == null) return;
     SettingsPage.open(navigator.context);
+  }
+
+  /// El historial es **de una conversación**, así que sin ninguna abierta no
+  /// hay nada que enseñar: se calla en vez de abrir una lista vacía que no
+  /// explica de qué carpeta estaría hablando.
+  void _openHistory() {
+    final navigator = _navigatorKey.currentState;
+    final focused = ref.read(conversationsProvider).focused;
+    if (navigator == null || focused == null) return;
+    final controller = ref.read(
+      assistantControllerProvider(focused.id).notifier,
+    );
+    ConversationHistorySheet.open(
+      navigator.context,
+      folderPath: focused.folderPath,
+      onPick: controller.resume,
+      onForget: controller.forgetConversation,
+    );
   }
 
   @override
