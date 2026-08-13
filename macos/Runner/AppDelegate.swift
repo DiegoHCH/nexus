@@ -32,6 +32,11 @@ class AppDelegate: FlutterAppDelegate {
     send("openHistory")
   }
 
+  /// «Documentos» (⌘J) del menú: los artefactos generados.
+  @objc func openNexusArtifacts(_ sender: Any?) {
+    send("openArtifacts")
+  }
+
   @objc func openNexusSettings(_ sender: Any?) {
     send("openSettings")
   }

@@ -22,5 +22,9 @@ abstract class ClaudeBridge {
     /// Alias del modelo y nivel de esfuerzo. `null` deja lo que el CLI tenga.
     String? model,
     String? effort,
+
+    /// Dónde dejar lo que genere para mirar. `null` si el usuario no ha
+    /// elegido carpeta, y entonces no se le dice nada.
+    String? artifactsFolder,
   });
 }

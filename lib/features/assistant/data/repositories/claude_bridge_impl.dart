@@ -34,6 +34,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? claudeProfile,
     String? model,
     String? effort,
+    String? artifactsFolder,
   }) async* {
     var emitted = false;
     try {
@@ -42,7 +43,21 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         instruction,
         workingDirectory: workingDirectory,
         permissionMode: _permissionMode(canEdit: canEdit),
-        extraDirectories: extraDirectories,
+        // La carpeta de documentos viaja como carpeta alcanzable, y no es
+        // opcional: **medido contra el binario**, sin `--add-dir` la escritura
+        // fuera del directorio de trabajo se deniega —aparece en
+        // `permission_denials`— y Claude termina pidiendo un permiso que en una
+        // sesión headless no hay quien conceda. Decirle dónde guardar sin darle
+        // acceso es prometer algo que no puede cumplir.
+        //
+        // Es la única excepción a la regla de «ninguna otra carpeta»: no es
+        // otro proyecto en el que colarse, es el cajón de salida que el usuario
+        // eligió a propósito.
+        extraDirectories: [
+          ...extraDirectories,
+          if (artifactsFolder != null && artifactsFolder.isNotEmpty)
+            artifactsFolder,
+        ],
         resumeSessionId: resumeSessionId,
         configDir: claudeProfile,
         model: model,
@@ -50,6 +65,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         appendSystemPrompt: ProjectContextPrompt.compose(
           rules: context.rules,
           sharedContext: context.sharedContext,
+          artifactsFolder: artifactsFolder,
         ),
       )) {
         for (final event in _decode(json, workingDirectory)) {
@@ -71,6 +87,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           claudeProfile: claudeProfile,
           model: model,
           effort: effort,
+          artifactsFolder: artifactsFolder,
         );
         return;
       }

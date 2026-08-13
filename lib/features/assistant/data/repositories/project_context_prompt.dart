@@ -37,8 +37,24 @@ abstract final class ProjectContextPrompt {
   static String? compose({
     required List<ContextFile> rules,
     ContextFile? sharedContext,
+    String? artifactsFolder,
   }) {
     final sections = <String>[];
+
+    // Dónde dejar lo que genere. Va aquí y no en cada encargo porque es una
+    // regla del sitio, no de la petición: sin decirlo, un mockup acaba en la
+    // raíz del repo y la lista de documentos se queda vacía mientras el archivo
+    // existe. Se dice **solo si el usuario eligió carpeta**: inventarle un
+    // destino sería escribir donde no nos ha invitado.
+    if (artifactsFolder != null && artifactsFolder.isNotEmpty) {
+      sections.add(
+        'Cuando generes un documento para mirar —un mockup, un informe, una '
+        'presentación, una hoja de cálculo, una imagen—, guárdalo en '
+        '$artifactsFolder con un nombre que se entienda de aquí a un mes. '
+        'Lo que es código del proyecto NO va ahí: eso va donde le toque dentro '
+        'del repositorio.',
+      );
+    }
 
     final kept = _fitRules(rules);
     if (kept.dropped > 0) {

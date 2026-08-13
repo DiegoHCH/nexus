@@ -14,6 +14,7 @@ class AppMenuChannel {
   static void listen({
     required void Function() onOpenSettings,
     required void Function() onOpenHistory,
+    required void Function() onOpenArtifacts,
   }) {
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -21,6 +22,8 @@ class AppMenuChannel {
           onOpenSettings();
         case 'openHistory':
           onOpenHistory();
+        case 'openArtifacts':
+          onOpenArtifacts();
       }
     });
   }

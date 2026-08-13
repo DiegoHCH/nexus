@@ -121,6 +121,16 @@ abstract class NexusStrings {
   String pluginsCatalog(int total);
   String pluginsMore(int rest);
 
+  // Los documentos generados.
+  String get artifacts;
+  String get artifactsExplainer;
+  String get artifactsNoFolder;
+  String get artifactsEmpty;
+  String get artifactsChoose;
+  String get artifactsChange;
+  String get artifactsReveal;
+  String get artifactsTrash;
+
   /// Lo que se lee mientras se arrastra un archivo por encima del compositor.
   String get dropHere;
 
@@ -462,7 +472,26 @@ class NexusStringsEs extends NexusStrings {
   @override
   String pluginsCatalog(int total) => 'Disponibles ($total)';
   @override
-  String pluginsMore(int rest) => 'Y \$rest más. Busca para verlos.';
+  String pluginsMore(int rest) => 'Y $rest más. Busca para verlos.';
+  @override
+  String get artifacts => 'Documentos';
+  @override
+  String get artifactsExplainer =>
+      'Lo que Claude genera —mockups, informes, hojas— va a la carpeta que '
+      'elijas, y desde aquí se abre.';
+  @override
+  String get artifactsNoFolder =>
+      'Elige una carpeta y se la diré a Claude para que deje ahí lo que genere.';
+  @override
+  String get artifactsEmpty => 'Todavía no hay nada en esa carpeta.';
+  @override
+  String get artifactsChoose => 'Elegir carpeta';
+  @override
+  String get artifactsChange => 'Cambiar de carpeta';
+  @override
+  String get artifactsReveal => 'Enseñar en el Finder';
+  @override
+  String get artifactsTrash => 'Mover a la papelera';
   @override
   String get dropHere => 'Suéltalo aquí';
   @override
@@ -988,7 +1017,26 @@ class NexusStringsEn extends NexusStrings {
   @override
   String pluginsCatalog(int total) => 'Available ($total)';
   @override
-  String pluginsMore(int rest) => 'And \$rest more. Search to see them.';
+  String pluginsMore(int rest) => 'And $rest more. Search to see them.';
+  @override
+  String get artifacts => 'Documents';
+  @override
+  String get artifactsExplainer =>
+      'What Claude produces — mockups, reports, sheets — goes to the folder you '
+      'pick, and opens from here.';
+  @override
+  String get artifactsNoFolder =>
+      'Pick a folder and I will tell Claude to leave what it makes there.';
+  @override
+  String get artifactsEmpty => 'Nothing in that folder yet.';
+  @override
+  String get artifactsChoose => 'Pick a folder';
+  @override
+  String get artifactsChange => 'Change folder';
+  @override
+  String get artifactsReveal => 'Show in Finder';
+  @override
+  String get artifactsTrash => 'Move to trash';
   @override
   String get dropHere => 'Drop it here';
   @override

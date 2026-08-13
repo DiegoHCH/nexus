@@ -7,6 +7,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/platform/app_menu_channel.dart';
+import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
@@ -41,7 +42,16 @@ class _MainAppState extends ConsumerState<MainApp> {
     AppMenuChannel.listen(
       onOpenSettings: _openSettings,
       onOpenHistory: _openHistory,
+      onOpenArtifacts: _openArtifacts,
     );
+  }
+
+  /// Los documentos generados (⌘J). No dependen de la conversación abierta —un
+  /// mockup de ayer sigue siendo tuyo hoy—, así que basta con el navegador.
+  void _openArtifacts() {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    ArtifactsSheet.open(navigator.context);
   }
 
   void _openSettings() {

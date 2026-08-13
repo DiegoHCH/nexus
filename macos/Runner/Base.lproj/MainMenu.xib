@@ -48,6 +48,11 @@
                                     <action selector="openNexusHistory:" target="-1" id="hst-Ac-001"/>
                                 </connections>
                             </menuItem>
+                            <menuItem title="Documentos" keyEquivalent="j" id="art-Nj-001">
+                                <connections>
+                                    <action selector="openNexusArtifacts:" target="-1" id="art-Ac-001"/>
+                                </connections>
+                            </menuItem>
                             <menuItem isSeparatorItem="YES" id="wFC-TO-SCJ"/>
                             <menuItem title="Services" id="NMo-om-nkz">
                                 <modifierMask key="keyEquivalentModifierMask"/>

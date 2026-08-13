@@ -23,6 +23,9 @@ class MainFlutterWindow: NSWindow {
     NexusThumbnails.register(
       with: flutterViewController.registrar(forPlugin: "NexusThumbnails")
     )
+    NexusArtifacts.register(
+      with: flutterViewController.registrar(forPlugin: "NexusArtifacts")
+    )
 
     // Marco oscuro, no sin marco: la barra de título se funde con --void
     // (#04070D) en vez del cromo claro por defecto de macOS. Se fuerza
