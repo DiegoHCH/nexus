@@ -75,6 +75,9 @@ class _NexusOrbState extends State<NexusOrb>
   @override
   Widget build(BuildContext context) {
     final accent = context.colors.cyan;
+    // El orbe no sabe sobre qué se pinta, y las opacidades sí dependen de eso:
+    // sobre oscuro la tinta añade luz, sobre claro hay que quitarla.
+    final onLight = Theme.of(context).brightness == Brightness.light;
     return ValueListenableBuilder<double>(
       valueListenable: _time,
       builder: (context, t, _) => CustomPaint(
@@ -84,6 +87,7 @@ class _NexusOrbState extends State<NexusOrb>
           t: t,
           accent: accent,
           showHorizon: widget.showHorizon,
+          onLight: onLight,
         ),
       ),
     );

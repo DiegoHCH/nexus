@@ -47,6 +47,33 @@ class MainFlutterWindow: NSWindow {
     self.titlebarAppearsTransparent = true
     self.titleVisibility = .hidden
     self.isOpaque = true
+
+    // **No se puede encoger por debajo de una tablet en horizontal.**
+    //
+    // No es un límite técnico —medido, a 800×600 la interfaz todavía no
+    // desborda— sino de producto: esto es un HUD de escritorio con el orbe
+    // ocupando media pantalla y la conversación en la otra mitad, y por debajo
+    // de este tamaño esa idea deja de tener sentido antes de que algo se rompa.
+    //
+    // `minSize` y no `contentMinSize`: la barra de título es transparente y
+    // Flutter ocupa la ventana entera, así que aquí las dos medidas son la
+    // misma y esta es la que macOS aplica al arrastrar el borde.
+    let minimo = NSSize(width: 1024, height: 768)
+    self.minSize = minimo
+    // **Y se agranda si ya venía más pequeña.** `minSize` solo lo aplica AppKit
+    // cuando arrastras un borde: no encoge ni estira la ventana que ya existe.
+    // El `.xib` la crea en 800×600, así que sin esto una instalación nueva
+    // abría por debajo del mínimo que se acaba de declarar y solo saltaba al
+    // tocar un borde.
+    if self.frame.width < minimo.width || self.frame.height < minimo.height {
+      self.setContentSize(
+        NSSize(
+          width: max(self.frame.width, minimo.width),
+          height: max(self.frame.height, minimo.height)
+        )
+      )
+      self.center()
+    }
     NexusAppearance.apply(dark: NexusAppearance.systemIsDark())
 
     super.awakeFromNib()
