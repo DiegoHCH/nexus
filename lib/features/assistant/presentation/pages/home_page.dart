@@ -243,7 +243,8 @@ class _HomePageState extends ConsumerState<HomePage> {
               // caja, y ya no arriba del todo: se leen justo antes de pedir
               // algo y se cambian sin cruzar la pantalla.
               ComposerBar(
-                onSubmit: controller.submit,
+                onSubmit: (texto, adjuntos) =>
+                    controller.submit(texto, attachments: adjuntos),
                 onFocusChanged: controller.setListening,
                 folderPath: focused.folderPath,
                 meter: hud.meter,
@@ -275,7 +276,7 @@ class _FirstRun extends ConsumerStatefulWidget {
 }
 
 class _FirstRunState extends ConsumerState<_FirstRun> {
-  Future<void> _startWith(String text) async {
+  Future<void> _startWith(String text, List<String> adjuntos) async {
     final where = whereToStart(ref);
     if (where == null) {
       // Ni carpeta emparejada ni carpeta de documentos: no hay dónde trabajar,
@@ -286,7 +287,9 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
     }
     final id = await ref.read(conversationsProvider.notifier).open(where);
     if (id == null) return;
-    await ref.read(assistantControllerProvider(id).notifier).submit(text);
+    await ref
+        .read(assistantControllerProvider(id).notifier)
+        .submit(text, attachments: adjuntos);
   }
 
   /// Tocar el orbe abre la voz, **creando la conversación si no hay ninguna**.

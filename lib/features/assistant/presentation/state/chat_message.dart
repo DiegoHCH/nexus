@@ -15,6 +15,7 @@ class ChatMessage {
     required this.text,
     this.spoken = false,
     this.streaming = false,
+    this.attachments = const [],
   });
 
   final ChatAuthor author;
@@ -28,12 +29,26 @@ class ChatMessage {
   /// Todavía se está escribiendo: la interfaz le pone el cursor.
   final bool streaming;
 
+  /// Las rutas que acompañaban a esta petición.
+  ///
+  /// Van **aparte del texto** a propósito. Antes se pegaban dentro del mensaje
+  /// —«Archivos adjuntos:» y la ruta completa debajo— porque eso es lo que
+  /// necesita Claude, y la conversación acababa enseñando rutas absolutas en
+  /// vez del archivo. Son dos cosas distintas: lo que se le manda al modelo y
+  /// lo que se le enseña a quien mira. Guardándolas aquí, la vista puede pintar
+  /// la misma miniatura que ya se veía en la caja al adjuntarlo.
+  final List<String> attachments;
+
   ChatMessage copyWith({String? text, bool? streaming}) => ChatMessage(
     author: author,
     text: text ?? this.text,
     spoken: spoken,
     streaming: streaming ?? this.streaming,
+    attachments: attachments,
   );
 
-  bool get isEmpty => text.trim().isEmpty;
+  /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y
+  /// dar a enviar es un gesto legítimo, y borrarlo de la vista por no tener
+  /// texto dejaría la conversación sin la mitad de lo que pasó.
+  bool get isEmpty => text.trim().isEmpty && attachments.isEmpty;
 }

@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
@@ -101,7 +102,12 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// Añade un turno a la conversación.
-  void _say(ChatAuthor author, String text, {bool spoken = false}) {
+  void _say(
+    ChatAuthor author,
+    String text, {
+    bool spoken = false,
+    List<String> attachments = const [],
+  }) {
     state = state.copyWith(
       messages: [
         ...state.messages,
@@ -110,6 +116,7 @@ class AssistantController extends Notifier<AssistantHudState> {
           text: text,
           spoken: spoken,
           streaming: true,
+          attachments: attachments,
         ),
       ],
     );
@@ -144,9 +151,22 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(messages: messages);
   }
 
-  Future<void> submit(String instruction) async {
+  Future<void> submit(
+    String instruction, {
+    List<String> attachments = const [],
+  }) async {
     final trimmed = instruction.trim();
-    if (trimmed.isEmpty) return;
+    if (trimmed.isEmpty && attachments.isEmpty) return;
+
+    // Lo que se le manda a Claude lleva las rutas detrás —las necesita para
+    // abrir los archivos—; lo que se enseña en la conversación, no. Antes eran
+    // el mismo texto y por eso el chat mostraba rutas absolutas en vez del
+    // archivo.
+    final paraClaude = AttachedFiles.instruction(
+      trimmed,
+      attachments,
+      label: ref.read(stringsProvider).attachedFilesLabel,
+    );
 
     await _subscription?.cancel();
     _sealLast();
@@ -159,16 +179,16 @@ class AssistantController extends Notifier<AssistantHudState> {
       errorMessage: null,
       // Los cambios del turno anterior se van con él: son de esa tarea.
       changes: null,
-      history: _remember(trimmed),
+      history: _remember(paraClaude),
     );
-    _say(ChatAuthor.user, trimmed);
+    _say(ChatAuthor.user, trimmed, attachments: attachments);
     _sealLast();
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
     unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
-    _subscription = ask(trimmed).listen(
+    _subscription = ask(paraClaude).listen(
       (event) => switch (event) {
         ClaudeQueued() => _onQueued(),
         ClaudeSessionStarted() => _onSessionStarted(event.model),

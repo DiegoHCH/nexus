@@ -13,14 +13,14 @@ import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 /// sistema —la misma del Finder— en vez de dibujar un icono por extensión, que
 /// dejaría las tres idénticas.
 class AttachmentStrip extends StatelessWidget {
-  const AttachmentStrip({
-    super.key,
-    required this.paths,
-    required this.onRemove,
-  });
+  const AttachmentStrip({super.key, required this.paths, this.onRemove});
 
   final List<String> paths;
-  final ValueChanged<String> onRemove;
+
+  /// `null` para **solo mirar**: es como la usa la conversación, donde el
+  /// adjunto ya se mandó y quitarlo no significaría nada. En la caja de
+  /// escribir sí se puede quitar, porque el mensaje aún no ha salido.
+  final ValueChanged<String>? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -36,7 +36,7 @@ class AttachmentStrip extends StatelessWidget {
             _Attachment(
               key: ValueKey(path),
               path: path,
-              onRemove: () => onRemove(path),
+              onRemove: onRemove == null ? null : () => onRemove!(path),
             ),
         ],
       ),
@@ -45,10 +45,10 @@ class AttachmentStrip extends StatelessWidget {
 }
 
 class _Attachment extends StatelessWidget {
-  const _Attachment({super.key, required this.path, required this.onRemove});
+  const _Attachment({super.key, required this.path, this.onRemove});
 
   final String path;
-  final VoidCallback onRemove;
+  final VoidCallback? onRemove;
 
   @override
   Widget build(BuildContext context) {
@@ -81,12 +81,14 @@ class _Attachment extends StatelessWidget {
                 style: NexusTypography.data.copyWith(color: colors.ink),
               ),
             ),
-            const SizedBox(width: NexusSpacing.s2),
-            InkWell(
-              onTap: onRemove,
-              borderRadius: BorderRadius.circular(NexusRadius.sm),
-              child: Icon(Icons.close, size: 13, color: colors.faint),
-            ),
+            if (onRemove case final quitar?) ...[
+              const SizedBox(width: NexusSpacing.s2),
+              InkWell(
+                onTap: quitar,
+                borderRadius: BorderRadius.circular(NexusRadius.sm),
+                child: Icon(Icons.close, size: 13, color: colors.faint),
+              ),
+            ],
           ],
         ),
       ),
