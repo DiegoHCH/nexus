@@ -56,10 +56,21 @@ class SkillsDataSource {
       return (skills: const <Skill>[], error: 'No se pudo traer $repo');
     }
 
+    return (skills: await skillsIn(cache), error: null);
+  }
+
+  /// Las skills que hay dentro de una carpeta ya traída.
+  ///
+  /// Público **para poder probar el recorrido sin clonar nada**, que es justo la
+  /// parte que fallaba: dónde busca y dónde no. Las tres formas que se le
+  /// escapaban —una skill bajo `.github`, otra a cinco niveles de fondo, y un
+  /// repo con cientos— se comprueban con carpetas de mentira en vez de contra la
+  /// red, que sería lento y además dependería de que esos repos no cambien.
+  Future<List<Skill>> skillsIn(Directory dir) async {
     final found = <Skill>[];
-    await _walk(cache, 0, found);
+    await _walk(dir, 0, found);
     found.sort((a, b) => a.id.compareTo(b.id));
-    return (skills: found, error: null);
+    return found;
   }
 
   /// Copia la carpeta de la skill al perfil. Reemplaza si ya estaba: eso es
@@ -158,12 +169,32 @@ class SkillsDataSource {
     }
   }
 
+  /// Hasta dónde se baja buscando, y cuántas se recogen como mucho.
+  ///
+  /// Seis niveles y no cuatro porque los repos grandes anidan: en
+  /// `davila7/claude-code-templates` las skills viven en
+  /// `cli-tool/components/skills/<familia>/<skill>/`, y con cuatro se perdían
+  /// 22 de las suyas. El tope existe para no recorrer un monorepo entero, no
+  /// para recortar la lista: **ese repo tiene 896 skills** y con el anterior
+  /// —100— la que buscabas era la número 228 y no aparecía nunca.
+  static const _maxDepth = 6;
+  static const _maxSkills = 1000;
+
+  /// Lo que no se mira nunca.
+  ///
+  /// **Solo estas dos, y no toda carpeta que empiece por punto**, que era lo que
+  /// hacía antes. `.github/skills/` y `.claude-plugin/skills/` son sitios
+  /// legítimos y cada vez más comunes —los usa GitHub en `github/spec-kit`, con
+  /// su única skill ahí dentro— así que saltarlos dejaba repos enteros
+  /// aparentemente vacíos.
+  static const _nuncaMirar = {'.git', 'node_modules'};
+
   Future<void> _walk(Directory dir, int depth, List<Skill> found) async {
-    if (depth > 4 || found.length >= 100) return;
+    if (depth > _maxDepth || found.length >= _maxSkills) return;
     for (final entry in dir.listSync()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
-      if (name.startsWith('.') || name == 'node_modules') continue;
+      if (_nuncaMirar.contains(name)) continue;
 
       final file = File('${entry.path}/SKILL.md');
       if (file.existsSync()) {
@@ -180,11 +211,11 @@ class SkillsDataSource {
   }
 
   Future<Directory?> _find(Directory dir, String id, int depth) async {
-    if (depth > 4) return null;
+    if (depth > _maxDepth) return null;
     for (final entry in dir.listSync()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
-      if (name.startsWith('.')) continue;
+      if (_nuncaMirar.contains(name)) continue;
       if (name == id && File('${entry.path}/SKILL.md').existsSync()) {
         return entry;
       }
