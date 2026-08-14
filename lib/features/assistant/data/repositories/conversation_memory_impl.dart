@@ -10,20 +10,24 @@ class ConversationMemoryImpl implements ConversationMemory {
 
   final ConversationMemoryDataSource _dataSource;
 
+  /// Con qué nombre se guarda la sesión de cada cuenta dentro de la carpeta.
+  ///
+  /// La ruta del perfil tal cual, porque es lo que identifica la cuenta de
+  /// verdad —el `CLAUDE_CONFIG_DIR`— y no hay dos iguales. Sin perfil elegido
+  /// se usa una clave fija: la carpeta corre con la cuenta de fábrica, que
+  /// también es una cuenta concreta.
+  static String _account(String? claudeProfile) =>
+      (claudeProfile == null || claudeProfile.isEmpty)
+      ? 'por defecto'
+      : claudeProfile;
+
   @override
-  Future<FolderMemory> read(String folderPath) async {
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async {
     final all = await _dataSource.read();
     final entry = all[folderPath];
     if (entry is! Map<String, dynamic>) return const FolderMemory();
     return FolderMemory(
-      // Comprobado en vez de convertido a la fuerza: esto se lee al abrir la
-      // app, y una preferencia escrita por una versión anterior —o tocada a
-      // mano— con otro tipo aquí dentro tumbaba la lectura entera. Perder la
-      // memoria de una carpeta es molesto; no arrancar, inaceptable.
-      sessionId: switch (entry['sessionId']) {
-        final String id when id.isNotEmpty => id,
-        _ => null,
-      },
+      sessionId: _sessionIn(entry, claudeProfile),
       prompts: [
         if (entry['prompts'] case final List<dynamic> stored)
           for (final prompt in stored)
@@ -32,27 +36,77 @@ class ConversationMemoryImpl implements ConversationMemory {
     );
   }
 
+  /// La sesión de esa cuenta, o la que quedara guardada antes de que hubiera
+  /// cuentas.
+  ///
+  /// Comprobado en vez de convertido a la fuerza: esto se lee al abrir la app,
+  /// y una preferencia escrita por una versión anterior —o tocada a mano— con
+  /// otro tipo aquí dentro tumbaba la lectura entera. Perder la memoria de una
+  /// carpeta es molesto; no arrancar, inaceptable.
+  ///
+  /// El `sessionId` suelto es el formato viejo y **se sigue leyendo**: para la
+  /// inmensa mayoría de carpetas —las que solo se han usado con una cuenta— esa
+  /// sesión es justamente la de la cuenta que pregunta, y tirarla haría que
+  /// todas perdieran el hilo al actualizar. Si resultara ser de otra cuenta, el
+  /// reintento sin `--resume` lo absorbe y la carpeta se cura sola (b14). En
+  /// cuanto se guarde una sesión nueva, esta carpeta pasa al formato por
+  /// cuenta y el suelto desaparece.
+  static String? _sessionIn(Map<String, dynamic> entry, String? claudeProfile) {
+    if (entry['sessions'] case final Map<String, dynamic> sessions) {
+      return switch (sessions[_account(claudeProfile)]) {
+        final String id when id.isNotEmpty => id,
+        _ => null,
+      };
+    }
+    return switch (entry['sessionId']) {
+      final String id when id.isNotEmpty => id,
+      _ => null,
+    };
+  }
+
   @override
-  Future<void> rememberSession(String folderPath, String sessionId) async {
-    await _update(
-      folderPath,
-      (memory) => memory.copyWith(sessionId: sessionId),
-    );
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  }) async {
+    await _update(folderPath, (entry) {
+      final sessions = <String, dynamic>{
+        if (entry['sessions'] case final Map<String, dynamic> previous)
+          ...previous,
+        _account(claudeProfile): sessionId,
+      };
+      // Las demás cuentas conservan la suya: la misma carpeta abierta con dos
+      // perfiles son dos hilos, y guardar solo el último obligaría a empezar de
+      // cero cada vez que se cambia.
+      return {...entry, 'sessions': sessions}..remove('sessionId');
+    });
   }
 
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {
-    await _update(folderPath, (memory) {
-      final rest = memory.prompts.where((item) => item != prompt);
-      return memory.copyWith(
-        prompts: [prompt, ...rest].take(_maxPrompts).toList(),
-      );
+    await _update(folderPath, (entry) {
+      final stored = [
+        if (entry['prompts'] case final List<dynamic> previous)
+          for (final item in previous)
+            if (item is String && item.isNotEmpty) item,
+      ];
+      final rest = stored.where((item) => item != prompt);
+      return {
+        ...entry,
+        'prompts': [prompt, ...rest].take(_maxPrompts).toList(),
+      };
     });
   }
 
   @override
   Future<void> forget(String folderPath) async {
-    await _update(folderPath, (memory) => memory.copyWith(forget: true));
+    // Se van las de **todas** las cuentas: «empezar de cero en esta carpeta» no
+    // significa «en esta carpeta con la cuenta que tenga puesta ahora».
+    await _update(
+      folderPath,
+      (entry) => {...entry, 'sessions': <String, dynamic>{}}..remove('sessionId'),
+    );
   }
 
   /// Lee, transforma y escribe de una pieza: dos escrituras a la vez se
@@ -60,12 +114,13 @@ class ConversationMemoryImpl implements ConversationMemory {
   /// pasan con milisegundos de diferencia.
   Future<void> _update(
     String folderPath,
-    FolderMemory Function(FolderMemory) change,
+    Map<String, dynamic> Function(Map<String, dynamic>) change,
   ) async {
     final all = await _dataSource.read();
-    final current = await read(folderPath);
-    final next = change(current);
-    all[folderPath] = {'sessionId': next.sessionId, 'prompts': next.prompts};
+    final current = all[folderPath];
+    all[folderPath] = change(
+      current is Map<String, dynamic> ? current : <String, dynamic>{},
+    );
     await _dataSource.write(all);
   }
 }

@@ -123,4 +123,92 @@ void main() {
     expect((await memory.read(repoA)).prompts, isEmpty);
     expect((await memory.read(repoB)).prompts, isEmpty);
   });
+
+  // b14: una sesión es de la carpeta **y de la cuenta**. Las sesiones que
+  // guarda Claude Code viven dentro del CLAUDE_CONFIG_DIR de cada perfil, así
+  // que la misma carpeta abierta con otra cuenta no tiene esa sesión —y
+  // reanudarla moría con «No conversation found with session ID».
+  group('la sesión es de la carpeta y de la cuenta', () {
+    const work = '/Users/alguien/.claude-work';
+    const private = '/Users/alguien/.claude-private';
+
+    test('cada cuenta guarda la suya, y no se pisan', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      await memory.rememberSession(repoA, 'de-work', claudeProfile: work);
+      await memory.rememberSession(repoA, 'de-private', claudeProfile: private);
+
+      expect(
+        (await memory.read(repoA, claudeProfile: work)).sessionId,
+        'de-work',
+        reason: 'guardar la de private no puede llevarse por delante la otra',
+      );
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).sessionId,
+        'de-private',
+      );
+    });
+
+    test('una cuenta sin sesión no hereda la de otra', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+      await memory.rememberSession(repoA, 'de-work', claudeProfile: work);
+
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).sessionId,
+        isNull,
+        reason: 'esto es exactamente lo que rompía la carpeta en b14',
+      );
+    });
+
+    test('lo pedido sigue siendo de la carpeta, no de la cuenta', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+      await memory.rememberPrompt(repoA, 'mira el historial');
+
+      // La lista sirve para repetir una petición: quién la ejecutó da igual.
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).prompts,
+        ['mira el historial'],
+      );
+    });
+
+    test('olvidar limpia las de todas las cuentas', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+      await memory.rememberSession(repoA, 'de-work', claudeProfile: work);
+      await memory.rememberSession(repoA, 'de-private', claudeProfile: private);
+
+      await memory.forget(repoA);
+
+      expect((await memory.read(repoA, claudeProfile: work)).sessionId, isNull);
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).sessionId,
+        isNull,
+        reason: '«empezar de cero aquí» no es «con la cuenta de ahora»',
+      );
+    });
+
+    test('lo guardado por la versión anterior se sigue leyendo', () async {
+      // El formato viejo: un `sessionId` suelto, sin cuenta. Tirarlo haría que
+      // toda carpeta perdiera el hilo al actualizar, y para la inmensa mayoría
+      // —las usadas con una sola cuenta— esa sesión es justo la que toca.
+      final store = _FakeStore({
+        repoA: {'sessionId': 'de-antes', 'prompts': <String>[]},
+      });
+      final memory = ConversationMemoryImpl(store);
+
+      expect(
+        (await memory.read(repoA, claudeProfile: work)).sessionId,
+        'de-antes',
+      );
+
+      // Y en cuanto se guarda una nueva, esa carpeta pasa al formato por
+      // cuenta: el suelto desaparece en vez de quedarse de sombra.
+      await memory.rememberSession(repoA, 'nueva', claudeProfile: work);
+      expect((store._data[repoA] as Map)['sessionId'], isNull);
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).sessionId,
+        isNull,
+      );
+    });
+  });
+
 }
