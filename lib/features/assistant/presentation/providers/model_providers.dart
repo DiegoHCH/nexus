@@ -81,9 +81,11 @@ final claudeDefaultsProvider =
 /// fábrica: si esta carpeta corre con `work`, el cupo que importa es el de
 /// `work`. Se refresca al abrir el panel, no en bucle: es una llamada de red y
 /// el dato cambia despacio.
-final claudeUsageProvider = FutureProvider.family<ClaudeUsage?, String?>(
-  (ref, configDir) => const ClaudeUsageDataSource().read(configDir: configDir),
-);
+final claudeUsageProvider =
+    FutureProvider.family<({ClaudeUsage? usage, UsageState state}), String?>(
+      (ref, configDir) =>
+          const ClaudeUsageDataSource().read(configDir: configDir),
+    );
 
 /// Lo último que reportó el CLI para cada cuenta.
 ///

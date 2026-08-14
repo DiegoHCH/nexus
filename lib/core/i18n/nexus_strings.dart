@@ -157,6 +157,15 @@ abstract class NexusStrings {
   String get usageWeekly;
   String get usageUnavailable;
 
+  /// Hay sesión: lo que caducó es el acceso, y lo renueva el CLI en cuanto
+  /// se use esa cuenta. Decirlo aparte importa porque la frase de al lado
+  /// —«no tiene sesión abierta»— manda a iniciar sesión, y aquí no hay nada
+  /// que hacer.
+  String get usageStale;
+
+  /// Hay con qué preguntar, pero el servicio no contestó.
+  String get usageUnreachable;
+
   /// Para el hueco del **valor** de un medidor, que es de dos o tres
   /// palabras. [usageUnavailable] explica lo de la cuenta y es una frase
   /// entera: metida ahí desbordaba el panel por 192 px, y encima hablaba de
@@ -555,8 +564,13 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get usageWeekly => 'Semanal';
   @override
-  String get usageUnavailable =>
-      'Sin dato: esa cuenta no tiene sesión abierta o el acceso caducó.';
+  String get usageUnavailable => 'Sin dato: esa cuenta no tiene sesión abierta.';
+  @override
+  String get usageStale =>
+      'Sin dato por ahora: la sesión sigue abierta, pero su acceso caducó. '
+      'Se actualiza en cuanto uses esta cuenta.';
+  @override
+  String get usageUnreachable => 'Sin dato: no se pudo preguntar por el cupo.';
   @override
   String get noReadingYet => 'Sin dato';
   @override
@@ -1122,8 +1136,13 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get usageWeekly => 'Weekly';
   @override
-  String get usageUnavailable =>
-      'No reading: that account has no session open, or its access expired.';
+  String get usageUnavailable => 'No reading: that account has no session open.';
+  @override
+  String get usageStale =>
+      'No reading for now: the session is still open, but its access expired. '
+      'It comes back as soon as you use this account.';
+  @override
+  String get usageUnreachable => 'No reading: the quota could not be asked for.';
   @override
   String get noReadingYet => 'No reading';
   @override
