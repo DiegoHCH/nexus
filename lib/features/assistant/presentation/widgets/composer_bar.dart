@@ -15,6 +15,7 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
+import 'package:nexus/features/assistant/presentation/widgets/gauge.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -928,13 +929,17 @@ class _UsageMenu extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    _Gauge(
+                    Gauge(
                       label: strings.contextWindow,
                       percent: context_,
                       // Sin turno todavía no hay medida: se dice, en vez de
                       // enseñar «0 / 1,0M», que se leería como una ventana
                       // vacía comprobada y no como una que nadie ha mirado.
-                      value: meter.contextLabel ?? strings.usageUnavailable,
+                      //
+                      // Corto, y no la frase de la cuenta: esa habla de una
+                      // sesión caducada, que aquí ni viene a cuento —esto mide
+                      // la ventana de contexto— y además desbordaba el panel.
+                      value: meter.contextLabel ?? strings.noReadingYet,
                       warnAt: 85,
                     ),
                     const SizedBox(height: NexusSpacing.s4),
@@ -962,13 +967,13 @@ class _UsageMenu extends ConsumerWidget {
                         ),
                       )
                     else ...[
-                      _Gauge(
+                      Gauge(
                         label: strings.usageFiveHour,
                         percent: usage.fiveHourPercent,
                         note: _resets(strings, usage.fiveHourResetsAt),
                       ),
                       const SizedBox(height: NexusSpacing.s3),
-                      _Gauge(
+                      Gauge(
                         label: strings.usageWeekly,
                         percent: usage.weeklyPercent,
                         note: _resets(strings, usage.weeklyResetsAt),
@@ -1056,70 +1061,3 @@ class _ContextDial extends CustomPainter {
       old.fraction != fraction || old.fill != fill;
 }
 
-class _Gauge extends StatelessWidget {
-  const _Gauge({
-    required this.label,
-    required this.percent,
-    this.value,
-    this.note,
-    this.warnAt = 90,
-  });
-
-  final String label;
-  final int percent;
-
-  /// Lo que se escribe a la derecha. Sin él va el porcentaje solo, que es lo
-  /// que basta para una cuota; el contexto necesita las tres cifras.
-  final String? value;
-
-  final String? note;
-  final int warnAt;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        // Encima de la barra solo el nombre y el número: son los dos datos que
-        // se leen de un vistazo y caben siempre. Cuándo se renueva va **debajo**
-        // — es un dato secundario y, apretado en la misma línea, desbordaba el
-        // panel en cuanto el plazo pasaba de las horas a los días («129 h 27 m»).
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                label,
-                overflow: TextOverflow.ellipsis,
-                style: NexusTypography.mono.copyWith(color: colors.mute),
-              ),
-            ),
-            const SizedBox(width: NexusSpacing.s3),
-            Text(
-              value ?? '$percent %',
-              style: NexusTypography.data.copyWith(color: colors.faint),
-            ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(2),
-          child: LinearProgressIndicator(
-            value: percent / 100,
-            minHeight: 3,
-            backgroundColor: colors.rule,
-            color: percent >= warnAt ? colors.warn : colors.cyan,
-          ),
-        ),
-        if (note case final texto?) ...[
-          const SizedBox(height: 3),
-          Text(
-            texto,
-            style: NexusTypography.mono.copyWith(color: colors.faint),
-          ),
-        ],
-      ],
-    );
-  }
-}
