@@ -20,6 +20,17 @@ class SkillsPanel extends ConsumerStatefulWidget {
 class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   final _repo = TextEditingController(text: SkillSource.officialRepo);
   final _newName = TextEditingController();
+  final _search = TextEditingController();
+
+  /// Cuántas del repo se enseñan de una vez, y con qué se filtran.
+  ///
+  /// Hace falta desde que el escáner deja de recortar a 100: hay repos con
+  /// **cientos** —`davila7/claude-code-templates` tiene 896— y una lista sin
+  /// buscador ahí no sirve de nada. Es la misma solución que ya usan los
+  /// plugins con sus 287, y por el mismo motivo: lo que queda fuera se dice,
+  /// no se recorta en silencio.
+  static const _shown = 20;
+  var _query = '';
 
   /// El repo que se está mirando. Aparte de lo escrito en la caja para que
   /// teclear no dispare un clon por letra.
@@ -31,7 +42,23 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
   void dispose() {
     _repo.dispose();
     _newName.dispose();
+    _search.dispose();
     super.dispose();
+  }
+
+  /// Filtra por nombre **y por descripción**: la descripción es lo único que el
+  /// agente lee para decidir si activarse, así que buscar «flutter» tiene que
+  /// encontrar la que se llama `mobile-design` y lo menciona dentro.
+  List<Skill> _filtrar(List<Skill> skills) {
+    final q = _query.trim().toLowerCase();
+    if (q.isEmpty) return skills;
+    return skills
+        .where(
+          (skill) =>
+              skill.id.toLowerCase().contains(q) ||
+              skill.description.toLowerCase().contains(q),
+        )
+        .toList();
   }
 
   Future<void> _act(Future<String?> Function() action) async {
@@ -140,7 +167,17 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
           AsyncData(:final value) => Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final skill in value.skills)
+              // El total va en la cabecera y el buscador debajo: con cientos de
+              // skills, enseñar veinte sin decir cuántas hay se lee como «esto
+              // es todo lo que trae el repo».
+              _Heading(strings.skillsCatalog(value.skills.length)),
+              _Field(
+                controller: _search,
+                hint: strings.skillsSearchHint,
+                onChanged: (texto) => setState(() => _query = texto),
+              ),
+              const SizedBox(height: NexusSpacing.s3),
+              for (final skill in _filtrar(value.skills).take(_shown))
                 _SkillRow(
                   skill: skill,
                   dimmed: ids.contains(skill.id),
@@ -168,6 +205,16 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                     tooltip: ids.contains(skill.id)
                         ? strings.skillsUpdate
                         : strings.skillsInstall,
+                  ),
+                ),
+              if (_filtrar(value.skills).length > _shown)
+                Padding(
+                  padding: const EdgeInsets.only(top: NexusSpacing.s2),
+                  child: Text(
+                    strings.skillsMore(
+                      _filtrar(value.skills).length - _shown,
+                    ),
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
                   ),
                 ),
             ],
@@ -277,10 +324,11 @@ class _Heading extends StatelessWidget {
 }
 
 class _Field extends StatelessWidget {
-  const _Field({required this.controller, required this.hint});
+  const _Field({required this.controller, required this.hint, this.onChanged});
 
   final TextEditingController controller;
   final String hint;
+  final ValueChanged<String>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -288,6 +336,7 @@ class _Field extends StatelessWidget {
 
     return TextField(
       controller: controller,
+      onChanged: onChanged,
       style: NexusTypography.mono.copyWith(color: colors.ink),
       decoration: InputDecoration(
         isDense: true,

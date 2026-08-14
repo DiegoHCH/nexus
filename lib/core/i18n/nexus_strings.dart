@@ -95,6 +95,9 @@ abstract class NexusStrings {
   String get skillsInstalled;
   String get skillsNone;
   String get skillsFromRepo;
+  String get skillsSearchHint;
+  String skillsCatalog(int total);
+  String skillsMore(int rest);
   String get skillsBrowse;
   String get skillsInstall;
   String get skillsUpdate;
@@ -457,6 +460,12 @@ class NexusStringsEs extends NexusStrings {
   String get skillsNone => 'Ninguna todavía.';
   @override
   String get skillsFromRepo => 'Traer de un repositorio';
+  @override
+  String get skillsSearchHint => 'buscar entre las del repo';
+  @override
+  String skillsCatalog(int total) => 'Las que trae el repo ($total)';
+  @override
+  String skillsMore(int rest) => 'Y $rest más. Busca para verlas.';
   @override
   String get skillsBrowse => 'Ver qué trae';
   @override
@@ -1044,6 +1053,12 @@ class NexusStringsEn extends NexusStrings {
   String get skillsNone => 'None yet.';
   @override
   String get skillsFromRepo => 'Bring some from a repository';
+  @override
+  String get skillsSearchHint => "search the repo's";
+  @override
+  String skillsCatalog(int total) => 'What the repo brings ($total)';
+  @override
+  String skillsMore(int rest) => 'And $rest more. Search to see them.';
   @override
   String get skillsBrowse => 'See what it has';
   @override
