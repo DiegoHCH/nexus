@@ -213,6 +213,10 @@ abstract class NexusStrings {
   String compacting(int percent);
   String compacted(int before, int after);
 
+  /// Se comprimió, pero todavía no hay medida nueva: llega con el turno
+  /// siguiente. Decir una cifra inventada sería peor que no darla.
+  String get compactedUnknown;
+
   // Historial
   String get history;
   String get historyExplainer;
@@ -661,6 +665,10 @@ class NexusStringsEs extends NexusStrings {
   String compacting(int percent) =>
       'Contexto al $percent %: comprimiendo la conversación para seguir sin '
       'perder el hilo';
+  @override
+  String get compactedUnknown =>
+      'Conversación comprimida. La medida del contexto se actualiza en el '
+      'siguiente turno.';
   @override
   String compacted(int before, int after) =>
       'Conversación comprimida: el contexto baja del $before % al $after %. '
@@ -1247,6 +1255,9 @@ class NexusStringsEn extends NexusStrings {
   String compacting(int percent) =>
       'Context at $percent%: compacting the conversation so it can go on '
       'without losing the thread';
+  @override
+  String get compactedUnknown =>
+      'Conversation compacted. The context reading updates on the next turn.';
   @override
   String compacted(int before, int after) =>
       'Conversation compacted: context drops from $before% to $after%. Claude '
