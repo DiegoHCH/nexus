@@ -119,6 +119,31 @@ class HoldVoiceConversation {
     var sentFrames = 0;
     var eventsSeen = 0;
 
+    /// El reloj de la sesión, y las dos marcas que hacen falta para saber si
+    /// b11 es lo que parece.
+    ///
+    /// Los contadores dicen **cuántos** trozos y eventos, no **cuándo**, y sin
+    /// eso no se puede distinguir «el servicio tardó más que el plazo» de «el
+    /// micrófono entrega cinco veces menos de lo normal»: las dos cosas se ven
+    /// igual en un recuento. Con el reloj, un trozo pasa a valer milisegundos y
+    /// la sospecha se convierte en una cifra.
+    final clock = Stopwatch()..start();
+
+    /// Cuándo contestó el servicio que la sesión está montada.
+    int? readyAt;
+
+    /// Cuándo llegó el primer evento que **no** es ese: la primera señal de que
+    /// nos oyó. Es el que corre contra [_idleTimeout], y por tanto el número
+    /// que decide si esto era una carrera perdida.
+    int? heardAt;
+
+    String reloj() {
+      final ready = readyAt == null ? '—' : '${readyAt}ms';
+      final heard = heardAt == null ? 'todavía nada' : '${heardAt}ms';
+      return 't+${clock.elapsedMilliseconds}ms · sesión lista en $ready · '
+          'primera señal del servicio en $heard';
+    }
+
     Future<void> shutdown() async {
       closing = true;
       // Primero el encargo: si hay un `claude -p` en marcha, cerrar la
@@ -172,7 +197,8 @@ class HoldVoiceConversation {
           'voz · cierre por inactividad tras ${_idleTimeout.inSeconds} s · '
           '$micFrames trozos del micro, $sentFrames enviados, '
           '$eventsSeen eventos recibidos · $turn turnos, '
-          '$answeredAlone corregidos, $stale descartados por viejos',
+          '$answeredAlone corregidos, $stale descartados por viejos · '
+          '${reloj()}',
         );
         await shutdown();
         if (!controller.isClosed) await controller.close();
@@ -399,6 +425,15 @@ class HoldVoiceConversation {
           // pareciendo un servicio caído.
           reconnects = 0;
           eventsSeen++;
+          // El montaje de la sesión no cuenta como «nos oyó»: llega siempre,
+          // hables o no, y es justo el único evento que tenían las sesiones
+          // que fallaron.
+          if (event is VoiceSessionReady) {
+            readyAt ??= clock.elapsedMilliseconds;
+          } else if (heardAt == null) {
+            heardAt = clock.elapsedMilliseconds;
+            _log('voz · primera señal del servicio · ${reloj()}');
+          }
           keepAlive();
           switch (event) {
             // El audio no sale hacia la interfaz: se reproduce y punto. Lo
@@ -491,7 +526,7 @@ class HoldVoiceConversation {
             if (micFrames % 25 == 0) {
               _log(
                 'voz · $micFrames trozos del micro, $sentFrames enviados · '
-                '$eventsSeen eventos recibidos',
+                '$eventsSeen eventos recibidos · ${reloj()}',
               );
             }
           },
