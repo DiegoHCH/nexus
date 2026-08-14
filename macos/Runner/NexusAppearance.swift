@@ -30,6 +30,28 @@ final class NexusAppearance {
     red: 0xE9 / 255, green: 0xEE / 255, blue: 0xF5 / 255, alpha: 1
   )
 
+  /// El último tema aplicado, para las ventanas que **aún no existían**.
+  ///
+  /// `apply` recorre las ventanas abiertas, y el visor de documentos nace
+  /// después: sin esto se queda con la apariencia del sistema en vez de con la
+  /// elegida en la app, que es justo el fallo que este archivo viene a cerrar.
+  private(set) static var isDark: Bool = systemIsDark()
+
+  /// El `--void` de ahora, para quien tenga que pintarlo por su cuenta.
+  static var voidColor: NSColor { isDark ? voidDark : voidLight }
+
+  /// El mismo color en CSS, que es como lo necesita el visor. Se deriva del
+  /// `NSColor` y no se escribe a mano para que no puedan separarse.
+  static var voidCSS: String {
+    let color = voidColor.usingColorSpace(.sRGB) ?? .black
+    return String(
+      format: "#%02X%02X%02X",
+      Int((color.redComponent * 255).rounded()),
+      Int((color.greenComponent * 255).rounded()),
+      Int((color.blueComponent * 255).rounded())
+    )
+  }
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "com.katanalabs.nexus/appearance",
@@ -64,6 +86,7 @@ final class NexusAppearance {
   /// documentos es una ventana aparte, y dejarla con el tema anterior sería
   /// exactamente el fallo que esto viene a cerrar, un paso más allá.
   static func apply(dark: Bool) {
+    isDark = dark
     let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     let background = dark ? voidDark : voidLight
     for window in NSApplication.shared.windows {

@@ -59,7 +59,9 @@ final class NexusArtifacts: NSObject {
 }
 
 /// Una ventana con el documento, que se entera de que ha cambiado.
-private final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
+/// Interna y no privada para que `RunnerTests` pueda construir una y comprobar
+/// cómo se cierra. Es justo la parte que no se puede probar desde Dart.
+final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   let window: NSWindow
   private let web = WKWebView()
   private let url: URL
@@ -82,6 +84,19 @@ private final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
       defer: false
     )
     super.init()
+
+    // Una `NSWindow` creada a mano llega con `isReleasedWhenClosed = true`: al
+    // cerrarla, AppKit la libera. Pero aquí la ventana **la posee el `Viewer`**
+    // con una referencia fuerte, así que ARC la libera también. Ese release de
+    // más mataba la app entera al cerrar el visor: `EXC_BAD_ACCESS` en
+    // `-[_NSWindowTransformAnimation dealloc]`, la animación de cierre soltando
+    // algo que ya no estaba.
+    window.isReleasedWhenClosed = false
+
+    // La apariencia elegida en la app, no la del sistema: esta ventana nace
+    // después de que `apply` haya recorrido las suyas.
+    window.appearance = NSAppearance(named: NexusAppearance.isDark ? .darkAqua : .aqua)
+    window.backgroundColor = NexusAppearance.voidColor
 
     window.title = url.lastPathComponent
     window.center()
@@ -140,7 +155,45 @@ private final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
     }
   }
 
+  /// Los formatos que `WKWebView` abre como **documento de imagen**.
+  ///
+  /// Con una imagen suelta, WebKit hace lo que hace un navegador: la pinta a
+  /// tamaño natural, pegada arriba a la izquierda y sobre blanco. Eso, en una
+  /// ventana de 1000×780, deja una captura pequeña en una esquina.
+  ///
+  /// Los demás formatos no se tocan: el HTML trae su propia maquetación, y el
+  /// PDF ya lo encuadra el visor del sistema.
+  static func isImage(_ path: String) -> Bool {
+    let images: Set<String> = [
+      "png", "jpg", "jpeg", "gif", "bmp", "webp", "heic", "heif", "tiff", "tif", "ico",
+    ]
+    return images.contains(URL(fileURLWithPath: path).pathExtension.lowercased())
+  }
+
+  /// La imagen, centrada y a toda la ventana.
+  ///
+  /// `object-fit: contain` y no `cover`: llenar recortando un mockup es perder
+  /// justo lo que se viene a mirar. Se permite agrandar —una captura de Retina
+  /// llega a la mitad de su tamaño en píxeles CSS y se veía diminuta—, con un
+  /// margen para que no quede pegada al marco.
+  private func frameImage(_ webView: WKWebView) {
+    let fondo = NexusAppearance.voidCSS
+    webView.evaluateJavaScript(
+      """
+      document.documentElement.style.height = '100%';
+      document.body.style.cssText =
+        'margin:0;padding:16px;box-sizing:border-box;height:100%;display:flex;\
+      align-items:center;justify-content:center;background:\(fondo)';
+      var imagen = document.images[0];
+      if (imagen) {
+        imagen.style.cssText = 'width:100%;height:100%;object-fit:contain';
+      }
+      """
+    )
+  }
+
   func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+    if Viewer.isImage(url.path) { frameImage(webView) }
     guard scrollY > 0 else { return }
     webView.evaluateJavaScript("window.scrollTo(0, \(scrollY))")
   }
@@ -164,6 +217,10 @@ private final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   func windowWillClose(_ notification: Notification) {
     pending?.cancel()
     watcher?.cancel()
-    onClose()
+    // Al siguiente turno del run loop, no aquí mismo. `onClose` saca este
+    // `Viewer` del diccionario, que es quien lo sostiene: soltarlo dentro de
+    // `windowWillClose` lo destruye —y con él la ventana— mientras AppKit
+    // todavía está cerrándola. Es la segunda mitad del mismo fallo.
+    DispatchQueue.main.async { [onClose] in onClose() }
   }
 }
