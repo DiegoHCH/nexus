@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/design_system/appearance_channel.dart';
+import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -108,6 +110,18 @@ class _MainAppState extends ConsumerState<MainApp> {
     // literal con sus ~40 campos a mano. El costo real es nulo: light()/
     // dark() ya cachean el resultado en un static final.
     final locale = ref.watch(localeProvider);
+
+    // El marco de la ventana va por libre —es AppKit— así que se le avisa cada
+    // vez que cambia lo que toca pintar. `ref.listen` y no una llamada en el
+    // build: esto es un efecto sobre el sistema, no parte de dibujar.
+    ref.listen(isDarkProvider, (previous, next) {
+      if (previous != next) AppearanceChannel.apply(dark: next);
+    });
+    // Y la primera vez, que `listen` no dispara solo: al arrancar, el marco lo
+    // puso Swift con lo que dice el sistema, y aquí ya se sabe si el usuario
+    // eligió otra cosa.
+    AppearanceChannel.apply(dark: ref.watch(isDarkProvider));
+
     return MaterialApp(
       navigatorKey: _navigatorKey,
       // La cinta de «DEBUG» fuera: esta app se usa a diario en compilación de
@@ -116,7 +130,7 @@ class _MainAppState extends ConsumerState<MainApp> {
       debugShowCheckedModeBanner: false,
       theme: NexusTheme.light(),
       darkTheme: NexusTheme.dark(),
-      themeMode: ThemeMode.system,
+      themeMode: ref.watch(themeControllerProvider).mode,
       locale: locale,
       supportedLocales: NexusStrings.supported,
       // Los de Flutter, para que los widgets de Material —menús, selección de

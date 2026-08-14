@@ -104,6 +104,13 @@ Future<void> pumpScreen(
   // `cast()` de abajo lo recupera sin importar sus tripas, que es lo que
   // rompería con la próxima versión.
   List<Object> overrides = const [],
+
+  /// El tema con el que se dibuja. Existe porque **el tema claro nunca se
+  /// había mirado**: estaba construido y cableado, pero sin forma de elegirlo
+  /// nadie lo vio nunca puesto, así que ninguna pantalla se había comprobado
+  /// en claro. Un desbordamiento o un texto ilegible ahí no rompen ninguna
+  /// regla — solo se ven.
+  ThemeData? theme,
 }) async {
   tester.view.physicalSize = size;
   tester.view.devicePixelRatio = 1;
@@ -117,7 +124,7 @@ Future<void> pumpScreen(
         ...overrides.cast(),
       ],
       child: MaterialApp(
-        theme: NexusTheme.dark(),
+        theme: theme ?? NexusTheme.dark(),
         builder: (context, child) =>
             StringsScope(strings: const NexusStringsEs(), child: child!),
         home: screen,

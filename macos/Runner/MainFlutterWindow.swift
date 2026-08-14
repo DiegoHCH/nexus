@@ -29,18 +29,25 @@ class MainFlutterWindow: NSWindow {
     NexusPower.register(
       with: flutterViewController.registrar(forPlugin: "NexusPower")
     )
+    NexusAppearance.register(
+      with: flutterViewController.registrar(forPlugin: "NexusAppearance")
+    )
 
-    // Marco oscuro, no sin marco: la barra de título se funde con --void
-    // (#04070D) en vez del cromo claro por defecto de macOS. Se fuerza
-    // .darkAqua en el marco nativo sin importar el tema del sistema —el
-    // contenido de Flutter sigue el tema claro/oscuro del sistema aparte,
-    // vía ThemeMode.system— porque es la identidad visual del HUD, no una
-    // preferencia de accesibilidad.
+    // Marco fundido, no sin marco: la barra de título se funde con el --void
+    // del tema en vez de llevar el cromo por defecto de macOS. Eso no cambia.
+    //
+    // Lo que sí cambió: antes se forzaba `.darkAqua` **sin mirar nada**, y el
+    // comentario lo llamaba identidad visual del HUD. Lo era mientras el tema
+    // claro no se podía elegir; ahora que se elige, un contenido claro dentro
+    // de una barra de título negra no es identidad, es un tema a medias.
+    //
+    // Aquí se arranca con lo que diga el sistema y **Dart corrige después** con
+    // la preferencia guardada. Al revés —arrancar siempre oscuro— parpadeaba en
+    // negro un fotograma antes de aclararse, que es justo lo que se nota.
     self.titlebarAppearsTransparent = true
     self.titleVisibility = .hidden
-    self.appearance = NSAppearance(named: .darkAqua)
-    self.backgroundColor = NSColor(red: 0x04 / 255, green: 0x07 / 255, blue: 0x0D / 255, alpha: 1)
     self.isOpaque = true
+    NexusAppearance.apply(dark: NexusAppearance.systemIsDark())
 
     super.awakeFromNib()
   }

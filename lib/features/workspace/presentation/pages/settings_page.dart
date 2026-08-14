@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -134,6 +135,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             _Section.history => const _HistorySection(),
                             _Section.stats => const StatsSection(),
                             _Section.superpowers => const SuperpowersSection(),
+                            _Section.appearance => const _AppearanceSection(),
                             _Section.language => const _LanguageSection(),
                           },
                         ),
@@ -643,6 +645,7 @@ enum _Section {
   history,
   stats,
   superpowers,
+  appearance,
   language;
 
   String title(NexusStrings strings) => switch (this) {
@@ -651,6 +654,7 @@ enum _Section {
     _Section.history => strings.sectionHistory,
     _Section.stats => strings.sectionStats,
     _Section.superpowers => strings.sectionSuperpowers,
+    _Section.appearance => strings.sectionAppearance,
     _Section.language => strings.sectionLanguage,
   };
 }
@@ -918,6 +922,47 @@ class _NotionFieldsState extends State<_NotionFields> {
 /// hasta ahora la interfaz estaba escrita a mano en español. Cambiarlo aquí
 /// cambia también cómo contestan los modelos: una app en inglés con una voz que
 /// responde en español sería lo peor de los dos mundos.
+/// Claro u oscuro, elegido a mano.
+///
+/// Va aparte del idioma aunque compartan forma: son dos preferencias de la app
+/// y meterlas en la misma pantalla obligaría a leerse una para cambiar la otra.
+class _AppearanceSection extends ConsumerWidget {
+  const _AppearanceSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final choice = ref.watch(themeControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.themeTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.themeExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        _Chooser<ThemeChoice>(
+          value: choice,
+          options: ThemeChoice.values,
+          label: (option) => switch (option) {
+            ThemeChoice.system => strings.themeSystem,
+            ThemeChoice.light => strings.themeLight,
+            ThemeChoice.dark => strings.themeDark,
+          },
+          onSelected: ref.read(themeControllerProvider.notifier).select,
+        ),
+      ],
+    );
+  }
+}
+
 class _LanguageSection extends ConsumerWidget {
   const _LanguageSection();
 

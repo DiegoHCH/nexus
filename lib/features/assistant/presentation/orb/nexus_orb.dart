@@ -42,7 +42,21 @@ class _NexusOrbState extends State<NexusOrb>
       _ticker.stop();
       // Pose fija, misma que usa el propio tracker del proyecto para lo mismo.
       _time.value = 0.7;
-    } else if (!_ticker.isTicking) {
+    } else if (!_ticker.isActive) {
+      // `isActive` y no `isTicking`, y la diferencia es la que reventaba.
+      //
+      // `isTicking` es **false cuando el ticker está silenciado** —dentro de un
+      // `TickerMode` apagado, lo normal durante una transición— pero `isActive`
+      // sigue siendo `true`, y `start()` revienta con «a ticker was started
+      // twice» sobre un ticker activo. La guarda miraba la propiedad
+      // equivocada.
+      //
+      // Era una trampa latente que nadie disparaba porque el tema no cambiaba
+      // nunca. Al poder elegirlo, la preferencia guardada se lee justo después
+      // de arrancar y eso cambia el tema una vez: ahí `didChangeDependencies`
+      // vuelve a entrar, y con el ticker silenciado se llamaba a `start()` de
+      // nuevo. Contado en el registro: 23 excepciones en una sola sesión, y
+      // ninguna en las doce anteriores a este cambio.
       _ticker.start();
     }
   }
