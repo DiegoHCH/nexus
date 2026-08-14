@@ -52,6 +52,17 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// solo produjo fallos sigue siendo reintentable.
     final withheld = <ClaudeEvent>[];
 
+    /// El prompt de la **última petición**, que es el contexto de verdad.
+    ///
+    /// El `usage` del `result` no sirve para esto: es del turno entero, y un
+    /// turno con herramientas hace **varias peticiones**, cada una reenviando
+    /// el contexto completo. Sumarlas cuenta lo mismo muchas veces. Medido
+    /// contra el binario con un turno de cuatro peticiones: la última pedía
+    /// 32.898 tokens y el `result` reportaba 61.594, casi el doble. Con turnos
+    /// largos eso pasaba del 100 % de la ventana — se vio un «132 %», que es lo
+    /// que destapó esto.
+    int? contextoVivo;
+
     try {
       final context = await _projectContext.read(workingDirectory);
       await for (final json in _dataSource.run(
@@ -84,13 +95,33 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           artifactsFolder: artifactsFolder,
         ),
       )) {
+        // Cada mensaje del asistente es una petición: su `usage` dice cuánto
+        // contexto llevaba **esa**. La última gana.
+        if (json['type'] == 'assistant') {
+          final usage =
+              (json['message'] as Map<String, dynamic>?)?['usage']
+                  as Map<String, dynamic>?;
+          if (usage != null) contextoVivo = _promptTokens(usage);
+        }
         for (final event in _decode(json, workingDirectory)) {
           if (resumeSessionId != null && !emitted && event is ClaudeFailed) {
             withheld.add(event);
             continue;
           }
           emitted = true;
-          yield event;
+          // El fin de turno sale con el contexto de la última petición, no con
+          // el acumulado que trae el `result`.
+          yield switch (event) {
+            ClaudeTurnCompleted() when contextoVivo != null =>
+              ClaudeTurnCompleted(
+                result: event.result,
+                costUsd: event.costUsd,
+                durationMs: event.durationMs,
+                turnTokens: event.turnTokens,
+                contextTokens: contextoVivo,
+              ),
+            _ => event,
+          };
         }
       }
       // Terminó sin excepción: lo retenido era un fallo de verdad y se cuenta.
@@ -125,6 +156,18 @@ class ClaudeBridgeImpl implements ClaudeBridge {
       }
       yield ClaudeFailed(e.toString());
     }
+  }
+
+  /// Cuánto contexto llevaba una petición.
+  ///
+  /// La caché cuenta: son tokens que ya están en la ventana aunque no se
+  /// vuelvan a enviar, y no contarlos haría parecer vacía una conversación
+  /// larga.
+  static int _promptTokens(Map<String, dynamic> usage) {
+    int count(String key) => (usage[key] as num?)?.toInt() ?? 0;
+    return count('input_tokens') +
+        count('cache_creation_input_tokens') +
+        count('cache_read_input_tokens');
   }
 
   /// Traduce una línea de `stream-json` a los [ClaudeEvent] que la interfaz
@@ -198,13 +241,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         }
         final usage = json['usage'] as Map<String, dynamic>? ?? const {};
         int count(String key) => (usage[key] as num?)?.toInt() ?? 0;
-        // La caché cuenta: son tokens que ya están en la ventana aunque no se
-        // vuelvan a enviar, y no contarlos haría parecer vacía una
-        // conversación larga.
-        final prompt =
-            count('input_tokens') +
-            count('cache_creation_input_tokens') +
-            count('cache_read_input_tokens');
+        final prompt = _promptTokens(usage);
 
         return [
           ClaudeTurnCompleted(

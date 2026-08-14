@@ -453,6 +453,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (before == null || before < _compactAtPercent) return;
 
     _compacting = true;
+    int? medido;
     final strings = ref.read(stringsProvider);
     state = state.copyWith(
       activity: [
@@ -471,15 +472,28 @@ class AssistantController extends Notifier<AssistantHudState> {
         remember: false,
       )) {
         if (event case ClaudeTurnCompleted(:final contextTokens)) {
+          medido = contextTokens;
           state = state.copyWith(
             meter: state.meter.copyWith(contextTokens: contextTokens),
           );
         }
       }
       _onClaudeToolFinished(_compactItemId);
-      final after = state.meter.contextPercent;
-      if (after != null) {
+
+      // **Solo se anuncia una bajada si de verdad se midió otra vez.**
+      //
+      // `copyWith` conserva el valor anterior cuando le llega `null`, así que
+      // un `/compact` que no reporta contexto dejaba el medidor intacto — y el
+      // aviso salía como «el contexto baja del 132 % al 132 %», que además de
+      // no decir nada hacía dudar de si la compresión había hecho algo. Sí la
+      // hizo: lo que faltaba era la medida nueva, que llega con el turno
+      // siguiente.
+      final after = medido == null ? null : state.meter.contextPercent;
+      if (after != null && after != before) {
         _say(ChatAuthor.nexus, strings.compacted(before, after));
+        _sealLast();
+      } else {
+        _say(ChatAuthor.nexus, strings.compactedUnknown);
         _sealLast();
       }
     } catch (error) {
