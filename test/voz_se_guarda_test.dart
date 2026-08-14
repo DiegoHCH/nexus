@@ -77,9 +77,9 @@ class _Store implements LocalConversationStore {
 class _NoMemory implements ConversationMemory {
   const _NoMemory();
   @override
-  Future<FolderMemory> read(String folderPath) async => const FolderMemory();
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async => const FolderMemory();
   @override
-  Future<void> rememberSession(String folderPath, String sessionId) async {}
+  Future<void> rememberSession(String folderPath, String sessionId, {String? claudeProfile}) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override

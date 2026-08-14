@@ -122,10 +122,10 @@ class _Bridge implements ClaudeBridge {
 
 class _Memory implements ConversationMemory {
   @override
-  Future<FolderMemory> read(String folderPath) async =>
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
       const FolderMemory(sessionId: null, prompts: []);
   @override
-  Future<void> rememberSession(String folderPath, String id) async {}
+  Future<void> rememberSession(String folderPath, String id, {String? claudeProfile}) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override

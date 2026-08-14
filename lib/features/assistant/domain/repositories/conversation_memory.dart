@@ -26,9 +26,20 @@ class FolderMemory {
 }
 
 abstract class ConversationMemory {
-  Future<FolderMemory> read(String folderPath);
+  /// [claudeProfile] porque **una sesión es de la carpeta y de la cuenta**, no
+  /// solo de la carpeta. Las sesiones que guarda Claude Code viven dentro del
+  /// `CLAUDE_CONFIG_DIR` de cada cuenta, así que la misma carpeta abierta con
+  /// otro perfil no tiene esa sesión — y reanudarla fallaba con «No
+  /// conversation found with session ID» (b14). Lo pedido, en cambio, sigue
+  /// siendo de la carpeta: es para repetir una petición, y quién la ejecutó da
+  /// igual.
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile});
 
-  Future<void> rememberSession(String folderPath, String sessionId);
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  });
 
   Future<void> rememberPrompt(String folderPath, String prompt);
 

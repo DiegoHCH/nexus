@@ -93,7 +93,12 @@ class AskClaude {
         // producto. Dos chats sobre el mismo repo comparten contexto —reanudan
         // la misma sesión de Claude— y dos sobre repos distintos no se enteran el
         // uno del otro. La carpeta es la frontera.
-        final memory = await _memory.read(folder);
+        // La sesión se pide **para esta cuenta**: la misma carpeta abierta
+        // con otro perfil no tiene la del anterior, y reanudarla fallaba.
+        final memory = await _memory.read(
+          folder,
+          claudeProfile: context.claudeProfile,
+        );
         if (remember) await _memory.rememberPrompt(folder, instruction);
 
         await for (final event in _bridge.ask(
@@ -120,7 +125,11 @@ class AskClaude {
           if (event case ClaudeSessionStarted(
             :final sessionId,
           ) when sessionId.isNotEmpty) {
-            await _memory.rememberSession(folder, sessionId);
+            await _memory.rememberSession(
+              folder,
+              sessionId,
+              claudeProfile: context.claudeProfile,
+            );
           }
           yield event;
         }
