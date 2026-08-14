@@ -303,6 +303,17 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    _afterErrand();
+  }
+
+  /// Lo que hay que hacer cuando un encargo termina, **venga de donde venga**.
+  ///
+  /// Vivía dentro de [_onTurnCompleted], que solo corre escribiendo: hablando,
+  /// los turnos de Claude los consume el caso de uso de voz y no llegan aquí.
+  /// El resultado era que una conversación entera por voz no releía la rama, no
+  /// miraba los cambios y —lo peor— **no se guardaba en el historial**, porque
+  /// `_archive` colgaba de aquí y de ningún otro sitio.
+  void _afterErrand() {
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
@@ -566,7 +577,7 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceToolStarted() => _onToolStarted(event.instruction),
         VoiceToolProgress() => _onToolProgress(event.text),
         VoiceToolActivity() => _onVoiceActivity(event),
-        VoiceToolFinished() => _onToolFinished(),
+        VoiceToolFinished() => _onToolFinished(event),
         VoiceSessionFailed() => unawaited(_onVoiceFailed(event.message)),
         // El audio no llega hasta aquí: lo reproduce el caso de uso. La
         // interfaz solo necesita el texto y el estado.
@@ -652,6 +663,12 @@ class AssistantController extends Notifier<AssistantHudState> {
     _heard.clear();
     _reply.clear();
     state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: false);
+    // Se guarda también cuando el turno lo contestó Gemini solo, sin pasar por
+    // Claude: eso sigue siendo una conversación con mensajes, y era el caso que
+    // desaparecía entero del historial. Guardar es reescribir el mismo registro,
+    // así que hacerlo cada turno es barato e idempotente — la misma razón por
+    // la que ya se hacía turno a turno escribiendo.
+    unawaited(_archive());
   }
 
   /// Se muestra la instrucción que redactó Gemini, no lo que dijo el usuario:
@@ -696,9 +713,20 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   /// El resultado ya viajó de vuelta al modelo: lo siguiente que llegue será
   /// su narración hablada, así que aquí solo se suelta el estado de trabajo.
-  void _onToolFinished() {
+  void _onToolFinished(VoiceToolFinished event) {
     _reply.clear();
-    state = state.copyWith(orbState: NexusOrbState.listen, isStreaming: false);
+    state = state.copyWith(
+      orbState: NexusOrbState.listen,
+      isStreaming: false,
+      // Las cifras del turno de Claude, que hablando llegan por aquí. Sin
+      // ellas la ventana de contexto se quedaba en «Sin dato» toda la
+      // conversación, mientras que escribiendo lo mismo sí se veía.
+      meter: state.meter.copyWith(
+        turnTokens: event.turnTokens,
+        contextTokens: event.contextTokens,
+      ),
+    );
+    _afterErrand();
   }
 
   Future<void> _onVoiceFailed(String message) async {

@@ -107,9 +107,25 @@ final class VoiceToolProgress extends VoiceEvent {
 /// Terminó el encargo. El resultado ya viajó de vuelta al modelo, que lo
 /// narrará en el siguiente turno hablado.
 final class VoiceToolFinished extends VoiceEvent {
-  const VoiceToolFinished({required this.ok});
+  const VoiceToolFinished({
+    required this.ok,
+    this.turnTokens,
+    this.contextTokens,
+  });
 
   final bool ok;
+
+  /// Lo que gastó el encargo y cuánta ventana lleva ocupada la sesión.
+  ///
+  /// Viajan hasta aquí porque **el medidor de contexto se alimenta del turno de
+  /// Claude**, y hablando esos turnos los consume el caso de uso de voz: se
+  /// quedaban dentro y la pantalla nunca se enteraba. El efecto era una
+  /// conversación hablada entera con la ventana de contexto en «Sin dato»,
+  /// mientras que escribiendo lo mismo sí se veía. `null` cuando el encargo
+  /// falló o se canceló: ahí no hay medida que dar, y poner cero se leería como
+  /// una sesión vacía comprobada.
+  final int? turnTokens;
+  final int? contextTokens;
 }
 
 /// El modelo terminó su turno.

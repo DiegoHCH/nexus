@@ -196,6 +196,8 @@ class HoldVoiceConversation {
       final answer = StringBuffer();
       var ok = true;
       var aborted = false;
+      int? turnTokens;
+      int? contextTokens;
       final ended = Completer<void>();
       void finish() {
         if (!ended.isCompleted) ended.complete();
@@ -227,6 +229,11 @@ class HoldVoiceConversation {
                   ..clear()
                   ..write(result);
               }
+              // Las cifras del turno se guardan para sacarlas con el final del
+              // encargo: son las que mueven el medidor de contexto, y hasta
+              // ahora morían aquí dentro.
+              turnTokens = event.turnTokens;
+              contextTokens = event.contextTokens;
             case ClaudeFailed(:final message):
               ok = false;
               answer
@@ -283,7 +290,13 @@ class HoldVoiceConversation {
       // Cancelado: no hay a quién contestar, la sesión se está cerrando.
       if (aborted || closing) return null;
 
-      controller.add(VoiceToolFinished(ok: ok));
+      controller.add(
+        VoiceToolFinished(
+          ok: ok,
+          turnTokens: turnTokens,
+          contextTokens: contextTokens,
+        ),
+      );
       keepAlive();
       return answer.isEmpty
           ? 'La tarea terminó sin devolver nada.'
