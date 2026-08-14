@@ -68,6 +68,12 @@ abstract class NexusStrings {
 
   // Superpoderes: servidores MCP de cada cuenta.
   String get sectionSuperpowers;
+  String get sectionAppearance;
+  String get themeTitle;
+  String get themeExplainer;
+  String get themeSystem;
+  String get themeLight;
+  String get themeDark;
   String get mcpExplainer;
   String get mcpInstalled;
   String get mcpNone;
@@ -391,6 +397,21 @@ class NexusStringsEs extends NexusStrings {
       '$input entrada · $output salida';
   @override
   String get sectionSuperpowers => 'Superpoderes';
+  @override
+  String get sectionAppearance => 'Apariencia';
+  @override
+  String get themeTitle => 'Claro u oscuro';
+  @override
+  String get themeExplainer =>
+      'La app nace oscura porque es un HUD, y de noche eso se agradece. Pero a '
+      'pleno día un fondo negro se lee peor, y nadie va a cambiar el tema del '
+      'Mac entero para eso: aquí se elige aparte.';
+  @override
+  String get themeSystem => 'El del sistema';
+  @override
+  String get themeLight => 'Claro';
+  @override
+  String get themeDark => 'Oscuro';
   @override
   String get mcpExplainer =>
       'Un servidor MCP le da a Claude manos fuera del disco: un navegador, la '
@@ -963,6 +984,21 @@ class NexusStringsEn extends NexusStrings {
   String statsInOut(String input, String output) => '$input in · $output out';
   @override
   String get sectionSuperpowers => 'Superpowers';
+  @override
+  String get sectionAppearance => 'Appearance';
+  @override
+  String get themeTitle => 'Light or dark';
+  @override
+  String get themeExplainer =>
+      'The app is born dark because it is a HUD, and at night that is welcome. '
+      'In broad daylight a black background reads worse, though, and nobody is '
+      'going to switch the whole Mac for that: pick it here instead.';
+  @override
+  String get themeSystem => "The system's";
+  @override
+  String get themeLight => 'Light';
+  @override
+  String get themeDark => 'Dark';
   @override
   String get mcpExplainer =>
       'An MCP server gives Claude hands beyond the disk: a browser, a '
