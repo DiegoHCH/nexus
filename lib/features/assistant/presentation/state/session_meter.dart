@@ -34,10 +34,18 @@ class SessionMeter {
   int get contextWindow =>
       (model?.contains('[1m]') ?? false) ? 1000000 : 200000;
 
+  /// Acotado al 100 %, como el círculo que lo acompaña.
+  ///
+  /// Una sesión reanudada puede traer más tokens que la ventana del modelo que
+  /// tiene puesto la carpeta ahora, y entonces la división pasa de uno. Eso es
+  /// un dato cierto, pero «132 %» se lee como un error de medida —lo fue
+  /// durante un tiempo— y no como «esto ya no cabe». Las dos cifras de al lado
+  /// siguen diciendo la verdad entera: `264,2k / 200,0k (100 %)` deja ver que
+  /// se pasó, sin pedirle al porcentaje que signifique algo que no significa.
   int? get contextPercent {
     final used = contextTokens;
     if (used == null || used <= 0) return null;
-    return ((used / contextWindow) * 100).round();
+    return ((used / contextWindow) * 100).round().clamp(0, 100);
   }
 
   /// Cuánto de la ventana va ocupado, de 0 a 1. Lo que llena el círculo.

@@ -54,5 +54,20 @@ void main() {
         1.0,
       );
     });
+
+    // El círculo ya se quedaba lleno; el texto de al lado seguía diciendo
+    // «132 %». Con la medida arreglada esa cifra sale de una sesión reanudada
+    // con más tokens que la ventana del modelo de ahora, y aun siendo cierta se
+    // lee como el error de medida que fue durante un tiempo.
+    test('el porcentaje tampoco se pasa del 100', () {
+      const desbordada = SessionMeter(
+        model: 'claude-opus-5',
+        contextTokens: 264200,
+      );
+      expect(desbordada.contextPercent, 100);
+      // Y las cifras de al lado siguen enseñando que se pasó: el tope está en
+      // el porcentaje, no en el dato.
+      expect(desbordada.contextLabel, '264,2k / 200,0k (100 %)');
+    });
   });
 }
