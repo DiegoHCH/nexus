@@ -26,6 +26,10 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  # Reloj de mentira para las pruebas: b11 va de plazos de 6 y 20 segundos, y
+  # esperarlos de verdad haría una suite que nadie corre. Ya venía de transitiva
+  # con flutter_test; se declara porque se usa directamente.
+  fake_async: ^1.3.3
 
 flutter:
   uses-material-design: true
