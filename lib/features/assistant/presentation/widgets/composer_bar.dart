@@ -10,6 +10,7 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
+import 'package:nexus/features/assistant/data/datasources/claude_usage_data_source.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
@@ -922,9 +923,9 @@ class _UsageMenu extends ConsumerWidget {
             width: 300,
             child: Consumer(
               builder: (context, ref, _) {
-                final usage = ref
-                    .watch(claudeUsageProvider(claudeProfile))
-                    .value;
+                final leido = ref.watch(claudeUsageProvider(claudeProfile));
+                final usage = leido.value?.usage;
+                final estado = leido.value?.state;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisSize: MainAxisSize.min,
@@ -959,9 +960,15 @@ class _UsageMenu extends ConsumerWidget {
                     if (usage == null)
                       // Sin dato no se dibuja una barra a cero: se leería como
                       // «no has gastado nada», que es lo contrario de «no se
-                      // sabe».
+                      // sabe». Y **el motivo importa**: que no haya sesión y
+                      // que la lectura esté caducada piden cosas distintas de
+                      // quien lo lee — iniciar sesión, o nada en absoluto.
                       Text(
-                        strings.usageUnavailable,
+                        switch (estado) {
+                          UsageState.staleReading => strings.usageStale,
+                          UsageState.unreachable => strings.usageUnreachable,
+                          _ => strings.usageUnavailable,
+                        },
                         style: NexusTypography.mono.copyWith(
                           color: colors.faint,
                         ),

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
 /// Cuánto llevas gastado de tu suscripción.
@@ -28,6 +29,30 @@ class ClaudeUsage {
   final DateTime? weeklyResetsAt;
 }
 
+/// Por qué no hay cifras, cuando no las hay.
+///
+/// Existe porque **«no hay sesión» y «la lectura caducó» no son lo mismo** y se
+/// estaban diciendo con la misma frase. El token de acceso que Claude Code
+/// guarda dura horas; el de refresco, semanas. Entre que vence el primero y
+/// vuelves a usar esa cuenta, la sesión sigue perfectamente abierta y la app
+/// decía que no la había — con cualquier cuenta que llevaras un rato sin tocar.
+enum UsageState {
+  /// Hay cifras.
+  ok,
+
+  /// Esa cuenta no ha iniciado sesión. Lo dice el CLI, no nuestra lectura del
+  /// llavero.
+  noSession,
+
+  /// Hay sesión, pero su acceso venció y todavía nadie lo ha renovado. Se
+  /// arregla solo en cuanto uses la cuenta: **quien renueva es el CLI**.
+  staleReading,
+
+  /// Hay token, pero el servicio no contestó: sin red, caído, o un 401 que no
+  /// esperábamos. No se sabe, y decir cero sería mentir distinto.
+  unreachable,
+}
+
 /// Lee el cupo de la suscripción por el mismo sitio que la app de la barra de
 /// menús: el endpoint OAuth, con el token que Claude Code guarda en el llavero.
 ///
@@ -36,7 +61,17 @@ class ClaudeUsage {
 /// últimas. Y con tres conversaciones en paralelo eso se agota tres veces más
 /// rápido.
 class ClaudeUsageDataSource {
-  const ClaudeUsageDataSource();
+  /// Los dos ganchos se inyectan **solo para poder probar la decisión**, que es
+  /// lo que este archivo aporta de verdad: cuándo se dice «no hay sesión»,
+  /// cuándo «la lectura caducó» y cuándo se pregunta por el cupo. De fábrica
+  /// son el llavero y el CLI de siempre.
+  const ClaudeUsageDataSource({this.readToken, this.askSession});
+
+  final Future<String?> Function(String configDir)? readToken;
+  final Future<bool> Function(String configDir)? askSession;
+
+  Future<String?> _token(String dir) => (readToken ?? _tokenFor)(dir);
+  Future<bool> _sesion(String dir) => (askSession ?? _loggedIn)(dir);
 
   /// `null` cuando no se puede saber, que es distinto de cero: sin sesión en
   /// ese perfil, con el token caducado o sin red, lo honesto es no dibujar una
@@ -45,14 +80,37 @@ class ClaudeUsageDataSource {
   /// Y es **de la cuenta que se pide, o de ninguna**. Antes, si esa no servía,
   /// se caía a otra: enseñaba el cupo de `work` estando en `private`, que es
   /// justo el número que no había que mirar.
-  Future<ClaudeUsage?> read({String? configDir}) async {
+  Future<({ClaudeUsage? usage, UsageState state})> read({
+    String? configDir,
+  }) async {
     final home = Platform.environment['HOME'] ?? '';
     final dir = (configDir == null || configDir.isEmpty)
         ? '$home/.claude'
         : configDir;
-    final token = await _tokenFor(dir);
-    if (token == null) return null;
     final account = _accountName(dir);
+
+    var token = await _token(dir);
+    if (token == null) {
+      // Sin token vigente **no se concluye nada todavía**: se le pregunta al
+      // CLI, que es quien manda sobre la sesión y contesta en 0,25 s —medido—.
+      // Antes se daba por hecho que no había cuenta, y eso es falso la mayoría
+      // de las veces: lo normal es que el acceso haya vencido y el refresco
+      // siga bueno semanas.
+      if (!await _sesion(dir)) {
+        return (usage: null, state: UsageState.noSession);
+      }
+      // Segunda lectura, a propósito: preguntarle al CLI puede haber hecho que
+      // renueve el token de paso. Si lo hizo, seguimos y hay cifras; si no, al
+      // menos ya sabemos que la sesión está viva y podemos decirlo bien.
+      //
+      // **No lo renovamos nosotros**: implicaría hablar el OAuth de Anthropic y
+      // escribir en el llavero que es del CLI, y equivocarse ahí no rompe un
+      // número en un panel — te deja sin Claude Code en esa cuenta.
+      token = await _token(dir);
+      if (token == null) {
+        return (usage: null, state: UsageState.staleReading);
+      }
+    }
 
     final client = HttpClient();
     try {
@@ -68,19 +126,26 @@ class ClaudeUsageDataSource {
       // Un error de la API también trae JSON parseable —401 por token vencido,
       // 5xx—, así que sin mirar el código se guardaría un cero como si fuera
       // una medición. Solo un 200 cuenta.
-      if (response.statusCode != 200) return null;
+      if (response.statusCode != 200) {
+        return (usage: null, state: UsageState.unreachable);
+      }
 
       final decoded = jsonDecode(raw);
-      if (decoded is! Map<String, dynamic>) return null;
-      return ClaudeUsage(
-        account: account,
-        fiveHourPercent: _percent(decoded['five_hour']),
-        weeklyPercent: _percent(decoded['seven_day']),
-        fiveHourResetsAt: _resetsAt(decoded['five_hour']),
-        weeklyResetsAt: _resetsAt(decoded['seven_day']),
+      if (decoded is! Map<String, dynamic>) {
+        return (usage: null, state: UsageState.unreachable);
+      }
+      return (
+        state: UsageState.ok,
+        usage: ClaudeUsage(
+          account: account,
+          fiveHourPercent: _percent(decoded['five_hour']),
+          weeklyPercent: _percent(decoded['seven_day']),
+          fiveHourResetsAt: _resetsAt(decoded['five_hour']),
+          weeklyResetsAt: _resetsAt(decoded['seven_day']),
+        ),
       );
     } on Exception {
-      return null;
+      return (usage: null, state: UsageState.unreachable);
     } finally {
       client.close();
     }
@@ -100,6 +165,35 @@ class ClaudeUsageDataSource {
   static String _accountName(String configDir) {
     final name = configDir.split('/').last;
     return name.startsWith('.claude-') ? name.substring(8) : 'por defecto';
+  }
+
+  /// Si esa cuenta tiene sesión, **según el CLI**.
+  ///
+  /// Se le pregunta a él y no se deduce del llavero porque el llavero solo dice
+  /// cuándo vence el acceso, no si hay cuenta: con el acceso vencido y el
+  /// refresco bueno —lo normal tras unas horas sin usarla— mirar la caducidad
+  /// concluye «no hay sesión», que es falso.
+  ///
+  /// `auth status --json` contesta en **0,25 s medidos**, así que solo se paga
+  /// en el camino en que ya no había cifras que dar. Y de paso puede hacer que
+  /// el CLI renueve el token, que es justo lo que nos vendría bien.
+  Future<bool> _loggedIn(String configDir) async {
+    try {
+      final result = await Process.run('claude', [
+        'auth',
+        'status',
+        '--json',
+      ], environment: ClaudeEnvironment.forProfile(configDir));
+      if (result.exitCode != 0) return false;
+      final decoded = jsonDecode((result.stdout as String).trim());
+      return decoded is Map<String, dynamic> && decoded['loggedIn'] == true;
+    } on Exception {
+      // Sin CLI alcanzable no se puede afirmar que no haya sesión, pero
+      // tampoco leer el cupo. Se trata como «no hay sesión» porque es el único
+      // caso en que el usuario tiene algo que hacer —iniciarla—, y equivocarse
+      // aquí solo cuesta una frase, no un dato falso.
+      return false;
+    }
   }
 
   /// La caducidad se mira aquí en vez de dejar que la API conteste 401: es una
