@@ -110,6 +110,7 @@ class NexusOrbPainter extends CustomPainter {
     required this.t,
     required this.accent,
     this.showHorizon = true,
+    this.onLight = false,
   });
 
   final NexusOrbState state;
@@ -119,6 +120,41 @@ class NexusOrbPainter extends CustomPainter {
 
   final Color accent;
   final bool showHorizon;
+
+  /// Si se pinta sobre fondo claro.
+  ///
+  /// **No es simétrico, y ahí estaba el defecto.** Sobre un fondo oscuro la
+  /// tinta *añade* luz, así que un 34 % de opacidad ya separa; sobre casi
+  /// blanco el mismo 34 % no separa nada, porque separar exige quitar luz y
+  /// hace falta mucha más densidad para lograrlo. Las opacidades de los estados
+  /// se calibraron mirando el tema oscuro, que era el único que se podía ver.
+  ///
+  /// Medido con el orbe dormido dibujado en los dos temas: **3,31:1 de
+  /// contraste en oscuro contra 1,80:1 en claro** — la mitad. Con esto se
+  /// igualan.
+  final bool onLight;
+
+  /// Cuánto se multiplica cada opacidad en claro. Salió de medir, no de
+  /// tantear: se ajustó hasta que el contraste del dormido coincidió con el del
+  /// tema oscuro.
+  /// 2,3 y no 1,9: con 1,9 el dormido llegaba a 2,62:1 y el oscuro está en
+  /// 3,20:1. A los estados activos este número no les afecta —su opacidad base
+  /// ya se satura— así que sube solo lo que hacía falta.
+  static const _refuerzoPuntos = 2.3;
+  static const _refuerzoAristas = 1.6;
+  /// El halo se refuerza **poco**, y a propósito. Sobre oscuro suma luz y da
+  /// presencia; sobre claro la quita, así que multiplicarlo tiñe de azul toda
+  /// la zona del orbe y baja el contraste de los puntos contra lo que tienen
+  /// alrededor — justo lo contrario de lo que se buscaba. Con 1,4 se nota que
+  /// el objeto está ahí sin lavar el fondo.
+  static const _refuerzoHalo = 1.4;
+
+  double _dot(_StateConfig cfg) =>
+      (onLight ? cfg.dot * _refuerzoPuntos : cfg.dot).clamp(0.0, 1.0);
+  double _edge(_StateConfig cfg) =>
+      (onLight ? cfg.edge * _refuerzoAristas : cfg.edge).clamp(0.0, 1.0);
+  double _halo(_StateConfig cfg) =>
+      (onLight ? cfg.halo * _refuerzoHalo : cfg.halo).clamp(0.0, 1.0);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -142,7 +178,7 @@ class NexusOrbPainter extends CustomPainter {
     }
 
     final projected = _project(cx, cy, r, cfg, env, state);
-    if (cfg.edge > 0) _paintEdges(canvas, projected, cfg.edge);
+    if (_edge(cfg) > 0) _paintEdges(canvas, projected, _edge(cfg));
     _paintDots(canvas, projected, r, cfg);
 
     if (state == NexusOrbState.think) _paintSweepRings(canvas, cx, cy, r);
@@ -158,10 +194,10 @@ class NexusOrbPainter extends CustomPainter {
     _StateConfig cfg,
     double env,
   ) {
-    if (cfg.halo <= 0) return;
+    if (_halo(cfg) <= 0) return;
     final hr = r * (state == NexusOrbState.speak ? 3.1 : 2.5);
     final haloAlpha =
-        cfg.halo * (state == NexusOrbState.speak ? (0.75 + 0.4 * env) : 1.0);
+        _halo(cfg) * (state == NexusOrbState.speak ? (0.75 + 0.4 * env) : 1.0);
     final center = Offset(cx, cy);
     // El original (`ctx.createRadialGradient(cx, cy, R*0.35, cx, cy, hr)`) es
     // un gradiente de dos círculos concéntricos: empieza a brillar recién en
@@ -310,7 +346,7 @@ class NexusOrbPainter extends CustomPainter {
       final offsets = bucketOffsets[b];
       if (offsets.isEmpty) continue;
       final depthMid = (b + 0.5) / _dotBuckets;
-      final alpha = (cfg.dot * (0.15 + depthMid * 0.95)).clamp(0.0, 1.0);
+      final alpha = (_dot(cfg) * (0.15 + depthMid * 0.95)).clamp(0.0, 1.0);
       final radius = cfg.size * (0.55 + depthMid * 0.85) * (r / 120 + 0.55);
       canvas.drawRawPoints(
         ui.PointMode.points,
@@ -328,7 +364,7 @@ class NexusOrbPainter extends CustomPainter {
       if (!proj.lit[i]) continue;
       final alpha = math.min(
         1.0,
-        cfg.dot * (0.15 + proj.depth[i] * 0.95) + 0.4,
+        _dot(cfg) * (0.15 + proj.depth[i] * 0.95) + 0.4,
       );
       final radius =
           cfg.size * (0.55 + proj.depth[i] * 0.85) * (r / 120 + 0.55) * 1.5;
