@@ -289,6 +289,24 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
     await ref.read(assistantControllerProvider(id).notifier).submit(text);
   }
 
+  /// Tocar el orbe abre la voz, **creando la conversación si no hay ninguna**.
+  ///
+  /// Es el cuarto camino para empezar, y era el único que no funcionaba. Los
+  /// otros tres —«NUEVA», escribir y ⌥Espacio— ya lo hacían; aquí el orbe era
+  /// decorativo, del mismo tamaño y en el mismo sitio que el que sí responde
+  /// con una conversación abierta. Se pulsaba y no pasaba nada, sin decir por
+  /// qué, que es lo peor: no distingues «no me oye» de «no te estoy oyendo».
+  Future<void> _talk() async {
+    final where = whereToStart(ref);
+    if (where == null) {
+      if (mounted) await SettingsPage.open(context);
+      return;
+    }
+    final id = await ref.read(conversationsProvider.notifier).open(where);
+    if (id == null) return;
+    await ref.read(assistantControllerProvider(id).notifier).toggleVoice();
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -311,8 +329,15 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
               Expanded(
                 child: Stack(
                   children: [
-                    const Positioned.fill(
-                      child: NexusOrb(state: NexusOrbState.sleep),
+                    Positioned.fill(
+                      // Opaco, como el de la pantalla con conversación: el
+                      // orbe es dibujo sobre un fondo casi vacío, y sin esto
+                      // solo respondería donde hay pintado un punto.
+                      child: GestureDetector(
+                        onTap: _talk,
+                        behavior: HitTestBehavior.opaque,
+                        child: const NexusOrb(state: NexusOrbState.sleep),
+                      ),
                     ),
                     const Positioned(
                       left: NexusSpacing.s6,
