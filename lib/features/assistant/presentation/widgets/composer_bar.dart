@@ -47,7 +47,10 @@ class ComposerBar extends ConsumerStatefulWidget {
     this.onToggleVoice,
   });
 
-  final ValueChanged<String> onSubmit;
+  /// Recibe **el texto y las rutas por separado**, no un texto ya compuesto.
+  /// Quién decide qué se le manda a Claude es el controlador, que además tiene
+  /// los textos del idioma; la caja solo dice qué se escribió y qué se adjuntó.
+  final void Function(String text, List<String> attachments) onSubmit;
   final ValueChanged<bool> onFocusChanged;
   final String? folderPath;
   final SessionMeter meter;
@@ -80,13 +83,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
 
   void _handleSubmit(String value) {
     if (value.trim().isEmpty && _attachments.isEmpty) return;
-    widget.onSubmit(
-      AttachedFiles.instruction(
-        value,
-        _attachments,
-        label: context.strings.attachedFilesLabel,
-      ),
-    );
+    widget.onSubmit(value, _attachments);
     _controller.clear();
     setState(() => _attachments = const []);
   }

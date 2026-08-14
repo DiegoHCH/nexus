@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 
@@ -100,7 +101,16 @@ class _Turn extends StatelessWidget {
           // lo que uno teclea convertiría un `*` en cursiva sin haberlo
           // pedido. Lo que responde Claude sí viene en markdown —tablas,
           // listas, bloques de código— y hasta ahora salía crudo.
-          if (isUser)
+          // Los adjuntos, con su miniatura, encima del texto: es el orden en
+          // que ocurrió —primero sueltas el archivo, luego escribes— y es la
+          // misma tira que ya veías en la caja al adjuntarlo. Sin la ✕: aquí
+          // el mensaje ya salió y quitarlo no significaría nada.
+          if (message.attachments.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: AttachmentStrip(paths: message.attachments),
+            ),
+          if (isUser && message.text.trim().isNotEmpty)
             SelectableText(
               message.text,
               style: NexusTypography.body.copyWith(
@@ -108,7 +118,7 @@ class _Turn extends StatelessWidget {
                 height: 1.5,
               ),
             )
-          else
+          else if (!isUser)
             _Answer(text: message.text),
         ],
       ),
