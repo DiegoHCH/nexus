@@ -156,6 +156,13 @@ abstract class NexusStrings {
   String get usageFiveHour;
   String get usageWeekly;
   String get usageUnavailable;
+
+  /// Para el hueco del **valor** de un medidor, que es de dos o tres
+  /// palabras. [usageUnavailable] explica lo de la cuenta y es una frase
+  /// entera: metida ahí desbordaba el panel por 192 px, y encima hablaba de
+  /// la sesión de la cuenta en el medidor de la ventana de contexto, donde
+  /// lo único cierto es que todavía no ha habido turno.
+  String get noReadingYet;
   String resetsIn(String when);
   String get sayStopToInterrupt;
   String get stopWithShortcut;
@@ -550,6 +557,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get usageUnavailable =>
       'Sin dato: esa cuenta no tiene sesión abierta o el acceso caducó.';
+  @override
+  String get noReadingYet => 'Sin dato';
   @override
   String resetsIn(String when) => 'Se renueva $when';
   @override
@@ -1115,6 +1124,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get usageUnavailable =>
       'No reading: that account has no session open, or its access expired.';
+  @override
+  String get noReadingYet => 'No reading';
   @override
   String resetsIn(String when) => 'Resets $when';
   @override
