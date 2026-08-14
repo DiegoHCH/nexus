@@ -1,9 +1,13 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/core/platform/system_thumbnails.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// Lo que va a acompañar a lo que estás escribiendo, con su miniatura.
 ///
@@ -12,7 +16,7 @@ import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 /// y ahí la única forma de saber cuál es cuál es verla. Por eso se pide la del
 /// sistema —la misma del Finder— en vez de dibujar un icono por extensión, que
 /// dejaría las tres idénticas.
-class AttachmentStrip extends StatelessWidget {
+class AttachmentStrip extends ConsumerWidget {
   const AttachmentStrip({super.key, required this.paths, this.onRemove});
 
   final List<String> paths;
@@ -22,8 +26,23 @@ class AttachmentStrip extends StatelessWidget {
   /// escribir sí se puede quitar, porque el mensaje aún no ha salido.
   final ValueChanged<String>? onRemove;
 
+  /// Abrir el adjunto para verlo de verdad.
+  ///
+  /// La miniatura sirve para reconocer cuál es, no para mirarlo: a ese tamaño
+  /// un mockup no se juzga. Se reparte por tipo en vez de intentar pintarlo
+  /// todo aquí — el visor de la app es `WKWebView` y sabe HTML, PDF, imágenes y
+  /// SVG; lo demás lo abre quien sepa, que para un `.ai` es Illustrator y no
+  /// nosotros. Enseñar un visor en blanco sería peor que no abrir nada.
+  Future<void> _abrir(WidgetRef ref, String path) async {
+    if (Artifact.isViewable(path)) {
+      await ref.read(artifactsDataSourceProvider).open(path);
+      return;
+    }
+    await launchUrl(Uri.file(path));
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     if (paths.isEmpty) return const SizedBox.shrink();
 
     return Padding(
@@ -36,6 +55,7 @@ class AttachmentStrip extends StatelessWidget {
             _Attachment(
               key: ValueKey(path),
               path: path,
+              onOpen: () => _abrir(ref, path),
               onRemove: onRemove == null ? null : () => onRemove!(path),
             ),
         ],
@@ -45,9 +65,15 @@ class AttachmentStrip extends StatelessWidget {
 }
 
 class _Attachment extends StatelessWidget {
-  const _Attachment({super.key, required this.path, this.onRemove});
+  const _Attachment({
+    super.key,
+    required this.path,
+    required this.onOpen,
+    this.onRemove,
+  });
 
   final String path;
+  final VoidCallback onOpen;
   final VoidCallback? onRemove;
 
   @override
@@ -58,7 +84,13 @@ class _Attachment extends StatelessWidget {
       // La ruta completa a la vista, pero solo si se pregunta: dos archivos con
       // el mismo nombre en carpetas distintas se distinguen aquí.
       message: path,
-      child: Container(
+      child: InkWell(
+        // Toda la ficha responde, no solo la miniatura: es un blanco de 30 px
+        // de alto y apuntar al recuadro pequeño para «verlo más grande» sería
+        // pedir puntería para algo que no la necesita.
+        onTap: onOpen,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Container(
         padding: const EdgeInsets.fromLTRB(4, 4, NexusSpacing.s3, 4),
         decoration: BoxDecoration(
           color: colors.deep,
@@ -89,7 +121,8 @@ class _Attachment extends StatelessWidget {
                 child: Icon(Icons.close, size: 13, color: colors.faint),
               ),
             ],
-          ],
+            ],
+          ),
         ),
       ),
     );

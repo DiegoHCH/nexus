@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -52,6 +55,11 @@ void main() {
     );
     await tester.pump();
 
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'la tira es un ConsumerWidget: sin ProviderScope reventaría',
+    );
     expect(find.byType(AttachmentStrip), findsOneWidget);
     expect(find.textContaining('ESTAMPADO CAMISETA.ai'), findsWidgets);
     expect(
@@ -100,4 +108,67 @@ void main() {
       isTrue,
     );
   });
+
+  group('tocar el adjunto lo abre', () {
+    testWidgets('lo que el visor sabe pintar, en el visor de la app', (
+      tester,
+    ) async {
+      final visor = _VisorFalso();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [artifactsDataSourceProvider.overrideWithValue(visor)],
+          child: MaterialApp(
+            theme: NexusTheme.dark(),
+            builder: (context, child) =>
+                StringsScope(strings: const NexusStringsEs(), child: child!),
+            home: const Scaffold(
+              body: AttachmentStrip(paths: ['/Users/alguien/mockup.png']),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(AttachmentStrip));
+      await tester.pump();
+
+      expect(visor.abiertos, ['/Users/alguien/mockup.png']);
+    });
+
+    testWidgets('y lo que no, no acaba en un visor en blanco', (tester) async {
+      // Un `.ai` no lo pinta `WKWebView`. Abrirlo ahí daría una ventana vacía,
+      // así que va a la app que sepa — comprobamos que el visor **no** se usa.
+      final visor = _VisorFalso();
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [artifactsDataSourceProvider.overrideWithValue(visor)],
+          child: MaterialApp(
+            theme: NexusTheme.dark(),
+            builder: (context, child) =>
+                StringsScope(strings: const NexusStringsEs(), child: child!),
+            home: const Scaffold(
+              body: AttachmentStrip(paths: [adjunto]),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      await tester.tap(find.byType(AttachmentStrip));
+      await tester.pump();
+
+      expect(visor.abiertos, isEmpty);
+    });
+  });
+
+}
+
+class _VisorFalso implements ArtifactsDataSource {
+  final abiertos = <String>[];
+
+  @override
+  Future<void> open(String path) async => abiertos.add(path);
+
+  @override
+  noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
