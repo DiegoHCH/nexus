@@ -1,0 +1,339 @@
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
+import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
+import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
+import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
+import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
+import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
+import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
+import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
+import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
+
+/// El micrófono, callado: esta prueba va de lo que llega del servicio.
+class _Mic implements VoiceInput {
+  final _frames = StreamController<AudioFrame>();
+
+  @override
+  Future<bool> hasPermission() async => true;
+
+  @override
+  Stream<AudioFrame> listen() => _frames.stream;
+}
+
+/// La sesión de voz, movida a mano desde la prueba.
+class _Session implements VoiceSession {
+  final events_ = StreamController<VoiceEvent>.broadcast();
+  final notes = <String>[];
+
+  void emit(VoiceEvent event) => events_.add(event);
+
+  @override
+  Stream<VoiceEvent> get events => events_.stream;
+
+  @override
+  String? endReason;
+
+  @override
+  void sendAudio(Uint8List pcm) {}
+
+  @override
+  void sendSystemNote(String text) => notes.add(text);
+
+  @override
+  void sendToolResult({
+    required String callId,
+    required String name,
+    required String result,
+  }) {}
+
+  @override
+  Future<void> close() async {
+    if (!events_.isClosed) await events_.close();
+  }
+}
+
+class _Gateway implements VoiceGateway {
+  _Gateway(this.session);
+  final _Session session;
+
+  @override
+  Future<VoiceSession> connect() async => session;
+
+  @override
+  Future<VoiceSession> resume() async => session;
+}
+
+class _Speaker implements AudioOutput {
+  @override
+  Future<void> start() async {}
+  @override
+  void enqueue(Uint8List pcm) {}
+  @override
+  Future<void> discard() async {}
+  @override
+  Future<Duration> pending() async => Duration.zero;
+  @override
+  Future<void> stop() async {}
+}
+
+/// Anota el encargo que le llega. Es el testigo de la prueba: lo que Claude
+/// recibe es lo que el usuario dijo, o no lo es.
+///
+/// Se guarda **sin la coletilla del idioma** que `AskClaude` le pega detrás:
+/// aquí se mira qué se pidió, no cómo se envuelve.
+class _Bridge implements ClaudeBridge {
+  _Bridge({this.tarda = Duration.zero});
+
+  /// Lo que tarda Claude en contestar. Con `Duration.zero` el encargo va y
+  /// vuelve dentro del mismo turno; alargándolo se reproduce lo que pasa de
+  /// verdad — que la respuesta buena llega cuando ya estás hablando de otra
+  /// cosa.
+  final Duration tarda;
+
+  final _raw = <String>[];
+
+  List<String> get asked =>
+      [for (final instruction in _raw) instruction.split('\n\n').first];
+
+  @override
+  Stream<ClaudeEvent> ask(
+    String instruction, {
+    required String workingDirectory,
+    required bool canEdit,
+    List<String> extraDirectories = const [],
+    String? resumeSessionId,
+    String? claudeProfile,
+    String? model,
+    String? effort,
+    String? artifactsFolder,
+    List<String> disallowedTools = const [],
+  }) async* {
+    _raw.add(instruction);
+    if (tarda > Duration.zero) await Future<void>.delayed(tarda);
+    yield ClaudeTurnCompleted(result: 'lo de «${instruction.split('\n\n').first}»');
+  }
+}
+
+class _Memory implements ConversationMemory {
+  @override
+  Future<FolderMemory> read(String folderPath) async =>
+      const FolderMemory(sessionId: null, prompts: []);
+  @override
+  Future<void> rememberSession(String folderPath, String id) async {}
+  @override
+  Future<void> rememberPrompt(String folderPath, String prompt) async {}
+  @override
+  Future<void> forget(String folderPath) async {}
+}
+
+class _Awake implements StaysAwake {
+  @override
+  Future<void Function()> hold(String reason) async => () {};
+}
+
+/// Un doble de `HoldVoiceConversation` con todo cableado menos lo que la
+/// prueba quiera mirar.
+HoldVoiceConversation _conversation(
+  _Session session,
+  _Bridge bridge, {
+  void Function(String)? log,
+}) => HoldVoiceConversation(
+  _Mic(),
+  _Gateway(session),
+  _Speaker(),
+  _askClaude(bridge),
+  log ?? (_) {},
+);
+
+AskClaude _askClaude(_Bridge bridge) => AskClaude(
+  bridge,
+  (_) async => (
+    workingDirectory: '/repo',
+    canEdit: false,
+    extraDirectories: const <String>[],
+    language: 'español',
+    claudeProfile: null,
+    model: null,
+    effort: null,
+    artifactsFolder: null,
+    disallowedTools: const <String>[],
+    constraintsNotice: null,
+  ),
+  _Memory(),
+  FolderErrandQueue(),
+  _Awake(),
+);
+
+void main() {
+  test(
+    'una frase larga llega en pedazos y va a Claude entera, no su cola (b11)',
+    () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = HoldVoiceConversation(
+        _Mic(),
+        _Gateway(session),
+        _Speaker(),
+        _askClaude(bridge),
+        (_) {},
+      );
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      // Así llega de verdad: la transcripción de lo que dices viene por
+      // trozos, no frase a frase. Lo dice el propio evento.
+      for (final trozo in [
+        'mira el repositorio ',
+        'de nexus y dime ',
+        'cuántos tests hay',
+      ]) {
+        session.emit(VoiceUserTranscript(trozo));
+      }
+      // El modelo contestó de memoria, sin llamar a la herramienta: aquí es
+      // donde este código corrige y manda el encargo a Claude.
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(bridge.asked, hasLength(1));
+      expect(
+        bridge.asked.single,
+        'mira el repositorio de nexus y dime cuántos tests hay',
+        reason:
+            'antes se guardaba solo el último trozo, así que a Claude le '
+            'llegaba «cuántos tests hay» — la frase cortada a mitad',
+      );
+
+      await subscription.cancel();
+    },
+  );
+
+  test('el turno cierra la frase: la siguiente no arrastra la anterior', () async {
+    final session = _Session();
+    final bridge = _Bridge();
+    final conversation = HoldVoiceConversation(
+      _Mic(),
+      _Gateway(session),
+      _Speaker(),
+      _askClaude(bridge),
+      (_) {},
+    );
+
+    final subscription = conversation().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+
+    session.emit(const VoiceUserTranscript('corre los tests'));
+    session.emit(const VoiceTurnCompleted());
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    session.emit(const VoiceUserTranscript('y ahora mira el historial'));
+    session.emit(const VoiceTurnCompleted());
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+
+    expect(bridge.asked, [
+      'corre los tests',
+      'y ahora mira el historial',
+    ]);
+
+    await subscription.cancel();
+  });
+
+  test(
+    'una corrección que llega tarde no interrumpe: ya hablabas de otra cosa',
+    () async {
+      final session = _Session();
+      // Claude tarda: para cuando contesta lo primero, el usuario ya preguntó
+      // otra cosa. Es la sesión real del 13 ago, donde dos correcciones se
+      // pisaron y la segunda dejó a la primera a medias.
+      final bridge = _Bridge(tarda: const Duration(milliseconds: 120));
+      final registro = <String>[];
+      final conversation = _conversation(
+        session,
+        bridge,
+        log: registro.add,
+      );
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      // Turno 1: se pide algo que tenía que ir a Claude, y el modelo contesta
+      // de memoria — así que arranca la corrección, que tardará.
+      session.emit(const VoiceUserTranscript('dame un resumen de gitflow'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // Turno 2: el usuario no espera y pregunta otra cosa.
+      session.emit(const VoiceUserTranscript('enséñame cómo es un flujo'));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(
+        session.notes,
+        isEmpty,
+        reason:
+            'la respuesta del turno 1 llegó cuando ya se hablaba del 2: '
+            'entregarla hace que el modelo abandone lo que está diciendo',
+      );
+      expect(
+        registro.where((l) => l.contains('descartada por vieja')),
+        hasLength(1),
+        reason: 'y se cuenta, para saber cuántas veces pasa de verdad',
+      );
+
+      await subscription.cancel();
+    },
+  );
+
+  test(
+    'la corrección sí entra si sigues callado: no se pierde por ir lenta',
+    () async {
+      final session = _Session();
+      final bridge = _Bridge(tarda: const Duration(milliseconds: 120));
+      final conversation = _conversation(session, bridge);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(const VoiceUserTranscript('dame un resumen de gitflow'));
+      session.emit(const VoiceTurnCompleted());
+      // Nadie habla encima: el turno sigue siendo el mismo cuando Claude vuelve.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(session.notes, hasLength(1));
+      expect(session.notes.single, contains('dame un resumen de gitflow'));
+
+      await subscription.cancel();
+    },
+  );
+
+  test(
+    'un saludo suelto sigue sin ir a Claude, aunque ahora se acumule',
+    () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = HoldVoiceConversation(
+        _Mic(),
+        _Gateway(session),
+        _Speaker(),
+        _askClaude(bridge),
+        (_) {},
+      );
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(const VoiceUserTranscript('hola'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(bridge.asked, isEmpty);
+
+      await subscription.cancel();
+    },
+  );
+}

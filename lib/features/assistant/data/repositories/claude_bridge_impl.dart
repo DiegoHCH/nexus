@@ -37,7 +37,21 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? artifactsFolder,
     List<String> disallowedTools = const [],
   }) async* {
+    /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
+    /// duplicaría trabajo ya hecho.
     var emitted = false;
+
+    /// Los fallos se retienen mientras el reintento siga siendo posible.
+    ///
+    /// Sin esto el reintento de abajo no llegaba a saltar nunca, y el motivo es
+    /// fino: con una sesión que ya no existe, el CLI **no muere callado**.
+    /// Escupe una línea `{"type":"result","is_error":true}` y **luego** sale con
+    /// 1 —medido contra el binario—, esa línea se traduce a `ClaudeFailed`, y
+    /// con eso `emitted` quedaba en `true`. O sea que el propio fallo desarmaba
+    /// la red que estaba puesta para atraparlo. Reteniéndolos, un intento que
+    /// solo produjo fallos sigue siendo reintentable.
+    final withheld = <ClaudeEvent>[];
+
     try {
       final context = await _projectContext.read(workingDirectory);
       await for (final json in _dataSource.run(
@@ -71,15 +85,30 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         ),
       )) {
         for (final event in _decode(json, workingDirectory)) {
+          if (resumeSessionId != null && !emitted && event is ClaudeFailed) {
+            withheld.add(event);
+            continue;
+          }
           emitted = true;
           yield event;
         }
       }
+      // Terminó sin excepción: lo retenido era un fallo de verdad y se cuenta.
+      for (final event in withheld) {
+        yield event;
+      }
     } catch (e) {
-      // Una sesión guardada puede haber caducado o haberse borrado, y entonces
-      // `--resume` falla antes de decir nada. Perder la memoria es molesto;
-      // dejar al usuario sin respuesta por eso, inaceptable — así que se
-      // reintenta una vez sin ella y se sigue.
+      // Una sesión guardada puede haber caducado, haberse borrado, o **vivir en
+      // otra cuenta**: la memoria es por carpeta y las sesiones son de la pareja
+      // carpeta + cuenta, así que cambiarle el perfil a una carpeta deja
+      // apuntando a un sitio donde esa sesión no está. Ahí `--resume` falla y no
+      // se recupera solo: sin esto, esa carpeta quedaba inservible para siempre
+      // —cada encargo moría con «No conversation found with session ID»—.
+      //
+      // Perder la memoria es molesto; dejar al usuario sin respuesta por eso,
+      // inaceptable. Se reintenta una vez sin ella, y el `init` del intento
+      // bueno trae una sesión nueva que sustituye a la muerta, así que la
+      // carpeta se cura sola.
       if (resumeSessionId != null && !emitted) {
         yield* ask(
           instruction,

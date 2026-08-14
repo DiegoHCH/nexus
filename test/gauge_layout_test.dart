@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
@@ -33,6 +34,39 @@ void main() {
       ),
     );
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('el nombre y la cifra caben enteros, cada uno en su fila', (
+    tester,
+  ) async {
+    // Los textos de verdad del caso que se veía cortado: «Ventana de con…
+    // 31,1k / 200,0k (…». Compartiendo línea no cabían ninguno de los dos.
+    const nombre = 'Ventana de contexto';
+    const cifra = '31,1k / 200,0k (16 %)';
+    await _pump(
+      tester,
+      const Gauge(label: nombre, percent: 16, value: cifra),
+    );
+
+    // Entero quiere decir que lo dibujado mide **lo que el texto pide**. Con
+    // el ancho recortado —compartiendo fila— lo dibujado es menor que lo
+    // pedido, y ahí es donde aparecían los puntos suspensivos.
+    for (final texto in [nombre, cifra]) {
+      final parrafo = tester.renderObject<RenderParagraph>(find.text(texto));
+      expect(
+        tester.getSize(find.text(texto)).width,
+        closeTo(parrafo.getMaxIntrinsicWidth(double.infinity), 0.5),
+        reason: '«$texto» se está recortando',
+      );
+    }
+
+    // Y en filas separadas de verdad: la cifra empieza **por debajo de donde
+    // acaba** el nombre. Comparar solo el borde de arriba no vale — en una
+    // misma fila ya difieren, porque los dos textos no tienen el mismo tamaño.
+    expect(
+      tester.getTopLeft(find.text(cifra)).dy,
+      greaterThanOrEqualTo(tester.getBottomLeft(find.text(nombre)).dy),
+    );
   });
 
   testWidgets('un valor largo se recorta en vez de desbordar el panel', (
