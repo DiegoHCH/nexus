@@ -1,5 +1,6 @@
 import 'dart:async';
-import 'dart:developer' as developer;
+
+import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -350,21 +351,24 @@ class AssistantController extends Notifier<AssistantHudState> {
       await ref.read(localConversationStoreProvider).save(record);
       ref.invalidate(savedConversationsProvider(folder));
     } catch (error) {
-      developer.log(
-        'no se pudo guardar en local: $error',
-        name: 'nexus.archivo',
-      );
+      debugPrint('archivo · no se pudo guardar en local: $error');
     }
 
-    final archive = await ref.read(conversationArchiveProvider.future);
-    if (archive == null) return;
+    // **Resolver el destino también va dentro del try.** Estaba fuera, y eso
+    // contradecía el párrafo de arriba: si averiguar cuál es el destino
+    // externo fallaba —un vault que ya no está, una preferencia a medio
+    // escribir—, `_archive` lanzaba desde dentro de un `unawaited` y quedaba
+    // como error sin atrapar. El historial local ya estaba guardado, así que
+    // no se perdía nada; lo que se llevaba por delante era el silencio.
     try {
+      final archive = await ref.read(conversationArchiveProvider.future);
+      if (archive == null) return;
       await archive.save(record);
     } catch (error) {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
       // haberse desconectado, o el vault puede no existir ya. Se dice y se
       // sigue — el historial de la app nunca depende del destino externo.
-      developer.log('no se pudo archivar: $error', name: 'nexus.archivo');
+      debugPrint('archivo · no se pudo archivar: $error');
     }
   }
 
