@@ -533,5 +533,10 @@ class NexusOrbPainter extends CustomPainter {
       oldDelegate.state != state ||
       oldDelegate.t != t ||
       oldDelegate.accent != accent ||
-      oldDelegate.showHorizon != showHorizon;
+      oldDelegate.showHorizon != showHorizon ||
+      // Hoy `accent` cambia con el tema y esto se repintaría igual — pero eso
+      // es suerte, no diseño: el día que las dos paletas compartan cian,
+      // cambiar de tema dejaría el orbe con las opacidades del otro. Y con
+      // «Reducir movimiento» el ticker está parado, así que `t` tampoco salva.
+      oldDelegate.onLight != onLight;
 }

@@ -24,7 +24,17 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 /// El suelo es holgado a propósito: el orbe gira, así que según el fotograma que
 /// toque hay más o menos puntos de frente y la cifra se mueve unas décimas.
 void main() {
-  const suelo = 2.4;
+  /// Suelo con margen de verdad.
+  ///
+  /// Estaba en 2,4 y el oscuro llegó a dar **2,55** en una corrida: el orbe gira
+  /// y su fase arranca aleatoria —a propósito, para que dos orbes no respiren
+  /// sincronizados— así que según el fotograma hay más o menos puntos de frente
+  /// y la cifra se mueve hasta siete décimas. Un suelo a 0,15 de un valor
+  /// observado es una prueba que falla sola algún martes.
+  ///
+  /// 2,0 sigue estando muy por encima del defecto que esto vigila —1,80:1, el
+  /// orbe perdido en el fondo claro— y por debajo de todo lo medido después.
+  const suelo = 2.0;
 
   double luminancia(int r, int g, int b) {
     double canal(int v) {
