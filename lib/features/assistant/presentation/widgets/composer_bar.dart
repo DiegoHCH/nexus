@@ -1031,28 +1031,42 @@ class _ContextDial extends CustomPainter {
   final Color ring;
   final Color fill;
 
+  /// Grosor del aro. El mismo para el aro entero y para lo que se llena, que es
+  /// lo que hace que se lea como **un** aro llenándose y no como dos círculos.
+  static const _stroke = 2.5;
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(size.width / 2, size.height / 2);
-    final radius = size.width / 2;
+    final radius = size.width / 2 - _stroke / 2;
+    final rect = Rect.fromCircle(center: center, radius: radius);
 
+    // El aro entero, siempre: es contra lo que se compara lo lleno. Sin él, un
+    // arco suelto no dice de cuánto se está llenando.
     canvas.drawCircle(
       center,
-      radius - 0.75,
+      radius,
       Paint()
         ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.5
+        ..strokeWidth = _stroke
         ..color = ring,
     );
     if (fraction <= 0) return;
 
-    // Desde arriba y en el sentido del reloj, como se lee un depósito.
+    // **Se llena el borde, no el interior.** Un sector macizo creciendo desde
+    // el centro se lee como una tarta —cuánto vale este trozo— y lo que se
+    // quiere leer aquí es un recorrido: cuánto se ha consumido del total, como
+    // un anillo de progreso. Desde arriba y en el sentido del reloj.
     canvas.drawArc(
-      Rect.fromCircle(center: center, radius: radius - 2.5),
+      rect,
       -math.pi / 2,
-      2 * math.pi * fraction,
-      true,
-      Paint()..color = fill,
+      2 * math.pi * fraction.clamp(0.0, 1.0),
+      false,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = _stroke
+        ..strokeCap = StrokeCap.round
+        ..color = fill,
     );
   }
 
