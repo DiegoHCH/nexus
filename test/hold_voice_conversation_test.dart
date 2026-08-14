@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -336,4 +337,46 @@ void main() {
       await subscription.cancel();
     },
   );
+
+  test('antes de la primera señal se espera más de los 6 s de siempre (b11)', () {
+    // La carrera, medida en una sesión real: el `setupComplete` llegó a los
+    // 2453 ms —y como es un evento, reinició la cuenta— y la primera señal de
+    // que el servicio te oía, a los 7251 ms. Con el plazo corto la sesión moría
+    // a los 8453: se salvó por 1,2 s, y las que fallaban perdían esa carrera.
+    //
+    // Se mira **el registro** y no el cierre del stream: la cadena de apagado
+    // no se asienta bajo `fakeAsync`, así que esperar al `onDone` daba una
+    // prueba que pasaba con el plazo viejo y con el nuevo — o sea, ninguna.
+    // La línea de cierre, en cambio, se emite en cuanto vence el plazo.
+    fakeAsync((async) {
+      final session = _Session();
+      final registro = <String>[];
+      final conversation = _conversation(session, _Bridge(), log: registro.add);
+      conversation().listen((_) {});
+      async.flushMicrotasks();
+
+      session.emit(const VoiceSessionReady());
+      async
+        ..flushMicrotasks()
+        ..elapse(const Duration(seconds: 7))
+        ..flushMicrotasks();
+
+      expect(
+        registro.where((l) => l.contains('cierre por inactividad')),
+        isEmpty,
+        reason: 'a los 7 s se cerraba, justo antes de que el servicio hablara',
+      );
+
+      // Y sigue siendo un plazo: sin señal, el micrófono no queda abierto para
+      // siempre.
+      async
+        ..elapse(const Duration(seconds: 15))
+        ..flushMicrotasks();
+      expect(
+        registro.where((l) => l.contains('cierre por inactividad')),
+        hasLength(1),
+      );
+    });
+  });
+
 }

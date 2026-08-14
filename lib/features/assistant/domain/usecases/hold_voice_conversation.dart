@@ -47,6 +47,15 @@ class HoldVoiceConversation {
   /// la repregunta, que es lo que pasaría cerrando al terminar cada frase.
   static const _idleTimeout = Duration(seconds: 6);
 
+  /// Lo que se espera **antes de que el servicio dé la primera señal**.
+  ///
+  /// Más largo porque ahí no se está vigilando una conversación: se está
+  /// esperando a que empiece. Cabe el montaje (2,5 s medidos), lo que tardes en
+  /// decidir qué decir, y la espera del detector de voz del servicio. Y sigue
+  /// siendo un plazo y no una espera infinita: si abres la voz sin querer, el
+  /// micrófono se cierra solo — que es la regla que sostiene todo esto.
+  static const _openingGrace = Duration(seconds: 20);
+
   /// Reenganches seguidos sin que llegue nada en medio antes de rendirse.
   /// Reintentar en bucle contra un servicio caído solo esconde el problema.
   static const _maxReconnects = 3;
@@ -119,6 +128,31 @@ class HoldVoiceConversation {
     var sentFrames = 0;
     var eventsSeen = 0;
 
+    /// El reloj de la sesión, y las dos marcas que hacen falta para saber si
+    /// b11 es lo que parece.
+    ///
+    /// Los contadores dicen **cuántos** trozos y eventos, no **cuándo**, y sin
+    /// eso no se puede distinguir «el servicio tardó más que el plazo» de «el
+    /// micrófono entrega cinco veces menos de lo normal»: las dos cosas se ven
+    /// igual en un recuento. Con el reloj, un trozo pasa a valer milisegundos y
+    /// la sospecha se convierte en una cifra.
+    final clock = Stopwatch()..start();
+
+    /// Cuándo contestó el servicio que la sesión está montada.
+    int? readyAt;
+
+    /// Cuándo llegó el primer evento que **no** es ese: la primera señal de que
+    /// nos oyó. Es el que corre contra [_idleTimeout], y por tanto el número
+    /// que decide si esto era una carrera perdida.
+    int? heardAt;
+
+    String reloj() {
+      final ready = readyAt == null ? '—' : '${readyAt}ms';
+      final heard = heardAt == null ? 'todavía nada' : '${heardAt}ms';
+      return 't+${clock.elapsedMilliseconds}ms · sesión lista en $ready · '
+          'primera señal del servicio en $heard';
+    }
+
     Future<void> shutdown() async {
       closing = true;
       // Primero el encargo: si hay un `claude -p` en marcha, cerrar la
@@ -146,8 +180,27 @@ class HoldVoiceConversation {
     /// diciendo que te oyó. Mientras el modelo responde también llegan
     /// eventos, así que nunca se corta a media frase.
     void keepAlive() {
+      // **Antes de la primera señal se espera más**, y ese era b11.
+      //
+      // El plazo corto está pensado para notar que una conversación viva se
+      // apagó. Al principio no hay conversación que mantener: hay una espera
+      // legítima, y el contador la estaba midiendo como si fuera abandono.
+      //
+      // Medido en una sesión que se salvó por los pelos: el `setupComplete`
+      // llegó a los 2453 ms —y como es un evento, reinició la cuenta—, y la
+      // primera señal de que el servicio nos oía, a los **7251 ms**. Con 6 s
+      // desde el setup, el cierre tocaba a los 8453: sobrevivió por 1,2 s. Las
+      // sesiones que fallaban perdían esa misma carrera, y encajan clavadas —
+      // 63 trozos a ~100 ms cada uno son los 6 s enteros de ventana.
+      //
+      // El hueco es estructuralmente pequeño: el montaje se come 2,5 s y el
+      // detector de voz del servicio está alargado a propósito
+      // —`silenceDurationMs: 1200`, sensibilidad baja— para no cortar frases
+      // largas. No es que fuera lento: es que se le estaba dando menos tiempo
+      // del que su propia configuración necesita.
+      final grace = heardAt == null ? _openingGrace : _idleTimeout;
       idleTimer?.cancel();
-      idleTimer = Timer(_idleTimeout, () async {
+      idleTimer = Timer(grace, () async {
         // Con un encargo en marcha no se cierra, y punto. Reiniciar la cuenta
         // con cada evento de Claude no bastaba: **el primero tarda más que el
         // propio plazo** —arrancar el CLI, cargar los CLAUDE.md del árbol— así
@@ -169,10 +222,12 @@ class HoldVoiceConversation {
           return;
         }
         _log(
-          'voz · cierre por inactividad tras ${_idleTimeout.inSeconds} s · '
+          'voz · cierre por inactividad tras ${grace.inSeconds} s '
+          '${heardAt == null ? '(sin señal del servicio todavía)' : ''}· '
           '$micFrames trozos del micro, $sentFrames enviados, '
           '$eventsSeen eventos recibidos · $turn turnos, '
-          '$answeredAlone corregidos, $stale descartados por viejos',
+          '$answeredAlone corregidos, $stale descartados por viejos · '
+          '${reloj()}',
         );
         await shutdown();
         if (!controller.isClosed) await controller.close();
@@ -399,6 +454,15 @@ class HoldVoiceConversation {
           // pareciendo un servicio caído.
           reconnects = 0;
           eventsSeen++;
+          // El montaje de la sesión no cuenta como «nos oyó»: llega siempre,
+          // hables o no, y es justo el único evento que tenían las sesiones
+          // que fallaron.
+          if (event is VoiceSessionReady) {
+            readyAt ??= clock.elapsedMilliseconds;
+          } else if (heardAt == null) {
+            heardAt = clock.elapsedMilliseconds;
+            _log('voz · primera señal del servicio · ${reloj()}');
+          }
           keepAlive();
           switch (event) {
             // El audio no sale hacia la interfaz: se reproduce y punto. Lo
@@ -491,7 +555,7 @@ class HoldVoiceConversation {
             if (micFrames % 25 == 0) {
               _log(
                 'voz · $micFrames trozos del micro, $sentFrames enviados · '
-                '$eventsSeen eventos recibidos',
+                '$eventsSeen eventos recibidos · ${reloj()}',
               );
             }
           },
