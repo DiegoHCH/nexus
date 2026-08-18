@@ -213,6 +213,7 @@ abstract class NexusStrings {
   String get waitingByVoice;
   String get noFolderForConversation;
   String textOnlyFolder(String folder);
+  String textOnlyArtifactsFolder(String folder);
   String compacting(int percent);
   String compacted(int before, int after);
 
@@ -710,6 +711,12 @@ class NexusStringsEs extends NexusStrings {
   String textOnlyFolder(String folder) =>
       'La carpeta $folder está en modo solo texto, así que no se abre el '
       'micrófono. Escríbele por abajo o cambia el modo en Ajustes.';
+
+  @override
+  String textOnlyArtifactsFolder(String folder) =>
+      'La carpeta de salida «$folder» es de solo texto, y viaja en todos los '
+      'encargos: lo que se guarde ahí podría acabar narrado. La voz no se abre '
+      'hasta que la cambies o le des modo voz.';
   @override
   String compacting(int percent) =>
       'Contexto al $percent %: comprimiendo la conversación para seguir sin '
@@ -953,6 +960,14 @@ class NexusStringsEs extends NexusStrings {
       'herramienta. Restringir solo el micrófono dejaría la fuga abierta por el '
       'otro lado, así que en una carpeta de solo texto Gemini no participa: se '
       'escribe, Claude trabaja y la respuesta se lee.\n\n'
+      'Tampoco significa que nada salga de tu Mac. Claude Code manda a Anthropic '
+      'lo que lee de tu carpeta, porque es así como trabaja. Lo que este modo '
+      'apaga es el servicio de voz, no el trabajo.\n\n'
+      'Las demás carpetas emparejadas no viajan: cada conversación ve solo la '
+      'suya. La única excepción es la carpeta de salida, que va en todos los '
+      'encargos para poder guardar ahí lo que produzca — así que si la pones '
+      'dentro de una carpeta de solo texto, la voz no se abre y se te dice cuál '
+      'es.\n\n'
       'Aparte del modo, cada carpeta tiene permiso de archivos —solo leer o poder '
       'editar, y empieza en solo leer— y su propia lista de comandos bloqueados.';
 
@@ -1438,6 +1453,12 @@ class NexusStringsEn extends NexusStrings {
   String textOnlyFolder(String folder) =>
       'The folder $folder is in text-only mode, so the microphone stays shut. '
       'Type below, or change the mode in Settings.';
+
+  @override
+  String textOnlyArtifactsFolder(String folder) =>
+      'The output folder "$folder" is text only, and it travels with every '
+      'errand: whatever is kept there could end up narrated. Voice will not open '
+      'until you change it or give it voice mode.';
   @override
   String compacting(int percent) =>
       'Context at $percent%: compacting the conversation so it can go on '
@@ -1679,6 +1700,13 @@ class NexusStringsEn extends NexusStrings {
       'tool response. Restricting only the microphone would leave the leak open on '
       'the other side, so in a text-only folder Gemini takes no part: you type, '
       'Claude works, and you read the answer.\n\n'
+      'It does not mean nothing leaves your Mac either. Claude Code sends what it '
+      'reads from your folder to Anthropic, because that is how it works. What this '
+      'mode turns off is the voice service, not the work.\n\n'
+      'The other paired folders do not travel: each conversation sees only its own. '
+      'The one exception is the output folder, which goes with every errand so that '
+      'whatever is produced can be kept there — so if you put it inside a text-only '
+      'folder, voice will not open, and you are told which one.\n\n'
       'Besides the mode, each folder has a file permission — read only or can edit, '
       'starting at read only — and its own list of blocked commands.';
 

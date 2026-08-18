@@ -109,6 +109,19 @@ void main() {
       expect(en.guidePrivacyBody, contains('microphone off'));
     });
 
+    test('cuenta las dos cosas que no se ven desde la app', () {
+      // Ninguna de las dos se puede deducir mirando la pantalla, y las dos se
+      // añadieron después de que se preguntara por ellas en voz alta.
+      //
+      // La del cajón de salida tiene código detrás —el guardia que niega la voz,
+      // en `voice_guard_test`—, así que si alguien quita la frase, la guía deja
+      // de explicar un comportamiento que sí existe.
+      expect(es.guidePrivacyBody, contains('Anthropic'));
+      expect(en.guidePrivacyBody, contains('Anthropic'));
+      expect(es.guidePrivacyBody, contains('carpeta de salida'));
+      expect(en.guidePrivacyBody, contains('output folder'));
+    });
+
     test('los atajos que se prometen son los que hay', () {
       // ⌥Espacio, ⌘Y y ⌘, están escritos en `home_page.dart`. Aquí solo se fija
       // que la guía no invente otros: cambiar un atajo sin cambiar la guía deja

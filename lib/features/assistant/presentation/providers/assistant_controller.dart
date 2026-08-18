@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
@@ -579,6 +580,25 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (!paired.modality.allowsVoice) {
       state = state.copyWith(
         errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
+      );
+      return;
+    }
+
+    // Y la carpeta de artefactos, que es el único hueco que le quedaba a i5.
+    //
+    // Es la única excepción a «ninguna otra carpeta»: viaja como `--add-dir` en
+    // todos los encargos, así que si cae dentro de una emparejada en solo texto,
+    // esta conversación podría leer de ahí y Gemini narrarlo. La sesión no se
+    // abre, que es más estricto que avisar al elegir el cajón — el aviso se
+    // ignora y la puerta se queda abierta.
+    final cajon = ref
+        .read(workspaceControllerProvider)
+        .textOnlyOwnerOf(ref.read(artifactsFolderProvider));
+    if (cajon != null) {
+      state = state.copyWith(
+        errorMessage: ref
+            .read(stringsProvider)
+            .textOnlyArtifactsFolder(cajon.name),
       );
       return;
     }
