@@ -64,11 +64,18 @@ jobs:
 
       - run: flutter pub get
 
-      # `flutter build` antes del `xcodebuild test`: el target de pruebas se
-      # engancha a la app como host, y sin construirla primero no hay host.
-      - name: construir la app
-        run: flutter build macos --debug
+      # `--config-only`: genera la configuración efímera de macOS —sin ella
+      # Xcode no encuentra `Generated.xcconfig`— pero **no construye**. Construir
+      # aquí con `flutter build` falló en la primera corrida de este workflow: el
+      # proyecto está firmado con «Developer ID Application» y un runner no tiene
+      # ese certificado. Quien construye es el `xcodebuild` de abajo, que sí puede
+      # hacerlo sin firmar.
+      - name: preparar el proyecto sin construirlo
+        run: flutter build macos --debug --config-only
 
+      # Sin firma: aquí no se distribuye nada, solo se corren pruebas. Con la
+      # firma puesta, el runner busca un certificado del equipo Y9H7TRB5L7 que no
+      # existe y el build muere antes de compilar una línea.
       - name: xcodebuild test
         working-directory: macos
         run: |
@@ -77,4 +84,7 @@ jobs:
             -scheme Runner \
             -destination 'platform=macOS' \
             -only-testing:RunnerTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
             | tail -40
