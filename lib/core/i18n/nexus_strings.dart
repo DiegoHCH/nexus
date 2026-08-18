@@ -263,6 +263,9 @@ abstract class NexusStrings {
   String get archiveTitle;
   String get archiveExplainer;
   String get archiveNone;
+  String get archiveFailedLocal;
+  String archiveFailedExternal(String destination);
+  String archiveFailedBoth(String destination);
   String get archiveNoneHint;
   String get archiveFolder;
   String get archiveFolderHint;
@@ -829,6 +832,18 @@ class NexusStringsEs extends NexusStrings {
       'proyecto: las de una carpeta van juntas y las de otra, aparte.';
   @override
   String get archiveNone => 'En ningún sitio';
+  @override
+  String get archiveFailedLocal =>
+      'Esta conversación no se pudo guardar en el historial de Nexus. Sigue en '
+      'pantalla: cópiala si te importa, porque al cerrarla se va.';
+  @override
+  String archiveFailedExternal(String destination) =>
+      'No se pudo archivar en «$destination». La conversación está a salvo en el '
+      'historial de Nexus, así que no se ha perdido nada.';
+  @override
+  String archiveFailedBoth(String destination) =>
+      'Esta conversación no se pudo guardar ni en el historial de Nexus ni en '
+      '«$destination». Sigue en pantalla: cópiala antes de cerrarla.';
   @override
   String get archiveNoneHint =>
       'Lo hablado vive solo mientras la conversación esté abierta';
@@ -1570,6 +1585,18 @@ class NexusStringsEn extends NexusStrings {
       'ones from a folder stay together, and another folder\'s stay apart.';
   @override
   String get archiveNone => 'Nowhere';
+  @override
+  String get archiveFailedLocal =>
+      'This conversation could not be saved to the Nexus history. It is still on '
+      'screen: copy it if it matters, because closing it loses it.';
+  @override
+  String archiveFailedExternal(String destination) =>
+      'It could not be archived to "$destination". The conversation is safe in the '
+      'Nexus history, so nothing was lost.';
+  @override
+  String archiveFailedBoth(String destination) =>
+      'This conversation could not be saved to the Nexus history or to '
+      '"$destination". It is still on screen: copy it before closing.';
   @override
   String get archiveNoneHint =>
       'What is said lives only while the conversation is open';

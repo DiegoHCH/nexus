@@ -17,6 +17,7 @@ import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -368,10 +369,19 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Primero el historial de la app, que no depende de nada externo. Si
     // dependiera del vault o de Notion, elegir «en ningún sitio» dejaría a
     // Nexus sin memoria de lo que hiciste.
+    // Los dos fallos se recogen y se cuentan **al final, en un solo aviso**.
+    // Antes cada uno solo hacía `debugPrint`: si el vault ya no existía, la
+    // conversación se perdía y la app no decía nada — te enterabas el día que
+    // ibas a buscar la nota, cuando ya no había forma de recuperarla. Y es la
+    // peor clase de silencio, porque no se repite: la conversación ya terminó.
+    var falloLocal = false;
+    String? destinoFallido;
+
     try {
       await ref.read(localConversationStoreProvider).save(record);
       ref.invalidate(savedConversationsProvider(folder));
     } catch (error) {
+      falloLocal = true;
       debugPrint('archivo · no se pudo guardar en local: $error');
     }
 
@@ -383,14 +393,48 @@ class AssistantController extends Notifier<AssistantHudState> {
     // no se perdía nada; lo que se llevaba por delante era el silencio.
     try {
       final archive = await ref.read(conversationArchiveProvider.future);
-      if (archive == null) return;
-      await archive.save(record);
+      if (archive != null) await archive.save(record);
     } catch (error) {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
       // haberse desconectado, o el vault puede no existir ya. Se dice y se
       // sigue — el historial de la app nunca depende del destino externo.
+      destinoFallido = _destinationName();
       debugPrint('archivo · no se pudo archivar: $error');
     }
+
+    _reportArchiveFailure(local: falloLocal, destination: destinoFallido);
+  }
+
+  /// El aviso, uno solo y con **dónde** se intentó guardar.
+  ///
+  /// «No se pudo archivar» a secas no sirve de nada: lo que hace falta saber es
+  /// si la conversación está a salvo en el historial de la app o si se ha
+  /// perdido del todo, porque una cosa se arregla luego y la otra no.
+  void _reportArchiveFailure({required bool local, String? destination}) {
+    if (!local && destination == null) return;
+
+    final strings = ref.read(stringsProvider);
+    state = state.copyWith(
+      errorMessage: switch ((local, destination)) {
+        (true, final destino?) => strings.archiveFailedBoth(destino),
+        (true, _) => strings.archiveFailedLocal,
+        // Solo el externo: el historial de la app lo tiene, y decirlo es la
+        // mitad útil del aviso.
+        (_, final destino?) => strings.archiveFailedExternal(destino),
+        _ => null,
+      },
+    );
+  }
+
+  /// Cómo se llama el destino elegido, tal como se lee en Ajustes.
+  String _destinationName() {
+    final strings = ref.read(stringsProvider);
+    return switch (ref.read(archiveControllerProvider).destination) {
+      ArchiveDestination.folder => strings.archiveFolder,
+      ArchiveDestination.obsidian => strings.archiveObsidian,
+      ArchiveDestination.notion => strings.archiveNotion,
+      ArchiveDestination.none => strings.archiveNone,
+    };
   }
 
   /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
