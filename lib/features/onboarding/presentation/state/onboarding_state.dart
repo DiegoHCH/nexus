@@ -1,12 +1,26 @@
+import 'package:nexus/features/onboarding/domain/entities/readiness.dart';
+
 /// A qué pantalla va la app al arrancar: siempre pasa por el splash
-/// ([AppRouteLoading]), y desde ahí a configuración inicial o directo a
-/// Reposo según si ya hay una llave de Gemini guardada.
+/// ([AppRouteLoading]), y desde ahí a la comprobación de que puede trabajar
+/// ([AppRouteNotReady]), a la configuración inicial o directo a Reposo.
 sealed class AppRouteState {
   const AppRouteState();
 }
 
 class AppRouteLoading extends AppRouteState {
   const AppRouteLoading();
+}
+
+/// Falta algo **del sistema**, no de la configuración de la app: Claude Code
+/// sin instalar o sin ninguna cuenta con sesión.
+///
+/// Va delante de [AppRouteNeedsSetup] porque es más de fondo: sin las manos, la
+/// llave de Gemini solo consigue que te contesten sin poder hacer nada. Lleva el
+/// informe dentro para que la pantalla diga **qué** falta y no un «algo va mal».
+class AppRouteNotReady extends AppRouteState {
+  const AppRouteNotReady(this.readiness);
+
+  final Readiness readiness;
 }
 
 class AppRouteNeedsSetup extends AppRouteState {

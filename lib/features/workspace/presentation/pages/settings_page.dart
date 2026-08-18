@@ -7,6 +7,7 @@ import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
@@ -137,6 +138,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             _Section.superpowers => const SuperpowersSection(),
                             _Section.appearance => const _AppearanceSection(),
                             _Section.language => const _LanguageSection(),
+                            _Section.help => const _HelpSection(),
                           },
                         ),
                       ),
@@ -178,14 +180,25 @@ class _SectionLink extends StatelessWidget {
     // El relleno **dentro** del InkWell y no fuera: por fuera, la mitad de
     // abajo de cada enlace era hueco muerto que no respondía al clic. Lo
     // destapó la prueba que abre la pantalla, y el ratón lo sufría igual.
+    //
+    // Y ancho completo, no el del texto: la columna mide 200 y el área que
+    // respondía era del ancho de cada palabra —«VOZ» daba tres letras de blanco
+    // útil—, así que apuntar a la pestaña corta fallaba más que las largas. Ahora
+    // todas valen lo mismo y no queda hueco muerto entre una y la siguiente.
     return InkWell(
       onTap: onTap,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
-        child: Text(
-          label.toUpperCase(),
-          style: NexusTypography.label.copyWith(
-            color: active ? colors.cyan : colors.faint,
+      child: SizedBox(
+        width: double.infinity,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            vertical: NexusSpacing.s3,
+            horizontal: NexusSpacing.s2,
+          ),
+          child: Text(
+            label.toUpperCase(),
+            style: NexusTypography.label.copyWith(
+              color: active ? colors.cyan : colors.faint,
+            ),
           ),
         ),
       ),
@@ -248,7 +261,6 @@ class _SettingsTopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final workspace = ref.watch(workspaceControllerProvider);
 
     return Padding(
       padding: const EdgeInsets.symmetric(
@@ -257,38 +269,54 @@ class _SettingsTopBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          // Flexibles y con puntos suspensivos: en una ventana estrecha esta
-          // fila se salía —lo destapó la primera prueba que abrió la pantalla—
-          // y lo que sobra es el rótulo, no el interruptor de permisos.
-          Flexible(
-            child: Text(
-              context.strings.brand,
-              overflow: TextOverflow.ellipsis,
-              style: NexusTypography.data.copyWith(
-                color: colors.mute,
-                letterSpacing: 4.2,
-              ),
+          // Un solo `Flexible` para el rótulo entero, y **sin `Spacer`**: con un
+          // `Flexible` por texto, cada uno se llevaba su parte del reparto —flex 1
+          // por defecto— y el hueco quedaba dividido en tres, así que «Cerrar» se
+          // plantaba a media pantalla en vez de en el borde. Ahora el rótulo se
+          // queda todo el sobrante y empuja el botón a la derecha, y en una
+          // ventana estrecha sigue encogiendo con puntos suspensivos, que es para
+          // lo que estaba puesto.
+          // `Expanded` y no `Flexible`: el segundo deja al hijo quedarse pequeño,
+          // así que el rótulo medía lo que su texto y «Cerrar» se pegaba a él —a
+          // 825 px del borde, medido—. Con restricciones ajustadas el rótulo ocupa
+          // todo el sobrante y empuja el botón al borde.
+          Expanded(
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Flexible(
+                  child: Text(
+                    context.strings.brand,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexusTypography.data.copyWith(
+                      color: colors.mute,
+                      letterSpacing: 4.2,
+                    ),
+                  ),
+                ),
+                const SizedBox(width: NexusSpacing.s5),
+                Flexible(
+                  child: Text(
+                    context.strings.settings,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexusTypography.label.copyWith(
+                      color: colors.faint,
+                      letterSpacing: 2,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(width: NexusSpacing.s5),
-          Flexible(
-            child: Text(
-              context.strings.settings,
-              overflow: TextOverflow.ellipsis,
-              style: NexusTypography.label.copyWith(
-                color: colors.faint,
-                letterSpacing: 2,
-              ),
-            ),
-          ),
-          const Spacer(),
-          PermissionSwitch(
-            permission: workspace.permission,
-            onChanged: ref
-                .read(workspaceControllerProvider.notifier)
-                .setPermission,
-          ),
-          const SizedBox(width: NexusSpacing.s5),
+          // El interruptor de permisos ya no vive aquí.
+          //
+          // Es del espacio de trabajo entero, así que en la cabecera salía en
+          // **todas** las secciones sin nada que lo explicase — al lado de la voz
+          // o del idioma no dice de qué habla. Se cambia donde tiene contexto: en
+          // la sección de Permisos, con su título y su explicación, y en la
+          // pantalla principal, junto a la caja de escribir, que es donde importa
+          // saber si Claude puede editar antes de pedirle algo.
           OutlinedButton(
             onPressed: onClose,
             child: Text(context.strings.closeEsc),
@@ -646,7 +674,8 @@ enum _Section {
   stats,
   superpowers,
   appearance,
-  language;
+  language,
+  help;
 
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
@@ -656,7 +685,116 @@ enum _Section {
     _Section.superpowers => strings.sectionSuperpowers,
     _Section.appearance => strings.sectionAppearance,
     _Section.language => strings.sectionLanguage,
+    _Section.help => strings.sectionHelp,
   };
+}
+
+/// Ayuda: por ahora, volver a ver el tour.
+///
+/// Sección propia y no una fila colgada de otra porque es donde va a vivir la
+/// guía —el «qué necesita Nexus y qué hago con él» en frío—, y meterla ahora
+/// dentro de Apariencia obligaría a mudarla después.
+class _HelpSection extends ConsumerWidget {
+  const _HelpSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    // Con su propio scroll: el cuerpo de una sección no lo trae, y esto es lo
+    // más largo de todos los ajustes — la guía no cabe en una pantalla y no
+    // debería tener que caber.
+    return ListView(
+      children: [
+        Text(
+          strings.helpTourTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.helpTourExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            onPressed: () {
+              ref.read(tourControllerProvider.notifier).replay();
+              Navigator.of(context).maybePop();
+            },
+            child: Text(strings.helpTourAction),
+          ),
+        ),
+        const SizedBox(height: NexusSpacing.s7),
+        Divider(color: colors.rule, height: 1),
+        const SizedBox(height: NexusSpacing.s7),
+
+        // La guía en frío. Cuatro bloques y en este orden: qué hace falta, qué
+        // sale de tu Mac, qué hace cada pieza y qué hacer cuando algo falla.
+        //
+        // El segundo va tan arriba a propósito: es lo único de aquí que **no se
+        // puede deducir mirando la app**, y decidirlo mal tiene consecuencias
+        // fuera de ella.
+        _GuideBlock(
+          title: strings.guideNeedsTitle,
+          body: strings.guideNeedsBody,
+        ),
+        _GuideBlock(
+          title: strings.guidePrivacyTitle,
+          body: strings.guidePrivacyBody,
+        ),
+        _GuideBlock(
+          title: strings.guidePiecesTitle,
+          body: strings.guidePiecesBody,
+        ),
+        _GuideBlock(
+          title: strings.guideTroubleTitle,
+          body: strings.guideTroubleBody,
+        ),
+      ],
+    );
+  }
+}
+
+/// Un bloque de la guía: un título y su texto.
+///
+/// El cuerpo llega como un solo texto con saltos dobles y se parte aquí. Es a
+/// propósito: un bloque por párrafo multiplicaría por cuatro los textos que hay
+/// que traducir sin añadir nada, y lo que se traduce es prosa, no maquetación.
+class _GuideBlock extends StatelessWidget {
+  const _GuideBlock({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NexusSpacing.s7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: NexusTypography.lead.copyWith(color: colors.ink),
+          ),
+          const SizedBox(height: NexusSpacing.s4),
+          for (final parrafo in body.split('\n\n'))
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+              child: Text(
+                parrafo,
+                style: NexusTypography.body.copyWith(color: colors.mute),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
 }
 
 /// Dónde acaban las conversaciones.

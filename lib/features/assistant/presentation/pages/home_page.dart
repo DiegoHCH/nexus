@@ -15,6 +15,9 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
 import 'package:nexus/features/assistant/presentation/widgets/changes_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
+import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
+import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
+import 'package:nexus/features/onboarding/presentation/widgets/tour_overlay.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer_bar.dart';
@@ -144,7 +147,6 @@ class _HomePageState extends ConsumerState<HomePage> {
               HudTopBar(
                 status: _statusFor(hud.orbState, context.strings),
                 live: working || hud.voiceActive,
-                meter: hud.meter,
                 folderPath: focused.folderPath,
               ),
               Expanded(
@@ -163,10 +165,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                       width: hasChat
                           ? MediaQuery.sizeOf(context).width * 0.42
                           : MediaQuery.sizeOf(context).width,
-                      child: GestureDetector(
-                        onTap: controller.toggleVoice,
-                        behavior: HitTestBehavior.opaque,
-                        child: NexusOrb(state: hud.orbState),
+                      child: TourAnchor(
+                        stop: TourStop.orb,
+                        child: GestureDetector(
+                          onTap: controller.toggleVoice,
+                          behavior: HitTestBehavior.opaque,
+                          child: NexusOrb(state: hud.orbState),
+                        ),
                       ),
                     ),
                     if (hasChat)
@@ -221,10 +226,13 @@ class _HomePageState extends ConsumerState<HomePage> {
                           working: hud.orbState == NexusOrbState.think,
                         ),
                       ),
-                    Positioned(
+                    const Positioned(
                       left: NexusSpacing.s6,
                       bottom: NexusSpacing.s5,
-                      child: const ConversationDock(),
+                      child: TourAnchor(
+                        stop: TourStop.dock,
+                        child: ConversationDock(),
+                      ),
                     ),
                     if (hud.errorMessage != null)
                       Positioned(
@@ -242,15 +250,24 @@ class _HomePageState extends ConsumerState<HomePage> {
               // Los ajustes de la conversación viven aquí, junto a la
               // caja, y ya no arriba del todo: se leen justo antes de pedir
               // algo y se cambian sin cruzar la pantalla.
-              ComposerBar(
-                onSubmit: (texto, adjuntos) =>
-                    controller.submit(texto, attachments: adjuntos),
-                onFocusChanged: controller.setListening,
-                folderPath: focused.folderPath,
-                meter: hud.meter,
-                voiceActive: hud.voiceActive,
-                onToggleVoice: controller.toggleVoice,
+              TourAnchor(
+                stop: TourStop.composer,
+                child: ComposerBar(
+                  onSubmit: (texto, adjuntos) =>
+                      controller.submit(texto, attachments: adjuntos),
+                  onFocusChanged: controller.setListening,
+                  folderPath: focused.folderPath,
+                  meter: hud.meter,
+                  voiceActive: hud.voiceActive,
+                  onToggleVoice: controller.toggleVoice,
+                ),
               ),
+              // Fuera del `Stack` a propósito: se pinta en el `Overlay` de la app,
+              // así que su sitio en el árbol da igual — pero **dentro** del Stack
+              // le fijaba el ancho a cero, porque un Stack se dimensiona por sus
+              // hijos sin posicionar y este mide 0. Eso dejaba el orbe con ancho
+              // cero y el muelle desplazado.
+              const TourOverlay(),
             ],
           ),
         ),
@@ -336,16 +353,22 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                       // Opaco, como el de la pantalla con conversación: el
                       // orbe es dibujo sobre un fondo casi vacío, y sin esto
                       // solo respondería donde hay pintado un punto.
-                      child: GestureDetector(
-                        onTap: _talk,
-                        behavior: HitTestBehavior.opaque,
-                        child: const NexusOrb(state: NexusOrbState.sleep),
+                      child: TourAnchor(
+                        stop: TourStop.orb,
+                        child: GestureDetector(
+                          onTap: _talk,
+                          behavior: HitTestBehavior.opaque,
+                          child: const NexusOrb(state: NexusOrbState.sleep),
+                        ),
                       ),
                     ),
                     const Positioned(
                       left: NexusSpacing.s6,
                       bottom: NexusSpacing.s5,
-                      child: ConversationDock(),
+                      child: TourAnchor(
+                        stop: TourStop.dock,
+                        child: ConversationDock(),
+                      ),
                     ),
                     if (folders.isEmpty &&
                         ref.watch(artifactsFolderProvider) == null)
@@ -368,7 +391,19 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                   ],
                 ),
               ),
-              ComposerBar(onSubmit: _startWith, onFocusChanged: (_) {}),
+              TourAnchor(
+                stop: TourStop.composer,
+                child: ComposerBar(
+                  onSubmit: _startWith,
+                  onFocusChanged: (_) {},
+                ),
+              ),
+              // Fuera del `Stack` a propósito: se pinta en el `Overlay` de la app,
+              // así que su sitio en el árbol da igual — pero **dentro** del Stack
+              // le fijaba el ancho a cero, porque un Stack se dimensiona por sus
+              // hijos sin posicionar y este mide 0. Eso dejaba el orbe con ancho
+              // cero y el muelle desplazado.
+              const TourOverlay(),
             ],
           ),
         ),

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
-import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// La barra superior del HUD: wordmark, carpeta activa y el interruptor de
@@ -16,7 +15,6 @@ class HudTopBar extends ConsumerWidget {
     super.key,
     required this.status,
     this.live = false,
-    this.meter = const SessionMeter(),
     this.folderPath,
   });
 
@@ -25,10 +23,6 @@ class HudTopBar extends ConsumerWidget {
 
   /// Hay algo en marcha: el wordmark enciende su punto, como en el mockup.
   final bool live;
-
-  /// Modelo, tokens y contexto. Si no ha arrancado ninguna conversación no se
-  /// inventa nada: se dice que no la hay.
-  final SessionMeter meter;
 
   /// La carpeta de **la conversación que se está mirando**.
   ///
