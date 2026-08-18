@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -23,10 +24,14 @@ void main() {
   setUp(() => support = prepareScreenTest());
   tearDown(() => support.deleteSync(recursive: true));
 
-  Future<ProviderContainer> abrirCasa(WidgetTester tester) async {
+  Future<ProviderContainer> abrirCasa(
+    WidgetTester tester, {
+    double alto = 800,
+  }) async {
     await pumpScreen(
       tester,
       const HomePage(),
+      size: Size(1280, alto),
       overrides: [
         workspaceControllerProvider.overrideWith(
           () => FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
@@ -53,7 +58,7 @@ void main() {
       expect(
         tour.total,
         greaterThan(1),
-        reason: 'la casa vacía tiene orbe, muelle, caja y barra de arriba',
+        reason: 'la casa vacía tiene orbe, caja, muelle y el círculo del cupo',
       );
 
       // Y la pieza señalada tiene rectángulo: un foco sobre la nada sería peor
@@ -122,17 +127,95 @@ void main() {
     });
   });
 
+  // Reportado viéndolo: cuadros de casi el alto de la ventana, con el texto
+  // arriba y el resto vacío, cruzando la pantalla por el medio. El `Flexible`
+  // que permite encoger el cuerpo estiraba la columna hasta el tope de alto.
+  //
+  // **Esto fija la causa y no el aspecto, a propósito.** Medir el alto aquí no
+  // sirve: la fuente de las pruebas pinta cada carácter como un cuadrado y
+  // engorda el texto casi al doble, así que cualquier umbral en píxeles mediría
+  // la fuente. Y «que no cambie al crecer la ventana» tampoco vale — comprobado,
+  // cambia por otros caminos: el hueco que se señala crece con la pantalla y con
+  // él la rama de colocación. Lo que sí es determinista es de quién toma el alto
+  // la columna. El aspecto se revisa mirando la app.
+  testWidgets('la tarjeta toma su alto del texto, no del espacio libre', (
+    tester,
+  ) async {
+    await abrirCasa(tester);
+
+    final columna = tester.widget<Column>(
+      find
+          .descendant(
+            of: find.byKey(const ValueKey('tour-card')),
+            matching: find.byType(Column),
+          )
+          .first,
+    );
+
+    expect(
+      columna.mainAxisSize,
+      MainAxisSize.min,
+      reason:
+          'con `max`, el Flexible del cuerpo rellena todo el tope de alto y '
+          'salen cuadros de casi 800 px con el texto arriba',
+    );
+  });
+
+  group('verlo otra vez, desde Ajustes', () {
+    testWidgets('vuelve a salir aunque ya se hubiera visto', (tester) async {
+      final container = await abrirCasa(tester);
+      container.read(tourControllerProvider.notifier).finish();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(container.read(tourControllerProvider).running, isFalse);
+
+      container.read(tourControllerProvider.notifier).replay();
+      // Tres bombeos, y cada uno hace una cosa: el velo se entera al
+      // construirse, arranca en el `post-frame` siguiente —cuando ya puede
+      // preguntar por los rectángulos— y solo entonces pide mostrarse, que
+      // también va aplazado. Con dos, el estado ya dice «corriendo» y el cuadro
+      // todavía no está.
+      for (var i = 0; i < 3; i++) {
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+
+      final tour = container.read(tourControllerProvider);
+      expect(
+        tour.running,
+        isTrue,
+        reason:
+            'el velo ya se había dado por intentado; sin enterarse de la '
+            'petición, el botón de Ajustes no haría nada visible',
+      );
+      expect(tour.stop, TourStop.orb, reason: 'empieza otra vez por el principio');
+      expect(find.text('paso 1 de 4'), findsOne);
+    });
+
+    test('y se olvida la marca de disco, no solo la de esta sesión', () async {
+      // Si solo se desarmara en memoria, el tour volvería a no salir en el
+      // siguiente arranque y «ver otra vez» sería una promesa a medias.
+      SharedPreferences.setMockInitialValues({'flutter.tour_seen': true});
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      container.read(tourControllerProvider.notifier).replay();
+      await Future<void>.delayed(Duration.zero);
+
+      final prefs = await SharedPreferences.getInstance();
+      expect(prefs.getBool('tour_seen'), isNull);
+    });
+  });
+
   group('el estado, sin pantalla', () {
     test('el paso se cuenta contra el total fijado al arrancar', () {
       const cuatro = TourState(
         stop: TourStop.orb,
-        pending: [TourStop.composer, TourStop.dock, TourStop.topBar],
+        pending: [TourStop.composer, TourStop.dock, TourStop.meter],
         total: 4,
       );
       expect(cuatro.index, 1);
       expect(
         const TourState(
-          stop: TourStop.topBar,
+          stop: TourStop.meter,
           pending: [],
           total: 4,
         ).index,

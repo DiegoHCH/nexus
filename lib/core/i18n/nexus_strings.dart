@@ -303,8 +303,12 @@ abstract class NexusStrings {
   String get tourComposerBody;
   String get tourDockTitle;
   String get tourDockBody;
-  String get tourTopBarTitle;
-  String get tourTopBarBody;
+  String get tourMeterTitle;
+  String get sectionHelp;
+  String get helpTourTitle;
+  String get helpTourExplainer;
+  String get helpTourAction;
+  String get tourMeterBody;
   String get tourNext;
   String get tourDone;
   String get tourSkip;
@@ -901,12 +905,22 @@ class NexusStringsEs extends NexusStrings {
       'Cada una con su carpeta y su cuenta, trabajando en paralelo. Se cambia de '
       'una a otra sin perder lo que la otra estaba haciendo.';
   @override
-  String get tourTopBarTitle => 'Contexto y cupo, que no son lo mismo';
+  String get tourMeterTitle => 'Contexto y cupo, aquí dentro';
   @override
-  String get tourTopBarBody =>
-      'Aquí arriba aparecen las dos cifras en cuanto haya un turno. El contexto es '
-      'cuánta memoria lleva ocupada esta conversación; el cupo, cuánto queda de tu '
-      'suscripción. Puedes tener la ventana medio vacía y el cupo en las últimas.';
+  String get sectionHelp => 'Ayuda';
+  @override
+  String get helpTourTitle => 'El tour de la primera vez';
+  @override
+  String get helpTourExplainer =>
+      'Las cuatro piezas del HUD, señaladas una por una. Sale solo la primera vez; '
+      'desde aquí se puede volver a ver.';
+  @override
+  String get helpTourAction => 'Ver el tour otra vez';
+  @override
+  String get tourMeterBody =>
+      'Ábrelo y verás las dos cifras. El contexto es cuánta memoria lleva ocupada '
+      'esta conversación; el cupo, cuánto queda de tu suscripción. Son dos cosas '
+      'distintas: puedes tener la ventana medio vacía y el cupo en las últimas.';
   @override
   String get tourNext => 'Siguiente';
   @override
@@ -1558,12 +1572,22 @@ class NexusStringsEn extends NexusStrings {
       'Each with its own folder and account, working in parallel. You switch '
       'between them without losing what the other one was doing.';
   @override
-  String get tourTopBarTitle => 'Context and quota are not the same thing';
+  String get tourMeterTitle => 'Context and quota, in here';
   @override
-  String get tourTopBarBody =>
-      'Both figures show up here once there is a turn. Context is how much memory '
-      'this conversation is using; quota is how much of your subscription is left. '
-      'You can have the window half empty and the quota nearly gone.';
+  String get sectionHelp => 'Help';
+  @override
+  String get helpTourTitle => 'The first-run tour';
+  @override
+  String get helpTourExplainer =>
+      'The four pieces of the HUD, pointed at one by one. It only shows the first '
+      'time; from here you can see it again.';
+  @override
+  String get helpTourAction => 'See the tour again';
+  @override
+  String get tourMeterBody =>
+      'Open it and you will see both figures. Context is how much memory this '
+      'conversation is using; quota is how much of your subscription is left. They '
+      'are different things: you can have the window half empty and the quota gone.';
   @override
   String get tourNext => 'Next';
   @override

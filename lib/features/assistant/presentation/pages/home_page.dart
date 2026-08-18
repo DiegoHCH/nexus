@@ -144,14 +144,10 @@ class _HomePageState extends ConsumerState<HomePage> {
         child: Scaffold(
           body: Column(
             children: [
-              TourAnchor(
-                stop: TourStop.topBar,
-                child: HudTopBar(
-                  status: _statusFor(hud.orbState, context.strings),
-                  live: working || hud.voiceActive,
-                  meter: hud.meter,
-                  folderPath: focused.folderPath,
-                ),
+              HudTopBar(
+                status: _statusFor(hud.orbState, context.strings),
+                live: working || hud.voiceActive,
+                folderPath: focused.folderPath,
               ),
               Expanded(
                 child: Stack(
@@ -349,10 +345,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         child: Scaffold(
           body: Column(
             children: [
-              TourAnchor(
-                stop: TourStop.topBar,
-                child: HudTopBar(status: context.strings.asleep),
-              ),
+              HudTopBar(status: context.strings.asleep),
               Expanded(
                 child: Stack(
                   children: [

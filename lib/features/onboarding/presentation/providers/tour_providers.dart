@@ -69,6 +69,7 @@ class TourController extends Notifier<TourState> {
       stop: available.first,
       pending: available.skip(1).toList(),
       total: available.length,
+      requests: state.requests,
     );
     return true;
   }
@@ -83,6 +84,7 @@ class TourController extends Notifier<TourState> {
       stop: pending.first,
       pending: pending.skip(1).toList(),
       total: state.total,
+      requests: state.requests,
     );
   }
 
@@ -91,8 +93,28 @@ class TourController extends Notifier<TourState> {
   /// ignorar lo que acaba de decir.
   void skip() => finish();
 
+  /// Verlo otra vez, desde Ajustes.
+  ///
+  /// No arranca aquí mismo: se desarma la marca y se avisa al velo, que es quien
+  /// sabe qué piezas hay en pantalla. Como Ajustes es una ruta **encima** de la
+  /// casa, el tour queda listo detrás y aparece al cerrarla.
+  void replay() {
+    _seen = false;
+    state = TourState(requests: state.requests + 1);
+    unawaited(_forget());
+  }
+
+  Future<void> _forget() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove(_key);
+    } catch (_) {
+      // Se queda desarmado en esta sesión aunque no se pueda olvidar en disco.
+    }
+  }
+
   void finish() {
-    state = const TourState();
+    state = TourState(requests: state.requests);
     _seen = true;
     unawaited(_remember());
   }

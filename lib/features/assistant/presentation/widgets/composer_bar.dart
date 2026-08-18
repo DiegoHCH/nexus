@@ -19,6 +19,8 @@ import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.d
 import 'package:nexus/features/assistant/presentation/widgets/gauge.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
+import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
+import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -665,7 +667,10 @@ class _Controls extends ConsumerWidget {
         const SizedBox(width: NexusSpacing.s3),
         _EffortMenu(folder: folder),
         const SizedBox(width: NexusSpacing.s3),
-        _UsageMenu(meter: meter, claudeProfile: folder?.claudeProfile),
+        TourAnchor(
+          stop: TourStop.meter,
+          child: _UsageMenu(meter: meter, claudeProfile: folder?.claudeProfile),
+        ),
       ],
     );
   }

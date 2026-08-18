@@ -36,6 +36,9 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
   /// sistema de coordenadas del overlay sin convertir nada.
   final _portal = OverlayPortalController();
 
+  /// La última petición de «verlo otra vez» que este velo ya atendió.
+  var _lastRequest = 0;
+
   @override
   void initState() {
     super.initState();
@@ -63,7 +66,16 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
 
   @override
   Widget build(BuildContext context) {
-    final corriendo = ref.watch(tourControllerProvider).running;
+    final tour = ref.watch(tourControllerProvider);
+    final corriendo = tour.running;
+
+    // Se pidió repetirlo desde Ajustes: se levanta la marca de «ya intentado» y
+    // se vuelve a mirar qué piezas hay.
+    if (tour.requests != _lastRequest) {
+      _lastRequest = tour.requests;
+      _tried = false;
+      WidgetsBinding.instance.addPostFrameCallback((_) => _maybeStart());
+    }
     // `show`/`hide` fuera del build: cambiar el overlay mientras se construye
     // dispara un aserto de Flutter.
     WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -141,7 +153,7 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
           strings.tourComposerBody,
         ),
         TourStop.dock => (strings.tourDockTitle, strings.tourDockBody),
-        TourStop.topBar => (strings.tourTopBarTitle, strings.tourTopBarBody),
+        TourStop.meter => (strings.tourMeterTitle, strings.tourMeterBody),
       };
 }
 
@@ -187,6 +199,10 @@ class _Spotlight extends CustomPainter {
 
 /// La explicación, al lado de la pieza y nunca encima.
 class _Card extends StatelessWidget {
+  /// Para poder medirla en una prueba: que se calce al texto es justo lo que se
+  /// rompió, y no lo detecta ninguna aserción de las normales.
+  static const cardKey = ValueKey('tour-card');
+
   const _Card({
     required this.hole,
     required this.title,
@@ -268,6 +284,7 @@ class _Card extends StatelessWidget {
         // deja de poder cerrarse.
         constraints: BoxConstraints(maxHeight: maxAlto),
         child: Container(
+          key: cardKey,
         padding: const EdgeInsets.all(NexusSpacing.s5),
         decoration: BoxDecoration(
           color: colors.deep,
@@ -275,6 +292,14 @@ class _Card extends StatelessWidget {
           borderRadius: BorderRadius.circular(NexusRadius.md),
         ),
         child: Column(
+          // La tarjeta se calza a su texto.
+          //
+          // Sin esto la columna ocupa **todo** el alto que le deja el tope, y el
+          // `Flexible` del cuerpo lo rellena: salían cuadros de casi 800 px con el
+          // texto arriba y el resto vacío, cruzando la pantalla por el medio. Con
+          // `min`, el `Flexible` solo sirve para lo que se puso — encogerse si no
+          // cabe — y no para estirar.
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(

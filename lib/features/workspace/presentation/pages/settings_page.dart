@@ -7,6 +7,7 @@ import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
@@ -137,6 +138,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             _Section.superpowers => const SuperpowersSection(),
                             _Section.appearance => const _AppearanceSection(),
                             _Section.language => const _LanguageSection(),
+                            _Section.help => const _HelpSection(),
                           },
                         ),
                       ),
@@ -646,7 +648,8 @@ enum _Section {
   stats,
   superpowers,
   appearance,
-  language;
+  language,
+  help;
 
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
@@ -656,7 +659,46 @@ enum _Section {
     _Section.superpowers => strings.sectionSuperpowers,
     _Section.appearance => strings.sectionAppearance,
     _Section.language => strings.sectionLanguage,
+    _Section.help => strings.sectionHelp,
   };
+}
+
+/// Ayuda: por ahora, volver a ver el tour.
+///
+/// Sección propia y no una fila colgada de otra porque es donde va a vivir la
+/// guía —el «qué necesita Nexus y qué hago con él» en frío—, y meterla ahora
+/// dentro de Apariencia obligaría a mudarla después.
+class _HelpSection extends ConsumerWidget {
+  const _HelpSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.helpTourTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.helpTourExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        OutlinedButton(
+          onPressed: () {
+            ref.read(tourControllerProvider.notifier).replay();
+            Navigator.of(context).maybePop();
+          },
+          child: Text(strings.helpTourAction),
+        ),
+      ],
+    );
+  }
 }
 
 /// Dónde acaban las conversaciones.
