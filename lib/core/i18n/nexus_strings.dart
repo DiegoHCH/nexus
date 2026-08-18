@@ -294,6 +294,21 @@ abstract class NexusStrings {
   // La comprobación de arranque (a3): Claude Code es la mitad del trabajo y no
   // se comprobaba nunca.
   String get readinessTitle;
+
+  // El tour de la primera vez (a3, pieza 2): cuatro paradas, ancladas en piezas
+  // que un recién llegado sí tiene en pantalla.
+  String get tourOrbTitle;
+  String get tourOrbBody;
+  String get tourComposerTitle;
+  String get tourComposerBody;
+  String get tourDockTitle;
+  String get tourDockBody;
+  String get tourTopBarTitle;
+  String get tourTopBarBody;
+  String get tourNext;
+  String get tourDone;
+  String get tourSkip;
+  String tourStep(int current, int total);
   String get readinessExplainer;
   String get readinessCliMissing;
   String get readinessCliMissingFix;
@@ -865,6 +880,41 @@ class NexusStringsEs extends NexusStrings {
 
   @override
   String get readinessTitle => 'Falta algo para que Nexus pueda trabajar';
+
+  @override
+  String get tourOrbTitle => 'Háblale. Esto es Nexus';
+  @override
+  String get tourOrbBody =>
+      'Pulsa el orbe y empieza a hablar. Se le pide en voz alta lo que quieres '
+      'hacer en tu carpeta, y responde mientras Claude trabaja. El atajo global '
+      'también lo despierta sin traer la ventana al frente.';
+  @override
+  String get tourComposerTitle => 'O escríbelo, si prefieres';
+  @override
+  String get tourComposerBody =>
+      'Lo mismo por escrito, y aquí caen los archivos: arrastra una imagen o un '
+      'documento y se adjunta a lo que pidas. Tocar la miniatura luego lo abre.';
+  @override
+  String get tourDockTitle => 'Tres conversaciones a la vez';
+  @override
+  String get tourDockBody =>
+      'Cada una con su carpeta y su cuenta, trabajando en paralelo. Se cambia de '
+      'una a otra sin perder lo que la otra estaba haciendo.';
+  @override
+  String get tourTopBarTitle => 'Contexto y cupo, que no son lo mismo';
+  @override
+  String get tourTopBarBody =>
+      'Aquí arriba aparecen las dos cifras en cuanto haya un turno. El contexto es '
+      'cuánta memoria lleva ocupada esta conversación; el cupo, cuánto queda de tu '
+      'suscripción. Puedes tener la ventana medio vacía y el cupo en las últimas.';
+  @override
+  String get tourNext => 'Siguiente';
+  @override
+  String get tourDone => 'Entendido';
+  @override
+  String get tourSkip => 'Saltar el tour';
+  @override
+  String tourStep(int current, int total) => 'paso $current de $total';
   @override
   String get readinessExplainer =>
       'Nexus habla contigo, pero el trabajo lo hace Claude Code en tu Mac. '
@@ -1486,6 +1536,42 @@ class NexusStringsEn extends NexusStrings {
 
   @override
   String get readinessTitle => 'Something is missing before Nexus can work';
+
+  @override
+  String get tourOrbTitle => 'Talk to it. This is Nexus';
+  @override
+  String get tourOrbBody =>
+      'Press the orb and start talking. You ask out loud for what you want done '
+      'in your folder, and it answers while Claude works. The global shortcut '
+      'also wakes it without bringing the window to the front.';
+  @override
+  String get tourComposerTitle => 'Or type it, if you prefer';
+  @override
+  String get tourComposerBody =>
+      'The same thing in writing, and this is where files land: drag an image or '
+      'a document and it is attached to what you ask. Tapping the thumbnail later '
+      'opens it.';
+  @override
+  String get tourDockTitle => 'Three conversations at once';
+  @override
+  String get tourDockBody =>
+      'Each with its own folder and account, working in parallel. You switch '
+      'between them without losing what the other one was doing.';
+  @override
+  String get tourTopBarTitle => 'Context and quota are not the same thing';
+  @override
+  String get tourTopBarBody =>
+      'Both figures show up here once there is a turn. Context is how much memory '
+      'this conversation is using; quota is how much of your subscription is left. '
+      'You can have the window half empty and the quota nearly gone.';
+  @override
+  String get tourNext => 'Next';
+  @override
+  String get tourDone => 'Got it';
+  @override
+  String get tourSkip => 'Skip the tour';
+  @override
+  String tourStep(int current, int total) => 'step $current of $total';
   @override
   String get readinessExplainer =>
       'Nexus does the talking, but the work is done by Claude Code on your Mac. '
