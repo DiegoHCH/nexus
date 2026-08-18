@@ -135,6 +135,15 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     switch call.method {
     case "hasPermission":
       requestPermission(result: result)
+    // Consultar **sin preguntar**, que es lo que `hasPermission` no puede hacer:
+    // ese pide acceso cuando nadie lo ha decidido todavía, y eso está bien en la
+    // pantalla de configuración —donde el usuario acaba de pulsar «Solicitar»—
+    // pero no para mirar el estado antes de abrir la voz. Además hacen falta los
+    // tres estados: «denegado» se arregla en Ajustes del sistema y «sin decidir»
+    // se arregla preguntando, y decir lo mismo en los dos casos manda a la gente
+    // al sitio equivocado.
+    case "permissionStatus":
+      result(permissionStatus())
     case "start":
       do {
         try start()
@@ -183,6 +192,18 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   }
 
   // MARK: - Permiso
+
+  /// El estado del permiso, sin provocar el diálogo del sistema.
+  private func permissionStatus() -> String {
+    switch AVCaptureDevice.authorizationStatus(for: .audio) {
+    case .authorized: return "granted"
+    case .notDetermined: return "notAsked"
+    // `restricted` cae aquí a propósito: lo pone una política del dispositivo y
+    // desde la app no se puede cambiar, así que para quien mira es lo mismo que
+    // denegado — hay que ir a otro sitio.
+    default: return "denied"
+    }
+  }
 
   private func requestPermission(result: @escaping FlutterResult) {
     switch AVCaptureDevice.authorizationStatus(for: .audio) {

@@ -11,6 +11,8 @@ import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/microfono.dart';
+
 class _FixedWorkspace extends WorkspaceController {
   _FixedWorkspace(this._value);
 
@@ -141,6 +143,9 @@ void main() {
           conversationFolderProvider(conversationId).overrideWithValue(folderPath),
           conversationMemoryProvider.overrideWithValue(const _NoMemory()),
           artifactsFolderProvider.overrideWith(() => _FixedArtifacts(artifacts)),
+          // Este grupo usa una carpeta con voz, así que llega al guardia del
+          // micrófono; los de i5 cortan antes y por eso no lo necesitan.
+          conMicrofono,
           workspaceControllerProvider.overrideWith(
             () => _FixedWorkspace(
               Workspace(

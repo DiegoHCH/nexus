@@ -8,6 +8,8 @@ import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
+import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
@@ -626,6 +628,30 @@ class AssistantController extends Notifier<AssistantHudState> {
         errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
       );
       return;
+    }
+
+    // El micrófono, antes de montar nada.
+    //
+    // Nadie lo comprobaba: con el permiso revocado en Ajustes del sistema —algo
+    // que pasa meses después de concederlo— el orbe respondía al clic, la sesión
+    // intentaba abrirse y lo que salía era el error del motor de audio, que no
+    // dice a dónde ir. Y en «sin decidir» hay que **preguntar**, no rendirse:
+    // ahí sí toca el diálogo del sistema, que es lo que hace `hasPermission`.
+    switch (await ref.read(microphoneAccessProvider).status()) {
+      case MicrophoneStatus.denied:
+        state = state.copyWith(
+          errorMessage: ref.read(stringsProvider).microphoneBlocked,
+        );
+        return;
+      case MicrophoneStatus.notAsked:
+        if (!await ref.read(voiceInputProvider).hasPermission()) {
+          state = state.copyWith(
+            errorMessage: ref.read(stringsProvider).microphoneBlocked,
+          );
+          return;
+        }
+      case MicrophoneStatus.granted:
+        break;
     }
 
     // Y la carpeta de artefactos, que es el único hueco que le quedaba a i5.
