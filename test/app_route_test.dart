@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
+import 'package:nexus/features/onboarding/domain/repositories/readiness_probe.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 
@@ -29,9 +30,28 @@ class _BrokenStore implements GeminiKeyStore {
   Future<void> save(String key) async {}
 }
 
+/// Un sistema con todo en su sitio.
+///
+/// Se sustituye siempre: sin esto, estas pruebas saldrían a preguntarle al CLI
+/// de verdad y su resultado dependería de si **esta** máquina tiene Claude Code
+/// instalado y con sesión. Pasarían aquí y fallarían en otro Mac, que es la peor
+/// forma de fallar.
+class _TodoListo implements ReadinessProbe {
+  const _TodoListo();
+
+  @override
+  Future<bool> cliInstalled() async => true;
+
+  @override
+  Future<bool> anySession() async => true;
+}
+
 ProviderContainer containerWith(GeminiKeyStore store) {
   final container = ProviderContainer(
-    overrides: [geminiKeyStoreProvider.overrideWithValue(store)],
+    overrides: [
+      geminiKeyStoreProvider.overrideWithValue(store),
+      readinessProbeProvider.overrideWithValue(const _TodoListo()),
+    ],
   );
   addTearDown(container.dispose);
   return container;

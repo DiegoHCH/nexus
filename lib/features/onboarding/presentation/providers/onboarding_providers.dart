@@ -7,9 +7,11 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/core/storage/secure_storage_data_source.dart';
 import 'package:nexus/features/onboarding/data/repositories/gemini_key_store_impl.dart';
-import 'package:nexus/features/onboarding/domain/entities/onboarding_status.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
-import 'package:nexus/features/onboarding/domain/usecases/check_onboarding_status.dart';
+import 'package:nexus/features/onboarding/domain/entities/readiness.dart';
+import 'package:nexus/features/onboarding/domain/repositories/readiness_probe.dart';
+import 'package:nexus/features/onboarding/data/repositories/readiness_probe_impl.dart';
+import 'package:nexus/features/onboarding/domain/usecases/check_readiness.dart';
 import 'package:nexus/features/onboarding/domain/usecases/save_gemini_key.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 
@@ -21,8 +23,15 @@ final geminiKeyStoreProvider = Provider<GeminiKeyStore>(
   (ref) => GeminiKeyStoreImpl(ref.watch(secureStorageDataSourceProvider)),
 );
 
-final checkOnboardingStatusProvider = Provider<CheckOnboardingStatus>(
-  (ref) => CheckOnboardingStatus(ref.watch(geminiKeyStoreProvider)),
+final readinessProbeProvider = Provider<ReadinessProbe>(
+  (ref) => ReadinessProbeImpl(),
+);
+
+final checkReadinessProvider = Provider<CheckReadiness>(
+  (ref) => CheckReadiness(
+    ref.watch(readinessProbeProvider),
+    ref.watch(geminiKeyStoreProvider),
+  ),
 );
 
 final saveGeminiKeyProvider = Provider<SaveGeminiKey>(
@@ -50,16 +59,41 @@ class AppRouteController extends Notifier<AppRouteState> {
     try {
       final results = await (
         Future<void>.delayed(_minimumSplash),
-        ref.read(checkOnboardingStatusProvider)(const NoParams()),
+        ref.read(checkReadinessProvider)(const NoParams()),
       ).wait;
-      final OnboardingStatus status = results.$2;
-      state = status.hasGeminiKey
-          ? const AppRouteReady()
-          : const AppRouteNeedsSetup();
+      final Readiness readiness = results.$2;
+      state = readiness.blocksWork
+          ? AppRouteNotReady(readiness)
+          : _afterReadiness(readiness.geminiKey);
     } catch (error) {
       debugPrint('No se pudo resolver el arranque: $error');
       state = const AppRouteNeedsSetup();
     }
+  }
+
+  /// Resuelto lo del sistema, queda lo de la app: la llave de Gemini.
+  AppRouteState _afterReadiness(bool hasGeminiKey) =>
+      hasGeminiKey ? const AppRouteReady() : const AppRouteNeedsSetup();
+
+  /// Volver a preguntar tras instalar o iniciar sesión, sin reiniciar la app.
+  /// Pasa por el splash otra vez a propósito: la comprobación tarda, y un botón
+  /// que no cambia nada durante un segundo se siente roto.
+  void recheck() {
+    state = const AppRouteLoading();
+    unawaited(_resolve());
+  }
+
+  /// Entrar de todas formas.
+  ///
+  /// Existe porque esta pantalla informa, no guarda la puerta: puede haber
+  /// motivos para pasar —mirar el historial, cambiar los ajustes— y dejar a
+  /// alguien encerrado fuera de su propia app por una comprobación nuestra sería
+  /// peor que el fallo que viene a evitar.
+  void continueAnyway() {
+    final current = state;
+    state = _afterReadiness(
+      current is AppRouteNotReady ? current.readiness.geminiKey : true,
+    );
   }
 
   void completeSetup() => state = const AppRouteReady();

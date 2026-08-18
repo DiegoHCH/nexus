@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/core/platform/claude_cli.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
 /// Cuánto llevas gastado de tu suscripción.
@@ -169,32 +169,11 @@ class ClaudeUsageDataSource {
 
   /// Si esa cuenta tiene sesión, **según el CLI**.
   ///
-  /// Se le pregunta a él y no se deduce del llavero porque el llavero solo dice
-  /// cuándo vence el acceso, no si hay cuenta: con el acceso vencido y el
-  /// refresco bueno —lo normal tras unas horas sin usarla— mirar la caducidad
-  /// concluye «no hay sesión», que es falso.
-  ///
-  /// `auth status --json` contesta en **0,25 s medidos**, así que solo se paga
-  /// en el camino en que ya no había cifras que dar. Y de paso puede hacer que
-  /// el CLI renueve el token, que es justo lo que nos vendría bien.
-  Future<bool> _loggedIn(String configDir) async {
-    try {
-      final result = await Process.run('claude', [
-        'auth',
-        'status',
-        '--json',
-      ], environment: ClaudeEnvironment.forProfile(configDir));
-      if (result.exitCode != 0) return false;
-      final decoded = jsonDecode((result.stdout as String).trim());
-      return decoded is Map<String, dynamic> && decoded['loggedIn'] == true;
-    } on Exception {
-      // Sin CLI alcanzable no se puede afirmar que no haya sesión, pero
-      // tampoco leer el cupo. Se trata como «no hay sesión» porque es el único
-      // caso en que el usuario tiene algo que hacer —iniciarla—, y equivocarse
-      // aquí solo cuesta una frase, no un dato falso.
-      return false;
-    }
-  }
+  /// La pregunta vive en [ClaudeCli]: la comprobación de arranque necesita la
+  /// misma, y con una copia aquí las dos se separarían en cuanto una cambiara.
+  /// Solo se paga en el camino en que ya no había cifras que dar.
+  Future<bool> _loggedIn(String configDir) =>
+      ClaudeCli().loggedIn(configDir);
 
   /// La caducidad se mira aquí en vez de dejar que la API conteste 401: es una
   /// petición de red menos, y sobre todo permite distinguir «esta cuenta no

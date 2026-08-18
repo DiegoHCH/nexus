@@ -290,6 +290,19 @@ abstract class NexusStrings {
   // Configuración inicial
   String get beforeWeStart;
   String get setupTitle;
+
+  // La comprobación de arranque (a3): Claude Code es la mitad del trabajo y no
+  // se comprobaba nunca.
+  String get readinessTitle;
+  String get readinessExplainer;
+  String get readinessCliMissing;
+  String get readinessCliMissingFix;
+  String get readinessSessionMissing;
+  String get readinessSessionMissingFix;
+  String get readinessHowToInstall;
+  String get readinessRecheck;
+  String get readinessContinueAnyway;
+  String get readinessContinueHint;
   String get setupExplainer;
   String get startUsingNexus;
   String get changeLaterHint;
@@ -849,6 +862,34 @@ class NexusStringsEs extends NexusStrings {
   String get beforeWeStart => 'ANTES DE EMPEZAR';
   @override
   String get setupTitle => 'Tres cosas antes de poder hablar contigo';
+
+  @override
+  String get readinessTitle => 'Falta algo para que Nexus pueda trabajar';
+  @override
+  String get readinessExplainer =>
+      'Nexus habla contigo, pero el trabajo lo hace Claude Code en tu Mac. '
+      'Sin él no es que un encargo falle mal: es que falla sin decir por qué.';
+  @override
+  String get readinessCliMissing => 'Claude Code no está instalado';
+  @override
+  String get readinessCliMissingFix =>
+      'Se instala una vez y Nexus lo encuentra solo. Si crees que ya lo tienes, '
+      'comprueba en una terminal que «claude --version» conteste.';
+  @override
+  String get readinessSessionMissing => 'Ninguna cuenta tiene sesión abierta';
+  @override
+  String get readinessSessionMissingFix =>
+      'Abre una terminal, escribe «claude» y completa el inicio de sesión. '
+      'Nexus trabaja con tu suscripción, no con una clave de API.';
+  @override
+  String get readinessHowToInstall => 'Cómo se instala';
+  @override
+  String get readinessRecheck => 'Comprobar de nuevo';
+  @override
+  String get readinessContinueAnyway => 'Entrar de todas formas';
+  @override
+  String get readinessContinueHint =>
+      'Puedes entrar y arreglarlo luego: los ajustes y el historial funcionan igual.';
   @override
   String get setupExplainer =>
       'Nexus necesita tu micrófono para escucharte, una llave de Gemini para '
@@ -1442,6 +1483,34 @@ class NexusStringsEn extends NexusStrings {
   String get beforeWeStart => 'BEFORE WE START';
   @override
   String get setupTitle => 'Three things before it can talk to you';
+
+  @override
+  String get readinessTitle => 'Something is missing before Nexus can work';
+  @override
+  String get readinessExplainer =>
+      'Nexus does the talking, but the work is done by Claude Code on your Mac. '
+      'Without it an errand does not fail badly — it fails without saying why.';
+  @override
+  String get readinessCliMissing => 'Claude Code is not installed';
+  @override
+  String get readinessCliMissingFix =>
+      'Install it once and Nexus finds it on its own. If you think you already '
+      'have it, check that «claude --version» answers in a terminal.';
+  @override
+  String get readinessSessionMissing => 'No account is signed in';
+  @override
+  String get readinessSessionMissingFix =>
+      'Open a terminal, type «claude» and complete the sign-in. Nexus works '
+      'with your subscription, not with an API key.';
+  @override
+  String get readinessHowToInstall => 'How to install it';
+  @override
+  String get readinessRecheck => 'Check again';
+  @override
+  String get readinessContinueAnyway => 'Go in anyway';
+  @override
+  String get readinessContinueHint =>
+      'You can go in and fix it later: settings and history work the same.';
   @override
   String get setupExplainer =>
       'Nexus needs your microphone to hear you, a Gemini key to give you a '
