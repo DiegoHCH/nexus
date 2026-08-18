@@ -308,6 +308,14 @@ abstract class NexusStrings {
   String get helpTourTitle;
   String get helpTourExplainer;
   String get helpTourAction;
+  String get guideNeedsTitle;
+  String get guideNeedsBody;
+  String get guidePrivacyTitle;
+  String get guidePrivacyBody;
+  String get guidePiecesTitle;
+  String get guidePiecesBody;
+  String get guideTroubleTitle;
+  String get guideTroubleBody;
   String get tourMeterBody;
   String get tourNext;
   String get tourDone;
@@ -916,6 +924,65 @@ class NexusStringsEs extends NexusStrings {
       'desde aquí se puede volver a ver.';
   @override
   String get helpTourAction => 'Ver el tour otra vez';
+
+  @override
+  String get guideNeedsTitle => 'Qué necesita para funcionar';
+  @override
+  String get guideNeedsBody =>
+      'Claude Code, instalado y con sesión. Es quien hace el trabajo de verdad: '
+      'Nexus lanza su CLI en tu Mac y va con tu suscripción, no con una clave de '
+      'API. Se comprueba al arrancar, y si falta te lo dice antes de dejarte '
+      'entrar.\n\n'
+      'Una llave de Gemini, que es la voz. Sin ella todo lo demás sigue '
+      'funcionando por escrito.\n\n'
+      'El micrófono, solo para hablarle.\n\n'
+      'Y una carpeta emparejada: el trabajo pasa siempre dentro de una carpeta '
+      'concreta, con su cuenta de Claude y sus permisos. Sin ninguna emparejada se '
+      'trabaja en tu carpeta de documentos.';
+
+  @override
+  String get guidePrivacyTitle => 'Qué sale de tu Mac, y qué no';
+  @override
+  String get guidePrivacyBody =>
+      'Cada carpeta se empareja en uno de dos modos, y arranca en el restrictivo: '
+      '«solo texto», donde el servicio de voz no participa, o «voz», donde se '
+      'puede abrir sesión hablada.\n\n'
+      'Y aquí está lo que no es obvio: «solo texto» no significa «micrófono '
+      'apagado». Aunque no hables, en cuanto Gemini narra un resultado, lo que '
+      'Claude leyó de tu carpeta viaja hacia Google dentro de la respuesta de la '
+      'herramienta. Restringir solo el micrófono dejaría la fuga abierta por el '
+      'otro lado, así que en una carpeta de solo texto Gemini no participa: se '
+      'escribe, Claude trabaja y la respuesta se lee.\n\n'
+      'Aparte del modo, cada carpeta tiene permiso de archivos —solo leer o poder '
+      'editar, y empieza en solo leer— y su propia lista de comandos bloqueados.';
+
+  @override
+  String get guidePiecesTitle => 'Las piezas que el tour no señala';
+  @override
+  String get guidePiecesBody =>
+      'La columna de actividad aparece mientras hay trabajo: se ve lo que está '
+      'haciendo paso a paso, y se puede parar con ⌘. o con el botón Detener.\n\n'
+      'Los documentos que produce se abren en su propio visor, en una ventana '
+      'aparte para poder mirarlos al lado de la conversación, y se recargan solos '
+      'cuando cambian.\n\n'
+      'Las skills, los plugins y los servidores MCP viven en la cuenta de Claude y '
+      'no en el repo, así que valen en todas tus carpetas.\n\n'
+      'Atajos: ⌥Espacio le habla sin traer la ventana al frente, ⌘Y abre el '
+      'historial, ⌘, abre estos ajustes.';
+
+  @override
+  String get guideTroubleTitle => 'Cuando algo no va';
+  @override
+  String get guideTroubleBody =>
+      '«Falta algo para que Nexus pueda trabajar» significa que no encuentra el '
+      'binario de claude o que ninguna cuenta tiene sesión. Se arregla en una '
+      'terminal, y luego «Comprobar de nuevo» no necesita reiniciar la app.\n\n'
+      'Si no hay cifras de cupo, hay tres motivos distintos y el panel los '
+      'diferencia: esa cuenta no ha iniciado sesión, la lectura del token caducó '
+      '—que se arregla sola en cuanto vuelvas a usar la cuenta— o el servicio no '
+      'contestó.\n\n'
+      'Contexto y cupo no son lo mismo: puedes tener la ventana de contexto medio '
+      'vacía y el cupo de la semana en las últimas.';
   @override
   String get tourMeterBody =>
       'Ábrelo y verás las dos cifras. El contexto es cuánta memoria lleva ocupada '
@@ -1583,6 +1650,65 @@ class NexusStringsEn extends NexusStrings {
       'time; from here you can see it again.';
   @override
   String get helpTourAction => 'See the tour again';
+
+  @override
+  String get guideNeedsTitle => 'What it needs to work';
+  @override
+  String get guideNeedsBody =>
+      'Claude Code, installed and signed in. It is what actually does the work: '
+      'Nexus launches its CLI on your Mac and runs on your subscription, not on an '
+      'API key. It is checked at startup, and if it is missing you are told before '
+      'you get in.\n\n'
+      'A Gemini key, which is the voice. Without it everything else still works in '
+      'writing.\n\n'
+      'The microphone, only for talking to it.\n\n'
+      'And a paired folder: work always happens inside a specific folder, with its '
+      'own Claude account and permissions. With none paired, it works in your '
+      'documents folder.';
+
+  @override
+  String get guidePrivacyTitle => 'What leaves your Mac, and what does not';
+  @override
+  String get guidePrivacyBody =>
+      'Each folder is paired in one of two modes, and starts in the restrictive '
+      'one: "text only", where the voice service takes no part, or "voice", where a '
+      'spoken session can be opened.\n\n'
+      'And here is the part that is not obvious: "text only" does not mean '
+      '"microphone off". Even if you never speak, the moment Gemini narrates a '
+      'result, whatever Claude read from your folder travels to Google inside the '
+      'tool response. Restricting only the microphone would leave the leak open on '
+      'the other side, so in a text-only folder Gemini takes no part: you type, '
+      'Claude works, and you read the answer.\n\n'
+      'Besides the mode, each folder has a file permission — read only or can edit, '
+      'starting at read only — and its own list of blocked commands.';
+
+  @override
+  String get guidePiecesTitle => 'The pieces the tour does not point at';
+  @override
+  String get guidePiecesBody =>
+      'The activity column shows up while there is work: you see what it is doing '
+      'step by step, and you can stop it with ⌘. or the Stop button.\n\n'
+      'The documents it produces open in their own viewer, in a separate window so '
+      'you can look at them next to the conversation, and they reload themselves '
+      'when they change.\n\n'
+      'Skills, plugins and MCP servers live in the Claude account rather than in '
+      'the repo, so they apply across all your folders.\n\n'
+      'Shortcuts: ⌥Space talks to it without bringing the window to the front, ⌘Y '
+      'opens the history, ⌘, opens these settings.';
+
+  @override
+  String get guideTroubleTitle => 'When something does not work';
+  @override
+  String get guideTroubleBody =>
+      '"Something is missing before Nexus can work" means it cannot find the claude '
+      'binary, or no account is signed in. You fix it in a terminal, and then '
+      '"Check again" does not need an app restart.\n\n'
+      'If there are no quota figures, there are three different reasons and the '
+      'panel tells them apart: that account has not signed in, the token reading '
+      'expired — which fixes itself as soon as you use the account again — or the '
+      'service did not answer.\n\n'
+      'Context and quota are not the same thing: you can have the context window '
+      'half empty and the weekly quota nearly gone.';
   @override
   String get tourMeterBody =>
       'Open it and you will see both figures. Context is how much memory this '

@@ -676,8 +676,10 @@ class _HelpSection extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Con su propio scroll: el cuerpo de una sección no lo trae, y esto es lo
+    // más largo de todos los ajustes — la guía no cabe en una pantalla y no
+    // debería tener que caber.
+    return ListView(
       children: [
         Text(
           strings.helpTourTitle,
@@ -689,14 +691,82 @@ class _HelpSection extends ConsumerWidget {
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s5),
-        OutlinedButton(
-          onPressed: () {
-            ref.read(tourControllerProvider.notifier).replay();
-            Navigator.of(context).maybePop();
-          },
-          child: Text(strings.helpTourAction),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            onPressed: () {
+              ref.read(tourControllerProvider.notifier).replay();
+              Navigator.of(context).maybePop();
+            },
+            child: Text(strings.helpTourAction),
+          ),
+        ),
+        const SizedBox(height: NexusSpacing.s7),
+        Divider(color: colors.rule, height: 1),
+        const SizedBox(height: NexusSpacing.s7),
+
+        // La guía en frío. Cuatro bloques y en este orden: qué hace falta, qué
+        // sale de tu Mac, qué hace cada pieza y qué hacer cuando algo falla.
+        //
+        // El segundo va tan arriba a propósito: es lo único de aquí que **no se
+        // puede deducir mirando la app**, y decidirlo mal tiene consecuencias
+        // fuera de ella.
+        _GuideBlock(
+          title: strings.guideNeedsTitle,
+          body: strings.guideNeedsBody,
+        ),
+        _GuideBlock(
+          title: strings.guidePrivacyTitle,
+          body: strings.guidePrivacyBody,
+        ),
+        _GuideBlock(
+          title: strings.guidePiecesTitle,
+          body: strings.guidePiecesBody,
+        ),
+        _GuideBlock(
+          title: strings.guideTroubleTitle,
+          body: strings.guideTroubleBody,
         ),
       ],
+    );
+  }
+}
+
+/// Un bloque de la guía: un título y su texto.
+///
+/// El cuerpo llega como un solo texto con saltos dobles y se parte aquí. Es a
+/// propósito: un bloque por párrafo multiplicaría por cuatro los textos que hay
+/// que traducir sin añadir nada, y lo que se traduce es prosa, no maquetación.
+class _GuideBlock extends StatelessWidget {
+  const _GuideBlock({required this.title, required this.body});
+
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NexusSpacing.s7),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: NexusTypography.lead.copyWith(color: colors.ink),
+          ),
+          const SizedBox(height: NexusSpacing.s4),
+          for (final parrafo in body.split('\n\n'))
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+              child: Text(
+                parrafo,
+                style: NexusTypography.body.copyWith(color: colors.mute),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
