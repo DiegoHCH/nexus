@@ -42,6 +42,8 @@ abstract class NexusStrings {
   String get readOnlyExplainer;
   String contextUsed(int percent);
   String get attachFile;
+  String get orbLabel;
+  String get orbHint;
 
   // Estadísticas de uso, por cuenta.
   String get sectionStats;
@@ -400,6 +402,10 @@ class NexusStringsEs extends NexusStrings {
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
   @override
   String get attachFile => 'Adjuntar un archivo';
+  @override
+  String get orbLabel => 'Orbe de Nexus';
+  @override
+  String get orbHint => 'Actívalo para hablarle. También responde a ⌥Espacio.';
   @override
   String get sectionStats => 'Estadísticas';
   @override
@@ -1161,6 +1167,10 @@ class NexusStringsEn extends NexusStrings {
       'Context used: $percent%. At 85% the conversation compacts itself.';
   @override
   String get attachFile => 'Attach a file';
+  @override
+  String get orbLabel => 'Nexus orb';
+  @override
+  String get orbHint => 'Activate to talk to it. It also answers to ⌥Space.';
   @override
   String get sectionStats => 'Statistics';
   @override
