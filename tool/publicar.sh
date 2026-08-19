@@ -49,6 +49,25 @@ if [[ -n "$(git status --porcelain)" ]]; then
   exit 1
 fi
 
+# Y lo que se publica tiene que estar **en master**.
+#
+# Gitflow: master es producción y de ahí salen las releases taggeadas; develop es
+# integración. Este guion no lo comprobaba y estuvo a punto de publicar desde una
+# rama de trabajo — la etiqueta habría apuntado a un commit que ni estaba en la
+# rama principal, así que «la versión 0.0.1» no habría querido decir nada.
+git fetch -q origin master
+if ! git merge-base --is-ancestor HEAD origin/master; then
+  cat >&2 <<GITFLOW
+✗ este commit no está en master, y las releases salen de master.
+
+  El camino es: rama release/<versión> desde develop → PR a master → mezclar,
+  y entonces publicar desde master. Ahora mismo estás en:
+
+    $(git rev-parse --abbrev-ref HEAD)  ($(git rev-parse --short HEAD))
+GITFLOW
+  exit 1
+fi
+
 echo "▸ compilando en Release"
 flutter build macos --release
 
