@@ -1,0 +1,90 @@
+# Lo que nadie corría salvo a mano.
+#
+# Hay 374 pruebas de Dart y 5 nativas, y hasta ahora dependían de que quien
+# mezclara se acordara de ejecutarlas. Aguanta por disciplina y deja de aguantar
+# el primer día con prisa — y son justo las que pillan lo que el análisis
+# estático no ve: una fila que desborda, un velo colapsado a tamaño cero.
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+    branches: [master, develop]
+
+# Un empujón nuevo cancela el anterior de la misma rama: en una rama que se
+# empuja tres veces seguidas, las dos primeras corridas ya no interesan.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # El grueso, y en Linux a propósito: las pruebas de Dart no necesitan un Mac y
+  # los minutos de macOS cuestan diez veces más.
+  dart:
+    name: análisis y pruebas
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          # Clavada, no "stable": la suite depende de detalles del harness de
+          # pruebas —cómo mide texto la fuente de prueba, cómo se comporta
+          # `pumpScreen`— y un salto de versión rompería cosas que no cambió
+          # nadie. Se sube a mano y se ve el fallo en su propio PR.
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      - name: flutter analyze
+        run: flutter analyze
+
+      - name: flutter test
+        run: flutter test
+
+  # Aparte porque pide macOS: es el único sitio donde se pueden correr, y no hay
+  # motivo para pagar un Mac por el análisis.
+  #
+  # Estas cinco existen por la caída del visor: cerrar una ventana mataba la app
+  # entera y las 374 de Dart no podían verlo, porque el fallo vive en AppKit.
+  nativas:
+    name: pruebas nativas de macOS
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # `--config-only`: genera la configuración efímera de macOS —sin ella
+      # Xcode no encuentra `Generated.xcconfig`— pero **no construye**. Construir
+      # aquí con `flutter build` falló en la primera corrida de este workflow: el
+      # proyecto está firmado con «Developer ID Application» y un runner no tiene
+      # ese certificado. Quien construye es el `xcodebuild` de abajo, que sí puede
+      # hacerlo sin firmar.
+      - name: preparar el proyecto sin construirlo
+        run: flutter build macos --debug --config-only
+
+      # Sin firma: aquí no se distribuye nada, solo se corren pruebas. Con la
+      # firma puesta, el runner busca un certificado del equipo Y9H7TRB5L7 que no
+      # existe y el build muere antes de compilar una línea.
+      - name: xcodebuild test
+        working-directory: macos
+        run: |
+          xcodebuild test \
+            -workspace Runner.xcworkspace \
+            -scheme Runner \
+            -destination 'platform=macOS' \
+            -only-testing:RunnerTests \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tail -40

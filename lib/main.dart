@@ -1,0 +1,153 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/design_system/appearance_channel.dart';
+import 'package:nexus/core/design_system/theme_preference.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/platform/app_menu_channel.dart';
+import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
+import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
+
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  // Los atajos globales los registra el sistema, no la app: sobreviven a un
+  // hot reload y quedarían duplicados —o peor, huérfanos— sin esta limpieza
+  // al arrancar.
+  await hotKeyManager.unregisterAll();
+  runApp(const ProviderScope(child: MainApp()));
+}
+
+class MainApp extends ConsumerStatefulWidget {
+  const MainApp({super.key});
+
+  @override
+  ConsumerState<MainApp> createState() => _MainAppState();
+}
+
+class _MainAppState extends ConsumerState<MainApp> {
+  /// Los ajustes se abren desde el menú de macOS, que no tiene un `context` a
+  /// mano. Esta llave es ese `context`.
+  final _navigatorKey = GlobalKey<NavigatorState>();
+
+  @override
+  void initState() {
+    super.initState();
+    AppMenuChannel.listen(
+      onOpenSettings: _openSettings,
+      onOpenHistory: _openHistory,
+      onOpenArtifacts: _openArtifacts,
+    );
+  }
+
+  /// Los documentos generados (⌘J). No dependen de la conversación abierta —un
+  /// mockup de ayer sigue siendo tuyo hoy—, así que basta con el navegador.
+  void _openArtifacts() {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    ArtifactsSheet.open(navigator.context);
+  }
+
+  void _openSettings() {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    SettingsPage.open(navigator.context);
+  }
+
+  /// El historial es **de una carpeta**, no de una conversación abierta.
+  ///
+  /// Esa confusión lo dejaba mudo justo cuando más se necesita: recién abierta
+  /// la app, sin ningún chat en marcha, pedir el historial es exactamente lo
+  /// que uno hace para retomar algo de ayer. Así que si no hay conversación en
+  /// foco se usa la carpeta activa, y al elegir una conversación se abre una
+  /// conversación nueva sobre esa carpeta para volcarla dentro.
+  Future<void> _openHistory() async {
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+
+    final focused = ref.read(conversationsProvider).focused;
+    final workspace = ref.read(workspaceControllerProvider);
+    final folder =
+        focused?.folderPath ??
+        workspace.activePath ??
+        workspace.folders.firstOrNull?.path;
+    if (folder == null) return;
+
+    await ConversationHistorySheet.open(
+      navigator.context,
+      forgetFolder: focused == null ? null : folder.split('/').last,
+      onPick: (record) async {
+        // La conversación elegida puede ser de otra carpeta —las pestañas son
+        // por cuenta, no por proyecto—, así que se abre sobre **la suya**.
+        final id = await ref
+            .read(conversationsProvider.notifier)
+            .open(record.folderPath);
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).resume(record);
+      },
+      onForget: () {
+        final id = focused?.id;
+        if (id == null) return;
+        ref.read(assistantControllerProvider(id).notifier).forgetConversation();
+      },
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    // No es const: theme/darkTheme llaman a NexusTheme.light()/.dark(), que
+    // arman un ThemeData vía ColorScheme.fromSeed. Ni fromSeed ni ThemeData
+    // tienen constructor const, así que no hay forma de recuperar el const
+    // que tenía este MaterialApp sin abandonar fromSeed por un ColorScheme
+    // literal con sus ~40 campos a mano. El costo real es nulo: light()/
+    // dark() ya cachean el resultado en un static final.
+    final locale = ref.watch(localeProvider);
+
+    // El marco de la ventana va por libre —es AppKit— así que se le avisa cada
+    // vez que cambia lo que toca pintar. `ref.listen` y no una llamada en el
+    // build: esto es un efecto sobre el sistema, no parte de dibujar.
+    ref.listen(isDarkProvider, (previous, next) {
+      if (previous != next) AppearanceChannel.apply(dark: next);
+    });
+    // Y la primera vez, que `listen` no dispara solo: al arrancar, el marco lo
+    // puso Swift con lo que dice el sistema, y aquí ya se sabe si el usuario
+    // eligió otra cosa.
+    AppearanceChannel.apply(dark: ref.watch(isDarkProvider));
+
+    return MaterialApp(
+      navigatorKey: _navigatorKey,
+      // La cinta de «DEBUG» fuera: esta app se usa a diario en compilación de
+      // depuración —es su forma normal de correr, no una prueba de un rato— y
+      // la cinta tapa la esquina del HUD.
+      debugShowCheckedModeBanner: false,
+      theme: NexusTheme.light(),
+      darkTheme: NexusTheme.dark(),
+      themeMode: ref.watch(themeControllerProvider).mode,
+      locale: locale,
+      supportedLocales: NexusStrings.supported,
+      // Los de Flutter, para que los widgets de Material —menús, selección de
+      // texto— hablen el mismo idioma que la app y no se queden en inglés.
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      // Por encima del Navigator, no envolviendo `home`: Ajustes se abre como
+      // una ruta nueva, y esas se construyen **fuera** del hijo de `home`. Con
+      // el scope ahí abajo, abrir Ajustes reventaba con «falta un
+      // StringsScope» — y solo en esa pantalla, que es lo que lo hacía fácil
+      // de no ver hasta usarla.
+      builder: (context, child) =>
+          StringsScope(strings: NexusStrings.of(locale), child: child!),
+      home: const AppRoot(),
+    );
+  }
+}

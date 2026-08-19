@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- El hardened runtime, que Apple exige para notarizar, restringe el
+	     micrófono aunque no haya sandbox. Sin este permiso la app distribuida
+	     compilaría, se abriría y **no oiría nada** — y el fallo aparecería en
+	     casa de quien la baje, no aquí. -->
+	<key>com.apple.security.device.audio-input</key>
+	<true/>
+</dict>
+</plist>
