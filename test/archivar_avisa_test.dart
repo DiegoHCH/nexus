@@ -26,6 +26,8 @@ import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/microfono.dart';
+
 const conversationId = 'c1';
 const folderPath = '/Users/alguien/General';
 
@@ -150,6 +152,7 @@ void main() {
         conversationFolderProvider(conversationId).overrideWithValue(folderPath),
         conversationMemoryProvider.overrideWithValue(const _NoMemory()),
         workspaceControllerProvider.overrideWith(_Workspace.new),
+        conMicrofono,
         holdVoiceConversationProvider(conversationId).overrideWithValue(voz),
         localConversationStoreProvider.overrideWithValue(store),
         conversationArchiveProvider.overrideWith((ref) async => archivo),

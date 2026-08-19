@@ -345,6 +345,7 @@ abstract class NexusStrings {
   String get micGranted;
   String get micGrantedExplainer;
   String get micDenied;
+  String get microphoneBlocked;
   String get micDeniedShort;
   String get micDeniedExplainer;
   String get microphone;
@@ -1080,6 +1081,11 @@ class NexusStringsEs extends NexusStrings {
       'Habla un momento — si el trazo se mueve, tu voz llega bien a Nexus.';
   @override
   String get micDenied => 'DENEGADO';
+  @override
+  String get microphoneBlocked =>
+      'El micrófono está bloqueado, así que no se puede abrir la voz. Se concede '
+      'en Ajustes del sistema › Privacidad y seguridad › Micrófono, marcando '
+      'Nexus. Mientras tanto, puedes escribirle por abajo.';
   @override
   String get micDeniedShort => 'Actívalo en Ajustes del Sistema';
   @override
@@ -1829,6 +1835,11 @@ class NexusStringsEn extends NexusStrings {
       'Say something — if the trace moves, your voice is reaching Nexus.';
   @override
   String get micDenied => 'DENIED';
+  @override
+  String get microphoneBlocked =>
+      'The microphone is blocked, so voice cannot start. You grant it in System '
+      'Settings › Privacy & Security › Microphone, ticking Nexus. In the '
+      'meantime you can type to it below.';
   @override
   String get micDeniedShort => 'Turn it on in System Settings';
   @override
