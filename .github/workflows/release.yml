@@ -261,7 +261,7 @@ jobs:
           DMG="build/Nexus-$V.dmg"
           echo "$P8" | base64 --decode > "$RUNNER_TEMP/clave.p8"
 
-          tool/dmg.sh "$APP" "$DMG" "$V"
+          tool/dmg.sh "$APP" "$DMG"
 
           IDENTIDAD="$(security find-identity -v -p codesigning \
             | awk -F'"' '/Developer ID Application/{print $2; exit}')"
