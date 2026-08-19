@@ -9,8 +9,12 @@ import 'package:flutter/services.dart';
 abstract final class StatusItemChannel {
   static const _channel = MethodChannel('com.katanalabs.nexus/status');
 
-  static Future<void> show(String orbState) =>
-      _llamar('setState', {'state': orbState});
+  /// [pending] es «hay una versión nueva sin instalar», y pinta un punto rojo en
+  /// el icono. Va junto al estado y no en su propio método porque el lado nativo
+  /// redibuja el icono entero: dos llamadas serían dos dibujos, y la segunda
+  /// borraría lo que dijo la primera.
+  static Future<void> show(String orbState, {bool? pending}) =>
+      _llamar('setState', {'state': orbState, 'pending': ?pending});
 
   /// Los rótulos del menú, en el idioma **de la app**.
   ///

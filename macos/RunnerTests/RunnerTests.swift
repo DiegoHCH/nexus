@@ -395,3 +395,49 @@ final class ActualizadorTests: XCTestCase {
     )
   }
 }
+
+/// El punto rojo del icono de la barra.
+///
+/// Lo que se vigila es la trampa que ya costó un icono gris: **una plantilla se
+/// tiñe entera**. Si el icono con punto siguiera siendo plantilla, macOS pintaría
+/// el rojo del color de la barra y el punto dejaría de decir nada — exactamente el
+/// mismo fallo que dejó el cian del icono de 16 px en gris azulado.
+final class PuntoPendienteTests: XCTestCase {
+  private func imagen(_ estado: String, pendiente: Bool) -> NSImage? {
+    NexusStatusItem.show(NexusStatusItem.Presence.from(estado), pending: pendiente)
+    return NexusStatusItem.currentImage
+  }
+
+  func testConPuntoNoEsPlantilla() {
+    XCTAssertEqual(imagen("sleep", pendiente: false)?.isTemplate, true,
+                   "dormido sin nada pendiente sí se tiñe: así se ve en barra clara y oscura")
+    XCTAssertEqual(imagen("sleep", pendiente: true)?.isTemplate, false,
+                   "con punto no puede teñirse, o el rojo se pierde")
+  }
+
+  func testElPuntoSeVeDistinto() {
+    let sin = imagen("sleep", pendiente: false)?.tiffRepresentation
+    let con = imagen("sleep", pendiente: true)?.tiffRepresentation
+    XCTAssertNotNil(sin)
+    XCTAssertNotEqual(sin, con, "el punto tiene que dibujarse, no solo declararse")
+  }
+
+  /// Y que sobreviva a un cambio de estado del orbe.
+  ///
+  /// Es el fallo que este diseño evita: el estado del orbe cambia varias veces por
+  /// turno y el aviso casi nunca, así que si `show` no recordara el pendiente, el
+  /// punto se borraría en cuanto Claude empezara a pensar.
+  func testElPuntoSobreviveAlCambioDeEstado() {
+    _ = imagen("sleep", pendiente: true)
+
+    // El estado del orbe se manda **sin decir nada del pendiente**, que es como
+    // llega de verdad: `status_presence.dart` reenvía el estado en cada cambio y
+    // el aviso solo cuando cambia el aviso.
+    NexusStatusItem.show(.working)
+
+    XCTAssertEqual(
+      NexusStatusItem.currentImage?.isTemplate, false,
+      "sin recordar el pendiente, el punto se borraría en cuanto Claude pensara"
+    )
+  }
+}
