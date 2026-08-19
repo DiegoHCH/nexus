@@ -2,8 +2,9 @@ import 'package:flutter/material.dart';
 
 /// Tokens de color de Nexus, tomados de `nexus-ui-mockups.html`.
 ///
-/// Un solo acento (`cyan`): los colores de estado (`ok`/`warn`/`err`) son
-/// señal, nunca decoración ni énfasis. Se expone como [ThemeExtension] para
+/// Un solo acento (`accent`), y **se elige**: era `cyan` mientras solo pudo ser
+/// cian, y ese nombre pasó a ser mentira el día que pudo ser violeta. Los colores
+/// de estado (`ok`/`warn`/`err`) no se eligen: son señal, nunca decoración. Se expone como [ThemeExtension] para
 /// que el resto de la app nunca hardcodee un color y el tema claro/oscuro
 /// se resuelva solo con `Theme.of(context)`.
 @immutable
@@ -17,7 +18,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
     required this.ink,
     required this.mute,
     required this.faint,
-    required this.cyan,
+    required this.accent,
     required this.ok,
     required this.warn,
     required this.err,
@@ -49,8 +50,8 @@ class NexusColors extends ThemeExtension<NexusColors> {
   /// Texto terciario (`--faint`).
   final Color faint;
 
-  /// Acento único: el cian del orbe (`--cyan`).
-  final Color cyan;
+  /// Acento único: el cian del orbe (`--accent`).
+  final Color accent;
 
   /// Señal de estado correcto (`--ok`).
   final Color ok;
@@ -77,7 +78,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
     ink: Color(0xFFE4EDF6),
     mute: Color(0xFF8496AD),
     faint: Color(0xFF54637A),
-    cyan: Color(0xFF56E1EA),
+    accent: Color(0xFF56E1EA),
     ok: Color(0xFF57C98A),
     warn: Color(0xFFE3B25C),
     err: Color(0xFFF06A62),
@@ -85,9 +86,16 @@ class NexusColors extends ThemeExtension<NexusColors> {
     shadow: Color(0xE6000000),
   );
 
-  /// El tema claro no es una inversión automática del oscuro: el cian baja
-  /// a `#0C7C88` por contraste AA y las señales de estado se oscurecen para
-  /// seguir siendo legibles sobre fondo claro.
+  /// El tema claro no es una inversión automática del oscuro: el acento baja y
+  /// las señales de estado se oscurecen para seguir siendo legibles sobre fondo
+  /// claro.
+  ///
+  /// El acento estuvo en `#0C7C88` diciendo que era «por contraste AA», y al
+  /// medirlo resultó que **no llegaba**: 4,23 contra el `void` claro, por debajo
+  /// del 4,5 que pide AA. Pasaba a duras penas contra el blanco de `deep` (4,94),
+  /// que debió de ser lo que se midió entonces. Ahora es `#0B7480` —4,71 contra
+  /// el peor de los tres fondos— y hay una prueba que lo comprueba para **todos**
+  /// los acentos elegibles, no solo para este.
   static const light = NexusColors(
     void_: Color(0xFFE9EEF5),
     deep: Color(0xFFFFFFFF),
@@ -97,7 +105,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
     ink: Color(0xFF08101C),
     mute: Color(0xFF4A5768),
     faint: Color(0xFF78869A),
-    cyan: Color(0xFF0C7C88),
+    accent: Color(0xFF0B7480),
     ok: Color(0xFF1F7D51),
     warn: Color(0xFF8A6110),
     err: Color(0xFFB3352C),
@@ -115,7 +123,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
     Color? ink,
     Color? mute,
     Color? faint,
-    Color? cyan,
+    Color? accent,
     Color? ok,
     Color? warn,
     Color? err,
@@ -131,7 +139,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
       ink: ink ?? this.ink,
       mute: mute ?? this.mute,
       faint: faint ?? this.faint,
-      cyan: cyan ?? this.cyan,
+      accent: accent ?? this.accent,
       ok: ok ?? this.ok,
       warn: warn ?? this.warn,
       err: err ?? this.err,
@@ -152,7 +160,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
       ink: Color.lerp(ink, other.ink, t)!,
       mute: Color.lerp(mute, other.mute, t)!,
       faint: Color.lerp(faint, other.faint, t)!,
-      cyan: Color.lerp(cyan, other.cyan, t)!,
+      accent: Color.lerp(accent, other.accent, t)!,
       ok: Color.lerp(ok, other.ok, t)!,
       warn: Color.lerp(warn, other.warn, t)!,
       err: Color.lerp(err, other.err, t)!,
@@ -163,7 +171,7 @@ class NexusColors extends ThemeExtension<NexusColors> {
 }
 
 extension NexusColorsContext on BuildContext {
-  /// Acceso corto: `context.colors.cyan`.
+  /// Acceso corto: `context.colors.accent`.
   ///
   /// Requiere que el `ThemeData` venga de `NexusTheme.light()`/`.dark()`:
   /// son los únicos que registran esta extensión. Un `MaterialApp` armado a

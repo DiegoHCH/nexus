@@ -47,6 +47,10 @@ final class NexusStatusItem: NSObject {
       case "setState":
         let args = call.arguments as? [String: Any]
         let raw = args?["state"] as? String ?? ""
+        // El acento llega de Dart y no se escribe aquí: se elige en Ajustes, y un
+        // icono que se quedara cian mientras la app entera es violeta sería el
+        // único sitio de la interfaz que no obedece.
+        if let hex = args?["accent"] as? String { acento = color(fromHex: hex) ?? acento }
         show(Presence.from(raw), pending: args?["pending"] as? Bool ?? false)
         result(nil)
       // Los rótulos vienen de Dart y no se escriben aquí: el idioma lo elige la
@@ -127,8 +131,30 @@ final class NexusStatusItem: NSObject {
   /// cambio de estado.
   private static var pendiente = false
 
-  static func show(_ presence: Presence, pending: Bool? = nil) {
+  /// El acento con el que se pinta. Arranca en el cian —el de la paleta por
+  /// defecto— porque el icono se dibuja al registrar el canal, antes de que Dart
+  /// haya podido leer la preferencia del disco.
+  private static var acento = NSColor(
+    red: 0x56 / 255, green: 0xE1 / 255, blue: 0xEA / 255, alpha: 1
+  )
+
+  /// `#RRGGBB` a color. Devuelve `nil` si no lo es, para no pintar negro por un
+  /// texto mal formado.
+  static func color(fromHex hex: String) -> NSColor? {
+    var limpio = hex.trimmingCharacters(in: .whitespaces)
+    if limpio.hasPrefix("#") { limpio.removeFirst() }
+    guard limpio.count == 6, let valor = UInt32(limpio, radix: 16) else { return nil }
+    return NSColor(
+      red: CGFloat((valor >> 16) & 0xFF) / 255,
+      green: CGFloat((valor >> 8) & 0xFF) / 255,
+      blue: CGFloat(valor & 0xFF) / 255,
+      alpha: 1
+    )
+  }
+
+  static func show(_ presence: Presence, pending: Bool? = nil, accent: String? = nil) {
     if let pending { pendiente = pending }
+    if let accent, let nuevo = color(fromHex: accent) { acento = nuevo }
     let bar = item ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item = bar
     bar.button?.image = mark(for: presence, pending: pendiente)
@@ -145,7 +171,7 @@ final class NexusStatusItem: NSObject {
     let imagen = NSImage(size: NSSize(width: lado, height: lado), flipped: false) { rect in
       let color: NSColor = presence == .asleep
         ? .black  // lo tiñe el sistema: ver `isTemplate` abajo
-        : NSColor(red: 0x56 / 255, green: 0xE1 / 255, blue: 0xEA / 255, alpha: 1)
+        : acento
       color.setStroke()
       color.setFill()
 

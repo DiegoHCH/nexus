@@ -286,7 +286,7 @@ class _Salto extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s2),
             child: Icon(Icons.arrow_forward, size: 12, color: colors.faint),
           ),
-          Text(hasta, style: NexusTypography.data.copyWith(color: colors.cyan)),
+          Text(hasta, style: NexusTypography.data.copyWith(color: colors.accent)),
         ],
       ),
     );
@@ -307,7 +307,7 @@ class _Barra extends StatelessWidget {
         value: fraction,
         minHeight: 3,
         backgroundColor: colors.rule,
-        valueColor: AlwaysStoppedAnimation<Color>(colors.cyan),
+        valueColor: AlwaysStoppedAnimation<Color>(colors.accent),
       ),
     );
   }

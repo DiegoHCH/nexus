@@ -110,11 +110,11 @@ class _DockOrbState extends ConsumerState<_DockOrb> {
                   // insinúan al pasar por encima. Es el mismo recurso que el
                   // interruptor de permisos usa para decir cuál está puesta.
                   color: widget.isFocused
-                      ? colors.cyan.withValues(alpha: 0.07)
+                      ? colors.accent.withValues(alpha: 0.07)
                       : null,
                   border: Border.all(
                     color: widget.isFocused
-                        ? colors.cyan.withValues(alpha: 0.45)
+                        ? colors.accent.withValues(alpha: 0.45)
                         : (_hovering ? colors.rule2 : Colors.transparent),
                   ),
                   borderRadius: BorderRadius.circular(NexusRadius.sm),
@@ -174,7 +174,7 @@ class _DockOrbState extends ConsumerState<_DockOrb> {
                         style: NexusTypography.label.copyWith(
                           color: widget.isFocused
                               ? colors.ink
-                              : (working ? colors.cyan : colors.faint),
+                              : (working ? colors.accent : colors.faint),
                         ),
                         overflow: TextOverflow.ellipsis,
                         maxLines: 1,

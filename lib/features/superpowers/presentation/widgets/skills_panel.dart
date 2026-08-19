@@ -199,7 +199,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                     icon: Icon(
                       ids.contains(skill.id) ? Icons.refresh : Icons.add,
                       size: 15,
-                      color: colors.cyan,
+                      color: colors.accent,
                     ),
                     splashRadius: 14,
                     tooltip: ids.contains(skill.id)
@@ -318,7 +318,7 @@ class _Heading extends StatelessWidget {
     padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
     child: Text(
       text,
-      style: NexusTypography.label.copyWith(color: context.colors.cyan),
+      style: NexusTypography.label.copyWith(color: context.colors.accent),
     ),
   );
 }
@@ -351,7 +351,7 @@ class _Field extends StatelessWidget {
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
         focusedBorder: OutlineInputBorder(
-          borderSide: BorderSide(color: colors.cyan),
+          borderSide: BorderSide(color: colors.accent),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
       ),

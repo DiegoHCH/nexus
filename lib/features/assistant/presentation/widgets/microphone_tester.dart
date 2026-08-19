@@ -100,7 +100,7 @@ class _MicrophoneTesterState extends ConsumerState<MicrophoneTester> {
           SizedBox(
             height: 48,
             child: CustomPaint(
-              painter: _TracePainter(amplitude: _amplitude, color: colors.cyan),
+              painter: _TracePainter(amplitude: _amplitude, color: colors.accent),
               child: const SizedBox.expand(),
             ),
           ),

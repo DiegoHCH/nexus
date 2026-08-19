@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
@@ -198,7 +199,7 @@ class _SectionLink extends StatelessWidget {
           child: Text(
             label.toUpperCase(),
             style: NexusTypography.label.copyWith(
-              color: active ? colors.cyan : colors.faint,
+              color: active ? colors.accent : colors.faint,
             ),
           ),
         ),
@@ -445,7 +446,7 @@ class _FolderRow extends ConsumerWidget {
         decoration: BoxDecoration(
           color: colors.rise,
           border: Border.all(
-            color: isActive ? colors.cyan.withValues(alpha: 0.5) : colors.rule2,
+            color: isActive ? colors.accent.withValues(alpha: 0.5) : colors.rule2,
           ),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
@@ -463,7 +464,7 @@ class _FolderRow extends ConsumerWidget {
                     ? Icons.radio_button_checked
                     : Icons.radio_button_unchecked,
                 size: 16,
-                color: isActive ? colors.cyan : colors.faint,
+                color: isActive ? colors.accent : colors.faint,
               ),
             ),
             Expanded(
@@ -657,7 +658,7 @@ class _ModalityToggle extends StatelessWidget {
         child: Text(
           voice ? 'VOZ' : context.strings.textOnly,
           style: NexusTypography.label.copyWith(
-            color: voice ? colors.cyan : colors.faint,
+            color: voice ? colors.accent : colors.faint,
             letterSpacing: 1.4,
           ),
         ),
@@ -912,7 +913,7 @@ class _HistorySection extends ConsumerWidget {
                         : Icons.radio_button_unchecked,
                     size: 15,
                     color: option == settings.destination
-                        ? colors.cyan
+                        ? colors.accent
                         : colors.faint,
                   ),
                   const SizedBox(width: NexusSpacing.s3),
@@ -1156,6 +1157,83 @@ class _AppearanceSection extends ConsumerWidget {
           },
           onSelected: ref.read(themeControllerProvider.notifier).select,
         ),
+        const SizedBox(height: NexusSpacing.s7),
+        Text(
+          strings.accentTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.accentExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s5),
+        const _AccentPalette(),
+      ],
+    );
+  }
+}
+
+/// Los colores elegibles, como círculos.
+///
+/// Círculos y no una lista de nombres: el nombre de un color se lee y hay que
+/// imaginárselo, y aquí lo que importa es **verlo**. Tampoco una rueda de color
+/// libre: el acento se pinta sobre el vacío y sobre el fondo claro, y con libertad
+/// total la mitad de las elecciones serían ilegibles en uno de los dos temas. Cada
+/// círculo trae su par de tonos ya calibrado.
+class _AccentPalette extends ConsumerWidget {
+  const _AccentPalette();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final elegido = ref.watch(accentControllerProvider);
+    final oscuro = Theme.of(context).brightness == Brightness.dark;
+
+    return Wrap(
+      spacing: NexusSpacing.s4,
+      runSpacing: NexusSpacing.s4,
+      children: [
+        for (final opcion in AccentChoice.values)
+          Semantics(
+            button: true,
+            selected: opcion == elegido,
+            // El nombre sí hace falta **aquí**: sin él un lector de pantalla
+            // anunciaría seis botones idénticos sin nada que los distinga.
+            label: switch (opcion) {
+              AccentChoice.cyan => context.strings.accentCyan,
+              AccentChoice.violet => context.strings.accentViolet,
+              AccentChoice.amber => context.strings.accentAmber,
+              AccentChoice.rose => context.strings.accentRose,
+              AccentChoice.green => context.strings.accentGreen,
+              AccentChoice.blue => context.strings.accentBlue,
+            },
+            child: InkWell(
+              key: ValueKey('acento-${opcion.name}'),
+              onTap: () =>
+                  ref.read(accentControllerProvider.notifier).select(opcion),
+              borderRadius: BorderRadius.circular(999),
+              child: Container(
+                width: 34,
+                height: 34,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  // Se enseña el tono **del tema puesto**, no siempre el oscuro:
+                  // si en claro se enseñara el del oscuro, se elegiría un color y
+                  // aparecería otro.
+                  color: opcion.forBrightness(
+                    oscuro ? Brightness.dark : Brightness.light,
+                  ),
+                  // El elegido lleva un aro por fuera en vez de un check dentro:
+                  // un check tapa justo el color que hay que juzgar.
+                  border: Border.all(
+                    color: opcion == elegido ? colors.ink : colors.rule2,
+                    width: opcion == elegido ? 2 : 1,
+                  ),
+                ),
+              ),
+            ),
+          ),
       ],
     );
   }
