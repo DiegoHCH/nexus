@@ -89,9 +89,27 @@ final class NexusAppearance {
     isDark = dark
     let appearance = NSAppearance(named: dark ? .darkAqua : .aqua)
     let background = dark ? voidDark : voidLight
-    for window in NSApplication.shared.windows {
+    for window in NSApplication.shared.windows where isOurs(window) {
       window.appearance = appearance
       window.backgroundColor = background
     }
   }
+
+  /// La marca que llevan **nuestras** ventanas: la principal y las del visor.
+  ///
+  /// Hace falta porque `NSApplication.shared.windows` no son solo las que abre la
+  /// app: el icono de la barra de estado vive en una ventana del sistema que
+  /// también sale en esa lista, y pintarle el `--void` de fondo le ponía **un
+  /// recuadro negro detrás** — se vio en la barra, junto a iconos que no llevan
+  /// ninguno.
+  static let ourMark = NSUserInterfaceItemIdentifier("nexus")
+
+  /// Se marcan a mano y no se adivinan.
+  ///
+  /// Se probó con `canBecomeMain` y es un mal criterio: también es falso para una
+  /// ventana **que todavía no se ha mostrado**, así que al arrancar se habría
+  /// saltado la principal y el tema no se habría aplicado al marco. Y mirar la
+  /// clase sería peor: `NSStatusBarWindow` es privada y puede cambiar de nombre
+  /// sin avisar.
+  static func isOurs(_ window: NSWindow) -> Bool { window.identifier == ourMark }
 }

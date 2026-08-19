@@ -17,6 +17,7 @@ import 'package:nexus/features/assistant/presentation/widgets/changes_sheet.dart
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
+import 'package:nexus/features/assistant/presentation/widgets/status_presence.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_overlay.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
@@ -279,6 +280,10 @@ class _HomePageState extends ConsumerState<HomePage> {
               // hijos sin posicionar y este mide 0. Eso dejaba el orbe con ancho
               // cero y el muelle desplazado.
               const TourOverlay(),
+              // El icono de la barra de estado, al día con el orbe. Tamaño cero,
+              // como el velo, y fuera del `Stack` por el mismo motivo: dentro le
+              // fijaría el ancho.
+              StatusPresence(conversationId: focused.id),
             ],
           ),
         ),

@@ -158,6 +158,9 @@ abstract class NexusStrings {
   String get blockedHint;
   String get addFolderShort;
   String get openSettings;
+  String get statusTalk;
+  String get statusShow;
+  String get statusQuit;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -632,6 +635,12 @@ class NexusStringsEs extends NexusStrings {
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
   String get openSettings => 'Ajustes…';
+  @override
+  String get statusTalk => 'Hablar con Nexus';
+  @override
+  String get statusShow => 'Abrir la ventana';
+  @override
+  String get statusQuit => 'Salir de Nexus';
   @override
   String get modelTitle => 'Modelo';
   @override
@@ -1396,6 +1405,12 @@ class NexusStringsEn extends NexusStrings {
   String get addFolderShort => 'Pair another folder';
   @override
   String get openSettings => 'Settings…';
+  @override
+  String get statusTalk => 'Talk to Nexus';
+  @override
+  String get statusShow => 'Open the window';
+  @override
+  String get statusQuit => 'Quit Nexus';
   @override
   String get modelTitle => 'Model';
   @override

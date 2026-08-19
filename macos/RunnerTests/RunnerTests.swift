@@ -178,3 +178,148 @@ final class VisorDeArtefactosTests: XCTestCase {
     XCTAssertEqual(NexusAppearance.voidCSS, "#E9EEF5")
   }
 }
+
+/// El icono de la barra de estado: que **diga en qué anda**, que era el punto.
+///
+/// Presencia sola no aportaba nada que no dijera el Dock. Lo que hacía falta es
+/// distinguir «sigue trabajando» sin ir a buscar la ventana, porque un encargo
+/// de Claude dura minutos.
+final class BarraDeEstadoTests: XCTestCase {
+  func testLosEstadosDelOrbeSeTraducenATresAspectos() {
+    // Cuatro estados lógicos, tres aspectos: a 16 px no caben cuatro
+    // diferencias legibles, y «hablando» y «escuchando» son lo mismo para quien
+    // mira de reojo — los dos son «está contigo».
+    XCTAssertEqual(NexusStatusItem.Presence.from("sleep"), .asleep)
+    XCTAssertEqual(NexusStatusItem.Presence.from("listen"), .active)
+    XCTAssertEqual(NexusStatusItem.Presence.from("speak"), .active)
+    XCTAssertEqual(NexusStatusItem.Presence.from("think"), .working)
+  }
+
+  func testLoQueNoSeConoceSeDaPorDormido() {
+    // El nombre viaja como cadena desde Dart. Si algún día se añade un estado
+    // allí y no aquí, lo seguro es enseñar el icono en reposo y no romper.
+    XCTAssertEqual(NexusStatusItem.Presence.from("loQueSea"), .asleep)
+    XCTAssertEqual(NexusStatusItem.Presence.from(""), .asleep)
+  }
+
+  func testDormidoEsPlantillaYActivoNo() throws {
+    // Dormido lo tiñe el sistema, así que se ve en barra clara y oscura. Activo
+    // **no** puede ser plantilla: ahí el color es la información, y teñirlo
+    // dejaría «escuchando» idéntico a «dormido».
+    let dormido = try imagen(.asleep)
+    let activo = try imagen(.active)
+
+    XCTAssertTrue(dormido.isTemplate)
+    XCTAssertFalse(activo.isTemplate)
+  }
+
+  func testCadaAspectoSeVeDistinto() throws {
+    // Que existan tres estados no sirve de nada si pintan lo mismo. Se comparan
+    // los mapas de bits: trabajando lleva el punto central.
+    let activo = try datos(.active)
+    let trabajando = try datos(.working)
+    let dormido = try datos(.asleep)
+
+    XCTAssertNotEqual(activo, trabajando, "«trabajando» se pinta igual que «activo»")
+    XCTAssertNotEqual(activo, dormido)
+  }
+
+  private func imagen(_ p: NexusStatusItem.Presence) throws -> NSImage {
+    NexusStatusItem.show(p)
+    return try XCTUnwrap(NexusStatusItem.currentImage, "no hay icono en la barra")
+  }
+
+  private func datos(_ p: NexusStatusItem.Presence) throws -> Data {
+    let img = try imagen(p)
+    let rep = NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 16, pixelsHigh: 16,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+    )!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    img.draw(in: NSRect(x: 0, y: 0, width: 16, height: 16))
+    NSGraphicsContext.restoreGraphicsState()
+    return try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+  }
+}
+
+/// El menú de la barra: existe, y con los rótulos que le manda la app.
+extension BarraDeEstadoTests {
+  func testSinMenuElIconoParecíaRoto() throws {
+    // Lo reportado: pulsarlo resaltaba el botón y no pasaba nada, así que
+    // quedaba un recuadro oscuro encendido sin explicación. Con menú, ese
+    // resaltado pasa a significar algo — está abierto.
+    NexusStatusItem.show(.asleep)
+    NexusStatusItem.setMenuForTesting([
+      "talk": "Hablar con Nexus",
+      "show": "Abrir la ventana",
+      "settings": "Ajustes",
+      "quit": "Salir de Nexus",
+    ])
+
+    let menu = try XCTUnwrap(NexusStatusItem.currentMenu, "el icono no tiene menú")
+    let titulos = menu.items.map(\.title).filter { !$0.isEmpty }
+    XCTAssertEqual(
+      titulos,
+      ["Hablar con Nexus", "Abrir la ventana", "Ajustes", "Salir de Nexus"]
+    )
+  }
+
+  func testUnRotuloVacioNoDejaUnaFilaMuda() throws {
+    // Los rótulos vienen de Dart. Si alguno llegara vacío —un texto sin traducir,
+    // un canal a medias— una fila en blanco es peor que no tener la fila.
+    NexusStatusItem.setMenuForTesting(["talk": "Hablar", "show": "", "quit": "Salir"])
+
+    let menu = try XCTUnwrap(NexusStatusItem.currentMenu)
+    XCTAssertEqual(menu.items.map(\.title).filter { !$0.isEmpty }, ["Hablar", "Salir"])
+  }
+}
+
+/// El tema se pinta en las ventanas de la app, no en las del sistema.
+final class AparienciaTests: XCTestCase {
+  func testSoloLasVentanasMarcadasSonNuestras() {
+    let ventana = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled, .closable], backing: .buffered, defer: false
+    )
+    ventana.isReleasedWhenClosed = false
+    defer { ventana.close() }
+
+    XCTAssertFalse(NexusAppearance.isOurs(ventana), "sin marca, no es nuestra")
+    ventana.identifier = NexusAppearance.ourMark
+    XCTAssertTrue(NexusAppearance.isOurs(ventana))
+  }
+
+  func testUnaVentanaSinMostrarSigueSiendoNuestra() {
+    // Se probó primero con `canBecomeMain` y era un mal criterio: también es
+    // falso para una ventana que aún no se ha mostrado, así que al arrancar se
+    // habría saltado la principal y el marco se habría quedado sin tema.
+    let ventana = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled], backing: .buffered, defer: false
+    )
+    ventana.isReleasedWhenClosed = false
+    ventana.identifier = NexusAppearance.ourMark
+    defer { ventana.close() }
+
+    XCTAssertFalse(ventana.isVisible)
+    XCTAssertTrue(NexusAppearance.isOurs(ventana))
+  }
+
+  func testLaVentanaDeLaBarraDeEstadoNoLoEs() {
+    // Reportado mirando la barra: el icono de Nexus llevaba **un recuadro negro
+    // detrás** y los demás no. Era el `--void` de la paleta: `apply` recorría
+    // todas las ventanas de `NSApplication.shared.windows`, y la del icono de la
+    // barra está en esa lista aunque no sea nuestra.
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 40, height: 20),
+      styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false
+    )
+    defer { panel.close() }
+    XCTAssertFalse(
+      NexusAppearance.isOurs(panel),
+      "una ventana que no puede ser la principal no es de la app: pintarla le pone fondo a algo del sistema"
+    )
+  }
+}
