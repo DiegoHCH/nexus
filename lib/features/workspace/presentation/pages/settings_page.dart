@@ -1337,12 +1337,27 @@ class _AccentDialogState extends ConsumerState<AccentDialog> {
               style: NexusTypography.mono.copyWith(color: colors.faint),
             ),
             const SizedBox(height: NexusSpacing.s5),
-            Align(
-              alignment: Alignment.centerRight,
-              child: FilledButton(
-                onPressed: () => Navigator.pop(context),
-                child: Text(strings.close),
-              ),
+            Row(
+              children: [
+                // Solo cuando hay algo que deshacer, como la fila del aviso en el
+                // menú de la barra: un botón que casi siempre está apagado es un
+                // hueco muerto que hay que leer cada vez para descartarlo.
+                if (guardado != Accent.cyan)
+                  TextButton(
+                    key: const ValueKey('volver-al-color-original'),
+                    // El color con el que se instala la app, que es el del icono:
+                    // volver a él es volver a que todo case.
+                    onPressed: () => ref
+                        .read(accentControllerProvider.notifier)
+                        .select(Accent.cyan.chosen),
+                    child: Text(strings.accentReset),
+                  ),
+                const Spacer(),
+                FilledButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: Text(strings.close),
+                ),
+              ],
             ),
           ],
         ),

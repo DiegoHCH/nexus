@@ -76,6 +76,7 @@ abstract class NexusStrings {
   String get accentExplainer;
   String get accentPick;
   String get accentAdjusted;
+  String get accentReset;
   String get accentInDark;
   String get accentInLight;
   String get accentNameRed;
@@ -519,6 +520,8 @@ class NexusStringsEs extends NexusStrings {
   String get accentAdjusted =>
       'Se ajusta el brillo, no el color: sobre el vacío hace falta un tono más '
       'claro y sobre fondo claro uno más oscuro. El matiz que elijas no se toca.';
+  @override
+  String get accentReset => 'Volver al original';
   @override
   String get accentInDark => 'En oscuro';
   @override
@@ -1391,6 +1394,8 @@ class NexusStringsEn extends NexusStrings {
   String get accentAdjusted =>
       'The brightness is adjusted, not the colour: over the void a lighter tone '
       'is needed, and over a light background a darker one. Your hue is kept.';
+  @override
+  String get accentReset => 'Back to the original';
   @override
   String get accentInDark => 'In dark';
   @override

@@ -149,6 +149,60 @@ void main() {
     expect(elegido.chosen.a, 1.0, reason: 'el acento tiene que ser opaco');
   });
 
+  testWidgets('se puede volver al color original, y solo cuando hace falta', (
+    tester,
+  ) async {
+    // «Volver al original» es de las cosas que se agradecen después de un rato
+    // probando colores, y el botón solo tiene sentido si hay algo que deshacer:
+    // con el cian puesto no debe estar, igual que la fila del aviso en el menú de
+    // la barra no existe cuando no hay versión nueva.
+    late ProviderContainer container;
+    Future<void> abrir() async {
+      await pumpScreen(
+        tester,
+        Builder(
+          builder: (context) {
+            container = ProviderScope.containerOf(context);
+            return const SettingsPage();
+          },
+        ),
+        overrides: [
+          workspaceControllerProvider.overrideWith(
+            () => FixedWorkspace(workspaceWith()),
+          ),
+        ],
+      );
+      await tester.tap(find.text(es.sectionAppearance.toUpperCase()));
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(find.byKey(const ValueKey('abrir-rueda-de-color')));
+      await tester.pumpAndSettle();
+    }
+
+    await abrir();
+    expect(
+      find.byKey(const ValueKey('volver-al-color-original')),
+      findsNothing,
+      reason: 'con el original puesto no hay nada que devolver',
+    );
+
+    // Se elige otro y entonces sí aparece.
+    container.read(accentControllerProvider.notifier).select(
+      const Color(0xFFB79BFF),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('volver-al-color-original')), findsOne);
+
+    await tester.tap(find.byKey(const ValueKey('volver-al-color-original')));
+    await tester.pumpAndSettle();
+
+    expect(container.read(accentControllerProvider), Accent.cyan);
+    expect(
+      find.byKey(const ValueKey('volver-al-color-original')),
+      findsNothing,
+      reason: 'y se va, porque ya no hay nada que deshacer',
+    );
+  });
+
   testWidgets('y el orbe se pinta con el color elegido, no con el cian', (
     tester,
   ) async {
