@@ -115,9 +115,19 @@ def render(lado, *, super_=4):
               "minimo": 1.0}[registro]
     peso_h = {"malla": 1.3, "media": 1.8, "silueta": 3.2,
               "minimo": 4.2}[registro]
+    # Un pixel del icono terminado, medido en el lienzo de trabajo.
+    #
+    # Hace falta porque los grosores están calibrados «a 4096» y los tamaños
+    # pequeños se dibujan en un lienzo de 256: al reducir, lo que se pintó como
+    # trazo se queda en una fracción de pixel y se promedia con la placa. Medido:
+    # a 16 px el aro acababa midiendo **0,14 píxeles finales** y el horizonte
+    # 0,07. Por eso llegaban grises — no era opacidad, era que casi no llegaban.
+    pixel = super_
+
     d.line([margen, cy, S - margen, cy],
            fill=_mezcla(VOID, CYAN, alfa_h),
-           width=max(1, int(esc * SUPER_TRAZO * peso_h)))
+           width=(max(1, round(pixel * 1.0)) if registro == "minimo"
+                  else max(1, int(esc * SUPER_TRAZO * peso_h))))
 
     if registro == "minimo":
         # El aro, de un trazo. Sin puntos: a este tamaño cada uno cae en medio
@@ -125,7 +135,10 @@ def render(lado, *, super_=4):
         # Grueso de verdad: un trazo fino se promedia con el fondo al reducir
         # y el aro llega apagado. A 16 px la única forma de que el cian llegue
         # como cian es que ocupe un pixel entero.
-        w = max(2, int(esc * SUPER_TRAZO * 9.0))
+        # Uno y pico, no nueve entre cuatro mil: a este tamaño el aro tiene que
+        # ocupar **un pixel entero del icono** para que el cian llegue como cian.
+        # Por debajo de uno, el antialias lo mezcla con el fondo y sale gris.
+        w = max(2, round(pixel * 1.3))
         d.ellipse([cx - R, cy - R, cx + R, cy + R],
                   outline=_mezcla(VOID, CYAN, 1.0), width=w)
         m = Image.new("L", (S, S), 0)
@@ -134,7 +147,15 @@ def render(lado, *, super_=4):
         )
         fuera = Image.new("RGBA", (S, S), (0, 0, 0, 0))
         fuera.paste(img, (0, 0), m)
-        return fuera.resize((lado, lado), Image.LANCZOS)
+        # `BOX` y no `LANCZOS` en este registro.
+        #
+        # Aquí se reduce por un factor entero y grande —de 256 a 16—, y para eso
+        # el promedio de área es el filtro correcto. Lanczos está pensado para
+        # fotografía y **sobreimpulsa en los bordes duros**: con el aro ya visible
+        # aparecían motas de azul puro (0,0,255) y cian puro (0,255,255) fuera
+        # de la placa, colores que ni siquiera están en la paleta. Se veían al
+        # ampliar y no eran del dibujo, eran del filtro.
+        return fuera.resize((lado, lado), Image.BOX)
 
     if registro != "silueta":
         alfa_a = {"malla": 0.62, "media": 0.74}[registro]
