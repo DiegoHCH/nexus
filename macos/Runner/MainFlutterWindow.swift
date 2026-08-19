@@ -32,6 +32,9 @@ class MainFlutterWindow: NSWindow {
     NexusAppearance.register(
       with: flutterViewController.registrar(forPlugin: "NexusAppearance")
     )
+    NexusStatusItem.register(
+      with: flutterViewController.registrar(forPlugin: "NexusStatusItem")
+    )
 
     // Marco fundido, no sin marco: la barra de título se funde con el --void
     // del tema en vez de llevar el cromo por defecto de macOS. Eso no cambia.

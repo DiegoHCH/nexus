@@ -178,3 +178,68 @@ final class VisorDeArtefactosTests: XCTestCase {
     XCTAssertEqual(NexusAppearance.voidCSS, "#E9EEF5")
   }
 }
+
+/// El icono de la barra de estado: que **diga en qué anda**, que era el punto.
+///
+/// Presencia sola no aportaba nada que no dijera el Dock. Lo que hacía falta es
+/// distinguir «sigue trabajando» sin ir a buscar la ventana, porque un encargo
+/// de Claude dura minutos.
+final class BarraDeEstadoTests: XCTestCase {
+  func testLosEstadosDelOrbeSeTraducenATresAspectos() {
+    // Cuatro estados lógicos, tres aspectos: a 16 px no caben cuatro
+    // diferencias legibles, y «hablando» y «escuchando» son lo mismo para quien
+    // mira de reojo — los dos son «está contigo».
+    XCTAssertEqual(NexusStatusItem.Presence.from("sleep"), .asleep)
+    XCTAssertEqual(NexusStatusItem.Presence.from("listen"), .active)
+    XCTAssertEqual(NexusStatusItem.Presence.from("speak"), .active)
+    XCTAssertEqual(NexusStatusItem.Presence.from("think"), .working)
+  }
+
+  func testLoQueNoSeConoceSeDaPorDormido() {
+    // El nombre viaja como cadena desde Dart. Si algún día se añade un estado
+    // allí y no aquí, lo seguro es enseñar el icono en reposo y no romper.
+    XCTAssertEqual(NexusStatusItem.Presence.from("loQueSea"), .asleep)
+    XCTAssertEqual(NexusStatusItem.Presence.from(""), .asleep)
+  }
+
+  func testDormidoEsPlantillaYActivoNo() throws {
+    // Dormido lo tiñe el sistema, así que se ve en barra clara y oscura. Activo
+    // **no** puede ser plantilla: ahí el color es la información, y teñirlo
+    // dejaría «escuchando» idéntico a «dormido».
+    let dormido = try imagen(.asleep)
+    let activo = try imagen(.active)
+
+    XCTAssertTrue(dormido.isTemplate)
+    XCTAssertFalse(activo.isTemplate)
+  }
+
+  func testCadaAspectoSeVeDistinto() throws {
+    // Que existan tres estados no sirve de nada si pintan lo mismo. Se comparan
+    // los mapas de bits: trabajando lleva el punto central.
+    let activo = try datos(.active)
+    let trabajando = try datos(.working)
+    let dormido = try datos(.asleep)
+
+    XCTAssertNotEqual(activo, trabajando, "«trabajando» se pinta igual que «activo»")
+    XCTAssertNotEqual(activo, dormido)
+  }
+
+  private func imagen(_ p: NexusStatusItem.Presence) throws -> NSImage {
+    NexusStatusItem.show(p)
+    return try XCTUnwrap(NexusStatusItem.currentImage, "no hay icono en la barra")
+  }
+
+  private func datos(_ p: NexusStatusItem.Presence) throws -> Data {
+    let img = try imagen(p)
+    let rep = NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 16, pixelsHigh: 16,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+    )!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    img.draw(in: NSRect(x: 0, y: 0, width: 16, height: 16))
+    NSGraphicsContext.restoreGraphicsState()
+    return try XCTUnwrap(rep.representation(using: .png, properties: [:]))
+  }
+}
