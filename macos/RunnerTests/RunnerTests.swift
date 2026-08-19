@@ -243,3 +243,35 @@ final class BarraDeEstadoTests: XCTestCase {
     return try XCTUnwrap(rep.representation(using: .png, properties: [:]))
   }
 }
+
+/// El menú de la barra: existe, y con los rótulos que le manda la app.
+extension BarraDeEstadoTests {
+  func testSinMenuElIconoParecíaRoto() throws {
+    // Lo reportado: pulsarlo resaltaba el botón y no pasaba nada, así que
+    // quedaba un recuadro oscuro encendido sin explicación. Con menú, ese
+    // resaltado pasa a significar algo — está abierto.
+    NexusStatusItem.show(.asleep)
+    NexusStatusItem.setMenuForTesting([
+      "talk": "Hablar con Nexus",
+      "show": "Abrir la ventana",
+      "settings": "Ajustes",
+      "quit": "Salir de Nexus",
+    ])
+
+    let menu = try XCTUnwrap(NexusStatusItem.currentMenu, "el icono no tiene menú")
+    let titulos = menu.items.map(\.title).filter { !$0.isEmpty }
+    XCTAssertEqual(
+      titulos,
+      ["Hablar con Nexus", "Abrir la ventana", "Ajustes", "Salir de Nexus"]
+    )
+  }
+
+  func testUnRotuloVacioNoDejaUnaFilaMuda() throws {
+    // Los rótulos vienen de Dart. Si alguno llegara vacío —un texto sin traducir,
+    // un canal a medias— una fila en blanco es peor que no tener la fila.
+    NexusStatusItem.setMenuForTesting(["talk": "Hablar", "show": "", "quit": "Salir"])
+
+    let menu = try XCTUnwrap(NexusStatusItem.currentMenu)
+    XCTAssertEqual(menu.items.map(\.title).filter { !$0.isEmpty }, ["Hablar", "Salir"])
+  }
+}
