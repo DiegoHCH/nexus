@@ -49,6 +49,22 @@ class ActivityColumn extends StatelessWidget {
           ],
         ),
         const SizedBox(height: NexusSpacing.s4),
+        // Sin pasos todavía, se dice — y no se deja la cabecera sola.
+        //
+        // Reportado mirándolo: «no aparece lo que está haciendo, solo dice
+        // AHORA MISMO y ya». No estaba roto nada: entre que se acepta el
+        // encargo y llega la primera herramienta pueden pasar segundos, y hay
+        // encargos que se resuelven **sin usar ninguna**. Pero un recuadro con
+        // un título y nada debajo se lee como una avería, así que la espera se
+        // cuenta en vez de dejarse en blanco.
+        if (items.isEmpty)
+          Padding(
+            padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+            child: Text(
+              context.strings.noStepsYet,
+              style: NexusTypography.body.copyWith(color: colors.faint),
+            ),
+          ),
         Flexible(
           child: ListView.builder(
             shrinkWrap: true,
