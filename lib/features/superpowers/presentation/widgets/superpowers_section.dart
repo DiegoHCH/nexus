@@ -160,7 +160,7 @@ class _Tab extends StatelessWidget {
         decoration: BoxDecoration(
           border: Border(
             bottom: BorderSide(
-              color: active ? colors.cyan : colors.rule,
+              color: active ? colors.accent : colors.rule,
               width: 2,
             ),
           ),
@@ -169,7 +169,7 @@ class _Tab extends StatelessWidget {
           label.toUpperCase(),
           textAlign: TextAlign.center,
           style: NexusTypography.label.copyWith(
-            color: active ? colors.cyan : colors.faint,
+            color: active ? colors.accent : colors.faint,
           ),
         ),
       ),

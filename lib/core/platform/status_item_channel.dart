@@ -13,8 +13,15 @@ abstract final class StatusItemChannel {
   /// el icono. Va junto al estado y no en su propio método porque el lado nativo
   /// redibuja el icono entero: dos llamadas serían dos dibujos, y la segunda
   /// borraría lo que dijo la primera.
-  static Future<void> show(String orbState, {bool? pending}) =>
-      _llamar('setState', {'state': orbState, 'pending': ?pending});
+  /// [accent] en `#RRGGBB`: el color con el que se pinta la marca. Se manda desde
+  /// aquí porque se elige en Ajustes, y un icono clavado en cian mientras la app
+  /// entera es violeta sería el único sitio que no obedece.
+  static Future<void> show(String orbState, {bool? pending, String? accent}) =>
+      _llamar('setState', {
+        'state': orbState,
+        'pending': ?pending,
+        'accent': ?accent,
+      });
 
   /// Los rótulos del menú, en el idioma **de la app**.
   ///

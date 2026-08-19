@@ -441,3 +441,43 @@ final class PuntoPendienteTests: XCTestCase {
     )
   }
 }
+
+/// El acento del icono de la barra, que llega desde Dart como texto.
+///
+/// Viaja como `#RRGGBB` porque el color se elige en Ajustes y el icono se dibuja
+/// en Swift. Lo que se vigila es el caso feo: un texto mal formado **no puede**
+/// convertirse en negro, porque un icono negro sobre una barra oscura desaparece
+/// sin dejar rastro de por qué.
+final class AcentoDeLaBarraTests: XCTestCase {
+  func testUnHexValidoSeLee() {
+    let color = NexusStatusItem.color(fromHex: "#B79BFF")
+    XCTAssertNotNil(color)
+    XCTAssertEqual(color?.redComponent ?? 0, CGFloat(0xB7) / 255, accuracy: 0.001)
+    XCTAssertEqual(color?.greenComponent ?? 0, CGFloat(0x9B) / 255, accuracy: 0.001)
+    XCTAssertEqual(color?.blueComponent ?? 0, CGFloat(0xFF) / 255, accuracy: 0.001)
+  }
+
+  func testSinAlmohadillaTambien() {
+    XCTAssertNotNil(NexusStatusItem.color(fromHex: "56E1EA"))
+  }
+
+  /// Y lo que no es un color devuelve `nil` para que el icono se quede con el que
+  /// ya tenía, en vez de pintarse de negro.
+  func testLoQueNoEsUnColorNoSeInventa() {
+    XCTAssertNil(NexusStatusItem.color(fromHex: ""))
+    XCTAssertNil(NexusStatusItem.color(fromHex: "#FFF"))
+    XCTAssertNil(NexusStatusItem.color(fromHex: "violeta"))
+    XCTAssertNil(NexusStatusItem.color(fromHex: "#ZZZZZZ"))
+  }
+
+  func testElIconoSePintaConElAcentoQueLlega() {
+    // Dos acentos distintos tienen que dar dos dibujos distintos; si el icono
+    // ignorara el que llega, esto sería el mismo mapa de bits dos veces.
+    NexusStatusItem.show(.active, pending: false, accent: "#B79BFF")
+    let violeta = NexusStatusItem.currentImage?.tiffRepresentation
+    NexusStatusItem.show(.active, pending: false, accent: "#F5C451")
+    let ambar = NexusStatusItem.currentImage?.tiffRepresentation
+    XCTAssertNotNil(violeta)
+    XCTAssertNotEqual(violeta, ambar)
+  }
+}

@@ -46,7 +46,7 @@ class ArtifactsSheet extends ConsumerWidget {
             children: [
               Text(
                 strings.artifacts,
-                style: NexusTypography.label.copyWith(color: colors.cyan),
+                style: NexusTypography.label.copyWith(color: colors.accent),
               ),
               const SizedBox(height: NexusSpacing.s2),
               Text(

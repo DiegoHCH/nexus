@@ -16,7 +16,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  const cyan = (86, 225, 234); // #56E1EA, el acento de la paleta
+  const accent = (86, 225, 234); // #56E1EA, el acento de la paleta
   const carpeta = 'macos/Runner/Assets.xcassets/AppIcon.appiconset';
 
   Future<List<(int, int, int)>> pixeles(int lado) async {
@@ -44,13 +44,13 @@ void main() {
       // Cerca del acento de verdad. Antes del arreglo esto era (15, 37, 43): un
       // gris azulado que en la lista del Finder no se distingue del fondo.
       expect(
-        (masBrillante.$1 - cyan.$1).abs() +
-            (masBrillante.$2 - cyan.$2).abs() +
-            (masBrillante.$3 - cyan.$3).abs(),
+        (masBrillante.$1 - accent.$1).abs() +
+            (masBrillante.$2 - accent.$2).abs() +
+            (masBrillante.$3 - accent.$3).abs(),
         lessThan(40),
         reason:
             'el píxel más brillante es $masBrillante y debería acercarse a '
-            '$cyan: el trazo se está perdiendo al reducir',
+            '$accent: el trazo se está perdiendo al reducir',
       );
     });
 

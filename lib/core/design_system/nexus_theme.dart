@@ -12,12 +12,48 @@ import 'nexus_typography.dart';
 /// `context.colors`. Este `ThemeData` es para que los widgets de Material
 /// que sí usemos (inputs, scrollbars, tooltips) no desentonen.
 abstract final class NexusTheme {
-  static final ThemeData _dark = _build(NexusColors.dark, Brightness.dark);
-  static final ThemeData _light = _build(NexusColors.light, Brightness.light);
+  /// Guardados por acento y no uno solo de cada: `_build` llama a
+  /// `ColorScheme.fromSeed`, que deriva una paleta tonal entera, y eso se pagaría
+  /// **en cada fotograma** si se reconstruyera al vuelo — `MaterialApp` pide el
+  /// tema en cada build.
+  static final Map<int, ThemeData> _oscuros = {};
+  static final Map<int, ThemeData> _claros = {};
 
-  static ThemeData dark() => _dark;
+  /// Y con tope, porque el acento ya no sale de una lista de seis: se elige en una
+  /// rueda, así que los colores posibles son millones. Se confirma solo al soltar
+  /// —no en cada píxel del arrastre— pero aun así una tarde de indecisión dejaría
+  /// decenas de temas guardados para siempre. Al pasarse se vacía: es una caché,
+  /// no un registro.
+  static const _tope = 24;
 
-  static ThemeData light() => _light;
+  static ThemeData _guardado(
+    Map<int, ThemeData> donde,
+    int clave,
+    ThemeData Function() construir,
+  ) {
+    if (donde.length >= _tope) donde.clear();
+    return donde.putIfAbsent(clave, construir);
+  }
+
+  /// [accent] `null` deja el de la paleta, que es el cian de siempre. Así el
+  /// código que no sabe nada de acentos —las pruebas, sobre todo— sigue valiendo.
+  static ThemeData dark({Color? accent}) => _guardado(
+    _oscuros,
+    (accent ?? NexusColors.dark.accent).toARGB32(),
+    () => _build(
+      accent == null ? NexusColors.dark : NexusColors.dark.copyWith(accent: accent),
+      Brightness.dark,
+    ),
+  );
+
+  static ThemeData light({Color? accent}) => _guardado(
+    _claros,
+    (accent ?? NexusColors.light.accent).toARGB32(),
+    () => _build(
+      accent == null ? NexusColors.light : NexusColors.light.copyWith(accent: accent),
+      Brightness.light,
+    ),
+  );
 
   static ThemeData _build(NexusColors colors, Brightness brightness) {
     // Se especifican los tonos de superficie, `outline` y `tertiary` a mano
@@ -26,15 +62,15 @@ abstract final class NexusTheme {
     // una paleta tonal algorítmica que no coincide con la progresión
     // void/deep/rise del mockup.
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: colors.cyan,
+      seedColor: colors.accent,
       brightness: brightness,
       surface: colors.deep,
       onSurface: colors.ink,
       onSurfaceVariant: colors.mute,
-      primary: colors.cyan,
+      primary: colors.accent,
       onPrimary: colors.void_,
       primaryContainer: colors.rise,
-      onPrimaryContainer: colors.cyan,
+      onPrimaryContainer: colors.accent,
       secondary: colors.mute,
       secondaryContainer: colors.rise,
       onSecondaryContainer: colors.mute,
@@ -89,7 +125,7 @@ abstract final class NexusTheme {
       fontFamily: NexusTypography.sansFamily,
       textTheme: textTheme,
       splashFactory: NoSplash.splashFactory,
-      focusColor: colors.cyan,
+      focusColor: colors.accent,
       extensions: [colors],
       appBarTheme: AppBarTheme(
         backgroundColor: colors.void_,
@@ -124,7 +160,7 @@ abstract final class NexusTheme {
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(NexusRadius.sm),
-          borderSide: BorderSide(color: colors.cyan, width: 1.5),
+          borderSide: BorderSide(color: colors.accent, width: 1.5),
         ),
       ),
       textButtonTheme: TextButtonThemeData(
@@ -153,7 +189,7 @@ abstract final class NexusTheme {
       ),
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ButtonStyle(
-          backgroundColor: WidgetStatePropertyAll(colors.cyan),
+          backgroundColor: WidgetStatePropertyAll(colors.accent),
           foregroundColor: WidgetStatePropertyAll(colors.void_),
           textStyle: WidgetStatePropertyAll(
             NexusTypography.label.copyWith(fontWeight: FontWeight.w600),

@@ -85,7 +85,7 @@ class _Turn extends StatelessWidget {
               Text(
                 isUser ? context.strings.you : context.strings.nexus,
                 style: NexusTypography.label.copyWith(
-                  color: isUser ? colors.faint : colors.cyan,
+                  color: isUser ? colors.faint : colors.accent,
                 ),
               ),
               if (message.spoken) ...[
@@ -144,14 +144,14 @@ class _Answer extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final body = NexusTypography.body.copyWith(color: colors.ink, height: 1.5);
-    final mono = NexusTypography.mono.copyWith(color: colors.cyan);
+    final mono = NexusTypography.mono.copyWith(color: colors.accent);
 
     return MarkdownBody(
       data: text,
       selectable: true,
       styleSheet: MarkdownStyleSheet(
         p: body,
-        a: body.copyWith(color: colors.cyan),
+        a: body.copyWith(color: colors.accent),
         strong: body.copyWith(fontWeight: FontWeight.w600),
         em: body.copyWith(fontStyle: FontStyle.italic),
         h1: NexusTypography.title.copyWith(color: colors.ink),
@@ -170,7 +170,7 @@ class _Answer extends StatelessWidget {
         blockquoteDecoration: BoxDecoration(
           border: Border(
             left: BorderSide(
-              color: colors.cyan.withValues(alpha: 0.4),
+              color: colors.accent.withValues(alpha: 0.4),
               width: 2,
             ),
           ),

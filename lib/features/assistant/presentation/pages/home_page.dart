@@ -404,7 +404,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                             child: Text(
                               context.strings.pairAFolderToStart,
                               style: NexusTypography.label.copyWith(
-                                color: colors.cyan,
+                                color: colors.accent,
                               ),
                             ),
                           ),

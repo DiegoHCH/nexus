@@ -1,5 +1,8 @@
+import 'dart:ui';
+
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/core/platform/status_item_channel.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
@@ -74,7 +77,8 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
 
     ref.listen<NexusOrbState>(
       assistantControllerProvider(widget.conversationId).select((s) => s.orbState),
-      (previous, next) => StatusItemChannel.show(next.name),
+      (previous, next) =>
+          StatusItemChannel.show(next.name, accent: _acento(ref.read(accentControllerProvider))),
     );
 
     // El punto rojo del icono, que sobrevive a descartar el aviso. Se manda al
@@ -86,6 +90,28 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
         pending: pendiente,
       ),
     );
+
+    // Y el acento, para que la marca de la barra no sea el único sitio de la
+    // interfaz que se queda cian cuando todo lo demás cambia de color.
+    ref.listen(accentControllerProvider, (_, elegido) {
+      StatusItemChannel.show(
+        ref.read(assistantControllerProvider(widget.conversationId)).orbState.name,
+        accent: _acento(elegido),
+      );
+    });
     return const SizedBox.shrink();
+  }
+
+  /// El acento en `#RRGGBB` para el icono de la barra.
+  ///
+  /// Se elige contra **la apariencia del sistema y no la del tema de la app**, y
+  /// eso no es un descuido: el icono se pinta sobre la barra de menús del Mac, que
+  /// sigue al sistema. Con la app en claro y el Mac en oscuro, usar el tono claro
+  /// dejaría un acento apagado sobre una barra negra.
+  String _acento(Accent elegido) {
+    final color = elegido.forBrightness(
+      PlatformDispatcher.instance.platformBrightness,
+    );
+    return '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
   }
 }

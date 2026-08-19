@@ -72,6 +72,26 @@ abstract class NexusStrings {
   String get sectionSuperpowers;
   String get sectionAppearance;
   String get themeTitle;
+  String get accentTitle;
+  String get accentExplainer;
+  String get accentPick;
+  String get accentAdjusted;
+  String get accentReset;
+  String get accentInDark;
+  String get accentInLight;
+  String get accentNameRed;
+  String get accentNameOrange;
+  String get accentNameAmber;
+  String get accentNameLime;
+  String get accentNameGreen;
+  String get accentNameEmerald;
+  String get accentNameCyan;
+  String get accentNameBlue;
+  String get accentNameIndigo;
+  String get accentNameViolet;
+  String get accentNameMagenta;
+  String get accentNameRose;
+  String get accentNameGrey;
   String get themeExplainer;
   String get themeSystem;
   String get themeLight;
@@ -488,6 +508,50 @@ class NexusStringsEs extends NexusStrings {
   String get sectionAppearance => 'Apariencia';
   @override
   String get themeTitle => 'Claro u oscuro';
+  @override
+  String get accentTitle => 'Color de acento';
+  @override
+  String get accentExplainer =>
+      'El tono del orbe y de todo lo que resalta. Eliges el color; el brillo lo '
+      'ajusta la app para que se lea en el tema claro y en el oscuro.';
+  @override
+  String get accentPick => 'Elegir el color';
+  @override
+  String get accentAdjusted =>
+      'Se ajusta el brillo, no el color: sobre el vacío hace falta un tono más '
+      'claro y sobre fondo claro uno más oscuro. El matiz que elijas no se toca.';
+  @override
+  String get accentReset => 'Volver al original';
+  @override
+  String get accentInDark => 'En oscuro';
+  @override
+  String get accentInLight => 'En claro';
+  @override
+  String get accentNameRed => 'Rojo';
+  @override
+  String get accentNameOrange => 'Naranja';
+  @override
+  String get accentNameAmber => 'Ámbar';
+  @override
+  String get accentNameLime => 'Lima';
+  @override
+  String get accentNameGreen => 'Verde';
+  @override
+  String get accentNameEmerald => 'Esmeralda';
+  @override
+  String get accentNameCyan => 'Cian';
+  @override
+  String get accentNameBlue => 'Azul';
+  @override
+  String get accentNameIndigo => 'Índigo';
+  @override
+  String get accentNameViolet => 'Violeta';
+  @override
+  String get accentNameMagenta => 'Magenta';
+  @override
+  String get accentNameRose => 'Rosa';
+  @override
+  String get accentNameGrey => 'Gris';
   @override
   String get themeExplainer =>
       'La app nace oscura porque es un HUD, y de noche eso se agradece. Pero a '
@@ -1318,6 +1382,50 @@ class NexusStringsEn extends NexusStrings {
   String get sectionAppearance => 'Appearance';
   @override
   String get themeTitle => 'Light or dark';
+  @override
+  String get accentTitle => 'Accent colour';
+  @override
+  String get accentExplainer =>
+      'The tone of the orb and of everything that stands out. You pick the '
+      'colour; the app adjusts the brightness so it reads in both themes.';
+  @override
+  String get accentPick => 'Pick the colour';
+  @override
+  String get accentAdjusted =>
+      'The brightness is adjusted, not the colour: over the void a lighter tone '
+      'is needed, and over a light background a darker one. Your hue is kept.';
+  @override
+  String get accentReset => 'Back to the original';
+  @override
+  String get accentInDark => 'In dark';
+  @override
+  String get accentInLight => 'In light';
+  @override
+  String get accentNameRed => 'Red';
+  @override
+  String get accentNameOrange => 'Orange';
+  @override
+  String get accentNameAmber => 'Amber';
+  @override
+  String get accentNameLime => 'Lime';
+  @override
+  String get accentNameGreen => 'Green';
+  @override
+  String get accentNameEmerald => 'Emerald';
+  @override
+  String get accentNameCyan => 'Cyan';
+  @override
+  String get accentNameBlue => 'Blue';
+  @override
+  String get accentNameIndigo => 'Indigo';
+  @override
+  String get accentNameViolet => 'Violet';
+  @override
+  String get accentNameMagenta => 'Magenta';
+  @override
+  String get accentNameRose => 'Rose';
+  @override
+  String get accentNameGrey => 'Grey';
   @override
   String get themeExplainer =>
       'The app is born dark because it is a HUD, and at night that is welcome. '
