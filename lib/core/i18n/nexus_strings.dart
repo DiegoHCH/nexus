@@ -211,6 +211,7 @@ abstract class NexusStrings {
 
   // Actividad
   String get rightNow;
+  String get noStepsYet;
   String get stopButton;
   String get writesTag;
   String get ranLabel;
@@ -713,6 +714,9 @@ class NexusStringsEs extends NexusStrings {
 
   @override
   String get rightNow => 'AHORA MISMO';
+  @override
+  String get noStepsYet =>
+      'Pensando. Los pasos aparecen aquí en cuanto empiece a tocar algo — hay encargos que se resuelven sin abrir nada.';
   @override
   String get stopButton => 'DETENER  ⌘.';
   @override
@@ -1486,6 +1490,9 @@ class NexusStringsEn extends NexusStrings {
 
   @override
   String get rightNow => 'RIGHT NOW';
+  @override
+  String get noStepsYet =>
+      'Thinking. Steps show up here as soon as it touches something — some errands are answered without opening anything.';
   @override
   String get stopButton => 'STOP  ⌘.';
   @override
