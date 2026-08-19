@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/updates/domain/entities/release_check.dart';
 import 'package:nexus/features/updates/domain/entities/update_stage.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
