@@ -30,5 +30,36 @@
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
+
+	<!-- Actualizaciones. La interfaz no es la de Sparkle: ver NexusUpdater.swift. -->
+
+	<!-- `latest/download` y no la URL de una etiqueta: GitHub redirige eso a la
+	     última release publicada, así que la dirección no caduca. Sin esto haría
+	     falta publicar el feed en otro sitio —Pages, un dominio— y mantenerlo. -->
+	<key>SUFeedURL</key>
+	<string>https://github.com/DiegoHCH/nexus/releases/latest/download/appcast.xml</string>
+
+	<!-- La clave **pública** de firma de actualizaciones, y su sitio es este: va
+	     dentro de la app para poder comprobar que el paquete que llega lo firmó
+	     quien dice. La privada vive en el llavero y en los secretos del repo, y
+	     no aparece en ningún archivo de aquí.
+
+	     Es una segunda cerradura sobre la de Apple: aunque alguien lograra
+	     colgar un zip en las releases, sin esta firma Sparkle lo rechaza. -->
+	<key>SUPublicEDKey</key>
+	<string>dnjW9FhSAPhvtcrDUj7kkbeEkUt+wEdBHs0voD+UyLc=</string>
+
+	<key>SUEnableAutomaticChecks</key>
+	<true/>
+
+	<!-- Dos horas, que es la cadencia que ya tenía el aviso por su cuenta antes
+	     de que existiera el actualizador. Se conserva a propósito: era la medida
+	     buena —ni insistente ni dormida— y ahora la lleva quien debe llevarla. -->
+	<key>SUScheduledCheckInterval</key>
+	<integer>7200</integer>
+
+	<!-- Nada se descarga sin que lo digas: la modal pregunta primero. -->
+	<key>SUAutomaticallyUpdate</key>
+	<false/>
 </dict>
 </plist>

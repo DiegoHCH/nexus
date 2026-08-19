@@ -23,16 +23,14 @@ abstract final class StatusItemChannel {
     required String settings,
     required String quit,
     String? update,
-    String? updateUrl,
   }) => _llamar('setMenu', {
     'talk': talk,
     'show': show,
     'settings': settings,
     'quit': quit,
-    // Van solo cuando hay algo que anunciar: el lado nativo se salta la fila si
-    // llegan vacíos, y así el menú no tiene un hueco muerto el 99 % del tiempo.
+    // Va solo cuando hay algo que anunciar: el lado nativo se salta la fila si
+    // llega vacío, y así el menú no tiene un hueco muerto el 99 % del tiempo.
     'update': ?update,
-    'updateUrl': ?updateUrl,
   });
 
   /// Lo que el menú pide de vuelta: hablar y abrir ajustes son estado de la app,
@@ -40,6 +38,7 @@ abstract final class StatusItemChannel {
   static void onAction({
     required void Function() talk,
     required void Function() settings,
+    required void Function() update,
   }) {
     _channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -47,6 +46,11 @@ abstract final class StatusItemChannel {
           talk();
         case 'settings':
           settings();
+        // Antes esta fila abría la página de la release en el navegador, y lo
+        // hacía el lado nativo con la URL. Ahora la actualización se instala
+        // dentro, así que lo que abre es la modal — y eso solo lo sabe Dart.
+        case 'update':
+          update();
       }
       return null;
     });

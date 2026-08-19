@@ -29,6 +29,17 @@ flutter_macos_podfile_setup
 target 'Runner' do
   use_frameworks!
 
+  # El motor de las actualizaciones.
+  #
+  # Se descarta hacerlo a mano por una razón concreta: reemplazar el propio
+  # paquete mientras corre —esperar a que el proceso cierre, cambiar la app,
+  # relanzarla y saber deshacerlo si algo falla a mitad— es donde un fallo deja
+  # la instalación a medias. Sparkle lleva veinte años depurando justo eso.
+  #
+  # Lo que **no** se usa es su interfaz: la modal la pinta Nexus, en su idioma y
+  # con su aspecto, a través de un `SPUUserDriver` propio. Ver `NexusUpdater.swift`.
+  pod 'Sparkle', '~> 2.6'
+
   flutter_install_all_macos_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

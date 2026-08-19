@@ -7,7 +7,7 @@ import 'package:flutter/foundation.dart';
 /// —«no está» y «no se pudo comprobar» piden cosas distintas de quien lee.
 @immutable
 class ReleaseCheck {
-  const ReleaseCheck({required this.current, this.latest, this.url});
+  const ReleaseCheck({required this.current, this.latest});
 
   /// La que está corriendo, leída del propio paquete.
   final String current;
@@ -15,8 +15,9 @@ class ReleaseCheck {
   /// La última publicada, sin la `v` de la etiqueta. `null` si no se pudo saber.
   final String? latest;
 
-  /// Dónde verla.
-  final String? url;
+  // Aquí había un `url`, y se fue con el enlace: mientras el aviso solo sabía
+  // avisar, la acción era abrir la página de la release en el navegador. Ahora la
+  // acción es instalarla, así que un enlace guardado no lo usaría nadie.
 
   bool get isNewer {
     final publicada = latest;
