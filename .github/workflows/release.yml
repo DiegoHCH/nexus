@@ -1,0 +1,195 @@
+# Sacar una versión desde GitHub: compilar, firmar, notarizar y publicar.
+#
+# El primer CI de este repo murió justo aquí —«No signing certificate Developer ID
+# Application found»— porque un runner no tiene el certificado. Esto lo arregla, y
+# el precio hay que decirlo: **la clave privada de firma vive en los secretos del
+# repositorio**. El repo es público, así que un cambio descuidado en un workflow es
+# una exposición real; de ahí que esto solo se dispare con una etiqueta, que solo
+# puede empujar quien tenga escritura.
+#
+# Secretos que hace falta crear (una vez):
+#
+#   MACOS_CERT_P12        el certificado + su clave privada, exportado y en base64
+#   MACOS_CERT_PASSWORD   la contraseña con la que se exportó ese .p12
+#   NOTARY_API_KEY_P8     la clave .p8 de App Store Connect, en base64
+#   NOTARY_KEY_ID         el Key ID de esa clave
+#   NOTARY_ISSUER_ID      el Issuer ID de tu cuenta (UUID)
+#
+# Se eligió clave de API y no Apple ID + contraseña de aplicación a propósito: se
+# revoca una sola clave sin tocar la cuenta, y no hay contraseña personal en juego.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+  # Para reintentar una versión sin volver a etiquetar.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Versión a publicar (ej. 0.0.2)'
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  publicar:
+    name: compilar, firmar, notarizar y publicar
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # El histórico completo: hace falta para comprobar que esto sale de
+          # master, y un clon superficial no puede responder a esa pregunta.
+          fetch-depth: 0
+
+      - name: decidir la versión
+        id: v
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Las mismas negativas que el guion local, y por los mismos motivos: una
+      # etiqueta que no corresponde a lo que hay dentro del paquete deja al
+      # actualizador comparando contra otra cosa.
+      - name: comprobar que la versión coincide con el pubspec
+        run: |
+          EN_PUBSPEC="$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')"
+          if [[ "$EN_PUBSPEC" != "${{ steps.v.outputs.version }}" ]]; then
+            echo "::error::pubspec dice $EN_PUBSPEC y se está publicando ${{ steps.v.outputs.version }}"
+            exit 1
+          fi
+
+      - name: comprobar que esto está en master
+        run: |
+          git fetch -q origin master
+          if ! git merge-base --is-ancestor HEAD origin/master; then
+            echo "::error::este commit no está en master, y las releases salen de master"
+            exit 1
+          fi
+
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.0
+          channel: stable
+          cache: true
+
+      - run: flutter pub get
+
+      # El llavero es temporal y de este trabajo: así la clave no se queda en el
+      # runner ni se mezcla con el llavero de login.
+      - name: montar el certificado de firma
+        env:
+          P12: ${{ secrets.MACOS_CERT_P12 }}
+          CLAVE_P12: ${{ secrets.MACOS_CERT_PASSWORD }}
+        run: |
+          [[ -n "$P12" ]] || { echo "::error::falta el secreto MACOS_CERT_P12"; exit 1; }
+          LLAVERO="$RUNNER_TEMP/firma.keychain-db"
+          CLAVE_LLAVERO="$(uuidgen)"
+          echo "$P12" | base64 --decode > "$RUNNER_TEMP/cert.p12"
+
+          security create-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          security set-keychain-settings -lut 900 "$LLAVERO"
+          security unlock-keychain -p "$CLAVE_LLAVERO" "$LLAVERO"
+          security import "$RUNNER_TEMP/cert.p12" -k "$LLAVERO" \
+            -P "$CLAVE_P12" -T /usr/bin/codesign -T /usr/bin/security
+          # Sin esto, codesign se queda esperando una autorización que nadie va a
+          # dar: en un runner no hay quien pulse «Permitir».
+          security set-key-partition-list -S apple-tool:,apple:,codesign: \
+            -s -k "$CLAVE_LLAVERO" "$LLAVERO" >/dev/null
+          security list-keychains -d user -s "$LLAVERO" login.keychain-db
+          rm -f "$RUNNER_TEMP/cert.p12"
+
+          security find-identity -v -p codesigning "$LLAVERO" | grep "Developer ID Application" \
+            || { echo "::error::el .p12 no traía un Developer ID Application"; exit 1; }
+
+      - name: compilar en Release
+        run: flutter build macos --release
+
+      # Los dos filtros que costaron un rechazo de Apple: sin hardened runtime, y
+      # sobre todo sin **sello de tiempo seguro** —`Signed Time` es local y no
+      # cuenta—, el envío se rechaza. Verlo aquí cuesta un segundo; verlo en Apple,
+      # varios minutos.
+      - name: comprobar la firma antes de enviarla
+        run: |
+          APP="build/macos/Build/Products/Release/Nexus.app"
+          codesign --verify --deep --strict "$APP"
+          DATOS="$(codesign -dvvv "$APP" 2>&1 || true)"
+          case "$DATOS" in
+            *'flags=0x10000(runtime)'*) ;;
+            *) echo "::error::falta hardened runtime"; exit 1 ;;
+          esac
+          case "$DATOS" in
+            *'Timestamp='*) ;;
+            *) echo "::error::la firma no lleva sello de tiempo seguro"; exit 1 ;;
+          esac
+
+      # `ditto` y no `zip`: preserva los enlaces de los frameworks; con `zip` la
+      # firma se rompe al descomprimir. Comprobado en local.
+      - name: empaquetar
+        run: |
+          ditto -c -k --sequesterRsrc --keepParent \
+            "build/macos/Build/Products/Release/Nexus.app" \
+            "build/Nexus-${{ steps.v.outputs.version }}.zip"
+
+      - name: notarizar y sellar
+        env:
+          P8: ${{ secrets.NOTARY_API_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          [[ -n "$P8" ]] || { echo "::error::falta el secreto NOTARY_API_KEY_P8"; exit 1; }
+          echo "$P8" | base64 --decode > "$RUNNER_TEMP/clave.p8"
+          ZIP="build/Nexus-${{ steps.v.outputs.version }}.zip"
+          APP="build/macos/Build/Products/Release/Nexus.app"
+
+          # Se mira **el veredicto**, no el código de salida: `--wait` devuelve 0
+          # en cuanto termina de esperar, aunque Apple haya dicho `Invalid`. Sin
+          # esto se sigue adelante a sellar un ticket que no existe, y el error que
+          # se lee es «Record not found» — un síntoma tres pasos más allá.
+          set +e
+          ENVIO="$(xcrun notarytool submit "$ZIP" \
+            --key "$RUNNER_TEMP/clave.p8" --key-id "$KEY_ID" --issuer "$ISSUER" \
+            --wait 2>&1)"
+          set -e
+          echo "$ENVIO"
+          ID="$(printf '%s' "$ENVIO" | awk '/^  id: /{print $2; exit}')"
+
+          case "$ENVIO" in
+            *'status: Accepted'*) ;;
+            *)
+              echo "::error::Apple no la aceptó"
+              xcrun notarytool log "$ID" \
+                --key "$RUNNER_TEMP/clave.p8" --key-id "$KEY_ID" --issuer "$ISSUER" || true
+              exit 1
+              ;;
+          esac
+
+          xcrun stapler staple "$APP"
+          xcrun stapler validate "$APP"
+          rm -f "$ZIP"
+          ditto -c -k --sequesterRsrc --keepParent "$APP" "$ZIP"
+          spctl -a -vv -t install "$APP"
+          rm -f "$RUNNER_TEMP/clave.p8"
+
+      - name: publicar la release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          ZIP="build/Nexus-$V.zip"
+          if gh release view "v$V" >/dev/null 2>&1; then
+            gh release upload "v$V" "$ZIP" --clobber
+          else
+            gh release create "v$V" "$ZIP" --title "Nexus $V" --generate-notes
+          fi
+
+      # Siempre: si algo falló a mitad, la clave no se queda en el runner.
+      - name: retirar el llavero
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/firma.keychain-db" 2>/dev/null || true
+          rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/clave.p8" || true

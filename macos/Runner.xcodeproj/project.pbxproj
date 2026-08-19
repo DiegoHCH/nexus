@@ -758,6 +758,11 @@
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
 				/* Apple no notariza sin esto. */
 				ENABLE_HARDENED_RUNTIME = YES;
+				/* Ni sin sello de tiempo **seguro**. La firma traía `Signed Time`,
+				   que es local, y Apple exige `Timestamp=`, que lo emite su
+				   servidor: el envío se rechazó con «does not include a secure
+				   timestamp». Requiere red al firmar. */
+				OTHER_CODE_SIGN_FLAGS = "--timestamp";
 				/* Sin esto el build llevaba `get-task-allow` —el permiso de
 				   depuración— y Apple rechaza un binario depurable. */
 				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;

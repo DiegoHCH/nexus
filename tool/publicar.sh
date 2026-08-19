@@ -89,7 +89,7 @@ ditto -c -k --sequesterRsrc --keepParent "$APP" "$SALIDA"
 if [[ "$NOTARIZAR" == "1" ]]; then
   if ! xcrun notarytool history --keychain-profile "$PERFIL" >/dev/null 2>&1; then
     cat >&2 <<AVISO
-✗ no hay perfil de notarización guardado con el nombre «$PERFIL».
+✗ no hay perfil de notarización guardado con el nombre «${PERFIL}».
 
   Se crea una sola vez, y con tus credenciales —por eso no lo hace este guion:
 
