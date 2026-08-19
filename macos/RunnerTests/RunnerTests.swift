@@ -323,3 +323,22 @@ final class AparienciaTests: XCTestCase {
     )
   }
 }
+
+/// Cuándo se avisa de que un encargo terminó.
+///
+/// Lo que se prueba es **la decisión**, no la entrega: mandar un aviso de verdad
+/// depende del permiso del sistema, que una prueba no puede fijar, y dejaría un
+/// aviso colgado en la barra de quien corra la suite.
+final class AvisosTests: XCTestCase {
+  func testConLaAppDelanteNoSeAvisa() {
+    // Avisar de algo que tienes delante es ruido, y el ruido enseña a ignorar
+    // los avisos siguientes — que son los que sí importaban.
+    XCTAssertFalse(NexusNotifications.shouldNotify(appIsActive: true))
+  }
+
+  func testConLaAppDetrasSiSeAvisa() {
+    // Es el caso entero por el que esto existe: un encargo dura minutos y te vas
+    // a otra cosa.
+    XCTAssertTrue(NexusNotifications.shouldNotify(appIsActive: false))
+  }
+}

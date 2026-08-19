@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -345,6 +346,21 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_readChanges());
     unawaited(_archive());
     unawaited(_compactIfNeeded());
+    unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// El aviso de que ya está, con **el nombre de la carpeta y nada más**.
+  ///
+  /// No va ni un trozo de la respuesta: lo que se escribe en un aviso acaba en la
+  /// base de datos de notificaciones del sistema, y meter ahí lo que Claude leyó
+  /// de tu repo sería sacarlo de la app por una puerta que nadie ha mirado. Es la
+  /// misma idea que i5, aplicada a otro sitio.
+  Future<void> _avisar(String texto) async {
+    final folder = _folder;
+    await NotificationsChannel.notify(
+      title: folder == null ? 'Nexus' : folder.split('/').last,
+      body: texto,
+    );
   }
 
   /// Deja la conversación guardada donde el usuario haya dicho.
@@ -581,6 +597,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: false,
       errorMessage: message,
     );
+    // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
+    // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
+    unawaited(_avisar(ref.read(stringsProvider).errandFailed));
   }
 
   /// Mientras no hay sesión de voz, el campo de texto enfocado es la señal
