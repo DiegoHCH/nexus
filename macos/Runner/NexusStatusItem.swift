@@ -45,8 +45,9 @@ final class NexusStatusItem: NSObject {
     channel.setMethodCallHandler { call, result in
       switch call.method {
       case "setState":
-        let raw = (call.arguments as? [String: Any])?["state"] as? String ?? ""
-        show(Presence.from(raw))
+        let args = call.arguments as? [String: Any]
+        let raw = args?["state"] as? String ?? ""
+        show(Presence.from(raw), pending: args?["pending"] as? Bool ?? false)
         result(nil)
       // Los rótulos vienen de Dart y no se escriben aquí: el idioma lo elige la
       // app —puede no ser el del sistema— y su diccionario ya lo sabe.
@@ -120,10 +121,17 @@ final class NexusStatusItem: NSObject {
     item?.menu = menu
   }
 
-  static func show(_ presence: Presence) {
+  /// Si hay una versión nueva sin instalar. Se guarda porque los dos datos llegan
+  /// por caminos distintos: el estado del orbe cambia varias veces por turno y el
+  /// aviso casi nunca, así que sin recordarlo el punto se borraría en el siguiente
+  /// cambio de estado.
+  private static var pendiente = false
+
+  static func show(_ presence: Presence, pending: Bool? = nil) {
+    if let pending { pendiente = pending }
     let bar = item ?? NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
     item = bar
-    bar.button?.image = mark(for: presence)
+    bar.button?.image = mark(for: presence, pending: pendiente)
     bar.button?.toolTip = "Nexus"
   }
 
@@ -132,7 +140,7 @@ final class NexusStatusItem: NSObject {
   /// `NSImage(size:flipped:drawingHandler:)` y no un PNG: el bloque se vuelve a
   /// ejecutar en cada pantalla, así que sale nítido en Retina sin llevar dos
   /// mapas de bits.
-  private static func mark(for presence: Presence) -> NSImage {
+  private static func mark(for presence: Presence, pending: Bool = false) -> NSImage {
     let lado: CGFloat = 16
     let imagen = NSImage(size: NSSize(width: lado, height: lado), flipped: false) { rect in
       let color: NSColor = presence == .asleep
@@ -166,13 +174,30 @@ final class NexusStatusItem: NSObject {
           x: centro.x - 1.5, y: centro.y - 1.5, width: 3, height: 3
         )).fill()
       }
+
+      // Y el punto de «tienes algo pendiente», arriba a la derecha.
+      //
+      // Rojo y no del acento: el cian ya significa «está contigo» en este mismo
+      // dibujo, así que un punto cian no se leería como un pendiente. Este es el
+      // único sitio de la app donde el rojo no quiere decir que algo falló, y se
+      // lo puede permitir porque es la convención de toda la barra.
+      if pending {
+        NSColor.systemRed.setFill()
+        NSBezierPath(ovalIn: NSRect(
+          x: rect.maxX - 5, y: rect.maxY - 5, width: 4, height: 4
+        )).fill()
+      }
       return true
     }
 
     // Dormido va como plantilla: el sistema lo tiñe según la barra, así que se
     // ve bien en claro y en oscuro. En activo **no**, porque ahí el color es la
     // información: si lo tiñera, «escuchando» y «dormido» serían idénticos.
-    imagen.isTemplate = presence == .asleep
+    //
+    // Y con punto pendiente tampoco, por lo mismo: una plantilla se tiñe entera,
+    // así que el rojo saldría del color de la barra y el punto dejaría de decir
+    // nada. Es el mismo error que se cazó con el cian del icono de 16 px.
+    imagen.isTemplate = presence == .asleep && !pending
     return imagen
   }
 }

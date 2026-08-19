@@ -9,7 +9,6 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
-import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
@@ -801,21 +800,18 @@ class _VersionRow extends ConsumerWidget {
           // algo que se pulsa sin saber si hay nada, y «actualizar» solo aparece
           // cuando ya se sabe que sí. Con un solo botón habría que decidir qué
           // dice mientras no se sabe, y ahí es donde se acaba mintiendo.
-          child: aviso != null && aviso.isNewer
-              ? FilledButton(
-                  onPressed: () => UpdateModal.open(context),
-                  child: Text(strings.updateAvailable(aviso.latest ?? '')),
-                )
-              : OutlinedButton(
-                  onPressed: () {
-                    // Primero la modal y después la pregunta: así se ve
-                    // «buscando…» en vez de un botón que no hace nada durante
-                    // los segundos que tarda.
-                    UpdateModal.open(context);
-                    ref.read(updatesControllerProvider.notifier).comprobarAhora();
-                  },
-                  child: Text(strings.updateCheckNow),
-                ),
+          // Un solo botón, y lo que cambia es lo que dice. Antes eran dos porque
+          // uno abría la modal y el otro preguntaba; ahora los dos hacen lo
+          // mismo —preguntar— y el aviso sale arriba a la derecha por su cuenta,
+          // incluso estando en esta pantalla.
+          child: OutlinedButton(
+            onPressed: ref.read(updatesControllerProvider.notifier).comprobarAhora,
+            child: Text(
+              aviso != null && aviso.isNewer
+                  ? strings.updateAvailable(aviso.latest ?? '')
+                  : strings.updateCheckNow,
+            ),
+          ),
         ),
       ],
     );

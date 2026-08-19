@@ -1019,7 +1019,7 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get updateInstall => 'Actualizar';
   @override
-  String get updateRestart => 'Reiniciar e instalar';
+  String get updateRestart => 'Reiniciar';
   @override
   String get updateDownloading => 'Descargando';
   @override
@@ -1846,7 +1846,7 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get updateInstall => 'Update';
   @override
-  String get updateRestart => 'Restart and install';
+  String get updateRestart => 'Restart';
   @override
   String get updateDownloading => 'Downloading';
   @override

@@ -23,6 +23,7 @@ import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/updates/presentation/widgets/pending_dot.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// La caja para escribirle, con sus controles alrededor.
@@ -738,7 +739,10 @@ class _MoreMenu extends ConsumerWidget {
         ),
         _item('settings', Icons.tune, strings.openSettings, colors),
       ],
-      child: Icon(Icons.add, size: 16, color: colors.faint),
+      // Con punto rojo mientras quede una versión sin instalar: Ajustes vive
+      // dentro de este menú, así que el aviso va pegado al camino que lleva a
+      // la actualización.
+      child: PendingDot(child: Icon(Icons.add, size: 16, color: colors.faint)),
       ),
     );
   }
