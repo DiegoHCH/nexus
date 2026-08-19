@@ -15,14 +15,30 @@ abstract final class NexusTheme {
   /// Guardados por acento y no uno solo de cada: `_build` llama a
   /// `ColorScheme.fromSeed`, que deriva una paleta tonal entera, y eso se pagaría
   /// **en cada fotograma** si se reconstruyera al vuelo — `MaterialApp` pide el
-  /// tema en cada build. Con el acento clavado bastaba una constante; ahora hace
-  /// falta una por color, y son seis.
+  /// tema en cada build.
   static final Map<int, ThemeData> _oscuros = {};
   static final Map<int, ThemeData> _claros = {};
 
+  /// Y con tope, porque el acento ya no sale de una lista de seis: se elige en una
+  /// rueda, así que los colores posibles son millones. Se confirma solo al soltar
+  /// —no en cada píxel del arrastre— pero aun así una tarde de indecisión dejaría
+  /// decenas de temas guardados para siempre. Al pasarse se vacía: es una caché,
+  /// no un registro.
+  static const _tope = 24;
+
+  static ThemeData _guardado(
+    Map<int, ThemeData> donde,
+    int clave,
+    ThemeData Function() construir,
+  ) {
+    if (donde.length >= _tope) donde.clear();
+    return donde.putIfAbsent(clave, construir);
+  }
+
   /// [accent] `null` deja el de la paleta, que es el cian de siempre. Así el
   /// código que no sabe nada de acentos —las pruebas, sobre todo— sigue valiendo.
-  static ThemeData dark({Color? accent}) => _oscuros.putIfAbsent(
+  static ThemeData dark({Color? accent}) => _guardado(
+    _oscuros,
     (accent ?? NexusColors.dark.accent).toARGB32(),
     () => _build(
       accent == null ? NexusColors.dark : NexusColors.dark.copyWith(accent: accent),
@@ -30,7 +46,8 @@ abstract final class NexusTheme {
     ),
   );
 
-  static ThemeData light({Color? accent}) => _claros.putIfAbsent(
+  static ThemeData light({Color? accent}) => _guardado(
+    _claros,
     (accent ?? NexusColors.light.accent).toARGB32(),
     () => _build(
       accent == null ? NexusColors.light : NexusColors.light.copyWith(accent: accent),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/design_system/accent_preference.dart';
+import 'package:nexus/core/design_system/accent_wheel.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
@@ -1168,73 +1169,184 @@ class _AppearanceSection extends ConsumerWidget {
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s5),
-        const _AccentPalette(),
+        const _AccentButton(),
       ],
     );
   }
 }
 
-/// Los colores elegibles, como círculos.
+/// El botón del color: un círculo con el acento puesto.
 ///
-/// Círculos y no una lista de nombres: el nombre de un color se lee y hay que
-/// imaginárselo, y aquí lo que importa es **verlo**. Tampoco una rueda de color
-/// libre: el acento se pinta sobre el vacío y sobre el fondo claro, y con libertad
-/// total la mitad de las elecciones serían ilegibles en uno de los dos temas. Cada
-/// círculo trae su par de tonos ya calibrado.
-class _AccentPalette extends ConsumerWidget {
-  const _AccentPalette();
+/// Un botón y no la rueda a la vista: la rueda ocupa media pantalla y solo se
+/// necesita el rato en que se elige. Aquí queda el color que hay, y se toca para
+/// cambiarlo.
+///
+/// El círculo enseña el tono **con el que se está pintando ahora**, no el que se
+/// eligió en la rueda: son distintos —el brillo se ajusta al tema— y enseñar el
+/// otro dejaría el botón de un color que no aparece en ningún sitio de la app.
+class _AccentButton extends ConsumerWidget {
+  const _AccentButton();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final elegido = ref.watch(accentControllerProvider);
-    final oscuro = Theme.of(context).brightness == Brightness.dark;
+    final strings = context.strings;
+    final acento = ref.watch(accentControllerProvider);
+    final puesto = acento.forBrightness(Theme.of(context).brightness);
 
-    return Wrap(
-      spacing: NexusSpacing.s4,
-      runSpacing: NexusSpacing.s4,
-      children: [
-        for (final opcion in AccentChoice.values)
-          Semantics(
-            button: true,
-            selected: opcion == elegido,
-            // El nombre sí hace falta **aquí**: sin él un lector de pantalla
-            // anunciaría seis botones idénticos sin nada que los distinga.
-            label: switch (opcion) {
-              AccentChoice.cyan => context.strings.accentCyan,
-              AccentChoice.violet => context.strings.accentViolet,
-              AccentChoice.amber => context.strings.accentAmber,
-              AccentChoice.rose => context.strings.accentRose,
-              AccentChoice.green => context.strings.accentGreen,
-              AccentChoice.blue => context.strings.accentBlue,
-            },
-            child: InkWell(
-              key: ValueKey('acento-${opcion.name}'),
-              onTap: () =>
-                  ref.read(accentControllerProvider.notifier).select(opcion),
-              borderRadius: BorderRadius.circular(999),
-              child: Container(
-                width: 34,
-                height: 34,
+    return Semantics(
+      button: true,
+      label: '${strings.accentPick}: ${_nombre(acento.name, strings)}',
+      child: InkWell(
+        key: const ValueKey('abrir-rueda-de-color'),
+        onTap: () => AccentDialog.open(context),
+        borderRadius: BorderRadius.circular(NexusRadius.md),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s3,
+            vertical: NexusSpacing.s3,
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 28,
+                height: 28,
                 decoration: BoxDecoration(
+                  color: puesto,
                   shape: BoxShape.circle,
-                  // Se enseña el tono **del tema puesto**, no siempre el oscuro:
-                  // si en claro se enseñara el del oscuro, se elegiría un color y
-                  // aparecería otro.
-                  color: opcion.forBrightness(
-                    oscuro ? Brightness.dark : Brightness.light,
-                  ),
-                  // El elegido lleva un aro por fuera en vez de un check dentro:
-                  // un check tapa justo el color que hay que juzgar.
-                  border: Border.all(
-                    color: opcion == elegido ? colors.ink : colors.rule2,
-                    width: opcion == elegido ? 2 : 1,
-                  ),
+                  border: Border.all(color: colors.rule2),
                 ),
               ),
-            ),
+              const SizedBox(width: NexusSpacing.s4),
+              Text(
+                _nombre(acento.name, strings),
+                style: NexusTypography.data.copyWith(color: colors.ink),
+              ),
+              const SizedBox(width: NexusSpacing.s3),
+              // El hexadecimal al lado del nombre: el nombre es aproximado —el
+              // matiz manda y nombrar un color con exactitud es imposible— y esto
+              // es el dato exacto para quien lo quiera.
+              Text(
+                acento.hex,
+                style: NexusTypography.mono.copyWith(color: colors.faint),
+              ),
+            ],
           ),
-      ],
+        ),
+      ),
+    );
+  }
+}
+
+/// El nombre del acento, del diccionario.
+String _nombre(AccentName nombre, NexusStrings strings) => switch (nombre) {
+  AccentName.red => strings.accentNameRed,
+  AccentName.orange => strings.accentNameOrange,
+  AccentName.amber => strings.accentNameAmber,
+  AccentName.lime => strings.accentNameLime,
+  AccentName.green => strings.accentNameGreen,
+  AccentName.emerald => strings.accentNameEmerald,
+  AccentName.cyan => strings.accentNameCyan,
+  AccentName.blue => strings.accentNameBlue,
+  AccentName.indigo => strings.accentNameIndigo,
+  AccentName.violet => strings.accentNameViolet,
+  AccentName.magenta => strings.accentNameMagenta,
+  AccentName.rose => strings.accentNameRose,
+  AccentName.grey => strings.accentNameGrey,
+};
+
+/// La rueda, en una modal.
+///
+/// El color se lleva en estado local mientras se arrastra y se confirma **al
+/// soltar**, no en cada movimiento. No es por suavidad: cada acento nuevo arma un
+/// `ThemeData` entero y lo guarda, así que confirmar en cada píxel del arrastre
+/// dejaría cientos de temas en memoria por un solo gesto.
+class AccentDialog extends ConsumerStatefulWidget {
+  const AccentDialog({super.key});
+
+  static Future<void> open(BuildContext context) => showDialog<void>(
+    context: context,
+    builder: (_) => const AccentDialog(),
+  );
+
+  @override
+  ConsumerState<AccentDialog> createState() => _AccentDialogState();
+}
+
+class _AccentDialogState extends ConsumerState<AccentDialog> {
+  Color? _arrastrando;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final guardado = ref.watch(accentControllerProvider);
+    final actual = _arrastrando ?? guardado.chosen;
+    final acento = Accent(actual);
+
+    return Dialog(
+      backgroundColor: colors.rise,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colors.rule2),
+        borderRadius: BorderRadius.circular(NexusRadius.md),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(NexusSpacing.s6),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              strings.accentTitle,
+              style: NexusTypography.subtitle.copyWith(color: colors.ink),
+            ),
+            const SizedBox(height: NexusSpacing.s5),
+            Center(
+              child: AccentWheel(
+                value: actual,
+                onChanged: (color) => setState(() => _arrastrando = color),
+                onSettled: (color) {
+                  setState(() => _arrastrando = null);
+                  ref.read(accentControllerProvider.notifier).select(color);
+                },
+              ),
+            ),
+            const SizedBox(height: NexusSpacing.s5),
+            Row(
+              children: [
+                Text(
+                  _nombre(acento.name, strings),
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
+                const SizedBox(width: NexusSpacing.s3),
+                Text(
+                  acento.hex,
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+                const Spacer(),
+                AccentPreview(accent: acento),
+              ],
+            ),
+            const SizedBox(height: NexusSpacing.s4),
+            // Se explica el ajuste **aquí**, junto a las dos muestras: sin esto,
+            // elegir un violeta muy oscuro y verlo salir claro en el orbe se lee
+            // como que la app ignoró la elección.
+            Text(
+              strings.accentAdjusted,
+              style: NexusTypography.mono.copyWith(color: colors.faint),
+            ),
+            const SizedBox(height: NexusSpacing.s5),
+            Align(
+              alignment: Alignment.centerRight,
+              child: FilledButton(
+                onPressed: () => Navigator.pop(context),
+                child: Text(strings.close),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
