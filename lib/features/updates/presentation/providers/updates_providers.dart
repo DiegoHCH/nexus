@@ -96,12 +96,22 @@ class UpdatesController extends Notifier<UpdatesState> {
 
   Future<void> instalar() => UpdatesChannel.answer(UpdateChoice.install);
 
-  /// Cierra la modal en el acto en vez de esperar a que el actualizador confirme
-  /// el cierre: el botón tiene que responder al pulsarlo.
-  Future<void> masTarde() async {
+  /// Quitar el aviso de en medio: «más tarde» y la cruz son lo mismo, así que es
+  /// un solo método. Dos nombres para la misma acción es de donde salen las dos
+  /// que acaban divergiendo.
+  ///
+  /// Vuelve a reposo **en el acto** en vez de esperar a que el actualizador
+  /// confirme el cierre: el botón tiene que responder al pulsarlo.
+  ///
+  /// Y deja el aviso puesto: `notice` sigue diciendo que hay una versión nueva, y
+  /// de eso vive el punto rojo. Descartar es «ahora no», no «no me lo digas».
+  Future<void> descartar() async {
     state = state.copyWith(stage: const UpdateIdle());
     await UpdatesChannel.answer(UpdateChoice.later);
   }
+
+  /// Si queda algo por instalar que ya se sabe. De aquí sale el punto rojo.
+  bool get pendiente => state.notice?.isNewer ?? false;
 
   /// Saltarse **esta** versión: no volverá a ofrecerse, la siguiente sí.
   Future<void> saltar() async {

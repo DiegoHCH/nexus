@@ -1,18 +1,13 @@
-import 'package:flutter/widgets.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexus/features/updates/domain/entities/update_stage.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
-import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
+import 'package:nexus/features/updates/presentation/widgets/update_toast.dart';
 
-/// Vuelve a preguntar al volver a la ventana, y saca la modal cuando hay algo.
+/// Vuelve a preguntar al volver a la ventana, y cuelga el aviso donde se vea.
 ///
 /// Envuelve en vez de vivir en una pantalla concreta: así vale igual en Reposo,
 /// en la configuración inicial y en la comprobación de arranque, que son sitios
 /// donde también se puede pasar un rato.
-///
-/// Va **dentro** del `MaterialApp` y no fuera, y eso no es casual: `showDialog`
-/// necesita un Navigator por encima. Colgado del árbol de arriba, la modal no
-/// tendría dónde abrirse.
 class UpdatesGate extends ConsumerStatefulWidget {
   const UpdatesGate({super.key, required this.child});
 
@@ -24,10 +19,7 @@ class UpdatesGate extends ConsumerStatefulWidget {
 
 class _UpdatesGateState extends ConsumerState<UpdatesGate> {
   late final AppLifecycleListener _escucha;
-
-  /// Para no abrir dos modales si llegan dos avisos seguidos —puede pasar si una
-  /// comprobación de fondo y una manual se cruzan—.
-  bool _abierta = false;
+  OverlayEntry? _aviso;
 
   @override
   void initState() {
@@ -35,29 +27,32 @@ class _UpdatesGateState extends ConsumerState<UpdatesGate> {
     _escucha = AppLifecycleListener(
       onResume: () => ref.read(updatesControllerProvider.notifier).alRegresar(),
     );
+
+    // En el **overlay raíz** y no en un Stack de esta pantalla: Ajustes se abre
+    // como ruta empujada, y desde ahí también se puede pulsar «buscar
+    // actualizaciones». Colgado más abajo, el aviso saldría detrás de Ajustes.
+    //
+    // Después del primer fotograma porque el Overlay todavía no existe mientras
+    // se construye este widget.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      final entrada = OverlayEntry(builder: (_) => const UpdateToast());
+      _aviso = entrada;
+      Overlay.of(context, rootOverlay: true).insert(entrada);
+    });
   }
 
   @override
   void dispose() {
     _escucha.dispose();
+    _aviso?.remove();
     super.dispose();
   }
 
+  // Se inserta **una vez y para siempre**, y es el propio aviso quien decide si
+  // pinta algo. La alternativa —meterlo y sacarlo según la fase— obliga a llevar
+  // la cuenta de si ya está puesto, y ahí es donde salen dos avisos a la vez o
+  // ninguno. En reposo no pinta nada y no intercepta pulsaciones.
   @override
-  Widget build(BuildContext context) {
-    // Solo `UpdateFound` abre la modal por su cuenta. Las demás fases son
-    // consecuencia de haber pulsado algo, y para entonces ya está abierta; una
-    // descarga no debería poder sacar un cartel que nadie pidió.
-    ref.listen(updatesControllerProvider.select((s) => s.stage), (_, fase) {
-      if (fase is UpdateIdle) {
-        _abierta = false;
-        return;
-      }
-      if (fase is! UpdateFound || _abierta) return;
-      _abierta = true;
-      UpdateModal.open(context).whenComplete(() => _abierta = false);
-    });
-
-    return widget.child;
-  }
+  Widget build(BuildContext context) => widget.child;
 }

@@ -5,7 +5,6 @@ import 'package:nexus/core/platform/status_item_channel.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
-import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 
 /// Mantiene el icono de la barra de estado al día, y le da su menú.
@@ -54,11 +53,10 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
       settings: () {
         if (mounted) SettingsPage.open(context);
       },
-      // La fila del aviso saca la modal, que es donde se instala. Antes abría el
-      // navegador y ahí se acababa lo que la app podía hacer por ti.
-      update: () {
-        if (mounted) UpdateModal.open(context);
-      },
+      // La fila del aviso vuelve a preguntar, y el aviso sale arriba a la
+      // derecha. Antes abría el navegador, y ahí se acababa lo que la app podía
+      // hacer por ti.
+      update: ref.read(updatesControllerProvider.notifier).comprobarAhora,
     );
   }
 
@@ -77,6 +75,16 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     ref.listen<NexusOrbState>(
       assistantControllerProvider(widget.conversationId).select((s) => s.orbState),
       (previous, next) => StatusItemChannel.show(next.name),
+    );
+
+    // El punto rojo del icono, que sobrevive a descartar el aviso. Se manda al
+    // cambiar el aviso y no en cada estado del orbe: el lado nativo lo recuerda.
+    ref.listen(
+      updatesControllerProvider.select((s) => s.notice?.isNewer ?? false),
+      (_, pendiente) => StatusItemChannel.show(
+        ref.read(assistantControllerProvider(widget.conversationId)).orbState.name,
+        pending: pendiente,
+      ),
     );
     return const SizedBox.shrink();
   }

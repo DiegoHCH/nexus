@@ -1,19 +1,26 @@
 import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/updates/presentation/widgets/updates_gate.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/platform/updates_channel.dart';
 import 'package:nexus/features/updates/domain/entities/release_check.dart';
 import 'package:nexus/features/updates/domain/entities/update_stage.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
-import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
+import 'package:nexus/features/updates/presentation/widgets/update_toast.dart';
 
 import 'support/screen_harness.dart';
 
-/// La modal de la actualización, abierta y mirada.
+/// El aviso de actualización, arriba a la derecha, mirado fase por fase.
 ///
-/// Es la cara de una decisión: el motor es Sparkle pero su diálogo no se usa, así
-/// que **esta pantalla es nuestra y nadie más la comprueba**. Y tiene una fase por
+/// Era una modal en el centro y ahora es un toast: una versión nueva es una
+/// noticia, no una pregunta que haya que contestar antes de seguir. Lo que no
+/// cambia es que **esta superficie es nuestra y nadie más la comprueba**: el
+/// motor es Sparkle, pero su diálogo no se usa. Y tiene una fase por
 /// cada cosa que puede estar pasando, que es justo la forma de defecto que no se
 /// ve hasta que le toca a alguien: la fase que nadie abrió nunca.
 ///
@@ -45,7 +52,7 @@ void main() {
     String corriendo = '0.0.2',
   }) => pumpScreen(
     tester,
-    const UpdateModal(),
+    const UpdateToast(),
     overrides: [
       updatesControllerProvider.overrideWith(
         () => _Fijo(
@@ -163,6 +170,8 @@ void main() {
     expect(find.text(es.updateRestart), findsNothing);
   });
 
+  _sobreLasRutas();
+
   testWidgets('y sin poder preguntar tampoco lo ofrece', (tester) async {
     // `unknown` no es «sí». Es la misma regla que en la comprobación de arranque.
     await abrir(
@@ -173,5 +182,67 @@ void main() {
 
     expect(find.text(es.updateMoveTitle), findsOne);
     expect(find.text(es.updateInstall), findsNothing);
+  });
+}
+
+/// Y que se vea **por encima de una ruta empujada**.
+///
+/// Es la razón de colgarlo del overlay raíz y no de un `Stack` de la pantalla, y
+/// es una afirmación fácil de creer sin comprobar: Ajustes se abre como ruta, y
+/// desde ahí también se pulsa «buscar actualizaciones». Colgado más abajo, el
+/// aviso saldría **detrás** de Ajustes y parecería que el botón no hace nada.
+void _sobreLasRutas() {
+  testWidgets('el aviso se ve aunque haya una pantalla abierta encima', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [
+          updatesControllerProvider.overrideWith(
+            () => _Fijo(
+              const UpdatesState(
+                notice: ReleaseCheck(current: '0.0.4'),
+                stage: UpdateFound(version: '0.0.5'),
+              ),
+            ),
+          ),
+          installabilityProvider.overrideWith((ref) async => Installability.ok),
+        ],
+        child: MaterialApp(
+          theme: NexusTheme.dark(),
+          builder: (context, child) =>
+              StringsScope(strings: const NexusStringsEs(), child: child!),
+          home: UpdatesGate(
+            child: Builder(
+              builder: (context) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute<void>(
+                        builder: (_) => const Scaffold(body: Text('otra pantalla')),
+                      ),
+                    ),
+                    child: const Text('abrir'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text(const NexusStringsEs().updateFoundTitle), findsOne);
+
+    await tester.tap(find.text('abrir'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('otra pantalla'), findsOne, reason: 'la ruta está encima');
+    expect(
+      find.text(const NexusStringsEs().updateFoundTitle),
+      findsOne,
+      reason: 'y el aviso sigue a la vista: por eso va en el overlay raíz',
+    );
   });
 }
