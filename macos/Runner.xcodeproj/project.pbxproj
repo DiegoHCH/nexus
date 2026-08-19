@@ -756,6 +756,11 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
+				/* Apple no notariza sin esto. */
+				ENABLE_HARDENED_RUNTIME = YES;
+				/* Sin esto el build llevaba `get-task-allow` —el permiso de
+				   depuración— y Apple rechaza un binario depurable. */
+				CODE_SIGN_INJECT_BASE_ENTITLEMENTS = NO;
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				INFOPLIST_FILE = Runner/Info.plist;

@@ -8,8 +8,23 @@
 # en CI saldría sin firmar, que es peor que sin notarizar.
 #
 #   tool/publicar.sh 0.1.0
+#   tool/publicar.sh 0.1.0 --sin-notarizar   (no recomendado, ver abajo)
+#
+# Notariza por defecto. El primer paso lo tienes que dar tú una vez, porque pide
+# credenciales de tu cuenta de Apple y esas **no viven en el repo**:
+#
+#   xcrun notarytool store-credentials "nexus-notarizacion" \
+#     --apple-id TU_CORREO --team-id Y9H7TRB5L7 --password CONTRASEÑA_DE_APP
+#
+# La contraseña es una «contraseña específica de aplicación», que se crea en
+# appleid.apple.com; no es la de tu cuenta. Queda en el llavero del login, y este
+# guion solo la nombra por el perfil.
 #
 set -euo pipefail
+
+PERFIL="nexus-notarizacion"
+NOTARIZAR=1
+[[ "${2:-}" == "--sin-notarizar" ]] && NOTARIZAR=0
 
 VERSION="${1:-}"
 if [[ -z "$VERSION" ]]; then
@@ -52,15 +67,51 @@ echo "▸ empaquetando en $SALIDA"
 rm -f "$SALIDA"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$SALIDA"
 
+if [[ "$NOTARIZAR" == "1" ]]; then
+  if ! xcrun notarytool history --keychain-profile "$PERFIL" >/dev/null 2>&1; then
+    cat >&2 <<AVISO
+✗ no hay perfil de notarización guardado con el nombre «$PERFIL».
+
+  Se crea una sola vez, y con tus credenciales —por eso no lo hace este guion:
+
+    xcrun notarytool store-credentials "$PERFIL" \\
+      --apple-id TU_CORREO --team-id Y9H7TRB5L7 --password CONTRASEÑA_DE_APP
+
+  La contraseña es una «específica de aplicación» de appleid.apple.com, no la de
+  tu cuenta. Si de verdad quieres publicar sin notarizar, pasa --sin-notarizar y
+  quien la baje tendrá que abrirla con clic derecho la primera vez.
+AVISO
+    exit 1
+  fi
+
+  echo "▸ notarizando (Apple tarda entre uno y unos minutos)"
+  xcrun notarytool submit "$SALIDA" --keychain-profile "$PERFIL" --wait
+
+  # El sello va en la **app**, no en el zip: así el paquete lleva el ticket
+  # dentro y macOS no necesita preguntar por red para abrirla.
+  echo "▸ sellando el ticket en la app"
+  xcrun stapler staple "$APP"
+
+  # Y se vuelve a empaquetar, porque el zip de antes se hizo sin el sello.
+  echo "▸ reempaquetando con el ticket dentro"
+  rm -f "$SALIDA"
+  ditto -c -k --sequesterRsrc --keepParent "$APP" "$SALIDA"
+
+  echo "▸ comprobando lo que verá quien la baje"
+  spctl -a -vv -t install "$APP"
+fi
+
 echo "▸ publicando la release v$VERSION"
 gh release create "v$VERSION" "$SALIDA" \
   --title "Nexus $VERSION" \
-  --notes "$(cat <<'NOTAS'
+  --notes "$(cat <<NOTAS
 Primera versión publicable.
 
-**Está firmada, no notarizada.** macOS dirá «no se pudo verificar»: la primera
-vez se abre con **clic derecho › Abrir**. Es lo que ya anticipaba la ficha `le9`,
-y se arregla cuando se configure `notarytool`.
+$(if [[ "$NOTARIZAR" == "1" ]]; then
+  echo "**Firmada y notarizada por Apple**, así que se abre con doble clic como cualquier otra app."
+else
+  echo "**Está firmada, no notarizada.** macOS dirá «no se pudo verificar»: la primera vez se abre con **clic derecho › Abrir**."
+fi)
 
 **Qué necesita para funcionar** — lo comprueba la propia app al arrancar y te lo
 dice si falta:
@@ -74,8 +125,8 @@ NOTAS
 )"
 
 echo "✓ publicada: $(gh release view "v$VERSION" --json url --jq .url)"
-echo
-echo "Sin notarizar, quien la baje verá «no se pudo verificar» y tendrá que"
-echo "abrirla con clic derecho la primera vez. Para arreglarlo hace falta"
-echo "correr notarytool con tu cuenta de Apple — no está automatizado aquí a"
-echo "propósito: pide credenciales que no deben vivir en un script del repo."
+if [[ "$NOTARIZAR" == "0" ]]; then
+  echo
+  echo "Publicada SIN notarizar: quien la baje verá «no se pudo verificar» y"
+  echo "tendrá que abrirla con clic derecho la primera vez."
+fi

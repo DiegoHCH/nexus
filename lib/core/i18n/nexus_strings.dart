@@ -320,6 +320,8 @@ abstract class NexusStrings {
   String get helpTourTitle;
   String get helpTourExplainer;
   String get helpTourAction;
+  String get versionLabel;
+  String updateAvailable(String version);
   String get guideNeedsTitle;
   String get guideNeedsBody;
   String get guidePrivacyTitle;
@@ -972,6 +974,10 @@ class NexusStringsEs extends NexusStrings {
       'desde aquí se puede volver a ver.';
   @override
   String get helpTourAction => 'Ver el tour otra vez';
+  @override
+  String get versionLabel => 'Versión';
+  @override
+  String updateAvailable(String version) => 'Hay una versión nueva: $version';
 
   @override
   String get guideNeedsTitle => 'Qué necesita para funcionar';
@@ -1746,6 +1752,10 @@ class NexusStringsEn extends NexusStrings {
       'time; from here you can see it again.';
   @override
   String get helpTourAction => 'See the tour again';
+  @override
+  String get versionLabel => 'Version';
+  @override
+  String updateAvailable(String version) => 'There is a new version: $version';
 
   @override
   String get guideNeedsTitle => 'What it needs to work';

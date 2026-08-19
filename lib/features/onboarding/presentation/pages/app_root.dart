@@ -5,6 +5,7 @@ import 'package:nexus/features/onboarding/presentation/pages/initial_setup_page.
 import 'package:nexus/features/onboarding/presentation/pages/readiness_page.dart';
 import 'package:nexus/features/onboarding/presentation/pages/splash_page.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+import 'package:nexus/features/updates/presentation/widgets/updates_on_return.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 
 /// Decide qué pantalla ve el usuario al arrancar: [SplashPage] siempre primero,
@@ -19,11 +20,15 @@ class AppRoot extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final route = ref.watch(appRouteControllerProvider);
-    return switch (route) {
+    // Envuelto para poder mirar si hay versión nueva al volver a la ventana,
+    // pase lo que pase con el enrutado.
+    return UpdatesOnReturn(
+      child: switch (route) {
       AppRouteLoading() => const SplashPage(),
       AppRouteNotReady(:final readiness) => ReadinessPage(readiness: readiness),
       AppRouteNeedsSetup() => const InitialSetupPage(),
       AppRouteReady() => const HomePage(),
-    };
+      },
+    );
   }
 }
