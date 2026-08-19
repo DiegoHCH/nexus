@@ -99,6 +99,12 @@ class _Workspace extends WorkspaceController {
 }
 
 void main() {
+  // Terminar un turno avisa por un canal nativo, y sin binding el canal ni
+  // siquiera puede lanzar `MissingPluginException` —que sí está atrapada—: se
+  // queja de que no hay binding. Se inicializa aquí, que es donde está el
+  // problema, en vez de ensanchar el `catch` de producción.
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   ({ProviderContainer container, _Guionizada voz, _Store store}) montar() {
