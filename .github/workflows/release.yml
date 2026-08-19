@@ -51,7 +51,7 @@ jobs:
     name: ¿hay algo que publicar?
     runs-on: ubuntu-latest
     outputs:
-      version: ${{ needs.decidir.outputs.version }}
+      version: ${{ steps.v.outputs.version }}
       publicar: ${{ steps.puerta.outputs.publicar }}
     steps:
       - uses: actions/checkout@v4
@@ -77,7 +77,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          V="${{ needs.decidir.outputs.version }}"
+          V="${{ steps.v.outputs.version }}"
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             # A mano es el camino de reintentar: aquí no se pregunta nada.
             echo "publicar=true" >> "$GITHUB_OUTPUT"
