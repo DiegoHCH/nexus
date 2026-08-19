@@ -175,16 +175,134 @@ jobs:
           spctl -a -vv -t install "$APP"
           rm -f "$RUNNER_TEMP/clave.p8"
 
+      # El DMG se arma **después** de sellar la app, y no antes: si se armara
+      # primero llevaría dentro una copia sin ticket, y quien la arrastrase a
+      # Aplicaciones tendría una app que necesita red para abrirse la primera vez.
+      #
+      # Y va firmado y notarizado él también. Un DMG sin firmar da el aviso de
+      # «no se pudo verificar» al montarlo, aunque la app de dentro esté impecable:
+      # lo primero que ve quien descarga es el disco, no la app.
+      - name: armar, firmar y notarizar el DMG
+        env:
+          P8: ${{ secrets.NOTARY_API_KEY_P8 }}
+          KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
+          ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          APP="build/macos/Build/Products/Release/Nexus.app"
+          DMG="build/Nexus-$V.dmg"
+          echo "$P8" | base64 --decode > "$RUNNER_TEMP/clave.p8"
+
+          tool/dmg.sh "$APP" "$DMG" "$V"
+
+          IDENTIDAD="$(security find-identity -v -p codesigning \
+            | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+          codesign --sign "$IDENTIDAD" --timestamp --force "$DMG"
+          codesign --verify --strict "$DMG"
+
+          set +e
+          ENVIO="$(xcrun notarytool submit "$DMG" \
+            --key "$RUNNER_TEMP/clave.p8" --key-id "$KEY_ID" --issuer "$ISSUER" \
+            --wait 2>&1)"
+          set -e
+          echo "$ENVIO"
+          ID="$(printf '%s' "$ENVIO" | awk '/^  id: /{print $2; exit}')"
+          case "$ENVIO" in
+            *'status: Accepted'*) ;;
+            *)
+              echo "::error::Apple no aceptó el DMG"
+              xcrun notarytool log "$ID" \
+                --key "$RUNNER_TEMP/clave.p8" --key-id "$KEY_ID" --issuer "$ISSUER" || true
+              exit 1
+              ;;
+          esac
+
+          xcrun stapler staple "$DMG"
+          xcrun stapler validate "$DMG"
+          rm -f "$RUNNER_TEMP/clave.p8"
+
+      # El feed que lee la app instalada. Sin esto el actualizador no encuentra
+      # nada nunca: no hay «no hay novedades», hay un feed que no existe.
+      #
+      # La firma EdDSA es una segunda cerradura sobre la de Apple. La pública va
+      # dentro de la app (`SUPublicEDKey` en el Info.plist) y la privada solo aquí:
+      # aunque alguien lograra colgar un zip en las releases de este repo público,
+      # sin esta firma Sparkle lo rechaza antes de descomprimirlo.
+      - name: armar el appcast y firmarlo
+        env:
+          CLAVE: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          set -o pipefail
+          [[ -n "$CLAVE" ]] || { echo "::error::falta el secreto SPARKLE_PRIVATE_KEY"; exit 1; }
+          V="${{ steps.v.outputs.version }}"
+          ZIP="build/Nexus-$V.zip"
+          APP="build/macos/Build/Products/Release/Nexus.app"
+
+          # `sparkle:version` es el **build**, no la versión visible: es el número
+          # que Sparkle compara, y tiene que crecer siempre. Se lee del paquete ya
+          # construido y no del pubspec, para que sea el mismo que la app dirá de
+          # sí misma.
+          BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+
+          FIRMA="$(macos/Pods/Sparkle/bin/sign_update "$ZIP" -s "$CLAVE")"
+          [[ "$FIRMA" == *edSignature* ]] || { echo "::error::sign_update no devolvió una firma"; exit 1; }
+
+          # Qué trae: los asuntos de los commits desde la etiqueta anterior. Van
+          # en inglés porque así se escriben en este repo; es la fuente de verdad
+          # de lo que cambió, y preferimos eso a un texto escrito a mano que
+          # envejece.
+          ANTERIOR="$(git describe --tags --abbrev=0 "v$V^" 2>/dev/null || true)"
+          if [[ -n "$ANTERIOR" ]]; then
+            NOTAS="$(git log --no-merges --pretty='- %s' "$ANTERIOR..v$V")"
+          else
+            NOTAS="- first published version"
+          fi
+
+          {
+            echo '<?xml version="1.0" encoding="utf-8"?>'
+            echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
+            echo '  <channel>'
+            echo '    <title>Nexus</title>'
+            echo '    <item>'
+            echo "      <title>$V</title>"
+            echo "      <pubDate>$(date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>"
+            echo '      <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>'
+            echo '      <description><![CDATA['
+            echo "$NOTAS"
+            echo '      ]]></description>'
+            echo "      <enclosure url=\"https://github.com/${{ github.repository }}/releases/download/v$V/Nexus-$V.zip\""
+            echo "                 sparkle:version=\"$BUILD\""
+            echo "                 sparkle:shortVersionString=\"$V\""
+            echo '                 type="application/octet-stream"'
+            echo "                 $FIRMA />"
+            echo '    </item>'
+            echo '  </channel>'
+            echo '</rss>'
+          } > build/appcast.xml
+
+          xmllint --noout build/appcast.xml \
+            || { echo "::error::el appcast no es XML válido"; exit 1; }
+
+      # Se publican **los dos**, y cada uno tiene su trabajo:
+      #
+      #   .dmg          la primera instalación, para personas: arrastrar a Aplicaciones.
+      #   .zip          las actualizaciones, para Sparkle: es el formato que consume.
+      #   appcast.xml   el feed que dice que existe esa actualización.
+      #
+      # El zip no es un resto del pasado; es lo que hace posible que la app se
+      # actualice sola. Y el appcast tiene que llamarse **igual siempre**: la app
+      # lo pide por `releases/latest/download/appcast.xml`, una dirección que no
+      # caduca porque GitHub la redirige a la última release.
       - name: publicar la release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           V="${{ steps.v.outputs.version }}"
-          ZIP="build/Nexus-$V.zip"
+          ASSETS=("build/Nexus-$V.dmg" "build/Nexus-$V.zip" "build/appcast.xml")
           if gh release view "v$V" >/dev/null 2>&1; then
-            gh release upload "v$V" "$ZIP" --clobber
+            gh release upload "v$V" "${ASSETS[@]}" --clobber
           else
-            gh release create "v$V" "$ZIP" --title "Nexus $V" --generate-notes
+            gh release create "v$V" "${ASSETS[@]}" --title "Nexus $V" --generate-notes
           fi
 
       # Siempre: si algo falló a mitad, la clave no se queda en el runner.

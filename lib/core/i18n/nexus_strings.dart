@@ -322,6 +322,27 @@ abstract class NexusStrings {
   String get helpTourAction;
   String get versionLabel;
   String updateAvailable(String version);
+  String get updateChecking;
+  String get updateCheckNow;
+  String get updateUpToDate;
+  String updateUpToDateBody(String version);
+  String get updateFoundTitle;
+  String updateWeight(String size);
+  String updateDownloadedOf(String done, String total);
+  String get updateLater;
+  String get updateInstall;
+  String get updateRestart;
+  String get updateDownloading;
+  String get updateExtracting;
+  String get updateReadyTitle;
+  String get updateReadyBody;
+  String get updateInstalling;
+  String get updateInstallingBody;
+  String get updateFailedTitle;
+  String get updateFailedBody;
+  String get updateRetry;
+  String get updateMoveTitle;
+  String get updateMoveBody;
   String get guideNeedsTitle;
   String get guideNeedsBody;
   String get guidePrivacyTitle;
@@ -978,6 +999,55 @@ class NexusStringsEs extends NexusStrings {
   String get versionLabel => 'Versión';
   @override
   String updateAvailable(String version) => 'Hay una versión nueva: $version';
+  @override
+  String get updateChecking => 'Buscando actualizaciones…';
+  @override
+  String get updateCheckNow => 'Buscar actualizaciones';
+  @override
+  String get updateUpToDate => 'Estás al día';
+  @override
+  String updateUpToDateBody(String version) =>
+      'La $version es la última publicada.';
+  @override
+  String get updateFoundTitle => 'Hay una versión nueva';
+  @override
+  String updateWeight(String size) => 'La descarga pesa $size.';
+  @override
+  String updateDownloadedOf(String done, String total) => '$done de $total';
+  @override
+  String get updateLater => 'Más tarde';
+  @override
+  String get updateInstall => 'Actualizar';
+  @override
+  String get updateRestart => 'Reiniciar e instalar';
+  @override
+  String get updateDownloading => 'Descargando';
+  @override
+  String get updateExtracting => 'Preparando la actualización';
+  @override
+  String get updateReadyTitle => 'Lista para instalarse';
+  @override
+  String get updateReadyBody =>
+      'Nexus se cerrará y volverá a abrirse. Si tienes un encargo en marcha, '
+      'reiniciar lo corta a media escritura: espera a que termine.';
+  @override
+  String get updateInstalling => 'Instalando';
+  @override
+  String get updateInstallingBody =>
+      'Nexus va a reiniciarse solo. No hace falta hacer nada.';
+  @override
+  String get updateFailedTitle => 'No se pudo actualizar';
+  @override
+  String get updateFailedBody => 'El actualizador no dijo por qué.';
+  @override
+  String get updateRetry => 'Volver a intentar';
+  @override
+  String get updateMoveTitle => 'Antes hay que moverla a Aplicaciones';
+  @override
+  String get updateMoveBody =>
+      'Nexus está corriendo desde una copia de solo lectura que macOS monta '
+      'para las apps que se abren sin instalarlas. Desde ahí no puede '
+      'reemplazarse a sí misma. Arrástrala a Aplicaciones y vuelve a abrirla.';
 
   @override
   String get guideNeedsTitle => 'Qué necesita para funcionar';
@@ -1756,6 +1826,55 @@ class NexusStringsEn extends NexusStrings {
   String get versionLabel => 'Version';
   @override
   String updateAvailable(String version) => 'There is a new version: $version';
+  @override
+  String get updateChecking => 'Checking for updates…';
+  @override
+  String get updateCheckNow => 'Check for updates';
+  @override
+  String get updateUpToDate => 'You are up to date';
+  @override
+  String updateUpToDateBody(String version) =>
+      'Version $version is the latest published.';
+  @override
+  String get updateFoundTitle => 'There is a new version';
+  @override
+  String updateWeight(String size) => 'The download is $size.';
+  @override
+  String updateDownloadedOf(String done, String total) => '$done of $total';
+  @override
+  String get updateLater => 'Later';
+  @override
+  String get updateInstall => 'Update';
+  @override
+  String get updateRestart => 'Restart and install';
+  @override
+  String get updateDownloading => 'Downloading';
+  @override
+  String get updateExtracting => 'Preparing the update';
+  @override
+  String get updateReadyTitle => 'Ready to install';
+  @override
+  String get updateReadyBody =>
+      'Nexus will quit and open again. If an errand is running, restarting '
+      'cuts it mid-write: wait until it finishes.';
+  @override
+  String get updateInstalling => 'Installing';
+  @override
+  String get updateInstallingBody =>
+      'Nexus will restart on its own. Nothing to do.';
+  @override
+  String get updateFailedTitle => 'Could not update';
+  @override
+  String get updateFailedBody => 'The updater did not say why.';
+  @override
+  String get updateRetry => 'Try again';
+  @override
+  String get updateMoveTitle => 'It has to be moved to Applications first';
+  @override
+  String get updateMoveBody =>
+      'Nexus is running from the read-only copy macOS mounts for apps opened '
+      'without installing them. From there it cannot replace itself. Drag it '
+      'to Applications and open it again.';
 
   @override
   String get guideNeedsTitle => 'What it needs to work';
