@@ -104,7 +104,7 @@ class ActivityHeatmap extends StatelessWidget {
       > 0.1 => 0.45,
       _ => 0.25,
     };
-    return colors.cyan.withValues(alpha: alpha);
+    return colors.accent.withValues(alpha: alpha);
   }
 
   static String _key(DateTime day) => '${day.year}-${day.month}-${day.day}';

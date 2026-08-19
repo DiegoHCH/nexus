@@ -49,10 +49,10 @@ class HudTopBar extends ConsumerWidget {
               height: 7,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: colors.cyan,
+                color: colors.accent,
                 boxShadow: [
                   BoxShadow(
-                    color: colors.cyan.withValues(alpha: 0.8),
+                    color: colors.accent.withValues(alpha: 0.8),
                     blurRadius: 10,
                   ),
                 ],
@@ -71,7 +71,7 @@ class HudTopBar extends ConsumerWidget {
           Text(
             status.toUpperCase(),
             style: NexusTypography.label.copyWith(
-              color: live ? colors.cyan : colors.faint,
+              color: live ? colors.accent : colors.faint,
               letterSpacing: 2,
             ),
           ),

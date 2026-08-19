@@ -63,7 +63,7 @@ class Gauge extends StatelessWidget {
             value: percent / 100,
             minHeight: 3,
             backgroundColor: colors.rule,
-            color: percent >= warnAt ? colors.warn : colors.cyan,
+            color: percent >= warnAt ? colors.warn : colors.accent,
           ),
         ),
         if (note case final texto?) ...[

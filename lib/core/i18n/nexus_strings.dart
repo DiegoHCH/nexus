@@ -72,6 +72,14 @@ abstract class NexusStrings {
   String get sectionSuperpowers;
   String get sectionAppearance;
   String get themeTitle;
+  String get accentTitle;
+  String get accentExplainer;
+  String get accentCyan;
+  String get accentViolet;
+  String get accentAmber;
+  String get accentRose;
+  String get accentGreen;
+  String get accentBlue;
   String get themeExplainer;
   String get themeSystem;
   String get themeLight;
@@ -488,6 +496,24 @@ class NexusStringsEs extends NexusStrings {
   String get sectionAppearance => 'Apariencia';
   @override
   String get themeTitle => 'Claro u oscuro';
+  @override
+  String get accentTitle => 'Color de acento';
+  @override
+  String get accentExplainer =>
+      'El tono del orbe y de todo lo que resalta. Cada color trae su propia '
+      'versión para el tema claro, para que siga leyéndose.';
+  @override
+  String get accentCyan => 'Cian';
+  @override
+  String get accentViolet => 'Violeta';
+  @override
+  String get accentAmber => 'Ámbar';
+  @override
+  String get accentRose => 'Rosa';
+  @override
+  String get accentGreen => 'Verde';
+  @override
+  String get accentBlue => 'Azul';
   @override
   String get themeExplainer =>
       'La app nace oscura porque es un HUD, y de noche eso se agradece. Pero a '
@@ -1318,6 +1344,24 @@ class NexusStringsEn extends NexusStrings {
   String get sectionAppearance => 'Appearance';
   @override
   String get themeTitle => 'Light or dark';
+  @override
+  String get accentTitle => 'Accent colour';
+  @override
+  String get accentExplainer =>
+      'The tone of the orb and of everything that stands out. Each colour brings '
+      'its own version for the light theme, so it stays readable.';
+  @override
+  String get accentCyan => 'Cyan';
+  @override
+  String get accentViolet => 'Violet';
+  @override
+  String get accentAmber => 'Amber';
+  @override
+  String get accentRose => 'Rose';
+  @override
+  String get accentGreen => 'Green';
+  @override
+  String get accentBlue => 'Blue';
   @override
   String get themeExplainer =>
       'The app is born dark because it is a HUD, and at night that is welcome. '

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/appearance_channel.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
@@ -108,8 +109,11 @@ class _MainAppState extends ConsumerState<MainApp> {
     // tienen constructor const, así que no hay forma de recuperar el const
     // que tenía este MaterialApp sin abandonar fromSeed por un ColorScheme
     // literal con sus ~40 campos a mano. El costo real es nulo: light()/
-    // dark() ya cachean el resultado en un static final.
+    // dark() cachean el resultado, ahora por acento en un mapa.
     final locale = ref.watch(localeProvider);
+    // El acento elegido. Cada opción trae su par de colores porque el tema claro
+    // no puede usar el mismo tono que el oscuro y seguir siendo legible.
+    final acento = ref.watch(accentControllerProvider);
 
     // El marco de la ventana va por libre —es AppKit— así que se le avisa cada
     // vez que cambia lo que toca pintar. `ref.listen` y no una llamada en el
@@ -128,8 +132,8 @@ class _MainAppState extends ConsumerState<MainApp> {
       // depuración —es su forma normal de correr, no una prueba de un rato— y
       // la cinta tapa la esquina del HUD.
       debugShowCheckedModeBanner: false,
-      theme: NexusTheme.light(),
-      darkTheme: NexusTheme.dark(),
+      theme: NexusTheme.light(accent: acento.light),
+      darkTheme: NexusTheme.dark(accent: acento.dark),
       themeMode: ref.watch(themeControllerProvider).mode,
       locale: locale,
       supportedLocales: NexusStrings.supported,

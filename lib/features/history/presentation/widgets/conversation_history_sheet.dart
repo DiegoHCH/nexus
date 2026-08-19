@@ -86,7 +86,7 @@ class _ConversationHistorySheetState
             children: [
               Text(
                 strings.history,
-                style: NexusTypography.label.copyWith(color: colors.cyan),
+                style: NexusTypography.label.copyWith(color: colors.accent),
               ),
               const SizedBox(height: NexusSpacing.s2),
               Text(
@@ -230,7 +230,7 @@ class _Tab extends StatelessWidget {
           // parezca un botón pulsado.
           border: Border(
             bottom: BorderSide(
-              color: active ? colors.cyan : colors.rule,
+              color: active ? colors.accent : colors.rule,
               width: 2,
             ),
           ),
@@ -241,7 +241,7 @@ class _Tab extends StatelessWidget {
             Text(
               label.toUpperCase(),
               style: NexusTypography.label.copyWith(
-                color: active ? colors.cyan : colors.faint,
+                color: active ? colors.accent : colors.faint,
               ),
             ),
             const SizedBox(width: NexusSpacing.s2),

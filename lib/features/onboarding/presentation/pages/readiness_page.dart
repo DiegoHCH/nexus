@@ -42,7 +42,7 @@ class ReadinessPage extends ConsumerWidget {
               children: [
                 Text(
                   strings.brand,
-                  style: NexusTypography.brand.copyWith(color: colors.cyan),
+                  style: NexusTypography.brand.copyWith(color: colors.accent),
                 ),
                 const SizedBox(height: NexusSpacing.s6),
                 Text(
@@ -81,7 +81,7 @@ class ReadinessPage extends ConsumerWidget {
                   children: [
                     _Action(
                       label: strings.readinessRecheck,
-                      color: colors.cyan,
+                      color: colors.accent,
                       onTap: () => ref
                           .read(appRouteControllerProvider.notifier)
                           .recheck(),
@@ -163,7 +163,7 @@ class _Missing extends StatelessWidget {
           ),
           if (label != null) ...[
             const SizedBox(height: NexusSpacing.s4),
-            _Action(label: label, color: colors.cyan, onTap: onLink),
+            _Action(label: label, color: colors.accent, onTap: onLink),
           ],
         ],
       ),

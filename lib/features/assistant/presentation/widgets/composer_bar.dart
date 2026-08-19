@@ -146,7 +146,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
         decoration: BoxDecoration(
           border: Border(
             top: BorderSide(
-              color: colors.cyan.withValues(alpha: _dragging ? 0.9 : 0.28),
+              color: colors.accent.withValues(alpha: _dragging ? 0.9 : 0.28),
               width: _dragging ? 2 : 1,
             ),
           ),
@@ -155,8 +155,8 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
             end: Alignment.bottomCenter,
             stops: const [0.0, 0.7],
             colors: [
-              colors.cyan.withValues(alpha: _dragging ? 0.16 : 0.045),
-              colors.cyan.withValues(alpha: 0),
+              colors.accent.withValues(alpha: _dragging ? 0.16 : 0.045),
+              colors.accent.withValues(alpha: 0),
             ],
           ),
         ),
@@ -199,12 +199,12 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
                     Icon(
                       Icons.file_download_outlined,
                       size: 13,
-                      color: colors.cyan,
+                      color: colors.accent,
                     ),
                     const SizedBox(width: NexusSpacing.s2),
                     Text(
                       context.strings.dropHere,
-                      style: NexusTypography.label.copyWith(color: colors.cyan),
+                      style: NexusTypography.label.copyWith(color: colors.accent),
                     ),
                   ],
                 ),
@@ -316,7 +316,7 @@ class _Chips extends ConsumerWidget {
                     ),
                     if (option.path == paired?.path) ...[
                       const SizedBox(width: NexusSpacing.s3),
-                      Icon(Icons.check, size: 13, color: colors.cyan),
+                      Icon(Icons.check, size: 13, color: colors.accent),
                     ],
                   ],
                 ),
@@ -337,7 +337,7 @@ class _Chips extends ConsumerWidget {
                   ),
                   if (suelta) ...[
                     const SizedBox(width: NexusSpacing.s3),
-                    Icon(Icons.check, size: 13, color: colors.cyan),
+                    Icon(Icons.check, size: 13, color: colors.accent),
                   ],
                 ],
               ),
@@ -397,7 +397,7 @@ class _Chips extends ConsumerWidget {
                     ),
                     if (paired.activeRepo == null) ...[
                       const SizedBox(width: NexusSpacing.s3),
-                      Icon(Icons.check, size: 13, color: colors.cyan),
+                      Icon(Icons.check, size: 13, color: colors.accent),
                     ],
                   ],
                 ),
@@ -413,7 +413,7 @@ class _Chips extends ConsumerWidget {
                       ),
                       if (repo == paired.activeRepo) ...[
                         const SizedBox(width: NexusSpacing.s3),
-                        Icon(Icons.check, size: 13, color: colors.cyan),
+                        Icon(Icons.check, size: 13, color: colors.accent),
                       ],
                     ],
                   ),
@@ -556,7 +556,7 @@ class _Field extends StatelessWidget {
                         splashRadius: 14,
                         iconSize: 16,
                         color: colors.faint,
-                        hoverColor: colors.cyan.withValues(alpha: 0.12),
+                        hoverColor: colors.accent.withValues(alpha: 0.12),
                         icon: const Icon(Icons.backspace_outlined),
                       ),
                     ),
@@ -660,7 +660,7 @@ class _Controls extends ConsumerWidget {
                 : strings.sayStopToInterrupt,
             iconSize: 15,
             splashRadius: 15,
-            color: voiceActive ? colors.cyan : colors.faint,
+            color: voiceActive ? colors.accent : colors.faint,
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
         const Spacer(),
@@ -814,7 +814,7 @@ class _ModelMenu extends ConsumerWidget {
                 ),
                 if (option == vigente) ...[
                   const SizedBox(width: NexusSpacing.s3),
-                  Icon(Icons.check, size: 13, color: colors.cyan),
+                  Icon(Icons.check, size: 13, color: colors.accent),
                 ],
               ],
             ),
@@ -889,7 +889,7 @@ class _EffortMenu extends ConsumerWidget {
                   ),
                 if (option == vigente) ...[
                   const SizedBox(width: NexusSpacing.s3),
-                  Icon(Icons.check, size: 13, color: colors.cyan),
+                  Icon(Icons.check, size: 13, color: colors.accent),
                 ],
               ],
             ),
@@ -1021,7 +1021,7 @@ class _UsageMenu extends ConsumerWidget {
           painter: _ContextDial(
             fraction: meter.contextFraction,
             ring: colors.rule,
-            fill: context_ >= 85 ? colors.warn : colors.cyan,
+            fill: context_ >= 85 ? colors.warn : colors.accent,
           ),
         ),
       ),

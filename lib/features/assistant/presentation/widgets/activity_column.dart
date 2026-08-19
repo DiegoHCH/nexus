@@ -38,7 +38,7 @@ class ActivityColumn extends StatelessWidget {
           children: [
             Text(
               context.strings.rightNow,
-              style: NexusTypography.label.copyWith(color: colors.cyan),
+              style: NexusTypography.label.copyWith(color: colors.accent),
             ),
             const Spacer(),
             if (items.isNotEmpty)
@@ -111,7 +111,7 @@ class _ActivityRowState extends State<_ActivityRow> {
     final isChild = widget.row.depth > 0;
     final dotColor = item.done
         ? colors.ok
-        : (running ? colors.cyan : colors.rule2);
+        : (running ? colors.accent : colors.rule2);
 
     return Container(
       // Los pasos del subagente van metidos hacia dentro y con una guía a la
@@ -122,7 +122,7 @@ class _ActivityRowState extends State<_ActivityRow> {
         border: Border(
           bottom: BorderSide(color: colors.rule),
           left: isChild
-              ? BorderSide(color: colors.cyan.withValues(alpha: 0.25), width: 2)
+              ? BorderSide(color: colors.accent.withValues(alpha: 0.25), width: 2)
               : BorderSide.none,
         ),
       ),
@@ -150,7 +150,7 @@ class _ActivityRowState extends State<_ActivityRow> {
                         boxShadow: running
                             ? [
                                 BoxShadow(
-                                  color: colors.cyan.withValues(alpha: 0.8),
+                                  color: colors.accent.withValues(alpha: 0.8),
                                   blurRadius: 12,
                                 ),
                               ]
@@ -258,7 +258,7 @@ class _ElapsedState extends State<_Elapsed> {
       padding: const EdgeInsets.only(right: NexusSpacing.s3),
       child: Text(
         minutos > 0 ? '${minutos}m ${segundos}s' : '${segundos}s',
-        style: NexusTypography.data.copyWith(color: colors.cyan),
+        style: NexusTypography.data.copyWith(color: colors.accent),
       ),
     );
   }
@@ -299,7 +299,7 @@ class _Detail extends StatelessWidget {
             SelectableText(
               detail,
               style: NexusTypography.mono.copyWith(
-                color: colors.cyan,
+                color: colors.accent,
                 height: 1.45,
               ),
             ),

@@ -105,7 +105,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                         Text(
                           context.strings.beforeWeStart,
                           style: NexusTypography.label.copyWith(
-                            color: colors.cyan,
+                            color: colors.accent,
                           ),
                         ),
                         const SizedBox(height: NexusSpacing.s3),
@@ -215,7 +215,7 @@ class _MicrophoneField extends StatelessWidget {
     final (chipText, chipColor, dataText, hint) = switch (status) {
       MicrophoneStatus.idle => (
         context.strings.request,
-        colors.cyan,
+        colors.accent,
         context.strings.micPending,
         context.strings.micPendingExplainer,
       ),
@@ -277,7 +277,7 @@ class _MicrophoneField extends StatelessWidget {
                 const SizedBox(width: NexusSpacing.s4),
                 Text(
                   context.strings.iHearYou,
-                  style: NexusTypography.label.copyWith(color: colors.cyan),
+                  style: NexusTypography.label.copyWith(color: colors.accent),
                 ),
               ],
             ),
@@ -328,7 +328,7 @@ class _MicWaveformState extends State<_MicWaveform> {
         // shouldRepaint no vería jamás una diferencia.
         painter: _WaveformPainter(
           samples: List.of(_samples),
-          color: context.colors.cyan,
+          color: context.colors.accent,
         ),
       ),
     );
@@ -408,7 +408,7 @@ class _WorkFolderField extends ConsumerWidget {
               text: folder == null
                   ? context.strings.choose
                   : context.strings.chosen,
-              color: folder == null ? colors.cyan : colors.ok,
+              color: folder == null ? colors.accent : colors.ok,
               onTap: ref.read(workspaceControllerProvider.notifier).pairFolder,
             ),
             const SizedBox(width: NexusSpacing.s4),

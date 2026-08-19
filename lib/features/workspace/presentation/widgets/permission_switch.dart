@@ -35,7 +35,7 @@ class PermissionSwitch extends StatelessWidget {
             _Option(
               label: context.strings.readOnly,
               selected: permission == FilePermission.readOnly,
-              dotColor: colors.cyan,
+              dotColor: colors.accent,
               onTap: () => onChanged(FilePermission.readOnly),
             ),
             _Option(

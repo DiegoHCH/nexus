@@ -127,7 +127,7 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
                 painter: _Spotlight(
                   hole: hole,
                   scrim: colors.scrim,
-                  ring: colors.cyan,
+                  ring: colors.accent,
                 ),
               ),
             ),
@@ -288,7 +288,7 @@ class _Card extends StatelessWidget {
         padding: const EdgeInsets.all(NexusSpacing.s5),
         decoration: BoxDecoration(
           color: colors.deep,
-          border: Border.all(color: colors.cyan),
+          border: Border.all(color: colors.accent),
           borderRadius: BorderRadius.circular(NexusRadius.md),
         ),
         child: Column(

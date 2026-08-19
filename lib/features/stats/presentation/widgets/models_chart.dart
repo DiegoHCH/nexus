@@ -57,7 +57,7 @@ class ModelsChart extends StatelessWidget {
                       ),
                       height: 16,
                       decoration: BoxDecoration(
-                        color: colors.cyan.withValues(alpha: 0.75),
+                        color: colors.accent.withValues(alpha: 0.75),
                         borderRadius: BorderRadius.circular(3),
                       ),
                     ),
@@ -70,7 +70,7 @@ class ModelsChart extends StatelessWidget {
                 child: Text(
                   '${(usage.share * 100).toStringAsFixed(1)}%',
                   textAlign: TextAlign.right,
-                  style: NexusTypography.data.copyWith(color: colors.cyan),
+                  style: NexusTypography.data.copyWith(color: colors.accent),
                 ),
               ),
             ],

@@ -42,7 +42,7 @@ class ChangesSheet extends StatelessWidget {
             children: [
               Text(
                 context.strings.changesTitle,
-                style: NexusTypography.label.copyWith(color: colors.cyan),
+                style: NexusTypography.label.copyWith(color: colors.accent),
               ),
               const SizedBox(height: NexusSpacing.s4),
               for (final file in changes.newFiles)
@@ -92,7 +92,7 @@ class ChangesSheet extends StatelessWidget {
     if (line.startsWith('+++') || line.startsWith('---')) return colors.faint;
     if (line.startsWith('+')) return colors.ok;
     if (line.startsWith('-')) return colors.err;
-    if (line.startsWith('@@')) return colors.cyan;
+    if (line.startsWith('@@')) return colors.accent;
     if (line.startsWith('diff --git')) return colors.ink;
     return colors.mute;
   }
