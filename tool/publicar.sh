@@ -124,7 +124,7 @@ fi
 # formato; aquí solo importa el orden: después de sellar, nunca antes.
 DMG="build/Nexus-$VERSION.dmg"
 echo "▸ armando el DMG de instalación"
-tool/dmg.sh "$APP" "$DMG" "$VERSION"
+tool/dmg.sh "$APP" "$DMG"
 
 IDENTIDAD="$(security find-identity -v -p codesigning \
   | awk -F'"' '/Developer ID Application/{print $2; exit}')"
