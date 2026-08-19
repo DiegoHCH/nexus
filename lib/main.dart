@@ -111,8 +111,8 @@ class _MainAppState extends ConsumerState<MainApp> {
     // literal con sus ~40 campos a mano. El costo real es nulo: light()/
     // dark() cachean el resultado, ahora por acento en un mapa.
     final locale = ref.watch(localeProvider);
-    // El acento elegido. Cada opción trae su par de colores porque el tema claro
-    // no puede usar el mismo tono que el oscuro y seguir siendo legible.
+    // El acento elegido en la rueda. El tema claro no puede usar el mismo tono
+    // que el oscuro y seguir siendo legible, así que cada uno pide el suyo.
     final acento = ref.watch(accentControllerProvider);
 
     // El marco de la ventana va por libre —es AppKit— así que se le avisa cada
@@ -132,8 +132,10 @@ class _MainAppState extends ConsumerState<MainApp> {
       // depuración —es su forma normal de correr, no una prueba de un rato— y
       // la cinta tapa la esquina del HUD.
       debugShowCheckedModeBanner: false,
-      theme: NexusTheme.light(accent: acento.light),
-      darkTheme: NexusTheme.dark(accent: acento.dark),
+      // El tono ya ajustado para cada tema: se elige el color y la app le busca
+      // el brillo que cumple contraste sobre los fondos que toquen.
+      theme: NexusTheme.light(accent: acento.forBrightness(Brightness.light)),
+      darkTheme: NexusTheme.dark(accent: acento.forBrightness(Brightness.dark)),
       themeMode: ref.watch(themeControllerProvider).mode,
       locale: locale,
       supportedLocales: NexusStrings.supported,

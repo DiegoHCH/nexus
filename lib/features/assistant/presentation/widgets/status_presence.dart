@@ -108,11 +108,10 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
   /// eso no es un descuido: el icono se pinta sobre la barra de menús del Mac, que
   /// sigue al sistema. Con la app en claro y el Mac en oscuro, usar el tono claro
   /// dejaría un acento apagado sobre una barra negra.
-  String _acento(AccentChoice elegido) {
-    final color =
-        PlatformDispatcher.instance.platformBrightness == Brightness.dark
-        ? elegido.dark
-        : elegido.light;
+  String _acento(Accent elegido) {
+    final color = elegido.forBrightness(
+      PlatformDispatcher.instance.platformBrightness,
+    );
     return '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
   }
 }
