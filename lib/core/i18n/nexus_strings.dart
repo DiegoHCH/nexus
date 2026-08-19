@@ -161,6 +161,8 @@ abstract class NexusStrings {
   String get statusTalk;
   String get statusShow;
   String get statusQuit;
+  String get errandDone;
+  String get errandFailed;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -641,6 +643,10 @@ class NexusStringsEs extends NexusStrings {
   String get statusShow => 'Abrir la ventana';
   @override
   String get statusQuit => 'Salir de Nexus';
+  @override
+  String get errandDone => 'El encargo terminó.';
+  @override
+  String get errandFailed => 'El encargo no se pudo terminar.';
   @override
   String get modelTitle => 'Modelo';
   @override
@@ -1411,6 +1417,10 @@ class NexusStringsEn extends NexusStrings {
   String get statusShow => 'Open the window';
   @override
   String get statusQuit => 'Quit Nexus';
+  @override
+  String get errandDone => 'The errand is done.';
+  @override
+  String get errandFailed => 'The errand could not be finished.';
   @override
   String get modelTitle => 'Model';
   @override
