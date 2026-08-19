@@ -342,3 +342,56 @@ final class AvisosTests: XCTestCase {
     XCTAssertTrue(NexusNotifications.shouldNotify(appIsActive: false))
   }
 }
+
+/// Si esta copia de la app **puede** actualizarse.
+///
+/// El caso malo es silencioso, y es el que le pasa a cualquiera: una app que se
+/// baja, se abre desde Descargas y nunca se arrastra a Aplicaciones. macOS la
+/// ejecuta desde una copia de solo lectura con ruta aleatoria —traslocación de
+/// Gatekeeper— y desde ahí **no hay nada que reemplazar**. El paquete parece
+/// intacto por dentro; lo único que lo delata es la ruta.
+///
+/// Medido en esta máquina el día que se escribió: la 0.0.1 instalada estaba en
+/// `~/Downloads/Nexus.app`, es decir, exactamente en el caso malo.
+///
+/// La función está separada del sistema de archivos justo para poder probar esto:
+/// una prueba no puede montar una ruta traslocada de verdad.
+final class ActualizadorTests: XCTestCase {
+  func testUnaRutaTraslocadaNoSePuedeActualizar() {
+    let ruta =
+      "/private/var/folders/9x/abc/T/AppTranslocation/1E2F-3A4B/d/Nexus.app"
+    XCTAssertEqual(
+      NexusUpdater.installability(bundlePath: ruta, writable: true),
+      .translocated,
+      "una copia traslocada no puede reemplazarse aunque se pueda escribir en su carpeta"
+    )
+  }
+
+  func testEnAplicacionesSePuede() {
+    XCTAssertEqual(
+      NexusUpdater.installability(bundlePath: "/Applications/Nexus.app", writable: true),
+      .ok
+    )
+  }
+
+  func testDondeNoSePuedeEscribirTampoco() {
+    XCTAssertEqual(
+      NexusUpdater.installability(bundlePath: "/Applications/Nexus.app", writable: false),
+      .readOnly
+    )
+  }
+
+  /// La traslocación gana sobre lo escribible, y el orden importa: si se
+  /// comprobara primero si se puede escribir, una copia traslocada montada como
+  /// escribible se declararía instalable y el fallo saldría al final de la
+  /// descarga.
+  func testLaTraslocacionSeMiraAntesQueLoEscribible() {
+    XCTAssertEqual(
+      NexusUpdater.installability(
+        bundlePath: "/private/var/folders/x/AppTranslocation/d/Nexus.app",
+        writable: false
+      ),
+      .translocated
+    )
+  }
+}

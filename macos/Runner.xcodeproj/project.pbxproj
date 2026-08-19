@@ -34,6 +34,7 @@
 		NX0000000000000000000009 /* NexusArtifacts.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000010 /* NexusArtifacts.swift */; };
 		NX0000000000000000000005 /* NexusPower.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000006 /* NexusPower.swift */; };
 		NX0000000000000000000015 /* NexusNotifications.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000016 /* NexusNotifications.swift */; };
+		NX0000000000000000000017 /* NexusUpdater.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000018 /* NexusUpdater.swift */; };
 		NX0000000000000000000013 /* NexusStatusItem.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000014 /* NexusStatusItem.swift */; };
 		NX0000000000000000000011 /* NexusAppearance.swift in Sources */ = {isa = PBXBuildFile; fileRef = NX0000000000000000000012 /* NexusAppearance.swift */; };
 		B79091042B003EE0C324C4E9 /* Pods_RunnerTests.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 65620568385C29DBBF69B342 /* Pods_RunnerTests.framework */; };
@@ -89,6 +90,7 @@
 		NX0000000000000000000010 /* NexusArtifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusArtifacts.swift; sourceTree = "<group>"; };
 		NX0000000000000000000006 /* NexusPower.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusPower.swift; sourceTree = "<group>"; };
 		NX0000000000000000000016 /* NexusNotifications.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusNotifications.swift; sourceTree = "<group>"; };
+		NX0000000000000000000018 /* NexusUpdater.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusUpdater.swift; sourceTree = "<group>"; };
 		NX0000000000000000000014 /* NexusStatusItem.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusStatusItem.swift; sourceTree = "<group>"; };
 		NX0000000000000000000012 /* NexusAppearance.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NexusAppearance.swift; sourceTree = "<group>"; };
 		33CEB47222A05771004F2AC0 /* Flutter-Debug.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = "Flutter-Debug.xcconfig"; sourceTree = "<group>"; };
@@ -199,6 +201,7 @@
 				NX0000000000000000000010 /* NexusArtifacts.swift */,
 				NX0000000000000000000006 /* NexusPower.swift */,
 				NX0000000000000000000016 /* NexusNotifications.swift */,
+				NX0000000000000000000018 /* NexusUpdater.swift */,
 				NX0000000000000000000014 /* NexusStatusItem.swift */,
 				NX0000000000000000000012 /* NexusAppearance.swift */,
 				33E51913231747F40026EE4D /* DebugProfile.entitlements */,
@@ -265,6 +268,7 @@
 				33CC110E2044A8840003C045 /* Bundle Framework */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				3DF6E3E774D32E36C53E7FE8 /* [CP] Embed Pods Frameworks */,
+				NX0000000000000000000019 /* Firmar lo que Sparkle trae dentro */,
 			);
 			buildRules = (
 			);
@@ -446,6 +450,21 @@
 			shellScript = "diff \"${PODS_PODFILE_DIR_PATH}/Podfile.lock\" \"${PODS_ROOT}/Manifest.lock\" > /dev/null\nif [ $? != 0 ] ; then\n    # print error to STDERR\n    echo \"error: The sandbox is not in sync with the Podfile.lock. Run 'pod install' or update your CocoaPods installation.\" >&2\n    exit 1\nfi\n# This output is used by Xcode 'outputs' to avoid re-running this script phase.\necho \"SUCCESS\" > \"${SCRIPT_OUTPUT_FILE_0}\"\n";
 			showEnvVarsInLog = 0;
 		};
+		NX0000000000000000000019 /* Firmar lo que Sparkle trae dentro */ = {
+			isa = PBXShellScriptBuildPhase;
+			alwaysOutOfDate = 1;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputPaths = (
+			);
+			name = "Firmar lo que Sparkle trae dentro";
+			outputPaths = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "\"$SRCROOT/../tool/firmar-sparkle.sh\"\n";
+		};
 /* End PBXShellScriptBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
@@ -468,6 +487,7 @@
 				NX0000000000000000000009 /* NexusArtifacts.swift in Sources */,
 				NX0000000000000000000005 /* NexusPower.swift in Sources */,
 				NX0000000000000000000015 /* NexusNotifications.swift in Sources */,
+				NX0000000000000000000017 /* NexusUpdater.swift in Sources */,
 				NX0000000000000000000013 /* NexusStatusItem.swift in Sources */,
 				NX0000000000000000000011 /* NexusAppearance.swift in Sources */,
 				33CC10F12044A3C60003C045 /* AppDelegate.swift in Sources */,

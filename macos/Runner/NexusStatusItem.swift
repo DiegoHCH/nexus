@@ -97,16 +97,12 @@ final class NexusStatusItem: NSObject {
     // del menú que caduca, y enterrarlo debajo de «hablar» sería esconder la
     // única fila que trae información nueva.
     //
-    // Abre el enlace aquí y no en Dart porque no hay nada que decidir: es una URL
-    // que ya viene resuelta, y darle la vuelta por el canal solo añade un salto.
-    if let aviso = labels["update"] as? String, !aviso.isEmpty,
-       let enlace = (labels["updateUrl"] as? String).flatMap(URL.init(string:)) {
-      let item = NSMenuItem(
-        title: aviso, action: #selector(Trampolin.disparar), keyEquivalent: ""
-      )
-      item.target = Trampolin.shared
-      item.representedObject = { NSWorkspace.shared.open(enlace) } as () -> Void
-      menu.addItem(item)
+    // Antes esta fila abría la página de la release en el navegador, y la URL
+    // venía resuelta desde Dart para poder abrirla aquí sin dar un salto. Ya no:
+    // la actualización se instala dentro de la app, así que lo que hace esta fila
+    // es sacar la modal — y de eso solo sabe Dart.
+    if let aviso = labels["update"] as? String, !aviso.isEmpty {
+      add("update", { channel?.invokeMethod("update", arguments: nil) })
       menu.addItem(.separator())
     }
 

@@ -5,6 +5,7 @@ import 'package:nexus/core/platform/status_item_channel.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
+import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 
 /// Mantiene el icono de la barra de estado al día, y le da su menú.
@@ -36,7 +37,7 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     // diccionario, que cuelga del árbol, y así se rehacen solos si se cambia el
     // idioma en Ajustes sin reiniciar.
     final strings = context.strings;
-    final aviso = ref.read(updatesControllerProvider);
+    final aviso = ref.read(updatesControllerProvider).notice;
     StatusItemChannel.setMenu(
       talk: strings.statusTalk,
       show: strings.statusShow,
@@ -45,7 +46,6 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
       update: aviso != null && aviso.isNewer
           ? strings.updateAvailable(aviso.latest ?? '')
           : null,
-      updateUrl: aviso != null && aviso.isNewer ? aviso.url : null,
     );
     StatusItemChannel.onAction(
       talk: () => ref
@@ -53,6 +53,11 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
           .toggleVoice(),
       settings: () {
         if (mounted) SettingsPage.open(context);
+      },
+      // La fila del aviso saca la modal, que es donde se instala. Antes abría el
+      // navegador y ahí se acababa lo que la app podía hacer por ti.
+      update: () {
+        if (mounted) UpdateModal.open(context);
       },
     );
   }
@@ -64,7 +69,10 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     // estado, que son unas pocas veces por turno.
     // Y si aparece una versión nueva mientras la app está abierta, el menú se
     // rehace: si no, el aviso no llegaría hasta el siguiente arranque.
-    ref.listen(updatesControllerProvider, (_, _) => _rehacerMenu());
+    ref.listen(
+      updatesControllerProvider.select((s) => s.notice),
+      (_, _) => _rehacerMenu(),
+    );
 
     ref.listen<NexusOrbState>(
       assistantControllerProvider(widget.conversationId).select((s) => s.orbState),

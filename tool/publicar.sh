@@ -120,11 +120,88 @@ AVISO
   spctl -a -vv -t install "$APP"
 fi
 
+# El DMG, con la app ya sellada dentro. Ver `tool/dmg.sh` para el porqué del
+# formato; aquí solo importa el orden: después de sellar, nunca antes.
+DMG="build/Nexus-$VERSION.dmg"
+echo "▸ armando el DMG de instalación"
+tool/dmg.sh "$APP" "$DMG" "$VERSION"
+
+IDENTIDAD="$(security find-identity -v -p codesigning \
+  | awk -F'"' '/Developer ID Application/{print $2; exit}')"
+codesign --sign "$IDENTIDAD" --timestamp --force "$DMG"
+codesign --verify --strict "$DMG"
+
+if [[ "$NOTARIZAR" == "1" ]]; then
+  echo "▸ notarizando el DMG (un DMG sin notarizar avisa al montarlo, aunque la app esté bien)"
+  set +e
+  ENVIO="$(xcrun notarytool submit "$DMG" --keychain-profile "$PERFIL" --wait 2>&1)"
+  set -e
+  echo "$ENVIO"
+  case "$ENVIO" in
+    *'status: Accepted'*) ;;
+    *) echo "✗ Apple no aceptó el DMG" >&2; exit 1 ;;
+  esac
+  xcrun stapler staple "$DMG"
+fi
+
+# El feed que lee la app instalada. Sin esto el actualizador no encuentra nada
+# nunca. Aquí la clave privada sale del **llavero** —`sign_update` la busca sola—
+# y no de un secreto: en esta máquina ya está, y así no hay que pasarla por ningún
+# sitio.
+echo "▸ armando el appcast"
+BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
+# Su salida trae **la firma y el tamaño**: `sparkle:edSignature="…" length="…"`.
+# Escribir además nuestro propio `length` redefinía el atributo y el appcast
+# no parseaba. Comprobado con xmllint antes de publicar nada.
+FIRMA="$(macos/Pods/Sparkle/bin/sign_update "$SALIDA")"
+[[ "$FIRMA" == *edSignature* ]] || {
+  echo "✗ sign_update no devolvió una firma." >&2
+  echo "  ¿existe la clave? Se crea una vez con:  macos/Pods/Sparkle/bin/generate_keys" >&2
+  exit 1
+}
+
+ANTERIOR="$(git describe --tags --abbrev=0 "v$VERSION^" 2>/dev/null || true)"
+if [[ -n "$ANTERIOR" ]]; then
+  NOTAS="$(git log --no-merges --pretty='- %s' "$ANTERIOR..HEAD")"
+else
+  NOTAS="- first published version"
+fi
+
+APPCAST="build/appcast.xml"
+{
+  echo '<?xml version="1.0" encoding="utf-8"?>'
+  echo '<rss version="2.0" xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle">'
+  echo '  <channel>'
+  echo '    <title>Nexus</title>'
+  echo '    <item>'
+  echo "      <title>$VERSION</title>"
+  echo "      <pubDate>$(date -u '+%a, %d %b %Y %H:%M:%S +0000')</pubDate>"
+  echo '      <sparkle:minimumSystemVersion>12.0</sparkle:minimumSystemVersion>'
+  echo '      <description><![CDATA['
+  echo "$NOTAS"
+  echo '      ]]></description>'
+  echo "      <enclosure url=\"https://github.com/DiegoHCH/nexus/releases/download/v$VERSION/Nexus-$VERSION.zip\""
+  echo "                 sparkle:version=\"$BUILD\""
+  echo "                 sparkle:shortVersionString=\"$VERSION\""
+  echo '                 type="application/octet-stream"'
+  echo "                 $FIRMA />"
+  echo '    </item>'
+  echo '  </channel>'
+  echo '</rss>'
+} > "$APPCAST"
+xmllint --noout "$APPCAST" || { echo "✗ el appcast no es XML válido" >&2; exit 1; }
+
 echo "▸ publicando la release v$VERSION"
-gh release create "v$VERSION" "$SALIDA" \
+gh release create "v$VERSION" "$DMG" "$SALIDA" "$APPCAST" \
   --title "Nexus $VERSION" \
   --notes "$(cat <<NOTAS
-Primera versión publicable.
+**Instalación**: abre el \`.dmg\` y **arrastra Nexus a Aplicaciones**.
+
+Ese arrastre importa más de lo que parece: una app abierta desde Descargas la
+ejecuta macOS desde una copia de solo lectura, y desde ahí **no puede
+actualizarse sola**. En Aplicaciones sí.
+
+(El \`.zip\` está para las actualizaciones automáticas; para instalar, el DMG.)
 
 $(if [[ "$NOTARIZAR" == "1" ]]; then
   echo "**Firmada y notarizada por Apple**, así que se abre con doble clic como cualquier otra app."

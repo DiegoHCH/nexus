@@ -8,8 +8,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
+import 'package:nexus/features/updates/presentation/widgets/update_modal.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
@@ -768,9 +768,9 @@ class _HelpSection extends ConsumerWidget {
 
 /// La versión que corre y, si la hay, la que está publicada.
 ///
-/// **Solo avisa.** No descarga ni instala: reiniciarse por su cuenta sería matar
-/// un `claude -p` a media escritura, y descargar sin instalar es trabajo a medias
-/// que no aporta nada mientras el aviso lleva el enlace.
+/// Ya descarga e instala: el motor es Sparkle y la modal es la de la app. Lo que
+/// **no** hace es reiniciarse por su cuenta —eso mataría un `claude -p` a media
+/// escritura—, así que el último paso siempre lo confirma quien está delante.
 class _VersionRow extends ConsumerWidget {
   const _VersionRow();
 
@@ -778,7 +778,7 @@ class _VersionRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
-    final aviso = ref.watch(updatesControllerProvider);
+    final aviso = ref.watch(updatesControllerProvider).notice;
     final actual =
         aviso?.current ?? ref.watch(currentVersionProvider).value;
 
@@ -794,20 +794,29 @@ class _VersionRow extends ConsumerWidget {
           actual ?? '—',
           style: NexusTypography.data.copyWith(color: colors.ink),
         ),
-        if (aviso != null && aviso.isNewer) ...[
-          const SizedBox(height: NexusSpacing.s3),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: OutlinedButton(
-              onPressed: () {
-                if (aviso.url case final enlace?) {
-                  launchUrl(Uri.parse(enlace), mode: LaunchMode.externalApplication);
-                }
-              },
-              child: Text(strings.updateAvailable(aviso.latest ?? '')),
-            ),
-          ),
-        ],
+        const SizedBox(height: NexusSpacing.s3),
+        Align(
+          alignment: Alignment.centerLeft,
+          // Dos botones distintos y no uno que cambia de texto: «comprobar» es
+          // algo que se pulsa sin saber si hay nada, y «actualizar» solo aparece
+          // cuando ya se sabe que sí. Con un solo botón habría que decidir qué
+          // dice mientras no se sabe, y ahí es donde se acaba mintiendo.
+          child: aviso != null && aviso.isNewer
+              ? FilledButton(
+                  onPressed: () => UpdateModal.open(context),
+                  child: Text(strings.updateAvailable(aviso.latest ?? '')),
+                )
+              : OutlinedButton(
+                  onPressed: () {
+                    // Primero la modal y después la pregunta: así se ve
+                    // «buscando…» en vez de un botón que no hace nada durante
+                    // los segundos que tarda.
+                    UpdateModal.open(context);
+                    ref.read(updatesControllerProvider.notifier).comprobarAhora();
+                  },
+                  child: Text(strings.updateCheckNow),
+                ),
+        ),
       ],
     );
   }
