@@ -32,6 +32,9 @@ class MainFlutterWindow: NSWindow {
     NexusAppearance.register(
       with: flutterViewController.registrar(forPlugin: "NexusAppearance")
     )
+    // Marcada como nuestra: el tema solo se pinta en las ventanas de la app.
+    self.identifier = NexusAppearance.ourMark
+
     NexusStatusItem.register(
       with: flutterViewController.registrar(forPlugin: "NexusStatusItem")
     )

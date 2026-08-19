@@ -95,6 +95,7 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
 
     // La apariencia elegida en la app, no la del sistema: esta ventana nace
     // después de que `apply` haya recorrido las suyas.
+    window.identifier = NexusAppearance.ourMark
     window.appearance = NSAppearance(named: NexusAppearance.isDark ? .darkAqua : .aqua)
     window.backgroundColor = NexusAppearance.voidColor
 

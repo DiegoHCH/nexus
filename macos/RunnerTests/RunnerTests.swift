@@ -275,3 +275,51 @@ extension BarraDeEstadoTests {
     XCTAssertEqual(menu.items.map(\.title).filter { !$0.isEmpty }, ["Hablar", "Salir"])
   }
 }
+
+/// El tema se pinta en las ventanas de la app, no en las del sistema.
+final class AparienciaTests: XCTestCase {
+  func testSoloLasVentanasMarcadasSonNuestras() {
+    let ventana = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled, .closable], backing: .buffered, defer: false
+    )
+    ventana.isReleasedWhenClosed = false
+    defer { ventana.close() }
+
+    XCTAssertFalse(NexusAppearance.isOurs(ventana), "sin marca, no es nuestra")
+    ventana.identifier = NexusAppearance.ourMark
+    XCTAssertTrue(NexusAppearance.isOurs(ventana))
+  }
+
+  func testUnaVentanaSinMostrarSigueSiendoNuestra() {
+    // Se probó primero con `canBecomeMain` y era un mal criterio: también es
+    // falso para una ventana que aún no se ha mostrado, así que al arrancar se
+    // habría saltado la principal y el marco se habría quedado sin tema.
+    let ventana = NSWindow(
+      contentRect: NSRect(x: 0, y: 0, width: 100, height: 100),
+      styleMask: [.titled], backing: .buffered, defer: false
+    )
+    ventana.isReleasedWhenClosed = false
+    ventana.identifier = NexusAppearance.ourMark
+    defer { ventana.close() }
+
+    XCTAssertFalse(ventana.isVisible)
+    XCTAssertTrue(NexusAppearance.isOurs(ventana))
+  }
+
+  func testLaVentanaDeLaBarraDeEstadoNoLoEs() {
+    // Reportado mirando la barra: el icono de Nexus llevaba **un recuadro negro
+    // detrás** y los demás no. Era el `--void` de la paleta: `apply` recorría
+    // todas las ventanas de `NSApplication.shared.windows`, y la del icono de la
+    // barra está en esa lista aunque no sea nuestra.
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 40, height: 20),
+      styleMask: [.nonactivatingPanel, .borderless], backing: .buffered, defer: false
+    )
+    defer { panel.close() }
+    XCTAssertFalse(
+      NexusAppearance.isOurs(panel),
+      "una ventana que no puede ser la principal no es de la app: pintarla le pone fondo a algo del sistema"
+    )
+  }
+}
