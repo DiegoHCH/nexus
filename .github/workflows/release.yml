@@ -19,10 +19,20 @@
 # revoca una sola clave sin tocar la cuenta, y no hay contraseña personal en juego.
 name: Release
 
+# El disparador es **mezclar en master**, y no una etiqueta empujada a mano.
+#
+# Antes lo era la etiqueta, y eso se olvida: con la 0.0.3 la PR se mezcló, el
+# `pubspec` decía 0.0.3 y **no había release**, porque nadie había empujado
+# `v0.0.3`. Un paso manual entre «está aprobado» y «está publicado» es un paso que
+# algún día no se da. La etiqueta la pone este workflow, que ya sabe qué versión
+# es porque la lee del `pubspec`.
 on:
   push:
+    branches: [master]
+    # Se conserva la etiqueta como disparador: sirve para publicar algo antiguo
+    # sin tocar master.
     tags: ['v*']
-  # Para reintentar una versión sin volver a etiquetar.
+  # Y para reintentar una versión que falló a mitad.
   workflow_dispatch:
     inputs:
       version:
@@ -31,26 +41,65 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
+  # Barato y aparte: decidir si hay algo que hacer no necesita un runner de macOS,
+  # y **casi siempre la respuesta es que no**. Cualquier commit en master dispara
+  # esto, y solo los que traen una versión nueva llegan a compilar.
+  decidir:
+    name: ¿hay algo que publicar?
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.v.outputs.version }}
+      publicar: ${{ steps.puerta.outputs.publicar }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: de dónde sale la versión
+        id: v
+        run: |
+          if [[ -n "${{ github.event.inputs.version }}" ]]; then
+            V="${{ github.event.inputs.version }}"
+          elif [[ "$GITHUB_REF_TYPE" == "tag" ]]; then
+            V="${GITHUB_REF_NAME#v}"
+          else
+            # Del pubspec, que es la fuente de verdad de lo que hay dentro del
+            # paquete. Al revés —etiqueta primero— es como se llega a publicar una
+            # versión que no coincide con la que la app dice de sí misma.
+            V="$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')"
+          fi
+          echo "version=$V" >> "$GITHUB_OUTPUT"
+          echo "versión: $V"
+
+      - name: ¿ya está publicada?
+        id: puerta
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ steps.v.outputs.version }}"
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            # A mano es el camino de reintentar: aquí no se pregunta nada.
+            echo "publicar=true" >> "$GITHUB_OUTPUT"
+          elif gh release view "v$V" >/dev/null 2>&1; then
+            echo "publicar=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::la v$V ya está publicada; no hay nada que hacer"
+          else
+            echo "publicar=true" >> "$GITHUB_OUTPUT"
+          fi
+
   publicar:
     name: compilar, firmar, notarizar y publicar
+    needs: decidir
+    if: needs.decidir.outputs.publicar == 'true'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
         with:
           # El histórico completo: hace falta para comprobar que esto sale de
-          # master, y un clon superficial no puede responder a esa pregunta.
+          # master, para las notas del appcast, y un clon superficial no puede
+          # responder a ninguna de las dos.
           fetch-depth: 0
-
-      - name: decidir la versión
-        id: v
-        run: |
-          if [[ -n "${{ github.event.inputs.version }}" ]]; then
-            echo "version=${{ github.event.inputs.version }}" >> "$GITHUB_OUTPUT"
-          else
-            echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
-          fi
 
       # Las mismas negativas que el guion local, y por los mismos motivos: una
       # etiqueta que no corresponde a lo que hay dentro del paquete deja al
@@ -58,8 +107,8 @@ jobs:
       - name: comprobar que la versión coincide con el pubspec
         run: |
           EN_PUBSPEC="$(grep '^version:' pubspec.yaml | sed 's/version: *//; s/+.*//')"
-          if [[ "$EN_PUBSPEC" != "${{ steps.v.outputs.version }}" ]]; then
-            echo "::error::pubspec dice $EN_PUBSPEC y se está publicando ${{ steps.v.outputs.version }}"
+          if [[ "$EN_PUBSPEC" != "${{ needs.decidir.outputs.version }}" ]]; then
+            echo "::error::pubspec dice $EN_PUBSPEC y se está publicando ${{ needs.decidir.outputs.version }}"
             exit 1
           fi
 
@@ -69,6 +118,25 @@ jobs:
           if ! git merge-base --is-ancestor HEAD origin/master; then
             echo "::error::este commit no está en master, y las releases salen de master"
             exit 1
+          fi
+
+      # La etiqueta, antes de construir, para que apunte a lo que se construye.
+      #
+      # Nota de por qué esto no se muerde la cola: una etiqueta empujada con el
+      # `GITHUB_TOKEN` **no dispara workflows**. Aquí eso es justo lo que hace
+      # falta —si los disparara, esta misma release se lanzaría dos veces—.
+      - name: etiquetar
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          V="${{ needs.decidir.outputs.version }}"
+          if git rev-parse -q --verify "refs/tags/v$V" >/dev/null; then
+            echo "la etiqueta v$V ya existe"
+          else
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git tag -a "v$V" -m "Nexus $V"
+            git push origin "v$V"
           fi
 
       - uses: subosito/flutter-action@v2
@@ -133,7 +201,7 @@ jobs:
         run: |
           ditto -c -k --sequesterRsrc --keepParent \
             "build/macos/Build/Products/Release/Nexus.app" \
-            "build/Nexus-${{ steps.v.outputs.version }}.zip"
+            "build/Nexus-${{ needs.decidir.outputs.version }}.zip"
 
       - name: notarizar y sellar
         env:
@@ -143,7 +211,7 @@ jobs:
         run: |
           [[ -n "$P8" ]] || { echo "::error::falta el secreto NOTARY_API_KEY_P8"; exit 1; }
           echo "$P8" | base64 --decode > "$RUNNER_TEMP/clave.p8"
-          ZIP="build/Nexus-${{ steps.v.outputs.version }}.zip"
+          ZIP="build/Nexus-${{ needs.decidir.outputs.version }}.zip"
           APP="build/macos/Build/Products/Release/Nexus.app"
 
           # Se mira **el veredicto**, no el código de salida: `--wait` devuelve 0
@@ -188,7 +256,7 @@ jobs:
           KEY_ID: ${{ secrets.NOTARY_KEY_ID }}
           ISSUER: ${{ secrets.NOTARY_ISSUER_ID }}
         run: |
-          V="${{ steps.v.outputs.version }}"
+          V="${{ needs.decidir.outputs.version }}"
           APP="build/macos/Build/Products/Release/Nexus.app"
           DMG="build/Nexus-$V.dmg"
           echo "$P8" | base64 --decode > "$RUNNER_TEMP/clave.p8"
@@ -234,7 +302,7 @@ jobs:
         run: |
           set -o pipefail
           [[ -n "$CLAVE" ]] || { echo "::error::falta el secreto SPARKLE_PRIVATE_KEY"; exit 1; }
-          V="${{ steps.v.outputs.version }}"
+          V="${{ needs.decidir.outputs.version }}"
           ZIP="build/Nexus-$V.zip"
           APP="build/macos/Build/Products/Release/Nexus.app"
 
@@ -244,7 +312,16 @@ jobs:
           # sí misma.
           BUILD="$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' "$APP/Contents/Info.plist")"
 
-          FIRMA="$(macos/Pods/Sparkle/bin/sign_update "$ZIP" -s "$CLAVE")"
+          # Por archivo y no con `-s`: pasar la clave como argumento **ya no está
+          # soportado** —«Specifying private key as an argument is no longer
+          # supported»— y eso tumbó la primera 0.0.3. El fallo se colό porque el
+          # guion local no usa esta rama: allí la clave sale del llavero, así que
+          # el camino de CI nunca se había ejecutado.
+          # Sin salto final: un secreto guardado con un `\n` al final haría que
+          # la clave no se reconociera, y el error saldría igual de tarde.
+          printf '%s' "$CLAVE" | tr -d '\r\n' > "$RUNNER_TEMP/sparkle.key"
+          FIRMA="$(macos/Pods/Sparkle/bin/sign_update "$ZIP" --ed-key-file "$RUNNER_TEMP/sparkle.key")"
+          rm -f "$RUNNER_TEMP/sparkle.key"
           [[ "$FIRMA" == *edSignature* ]] || { echo "::error::sign_update no devolvió una firma"; exit 1; }
 
           # Qué trae: los asuntos de los commits desde la etiqueta anterior. Van
@@ -297,7 +374,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          V="${{ steps.v.outputs.version }}"
+          V="${{ needs.decidir.outputs.version }}"
           ASSETS=("build/Nexus-$V.dmg" "build/Nexus-$V.zip" "build/appcast.xml")
           if gh release view "v$V" >/dev/null 2>&1; then
             gh release upload "v$V" "${ASSETS[@]}" --clobber
@@ -311,3 +388,63 @@ jobs:
         run: |
           security delete-keychain "$RUNNER_TEMP/firma.keychain-db" 2>/dev/null || true
           rm -f "$RUNNER_TEMP/cert.p12" "$RUNNER_TEMP/clave.p8" || true
+
+  # La mezcla de vuelta, que es la mitad de Gitflow que siempre se olvida.
+  #
+  # Historia de por qué existe, porque justifica el trabajo entero: las dos
+  # primeras releases se mezclaron aplastadas y nadie devolvió master a develop.
+  # Resultado: `merge-base(master, develop)` se quedó en **«Initial commit»**, las
+  # dos ramas quedaron como árboles sin parentesco, y la siguiente release
+  # conflictuó con **18 archivos** por un desvío que era **una línea** —el número
+  # de versión—. Se arregló a mano dos veces el mismo día. La tercera, no.
+  #
+  # Va después de publicar y no antes: si la release falla, develop no debe
+  # quedarse con un número de versión que no llegó a existir.
+  enlazar:
+    name: devolver master a develop
+    needs: [decidir, publicar]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: develop
+
+      - name: mezclar master en develop
+        env:
+          GH_TOKEN: ${{ github.token }}
+          V: ${{ needs.decidir.outputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git fetch -q origin master
+
+          if git merge-base --is-ancestor origin/master HEAD; then
+            echo "::notice::develop ya contiene master; nada que devolver"
+            exit 0
+          fi
+
+          # `--no-ff` siempre: el commit de mezcla **es** el enlace entre las dos
+          # historias. Un avance rápido no dejaría constancia de que se tocaron,
+          # que es exactamente lo que se perdió con los squash.
+          CUERPO="Gitflow's other half, done by the release itself. Without it master and develop drift apart on the version number and the next release conflicts against a base that shares less and less."
+          if git merge --no-ff -m "chore: bring $V back from master into develop" -m "$CUERPO" origin/master; then
+            git push origin HEAD:develop
+            echo "::notice::master devuelto a develop"
+          else
+            # Un conflicto aquí quiere decir que develop cambió algo que la release
+            # también cambió, y eso lo resuelve una persona. Se abre una PR en vez
+            # de fallar en silencio: un trabajo rojo se mira, pero un trabajo rojo
+            # del que nadie se enteró es cómo se llega otra vez a dos historias sin
+            # parentesco.
+            git merge --abort
+            RAMA="chore/devolver-$V-a-develop"
+            git checkout -b "$RAMA"
+            git push -q origin "$RAMA"
+            gh pr create --base develop --head "$RAMA" \
+              --title "chore: bring $V back from master into develop (needs hands)" \
+              --body "La mezcla de vuelta automática encontró conflictos y la deja aquí. **Mézclala con «Create a merge commit»**: el commit de mezcla es lo que enlaza las dos historias, y un squash devuelve el problema que esto viene a evitar." || true
+            echo "::warning::la vuelta tiene conflictos; queda una PR abierta"
+            exit 1
+          fi
