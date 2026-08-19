@@ -167,10 +167,21 @@ class _HomePageState extends ConsumerState<HomePage> {
                           : MediaQuery.sizeOf(context).width,
                       child: TourAnchor(
                         stop: TourStop.orb,
-                        child: GestureDetector(
-                          onTap: controller.toggleVoice,
-                          behavior: HitTestBehavior.opaque,
-                          child: NexusOrb(state: hud.orbState),
+                        // El orbe es el mando principal de la app y para un
+                        // lector de pantalla no existía: un `CustomPaint` sin
+                        // nombre. `value` lleva el estado —dormido, escuchando,
+                        // trabajando— porque es la única forma de saber qué
+                        // está pasando sin ver el dibujo.
+                        child: Semantics(
+                          button: true,
+                          label: context.strings.orbLabel,
+                          hint: context.strings.orbHint,
+                          value: _statusFor(hud.orbState, context.strings),
+                          child: GestureDetector(
+                            onTap: controller.toggleVoice,
+                            behavior: HitTestBehavior.opaque,
+                            child: NexusOrb(state: hud.orbState),
+                          ),
                         ),
                       ),
                     ),
@@ -355,10 +366,16 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                       // solo respondería donde hay pintado un punto.
                       child: TourAnchor(
                         stop: TourStop.orb,
-                        child: GestureDetector(
-                          onTap: _talk,
-                          behavior: HitTestBehavior.opaque,
-                          child: const NexusOrb(state: NexusOrbState.sleep),
+                        child: Semantics(
+                          button: true,
+                          label: context.strings.orbLabel,
+                          hint: context.strings.orbHint,
+                          value: context.strings.asleep,
+                          child: GestureDetector(
+                            onTap: _talk,
+                            behavior: HitTestBehavior.opaque,
+                            child: const NexusOrb(state: NexusOrbState.sleep),
+                          ),
                         ),
                       ),
                     ),

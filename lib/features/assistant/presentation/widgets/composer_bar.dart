@@ -706,7 +706,12 @@ class _MoreMenu extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
 
-    return PopupMenuButton<String>(
+    // Mismo caso que el círculo del cupo: sin globo se quedó sin etiqueta, y
+    // este es el único camino para adjuntar sin arrastrar un archivo.
+    return Semantics(
+      button: true,
+      label: context.strings.attachFile,
+      child: PopupMenuButton<String>(
       color: colors.deep,
       tooltip: '',
       onSelected: (value) async {
@@ -734,6 +739,7 @@ class _MoreMenu extends ConsumerWidget {
         _item('settings', Icons.tune, strings.openSettings, colors),
       ],
       child: Icon(Icons.add, size: 16, color: colors.faint),
+      ),
     );
   }
 
@@ -914,7 +920,14 @@ class _UsageMenu extends ConsumerWidget {
     final strings = context.strings;
     final context_ = meter.contextPercent ?? 0;
 
-    return PopupMenuButton<void>(
+    // `tooltip: ''` quita el globo **y también la etiqueta**: para un lector de
+    // pantalla este círculo no existía. Se envuelve para devolverla sin traer el
+    // globo de vuelta, y el valor lleva las cifras — que es lo que hay dentro.
+    return Semantics(
+      button: true,
+      label: strings.contextWindow,
+      value: meter.contextLabel ?? strings.noReadingYet,
+      child: PopupMenuButton<void>(
       color: colors.deep,
       tooltip: '',
       onOpened: () => ref.invalidate(claudeUsageProvider(claudeProfile)),
@@ -1007,6 +1020,7 @@ class _UsageMenu extends ConsumerWidget {
             fill: context_ >= 85 ? colors.warn : colors.cyan,
           ),
         ),
+      ),
       ),
     );
   }
