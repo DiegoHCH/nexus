@@ -8,6 +8,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
@@ -729,6 +731,12 @@ class _HelpSection extends ConsumerWidget {
         ),
         const SizedBox(height: NexusSpacing.s7),
         Divider(color: colors.rule, height: 1),
+        const SizedBox(height: NexusSpacing.s6),
+
+        // La versión y, si hay una nueva, el enlace. Aquí y no en un diálogo:
+        // un aviso modal por una actualización interrumpe justo a quien está
+        // trabajando, y esto no es urgente — es información.
+        const _VersionRow(),
         const SizedBox(height: NexusSpacing.s7),
 
         // La guía en frío. Cuatro bloques y en este orden: qué hace falta, qué
@@ -753,6 +761,53 @@ class _HelpSection extends ConsumerWidget {
           title: strings.guideTroubleTitle,
           body: strings.guideTroubleBody,
         ),
+      ],
+    );
+  }
+}
+
+/// La versión que corre y, si la hay, la que está publicada.
+///
+/// **Solo avisa.** No descarga ni instala: reiniciarse por su cuenta sería matar
+/// un `claude -p` a media escritura, y descargar sin instalar es trabajo a medias
+/// que no aporta nada mientras el aviso lleva el enlace.
+class _VersionRow extends ConsumerWidget {
+  const _VersionRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final aviso = ref.watch(updatesControllerProvider);
+    final actual =
+        aviso?.current ?? ref.watch(currentVersionProvider).value;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.versionLabel,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          actual ?? '—',
+          style: NexusTypography.data.copyWith(color: colors.ink),
+        ),
+        if (aviso != null && aviso.isNewer) ...[
+          const SizedBox(height: NexusSpacing.s3),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton(
+              onPressed: () {
+                if (aviso.url case final enlace?) {
+                  launchUrl(Uri.parse(enlace), mode: LaunchMode.externalApplication);
+                }
+              },
+              child: Text(strings.updateAvailable(aviso.latest ?? '')),
+            ),
+          ),
+        ],
       ],
     );
   }

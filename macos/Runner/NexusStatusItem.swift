@@ -93,6 +93,23 @@ final class NexusStatusItem: NSObject {
       menu.addItem(item)
     }
 
+    // El aviso de versión nueva va **primero y solo cuando lo hay**: es lo único
+    // del menú que caduca, y enterrarlo debajo de «hablar» sería esconder la
+    // única fila que trae información nueva.
+    //
+    // Abre el enlace aquí y no en Dart porque no hay nada que decidir: es una URL
+    // que ya viene resuelta, y darle la vuelta por el canal solo añade un salto.
+    if let aviso = labels["update"] as? String, !aviso.isEmpty,
+       let enlace = (labels["updateUrl"] as? String).flatMap(URL.init(string:)) {
+      let item = NSMenuItem(
+        title: aviso, action: #selector(Trampolin.disparar), keyEquivalent: ""
+      )
+      item.target = Trampolin.shared
+      item.representedObject = { NSWorkspace.shared.open(enlace) } as () -> Void
+      menu.addItem(item)
+      menu.addItem(.separator())
+    }
+
     // Hablar y ajustes los resuelve Dart: son estado de la app, no del sistema.
     add("talk", { channel?.invokeMethod("talk", arguments: nil) })
     add("show", {
