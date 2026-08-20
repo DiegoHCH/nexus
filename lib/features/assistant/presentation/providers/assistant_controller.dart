@@ -868,7 +868,13 @@ class AssistantController extends Notifier<AssistantHudState> {
       // Las cifras del turno de Claude, que hablando llegan por aquí. Sin
       // ellas la ventana de contexto se quedaba en «Sin dato» toda la
       // conversación, mientras que escribiendo lo mismo sí se veía.
+      //
+      // **Y el modelo con ellas**, que era la mitad que faltaba: sin él la
+      // ventana se da por 200k, así que hablando con un modelo de un millón el
+      // porcentaje salía multiplicado por cinco. Se arregló el numerador y se
+      // olvidó el denominador.
       meter: state.meter.copyWith(
+        model: event.model,
         turnTokens: event.turnTokens,
         contextTokens: event.contextTokens,
       ),
