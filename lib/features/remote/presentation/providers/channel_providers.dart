@@ -4,10 +4,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/gatekeeper.dart';
 import 'package:nexus/features/remote/domain/tailscale.dart';
+import 'package:nexus/features/remote/presentation/assistant_surface.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// El puerto del canal.
@@ -120,9 +123,21 @@ class ChannelController extends Notifier<ChannelState> {
 
     // El token **antes** de escuchar, y `asegurar` en vez de `rotar`: si rotara
     // aquí, cada encendido invalidaría el teléfono ya emparejado.
-    final token = await ref.read(channelTokenControllerProvider.notifier).asegurar();
+    final token = await ref
+        .read(channelTokenControllerProvider.notifier)
+        .asegurar();
 
     final servidor = ChannelServer(
+      // El despacho se construye al encender y no en un proveedor propio, porque
+      // el deduplicador es suyo y tiene memoria: uno por encendido significa que
+      // apagar y encender olvida lo atendido —correcto, porque el móvil también
+      // reconecta y vuelve a empezar— mientras un proveedor lo mantendría vivo
+      // recordando ids de una sesión que ya no existe.
+      despacho: Dispatcher(
+        surface: ref.read(remoteSurfaceProvider),
+        unlock: ref.read(writeUnlockProvider),
+        phrases: ref.read(writePhraseStoreProvider),
+      ),
       gatekeeper: Gatekeeper(
         token: token.value,
         // Con el puerto, que es lo que manda un cliente al conectar a un puerto no
@@ -181,6 +196,14 @@ class ChannelController extends Notifier<ChannelState> {
   /// porque quiere que alguien salga ya.
   Future<void> rotarToken() async {
     await ref.read(channelTokenControllerProvider.notifier).rotar();
+    // **Y cierra la ventana de escritura**, que es lo que faltaba.
+    //
+    // Sin esto, rotar echaba a quien estuviera dentro pero dejaba el permiso
+    // concedido; el `WriteUnlock` es uno para todo el canal y sobrevive a apagar y
+    // encender, así que el siguiente teléfono que se emparejara con el token nuevo
+    // heredaba permiso de escritura **sin haber teclado nunca la frase**. Revocar a
+    // medias no es revocar.
+    ref.read(writeUnlockProvider).revocar();
     if (_servidor == null) return;
     await apagar();
     await encender();

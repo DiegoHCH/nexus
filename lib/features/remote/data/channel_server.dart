@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/gatekeeper.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
@@ -13,18 +14,26 @@ import 'package:nexus_protocol/nexus_protocol.dart';
 /// probarlo: una prueba levanta esto en `127.0.0.1`, que es justo la dirección que
 /// la política prohíbe en producción.
 ///
-/// Lo que hace y lo que no: autentica, negocia la versión y entrega una conexión
-/// viva. **No despacha métodos** — eso necesita el estado de la app y es el paso
-/// siguiente.
+/// Lo que hace y lo que no: autentica, negocia la versión, y pasa las peticiones
+/// al [Dispatcher]. **No sabe qué hace cada método** — eso es del despacho, que no
+/// sabe qué es un socket.
 class ChannelServer {
   ChannelServer({
     required this.gatekeeper,
     required this.log,
+    this.despacho,
     this.registro,
     ProtocolRange? protocolo,
   }) : protocolo = protocolo ?? ProtocolRange.mine;
 
   final Gatekeeper gatekeeper;
+
+  /// Quien atiende los métodos.
+  ///
+  /// Opcional porque las pruebas del portero y de la negociación no necesitan la
+  /// app entera detrás para comprobar quién entra. Sin él, una petición se contesta
+  /// con un error honesto en vez de quedarse sin respuesta.
+  final Dispatcher? despacho;
 
   /// Los eventos que ya se emitieron, para poder decir en la bienvenida por dónde
   /// va la numeración.
@@ -55,7 +64,10 @@ class ChannelServer {
   int? get puerto => _http?.port;
 
   /// Levanta el servidor. Devuelve el puerto de verdad.
-  Future<int> start({required InternetAddress direccion, int puerto = 7845}) async {
+  Future<int> start({
+    required InternetAddress direccion,
+    int puerto = 7845,
+  }) async {
     if (_http != null) throw StateError('ya está escuchando');
     // `shared: false`: si otro proceso ya tiene el puerto, se quiere el error y no
     // repartir conexiones con un desconocido.
@@ -169,9 +181,16 @@ class ChannelServer {
           _negociar(cliente, marco);
           return;
         }
-        // A partir de aquí van los métodos, que todavía no existen. Se anotan para
-        // que no desaparezcan en silencio mientras se escribe el despacho.
-        registro?.call('mensaje sin despacho todavía: ${marco.runtimeType}');
+        if (marco is Call) {
+          // **Cada petición por su cuenta**, y no en cola: un encargo y una
+          // consulta del medidor no tienen por qué esperarse. Si se despacharan en
+          // serie, abrir la pantalla mientras algo corre se vería colgado.
+          unawaited(_despachar(cliente, marco));
+          return;
+        }
+        // Lo que no es una petición se anota para que no desaparezca en silencio.
+        // Aquí caerán `Resume` y `Snapshot` cuando exista el puente de eventos.
+        registro?.call('marco sin despacho: ${marco.runtimeType}');
         cliente.entrantes.add(marco);
       },
       onDone: () {
@@ -186,6 +205,41 @@ class ChannelServer {
       },
       cancelOnError: true,
     );
+  }
+
+  /// Pasa la petición al despacho y manda lo que salga, en orden.
+  ///
+  /// El servidor no mira lo que hay dentro: **lo único que sabe de un [Call] es que
+  /// hay que reenviar sus respuestas**. Por eso el orden ack-primero no se decide
+  /// aquí sino en el despacho, donde se puede probar sin socket.
+  Future<void> _despachar(ChannelClient cliente, Call peticion) async {
+    final despacho = this.despacho;
+    if (despacho == null) {
+      // Sin despacho se contesta que no, en vez de dejarlo sin respuesta: un
+      // teléfono esperando para siempre se lee como «el Mac no responde», y manda
+      // a buscar el problema al sitio equivocado.
+      cliente.enviar(
+        Failure(
+          id: peticion.id,
+          code: 'unavailable',
+          message: 'este canal no atiende peticiones',
+        ),
+      );
+      return;
+    }
+
+    // El método sí se registra, **y los parámetros nunca**: por ahí pasa la frase
+    // de escritura, y un registro es exactamente donde no debe quedar escrita.
+    registro?.call('${cliente.ip} pide ${peticion.method}');
+    try {
+      await for (final respuesta in despacho.attend(peticion)) {
+        cliente.enviar(respuesta);
+      }
+    } on Object catch (error) {
+      // El despacho ya contestó un `Failure` antes de relanzar: esto es solo para
+      // que quede anotado en el Mac.
+      registro?.call('fallo atendiendo ${peticion.method}: $error');
+    }
   }
 
   void _negociar(ChannelClient cliente, Hello saludo) {
