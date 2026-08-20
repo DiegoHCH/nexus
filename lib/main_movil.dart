@@ -7,6 +7,11 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/remote/domain/pairing.dart';
+import 'package:nexus/features/remote/presentation/pages/pairing_page.dart';
+import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -26,8 +31,26 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 /// proyecto aparte: es otro `-t` del mismo.
 ///
 /// Se corre con `flutter run -t lib/main_movil.dart`.
-void main() {
-  runApp(const ProviderScope(child: NexusMovil()));
+Future<void> main() async {
+  // **Antes de tocar un canal de plataforma.** `PackageInfo` habla con el sistema, y
+  // pedirlo antes de esto lanza «Binding has not yet been initialized» — que en el
+  // teléfono se ve como una pantalla negra y nada más. Lo llama `runApp`, pero aquí
+  // hay trabajo *antes* de `runApp`, así que hay que llamarlo a mano.
+  //
+  // No lo vio ninguna de las 648 pruebas: el arnés de pruebas inicializa su propio
+  // binding, así que este `main` no se ejecuta nunca ahí. Lo destapó arrancar la app.
+  WidgetsFlutterBinding.ensureInitialized();
+
+  // La versión de verdad, para el saludo. Se lee aquí y se inyecta: el enlace no
+  // tiene por qué saber leer el paquete de la app, y así las pruebas anuncian la
+  // versión que quieran.
+  final info = await PackageInfo.fromPlatform();
+  runApp(
+    ProviderScope(
+      overrides: [appVersionProvider.overrideWithValue(info.version)],
+      child: const NexusMovil(),
+    ),
+  );
 }
 
 class NexusMovil extends ConsumerWidget {
@@ -57,62 +80,110 @@ class NexusMovil extends ConsumerWidget {
       // scope ahí abajo la segunda pantalla revienta por falta de textos.
       builder: (context, child) =>
           StringsScope(strings: NexusStrings.of(locale), child: child!),
-      home: const _SinEmparejar(),
+      home: const _Arranque(),
     );
   }
 }
 
-/// Lo que hay antes de emparejar.
+/// Decide qué se ve: emparejar, o el Mac al otro lado.
 ///
-/// Es una pantalla de verdad y no un hueco: el teléfono va a nacer así siempre —sin
-/// URL ni token— y esa es la primera cosa que alguien ve. Emparejar es la pieza
-/// siguiente; esto ya dice qué falta.
-class _SinEmparejar extends StatelessWidget {
-  const _SinEmparejar();
+/// La decisión vive **arriba** y no dentro de cada pantalla: si cada una preguntara
+/// si hay emparejamiento, desemparejar dejaría la de dentro en pie hasta que alguien
+/// navegara.
+class _Arranque extends ConsumerWidget {
+  const _Arranque();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pareja = ref.watch(pairingControllerProvider);
+
+    return switch (pareja) {
+      // Mientras se lee el llavero. Corto, pero existe: sin esto se vería un
+      // pestañeo de la pantalla de emparejar en cada arranque **ya emparejado**.
+      AsyncLoading() => const _Esperando(),
+      AsyncError() => const PairingPage(),
+      AsyncData(value: null) => const PairingPage(),
+      AsyncData(value: final Pairing pareja) => _Emparejado(pareja: pareja),
+    };
+  }
+}
+
+class _Esperando extends StatelessWidget {
+  const _Esperando();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.colors.void_,
+    body: const SizedBox.shrink(),
+  );
+}
+
+/// Emparejado: el orbe, con quién y en qué anda la conexión.
+///
+/// Las pantallas de verdad —conversaciones, la respuesta, el compositor— son la
+/// pieza siguiente. Esto ya es la app conectada, y es lo que permite probar el
+/// enlace contra un Mac de verdad antes de tener dónde enseñar lo que llega.
+class _Emparejado extends ConsumerWidget {
+  const _Emparejado({required this.pareja});
+
+  final Pairing pareja;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Leerlo es lo que dispara conectar. Un `watch` y no una llamada en el build:
+    // conectar es un efecto, y el build puede correr muchas veces.
+    ref.watch(autoConnectProvider);
     final colors = context.colors;
 
     return Scaffold(
       backgroundColor: colors.void_,
       body: SafeArea(
-        child: Center(
-          child: Padding(
-            padding: const EdgeInsets.all(32),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                // El mismo orbe del escritorio, con la misma matemática. En el
-                // teléfono va más pequeño —180 y no 320— porque la pantalla es
-                // vertical y tiene que quedar sitio para la conversación.
-                const SizedBox(
-                  width: 180,
-                  height: 180,
-                  child: NexusOrb(
-                    state: NexusOrbState.sleep,
-                    showHorizon: false,
+        child: Column(
+          children: [
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const LinkBadge(),
+                  TextButton(
+                    key: const ValueKey('olvidar'),
+                    onPressed: () =>
+                        ref.read(pairingControllerProvider.notifier).olvidar(),
+                    child: Text(
+                      'Olvidar',
+                      style: TextStyle(color: colors.mute),
+                    ),
                   ),
-                ),
-                const SizedBox(height: 40),
-                Text(
-                  'Nexus',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    color: colors.ink,
-                    letterSpacing: 2,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  'sin emparejar',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.bodyMedium?.copyWith(color: colors.mute),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
+            Expanded(
+              child: Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const SizedBox(
+                      width: 180,
+                      height: 180,
+                      child: NexusOrb(
+                        state: NexusOrbState.sleep,
+                        showHorizon: false,
+                      ),
+                    ),
+                    const SizedBox(height: 32),
+                    Text(
+                      pareja.comoSeVe,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        color: colors.mute,
+                        fontFamily: 'monospace',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
