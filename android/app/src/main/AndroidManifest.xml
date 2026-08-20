@@ -1,6 +1,11 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- El canal es un WebSocket: sin esto la app compila, arranca y **no llega
+         al Mac**. La plantilla de Flutter lo declara solo en los manifests de
+         debug y profile, así que funcionaría mientras se desarrolla y fallaría
+         justo al publicarla. -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
-        android:label="nexus"
+        android:label="Nexus"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

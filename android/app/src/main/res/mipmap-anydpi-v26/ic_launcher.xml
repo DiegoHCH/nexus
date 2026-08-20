@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- El icono adaptativo. Sin esto, Android 8+ mete el icono legado dentro de un
+     círculo blanco: se ve un sello pequeño sobre un fondo que no es el nuestro.
+     El frente lleva el orbe al 66 % —la zona segura— y el fondo es el mismo vacío
+     de la app, así que cualquier máscara del lanzador recorta un cuadrado oscuro
+     con el orbe centrado. -->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background" />
+    <foreground android:drawable="@mipmap/ic_launcher_foreground" />
+</adaptive-icon>
