@@ -3,6 +3,8 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/domain/channel_token.dart';
+import 'package:nexus/features/remote/domain/write_phrase.dart';
+import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -24,6 +26,7 @@ class _Memoria implements ChannelTokenStore {
     _guardado = token;
     escrituras++;
   }
+
   @override
   Future<void> clear() async => _guardado = null;
 }
@@ -38,11 +41,12 @@ void main() {
     tokens = _Memoria();
   });
 
-  ProviderContainer montar({InternetAddress? tailscale}) {
+  ProviderContainer montar({InternetAddress? tailscale, WriteUnlock? permiso}) {
     final c = ProviderContainer(
       overrides: [
         channelTokenStoreProvider.overrideWithValue(tokens),
         tailscaleAddressProvider.overrideWithValue(() async => tailscale),
+        if (permiso != null) writeUnlockProvider.overrideWithValue(permiso),
       ],
     );
     addTearDown(c.dispose);
@@ -99,22 +103,28 @@ void main() {
       await c.read(channelControllerProvider.notifier).apagar();
     });
 
-    test('asegura el token antes de escuchar, y no lo rota al reencender', () async {
-      final c = montar(tailscale: falsa);
-      final control = c.read(channelControllerProvider.notifier);
+    test(
+      'asegura el token antes de escuchar, y no lo rota al reencender',
+      () async {
+        final c = montar(tailscale: falsa);
+        final control = c.read(channelControllerProvider.notifier);
 
-      await control.encender();
-      final primero = await tokens.read();
-      expect(primero, isNotNull);
+        await control.encender();
+        final primero = await tokens.read();
+        expect(primero, isNotNull);
 
-      await control.apagar();
-      await control.encender();
+        await control.apagar();
+        await control.encender();
 
-      expect(await tokens.read(), primero,
-          reason: 'reencender no puede invalidar el teléfono ya emparejado');
-      expect(tokens.escrituras, 1);
-      await control.apagar();
-    });
+        expect(
+          await tokens.read(),
+          primero,
+          reason: 'reencender no puede invalidar el teléfono ya emparejado',
+        );
+        expect(tokens.escrituras, 1);
+        await control.apagar();
+      },
+    );
 
     test('recuerda que quedó encendido', () async {
       final c = montar(tailscale: falsa);
@@ -123,6 +133,33 @@ void main() {
       expect(prefs.getBool('remote_channel_on'), isTrue);
       await c.read(channelControllerProvider.notifier).apagar();
       expect(prefs.getBool('remote_channel_on'), isFalse);
+    });
+
+    test('rotar el token cierra también la ventana de escritura', () async {
+      // **El agujero que esto tapa**: rotar echaba a quien estuviera dentro pero
+      // dejaba el permiso concedido. El `WriteUnlock` es uno para todo el canal y
+      // sobrevive a apagar y encender, así que el siguiente teléfono que se
+      // emparejara con el token nuevo heredaba permiso de escritura sin haber
+      // teclado nunca la frase. Revocar a medias no es revocar.
+      final permiso = WriteUnlock();
+      final c = montar(tailscale: falsa, permiso: permiso);
+      final control = c.read(channelControllerProvider.notifier);
+      await control.encender();
+
+      expect(
+        permiso.intentar(
+          guardada: const WritePhrase('ábreme-la-puerta'),
+          recibida: 'ábreme-la-puerta',
+        ),
+        isNull,
+        reason: 'la frase buena concede, que es el punto de partida',
+      );
+      expect(permiso.puedeEscribir, isTrue);
+
+      await control.rotarToken();
+
+      expect(permiso.puedeEscribir, isFalse);
+      await control.apagar();
     });
 
     test('el puerto ocupado se distingue de los demás fallos', () async {
@@ -162,8 +199,11 @@ void main() {
       await control.rotarToken();
 
       expect(await tokens.read(), isNot(antes));
-      expect(c.read(channelControllerProvider), isA<ChannelOn>(),
-          reason: 'y vuelve a escuchar, con el token nuevo');
+      expect(
+        c.read(channelControllerProvider),
+        isA<ChannelOn>(),
+        reason: 'y vuelve a escuchar, con el token nuevo',
+      );
       await control.apagar();
     });
   });

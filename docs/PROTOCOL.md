@@ -242,6 +242,41 @@ envío, que es lo que se quería evitar.
 Lo mismo con el historial y la actividad, que hoy se sirven de golpe: **paginación**,
 porque el teléfono no puede tragarse una sesión entera.
 
+### 4.6 · El `ack` va antes de ejecutar, no con el resultado
+
+Es el orden y no un detalle. Un encargo dura minutos: si la confirmación llegara
+con el resultado, el móvil pasaría esos minutos sin saber si su petición llegó — y
+un móvil que no lo sabe **reenvía**, que es exactamente lo que abre la 4.3.
+
+Así que toda petición recibe dos marcos: el `ack` al instante, y después el `result`
+o el `failure`. Un reenvío recibe `ack` con `duplicate` y **no se ejecuta**.
+
+Para `sendErrand`, el `result` dice **que arrancó**, no que terminara: lo que pasa
+dentro llega como eventos.
+
+### 4.7 · Cuando algo no se puede atender, se contesta
+
+Nunca se deja una petición sin respuesta. Un teléfono esperando para siempre se lee
+como «el Mac no responde», y manda a buscar el problema al sitio equivocado.
+
+Los códigos, que son lo que el móvil convierte en algo que enseñar:
+
+| código | qué pasó | qué hace el móvil |
+|---|---|---|
+| `unknownMethod` | este Mac no conoce el método | actualizar el escritorio |
+| `unknownConversation` | esa conversación ya no está abierta | quitarla y recargar la lista |
+| `badParams` | falta algo o no se entiende | es un fallo del cliente |
+| `noPhrase` | no hay frase de escritura definida en el Mac | «defínela en el Mac» |
+| `wrongPhrase` | la frase no era | volver a pedirla |
+| `tooManyAttempts` | se gastó el cupo de intentos | esperar |
+| `unavailable` | el canal no atiende peticiones | reconectar |
+| `internal` | algo se rompió por dentro | reintentar |
+
+Dos reglas sobre lo que **no** viaja. El `internal` va **sin detalles**: lo que sabe
+el Mac se queda en su registro. Y la frase de escritura no aparece nunca en un marco
+de respuesta ni en el registro — el registro anota el método y jamás los parámetros,
+porque `debugPrint` acaba en el registro del sistema.
+
 ---
 
 ## 5 · Los estados de la conexión, dichos en pantalla

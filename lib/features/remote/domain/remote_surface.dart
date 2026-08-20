@@ -126,7 +126,9 @@ class RemoteMeter {
   int? get percent {
     final usado = contextTokens;
     final ventana = contextWindow;
-    if (usado == null || ventana == null || ventana <= 0 || usado <= 0) return null;
+    if (usado == null || ventana == null || ventana <= 0 || usado <= 0) {
+      return null;
+    }
     return ((usado / ventana) * 100).round().clamp(0, 100);
   }
 

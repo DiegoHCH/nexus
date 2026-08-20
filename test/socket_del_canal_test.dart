@@ -3,7 +3,10 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
+import 'package:nexus/features/remote/domain/remote_surface.dart';
+import 'package:nexus/features/remote/domain/write_phrase.dart';
 import 'package:nexus/features/remote/domain/gatekeeper.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 
@@ -26,7 +29,10 @@ void main() {
   tearDown(() => servidor.stop());
 
   /// Levanta un servidor cuyo `Host` esperado ya coincide con su puerto.
-  Future<ChannelServer> servidorListo({DateTime Function()? reloj}) async {
+  Future<ChannelServer> servidorListo({
+    DateTime Function()? reloj,
+    Dispatcher? despacho,
+  }) async {
     final registro = <String>[];
     // Se pide un puerto libre primero, se cierra, y se reusa: es la única forma de
     // saber el puerto antes de construir el portero que lo exige.
@@ -41,6 +47,7 @@ void main() {
         reloj: reloj,
       ),
       log: EventLog(),
+      despacho: despacho,
       registro: registro.add,
     );
     await s.start(direccion: InternetAddress.loopbackIPv4, puerto: libre);
@@ -109,9 +116,15 @@ void main() {
         await pedir(servidor, host: 'otro.com'),
       ]) {
         codigos.add(r.statusCode);
-        expect(r.contentLength <= 0, isTrue, reason: 'sin cuerpo que dé pistas');
+        expect(
+          r.contentLength <= 0,
+          isTrue,
+          reason: 'sin cuerpo que dé pistas',
+        );
       }
-      expect(codigos, {HttpStatus.forbidden}, reason: 'un solo código para todos');
+      expect(codigos, {
+        HttpStatus.forbidden,
+      }, reason: 'un solo código para todos');
     });
 
     test('el token también vale sin el prefijo Bearer', () async {
@@ -119,8 +132,11 @@ void main() {
       // manda a mirar al sitio equivocado.
       servidor = await servidorListo();
       final r = await pedir(servidor, autorizacion: token);
-      expect(r.statusCode, HttpStatus.upgradeRequired,
-          reason: 'pasó el portero; falla por no ser un WebSocket');
+      expect(
+        r.statusCode,
+        HttpStatus.upgradeRequired,
+        reason: 'pasó el portero; falla por no ser un WebSocket',
+      );
     });
 
     test('autenticado pero sin upgrade: 426 y no 403', () async {
@@ -151,7 +167,9 @@ void main() {
     test('con la misma versión, bienvenida con el seq', () async {
       servidor = await servidorListo();
       // Un par de eventos para que la numeración no sea cero.
-      servidor.log..emitir('a')..emitir('b');
+      servidor.log
+        ..emitir('a')
+        ..emitir('b');
 
       final ws = await conectar(servidor);
       final recibido = Completer<Frame>();
@@ -159,16 +177,23 @@ void main() {
         if (!recibido.isCompleted) recibido.complete(Frame.decode(d as String));
       });
 
-      ws.add(const Hello(
-        protocol: ProtocolRange.mine,
-        peer: Peer.mobile,
-        appVersion: '0.0.8',
-      ).encode());
+      ws.add(
+        const Hello(
+          protocol: ProtocolRange.mine,
+          peer: Peer.mobile,
+          appVersion: '0.0.8',
+        ).encode(),
+      );
 
-      final respuesta = await recibido.future.timeout(const Duration(seconds: 5));
+      final respuesta = await recibido.future.timeout(
+        const Duration(seconds: 5),
+      );
       expect(respuesta, isA<Welcome>());
-      expect((respuesta as Welcome).seq, 2,
-          reason: 'la bienvenida dice por dónde va, para no pedir el snapshot');
+      expect(
+        (respuesta as Welcome).seq,
+        2,
+        reason: 'la bienvenida dice por dónde va, para no pedir el snapshot',
+      );
       await ws.close();
     });
 
@@ -181,19 +206,26 @@ void main() {
       });
 
       // Un cliente que solo habla una versión anterior al mínimo del servidor.
-      ws.add(Hello(
-        protocol: const ProtocolRange(
-          min: ProtocolVersion(0),
-          current: ProtocolVersion(0),
-        ),
-        peer: Peer.mobile,
-        appVersion: '0.0.1',
-      ).encode());
+      ws.add(
+        Hello(
+          protocol: const ProtocolRange(
+            min: ProtocolVersion(0),
+            current: ProtocolVersion(0),
+          ),
+          peer: Peer.mobile,
+          appVersion: '0.0.1',
+        ).encode(),
+      );
 
-      final respuesta = await recibido.future.timeout(const Duration(seconds: 5));
+      final respuesta = await recibido.future.timeout(
+        const Duration(seconds: 5),
+      );
       expect(respuesta, isA<UpgradeRequired>());
-      expect((respuesta as UpgradeRequired).who, Peer.mobile,
-          reason: 'le toca al móvil, y decírselo al otro sería inútil');
+      expect(
+        (respuesta as UpgradeRequired).who,
+        Peer.mobile,
+        reason: 'le toca al móvil, y decírselo al otro sería inútil',
+      );
       await ws.close();
     });
 
@@ -243,4 +275,124 @@ void main() {
     final otro = await HttpServer.bind(InternetAddress.loopbackIPv4, p);
     await otro.close();
   });
+  group('las peticiones, por el cable de verdad', () {
+    /// El saludo y la espera de la bienvenida, que es el punto de partida de
+    /// cualquier petición.
+    Future<(WebSocket, Stream<Frame>)> saludado(ChannelServer s) async {
+      final ws = await WebSocket.connect(
+        'ws://127.0.0.1:${s.puerto}/',
+        headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+      );
+      final marcos = ws
+          .map((dynamic d) => Frame.decode(d as String))
+          .asBroadcastStream();
+      final bienvenida = marcos.first;
+      ws.add(
+        const Hello(
+          protocol: ProtocolRange.mine,
+          peer: Peer.mobile,
+          appVersion: '0.0.8',
+        ).encode(),
+      );
+      await bienvenida.timeout(const Duration(seconds: 5));
+      return (ws, marcos);
+    }
+
+    test('llega el ack y luego el resultado, en ese orden', () async {
+      final app = _AppFalsa();
+      servidor = await servidorListo(
+        despacho: Dispatcher(
+          surface: app,
+          unlock: WriteUnlock(),
+          phrases: _SinFrase(),
+        ),
+      );
+      final (ws, marcos) = await saludado(servidor);
+
+      final dos = marcos.take(2).toList();
+      ws.add(const Call(id: 'p1', method: 'conversations').encode());
+      final recibidos = await dos.timeout(const Duration(seconds: 5));
+
+      // El orden **por el cable**, no solo dentro del despacho: es lo que hace que
+      // el móvil sepa que su encargo llegó sin esperar a que termine.
+      expect(recibidos.first, isA<Ack>());
+      expect(recibidos.last, isA<Result>());
+      expect(
+        ((recibidos.last as Result).data['conversations']! as List),
+        hasLength(1),
+      );
+      await ws.close();
+    });
+
+    test('sin despacho se contesta que no, en vez de callar', () async {
+      // El caso de las pruebas del portero: servidor sin la app detrás. Un teléfono
+      // esperando para siempre se lee como «el Mac no responde», y manda a buscar el
+      // problema al sitio equivocado.
+      servidor = await servidorListo();
+      final (ws, marcos) = await saludado(servidor);
+
+      final respuesta = marcos.first;
+      ws.add(const Call(id: 'p1', method: 'conversations').encode());
+      final marco = await respuesta.timeout(const Duration(seconds: 5));
+
+      expect(marco, isA<Failure>());
+      expect((marco as Failure).code, 'unavailable');
+      await ws.close();
+    });
+
+    test('el registro anota el método y NUNCA los parámetros', () async {
+      const secreta = 'abrete-sesamo-7';
+      servidor = await servidorListo(
+        despacho: Dispatcher(
+          surface: _AppFalsa(),
+          unlock: WriteUnlock(),
+          phrases: _SinFrase(),
+        ),
+      );
+      final (ws, marcos) = await saludado(servidor);
+
+      final respuesta = marcos.take(2).toList();
+      ws.add(
+        const Call(
+          id: 'p1',
+          method: 'unlockWrites',
+          params: {'phrase': secreta},
+        ).encode(),
+      );
+      await respuesta.timeout(const Duration(seconds: 5));
+
+      expect(
+        anotado.any((l) => l.contains('unlockWrites')),
+        isTrue,
+        reason: 'saber qué se pidió es la mitad de poder depurarlo',
+      );
+      // Y la otra mitad es que el secreto no acabe escrito en el registro del
+      // sistema, que es donde va a parar `debugPrint` en la app de verdad.
+      for (final linea in anotado) {
+        expect(linea, isNot(contains(secreta)));
+      }
+      await ws.close();
+    });
+  });
+}
+
+/// Lo mínimo para que el despacho tenga a quién preguntar. Lo de verdad se prueba
+/// en `el_despacho_test.dart`, sin socket.
+class _AppFalsa implements RemoteSurface {
+  @override
+  Future<List<RemoteConversation>> conversations() async => const [
+    RemoteConversation(id: 'a', folder: '/tmp/uno', focused: true),
+  ];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _SinFrase implements WritePhraseStore {
+  @override
+  Future<WritePhrase?> read() async => null;
+  @override
+  Future<void> write(WritePhrase phrase) async {}
+  @override
+  Future<void> clear() async {}
 }
