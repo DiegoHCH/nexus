@@ -1,0 +1,330 @@
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/remote/domain/event_bridge.dart';
+import 'package:nexus/features/remote/domain/event_log.dart';
+import 'package:nexus/features/remote/domain/remote_mirror.dart';
+import 'package:nexus/features/remote/domain/remote_surface.dart';
+import 'package:nexus_protocol/nexus_protocol.dart';
+
+// El espejo del teléfono: aplicar eventos para reconstruir lo que pasa en el Mac.
+//
+// **La prueba que importa es de ida y vuelta**, no clave por clave. El puente resta
+// estados para producir eventos y el espejo aplica eventos para reconstruir estados:
+// son dos lados del mismo acuerdo, y el fallo real no es «me equivoqué en una
+// condición» sino «el puente manda `append` y el espejo lee `text`». Un juego de
+// pruebas que comprueba cada lado con las claves que yo recuerde pasa en verde
+// mientras los dos extremos hablan idiomas distintos.
+//
+// Así que se monta el puente de verdad, se le dan estados, y sus eventos —los de
+// verdad, no unos escritos a mano— se aplican al espejo.
+
+void main() {
+  late EventLog registro;
+  late List<Event> emitidos;
+  late List<void Function()> ventanas;
+  late EventBridge puente;
+
+  setUp(() {
+    registro = EventLog();
+    emitidos = [];
+    ventanas = [];
+    puente = EventBridge(
+      log: registro,
+      publicar: emitidos.add,
+      programar: (_, cerrar) => ventanas.add(cerrar),
+    );
+  });
+
+  void pasarElTiempo() {
+    final abiertas = [...ventanas];
+    ventanas.clear();
+    for (final cerrar in abiertas) {
+      cerrar();
+    }
+  }
+
+  /// Aplica al espejo todo lo que el puente haya emitido.
+  RemoteMirror reflejar(RemoteMirror espejo) {
+    var salida = espejo;
+    for (final evento in emitidos) {
+      salida = salida.aplicar(evento);
+    }
+    emitidos.clear();
+    return salida;
+  }
+
+  ConversationView vista(
+    String id, {
+    bool streaming = false,
+    String reply = '',
+    List<RemoteStep> pasos = const [],
+    RemoteMeter medidor = const RemoteMeter(),
+    String? error,
+  }) => ConversationView(
+    conversationId: id,
+    streaming: streaming,
+    reply: reply,
+    steps: pasos,
+    meter: medidor,
+    error: error,
+  );
+
+  group('ida y vuelta: lo que el puente manda, el espejo lo entiende', () {
+    test('una respuesta que crece llega entera', () {
+      var espejo = const RemoteMirror();
+
+      // Como en la vida real: el texto llega a trozos y en ventanas distintas.
+      for (final trozo in ['la casa ', 'está ', 'ordenada']) {
+        puente.observar(vista('a', streaming: true, reply: _acumulado(trozo)));
+        pasarElTiempo();
+        espejo = reflejar(espejo);
+      }
+
+      expect(espejo.conversations['a']!.reply, 'la casa está ordenada');
+    });
+
+    test('un turno nuevo no se pega al anterior', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', streaming: true, reply: 'la primera'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      // Otro turno: el puente manda `replace`, y si el espejo lo ignorara se vería
+      // «la primeraotra cosa» — que es el fallo concreto que esta pareja de piezas
+      // existe para evitar.
+      puente.observar(vista('a', streaming: true, reply: 'otra cosa'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      expect(espejo.conversations['a']!.reply, 'otra cosa');
+    });
+
+    test('el turno, los pasos y el medidor cuadran', () {
+      var espejo = const RemoteMirror();
+      puente.observar(
+        vista(
+          'a',
+          streaming: true,
+          pasos: const [
+            RemoteStep(
+              id: '1',
+              description: 'escribiendo el test',
+              writes: true,
+              done: false,
+            ),
+          ],
+          medidor: const RemoteMeter(
+            model: 'opus',
+            contextTokens: 250000,
+            contextWindow: 1000000,
+          ),
+        ),
+      );
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      final conv = espejo.conversations['a']!;
+      expect(conv.streaming, isTrue);
+      expect(conv.steps.single.text, 'escribiendo el test');
+      expect(conv.steps.single.writes, isTrue);
+      expect(conv.model, 'opus');
+      // El porcentaje llega **calculado** y el espejo no lo recalcula: si lo hiciera
+      // con una ventana asumida, repetiría el error que ya se cometió en el
+      // escritorio —un millón enseñado al 88 % porque se supuso 200k—.
+      expect(conv.percent, 25);
+    });
+
+    test('un error aparece y desaparece', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', error: 'no se pudo'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+      expect(espejo.conversations['a']!.error, 'no se pudo');
+
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      // Sin esto el aviso se queda en la pantalla del móvil para siempre. Y no es
+      // gratis de expresar: un `null` en un `copyWith` no se distingue de «no lo
+      // pases», así que borrar tiene que decirse aparte.
+      expect(espejo.conversations['a']!.error, isNull);
+    });
+
+    test('cerrar una conversación la quita del mapa y del orden', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', reply: 'hola'));
+      puente.observar(vista('b', reply: 'adiós'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+      expect(espejo.visibles, hasLength(2));
+
+      puente.olvidar('a');
+      espejo = reflejar(espejo);
+
+      // De los dos sitios: dejarla en el orden pintaría un hueco, y dejarla en el
+      // mapa la resucitaría al siguiente evento.
+      expect(espejo.conversations.containsKey('a'), isFalse);
+      expect(espejo.order, ['b']);
+      expect(espejo.visibles.single.id, 'b');
+    });
+
+    test('tres conversaciones a la vez no se mezclan', () {
+      // El tope de la app son tres, y trabajan en paralelo: es el caso normal, no un
+      // extremo.
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', streaming: true, reply: 'uno'));
+      puente.observar(vista('b', streaming: true, reply: 'dos'));
+      puente.observar(vista('c', reply: 'tres'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      expect(espejo.conversations['a']!.reply, 'uno');
+      expect(espejo.conversations['b']!.reply, 'dos');
+      expect(espejo.conversations['c']!.reply, 'tres');
+      expect(espejo.conversations['c']!.streaming, isFalse);
+    });
+  });
+
+  group('el snapshot', () {
+    test('reemplaza y no mezcla', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('vieja', reply: 'de antes'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      puente.observar(vista('nueva', reply: 'de ahora'));
+      pasarElTiempo();
+      emitidos.clear();
+      espejo = RemoteMirror.desdeSnapshot(puente.snapshot());
+
+      // Un snapshot llega justo cuando lo que había puede estar mal, así que
+      // fundirlo conservaría precisamente lo que se venía a tirar. Aquí las dos
+      // existen en el Mac, así que las dos están — lo que se comprueba es que el
+      // espejo sale **del snapshot** y no de sumarle lo anterior.
+      expect(espejo.conversations.keys.toSet(), {'vieja', 'nueva'});
+      expect(espejo.conversations['nueva']!.reply, 'de ahora');
+    });
+
+    test('lo que el puente pone en la foto, el espejo lo lee', () {
+      puente.observar(
+        vista(
+          'a',
+          streaming: true,
+          reply: 'a medias',
+          pasos: const [
+            RemoteStep(
+              id: '1',
+              description: 'leyendo',
+              writes: false,
+              done: true,
+            ),
+          ],
+          medidor: const RemoteMeter(
+            model: 'opus',
+            contextTokens: 100000,
+            contextWindow: 200000,
+          ),
+          error: 'algo pasó',
+        ),
+      );
+      pasarElTiempo();
+
+      final espejo = RemoteMirror.desdeSnapshot(puente.snapshot());
+      final conv = espejo.conversations['a']!;
+
+      expect(conv.reply, 'a medias');
+      expect(conv.streaming, isTrue);
+      expect(conv.steps.single.done, isTrue);
+      expect(conv.percent, 50);
+      expect(conv.error, 'algo pasó');
+    });
+  });
+
+  group('la lista de conversaciones', () {
+    test('trae la carpeta sin borrar lo que se está escribiendo', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', streaming: true, reply: 'a medio escribir'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      espejo = espejo.conLista([
+        {'id': 'a', 'folder': '/tmp/repo', 'focused': true},
+      ]);
+
+      // La lista dice **quién existe y su carpeta**, no lo que se está escribiendo.
+      // Reemplazar borraría la respuesta a medias por haber refrescado la lista, y
+      // refrescar es justo lo que hace el teléfono al volver a primer plano.
+      expect(espejo.conversations['a']!.reply, 'a medio escribir');
+      expect(espejo.conversations['a']!.folder, '/tmp/repo');
+      expect(espejo.conversations['a']!.focused, isTrue);
+    });
+
+    test('la lista es la autoridad sobre quién existe', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', reply: 'uno'));
+      puente.observar(vista('fantasma', reply: 'ya no existe'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      espejo = espejo.conLista([
+        {'id': 'a', 'folder': '/tmp/repo'},
+      ]);
+
+      // Una conversación que el Mac ya cerró mientras el teléfono estaba sin red no
+      // llega como evento `closed`: se nota al pedir la lista.
+      expect(espejo.conversations.keys, ['a']);
+    });
+
+    test('el nombre cae a la ruta, y al id mientras no se sepa', () {
+      var espejo = const RemoteMirror().aplicar(
+        const Event(
+          seq: 1,
+          kind: 'turn',
+          data: {'conversation': 'c1', 'streaming': true},
+        ),
+      );
+      // Una conversación puede aparecer por un evento **antes** de saber su carpeta:
+      // se abre en el Mac mientras el teléfono mira otra cosa. Enseñar el id es feo;
+      // enseñar una tarjeta en blanco es peor.
+      expect(espejo.conversations['c1']!.nombre, 'c1');
+
+      espejo = espejo.conLista([
+        {'id': 'c1', 'folder': '/tmp/repo'},
+      ]);
+      expect(espejo.conversations['c1']!.nombre, '/tmp/repo');
+    });
+  });
+
+  group('tolerancia hacia adelante', () {
+    test('un evento de una clase que no se conoce se ignora', () {
+      final espejo = const RemoteMirror().aplicar(
+        const Event(seq: 1, kind: 'algoDelFuturo', data: {'conversation': 'a'}),
+      );
+
+      // Es lo que permite que el Mac se actualice y añada eventos sin romper este
+      // teléfono. Si esto lanzara, cada evento nuevo del servidor sería un cambio de
+      // versión — y entonces nadie añadiría eventos.
+      //
+      // **Y no crea la conversación**, que era lo que esperaba esta prueba en su
+      // primera versión: de un evento que no se entiende no se puede sacar nada que
+      // enseñar, y crear la tarjeta pintaría una en blanco. Ignorar es ignorar.
+      expect(espejo.vacio, isTrue);
+    });
+
+    test('un evento sin conversación no rompe nada', () {
+      final espejo = const RemoteMirror().aplicar(
+        const Event(seq: 1, kind: 'text', data: {'append': 'huérfano'}),
+      );
+      expect(espejo.vacio, isTrue);
+    });
+  });
+}
+
+/// Acumula el texto entre llamadas, como lo haría la app: el puente necesita la
+/// respuesta **entera** para poder restar.
+String _acumulado(String trozo) {
+  _texto += trozo;
+  return _texto;
+}
+
+String _texto = '';

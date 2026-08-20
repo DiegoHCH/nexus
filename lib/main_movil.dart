@@ -5,12 +5,10 @@ import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
-import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
-import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/remote/domain/pairing.dart';
+import 'package:nexus/features/remote/presentation/pages/conversations_page.dart';
 import 'package:nexus/features/remote/presentation/pages/pairing_page.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
-import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
@@ -103,8 +101,25 @@ class _Arranque extends ConsumerWidget {
       AsyncLoading() => const _Esperando(),
       AsyncError() => const PairingPage(),
       AsyncData(value: null) => const PairingPage(),
-      AsyncData(value: final Pairing pareja) => _Emparejado(pareja: pareja),
+      // Emparejado: directo a la lista. La portada con el orbe cumplió su función
+      // —demostrar que la app arranca compartiendo el diseño— y ahora sería un toque
+      // de más antes de ver lo que importa.
+      AsyncData(value: Pairing()) => const _Conectado(),
     };
+  }
+}
+
+/// Emparejado: se conecta y se enseña la lista.
+class _Conectado extends ConsumerWidget {
+  const _Conectado();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    // Leerlo es lo que dispara conectar, y vive en un provider porque conectar
+    // sobrevive a navegar: morir al entrar en una conversación desconectaría justo
+    // al abrirla.
+    ref.watch(autoConnectProvider);
+    return const ConversationsPage();
   }
 }
 
@@ -116,76 +131,4 @@ class _Esperando extends StatelessWidget {
     backgroundColor: context.colors.void_,
     body: const SizedBox.shrink(),
   );
-}
-
-/// Emparejado: el orbe, con quién y en qué anda la conexión.
-///
-/// Las pantallas de verdad —conversaciones, la respuesta, el compositor— son la
-/// pieza siguiente. Esto ya es la app conectada, y es lo que permite probar el
-/// enlace contra un Mac de verdad antes de tener dónde enseñar lo que llega.
-class _Emparejado extends ConsumerWidget {
-  const _Emparejado({required this.pareja});
-
-  final Pairing pareja;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    // Leerlo es lo que dispara conectar. Un `watch` y no una llamada en el build:
-    // conectar es un efecto, y el build puede correr muchas veces.
-    ref.watch(autoConnectProvider);
-    final colors = context.colors;
-
-    return Scaffold(
-      backgroundColor: colors.void_,
-      body: SafeArea(
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const LinkBadge(),
-                  TextButton(
-                    key: const ValueKey('olvidar'),
-                    onPressed: () =>
-                        ref.read(pairingControllerProvider.notifier).olvidar(),
-                    child: Text(
-                      'Olvidar',
-                      style: TextStyle(color: colors.mute),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Expanded(
-              child: Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const SizedBox(
-                      width: 180,
-                      height: 180,
-                      child: NexusOrb(
-                        state: NexusOrbState.sleep,
-                        showHorizon: false,
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      pareja.comoSeVe,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: colors.mute,
-                        fontFamily: 'monospace',
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
 }
