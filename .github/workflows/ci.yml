@@ -39,22 +39,32 @@ jobs:
 
       - run: flutter pub get
 
+      # Las del paquete del protocolo van **antes** del análisis, y ese orden es el
+      # arreglo de un fallo real: `flutter analyze` desde la raíz analiza también
+      # `packages/`, así que con las dependencias del paquete sin resolver daba
+      # **98 errores** de imports que no existen.
+      #
+      # No se vio en local porque allí ya se había hecho `dart pub get` en el
+      # paquete a mano: la comprobación local estaba contaminada con un estado que
+      # el runner no tiene. Es el mismo error que con `sign_update`, verificar un
+      # camino cuyas condiciones no son las del camino real.
+      - name: resolver el paquete del protocolo
+        working-directory: packages/nexus_protocol
+        run: dart pub get
+
+      # Uno solo desde la raíz: cubre la app y el paquete, y así los dos obedecen
+      # las mismas reglas sin tener que repetirlas.
       - name: flutter analyze
         run: flutter analyze
 
-      # El paquete del protocolo va aparte porque es Dart puro y tiene su propio
-      # `pubspec`: `flutter test` de la app **no lo mira**. Sin esto sus 31 pruebas
-      # existirían y no las correría nadie, que es exactamente el problema que este
-      # workflow vino a resolver.
-      #
-      # Y una de ellas es la que compara el código con `docs/PROTOCOL.md`: si se
-      # queda sin ejecutar, el documento y el contrato pueden separarse en silencio.
-      - name: el paquete del protocolo
+      # Y sus pruebas, que `flutter test` **no mira**: es Dart puro con su propio
+      # `pubspec`. Sin este paso sus 31 pruebas existirían y no las correría nadie,
+      # que es el problema que este workflow vino a resolver. Una de ellas compara
+      # el código con `docs/PROTOCOL.md`: si se queda sin ejecutar, el documento y
+      # el contrato pueden separarse en silencio.
+      - name: pruebas del protocolo
         working-directory: packages/nexus_protocol
-        run: |
-          dart pub get
-          dart analyze
-          dart test
+        run: dart test
 
       - name: flutter test
         run: flutter test
