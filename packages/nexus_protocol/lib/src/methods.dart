@@ -27,8 +27,17 @@ enum RemoteMethod {
   /// El estado del medidor de contexto.
   meter('el estado del medidor'),
 
-  /// Y el permiso vigente — de lectura. Subirlo se confirma en el escritorio.
-  permission('el permiso vigente');
+  /// Y el permiso vigente — de lectura.
+  permission('el permiso vigente'),
+
+  /// Subirlo a escritura, **con la frase**.
+  ///
+  /// Estuvo en [DeniedOnPurpose] mientras la confirmación era del escritorio, y
+  /// ahí es donde se vio el problema: si confirmar exige estar delante del Mac,
+  /// editar en remoto es imposible justo cuando estás fuera. La frase de escritura
+  /// —que el Mac verifica y el teléfono no guarda— es lo que permite abrirlo sin
+  /// abrir la puerta a quien se lleve el teléfono.
+  unlockWrites('subir el permiso');
 
   const RemoteMethod(this.enElDocumento);
 
@@ -55,8 +64,9 @@ enum DeniedOnPurpose {
   /// Escribe en disco, y se administra desde el escritorio.
   createSkill('crear skills'),
 
-  /// Se confirma en el escritorio, por la decisión 2.4 del documento.
-  raisePermission('subir el permiso');
+  /// La llave del permiso. Pedirla por el mismo canal que la usa sería regalarla:
+  /// quien ya está dentro no puede poder cambiarla.
+  setWritePhrase('definir o cambiar la frase de escritura');
 
   const DeniedOnPurpose(this.enElDocumento);
 
