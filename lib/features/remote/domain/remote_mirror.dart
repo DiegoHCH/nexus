@@ -185,6 +185,27 @@ class MirroredConversation {
   /// Lo que se enseña como nombre. La ruta si se sabe; el id si todavía no.
   String get nombre => folder ?? id;
 
+  /// Para la caché.
+  ///
+  /// **Tiene que leerse con [MirroredConversation.fromJson]**, y esa pareja es donde
+  /// una caché se rompe en silencio: se guarda con unas claves y se lee con otras, y
+  /// el resultado es una pantalla en blanco al abrir sin red — que se achaca a la red.
+  /// Hay una prueba de ida y vuelta por eso.
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'folder': ?folder,
+    if (focused) 'focused': true,
+    if (streaming) 'streaming': true,
+    'reply': reply,
+    'steps': [for (final p in steps) p.toJson()],
+    'meter': {
+      'model': ?model,
+      'contextTokens': ?contextTokens,
+      'percent': ?percent,
+    },
+    'error': ?error,
+  };
+
   MirroredConversation conTexto(String trozo, {required bool reemplazar}) =>
       copyWith(reply: reemplazar ? trozo : reply + trozo);
 
@@ -231,6 +252,13 @@ class MirroredStep {
     writes: j['writes'] == true,
     done: j['done'] == true,
   );
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'text': text,
+    if (writes) 'writes': true,
+    if (done) 'done': true,
+  };
 
   final String id;
   final String text;

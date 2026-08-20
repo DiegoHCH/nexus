@@ -11,7 +11,10 @@ import 'package:nexus/features/remote/presentation/pages/conversation_page.dart'
 import 'package:nexus/features/remote/presentation/pages/conversations_page.dart';
 import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/domain/outbox.dart';
+import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Las pantallas del teléfono, contra un socket falso.
 //
@@ -74,6 +77,27 @@ class _SocketFalso implements ChannelSocket {
       enviados.whereType<Call>().lastWhere((c) => c.method == metodo);
 }
 
+/// La cola en memoria: aquí no se prueba que se guarde —eso es su propia prueba—
+/// sino que la pantalla pasa por ella.
+class _ColaEnMemoria implements OutboxStore {
+  List<PendingErrand> guardados = const [];
+
+  @override
+  Future<List<PendingErrand>> read() async => guardados;
+  @override
+  Future<void> write(List<PendingErrand> encargos) async =>
+      guardados = encargos;
+}
+
+class _SinCache implements MirrorCache {
+  @override
+  Future<Map<String, Object?>?> read() async => null;
+  @override
+  Future<void> write(Map<String, Object?> foto) async {}
+  @override
+  Future<void> clear() async {}
+}
+
 class _Emparejado implements PairingStore {
   @override
   Future<Pairing?> read() async => Pairing(
@@ -88,6 +112,9 @@ class _Emparejado implements PairingStore {
 
 void main() {
   late _SocketFalso socket;
+  late _ColaEnMemoria cola;
+
+  setUp(() => SharedPreferences.setMockInitialValues({}));
 
   Future<ProviderContainer> conectado(
     WidgetTester tester, {
@@ -97,10 +124,16 @@ void main() {
     socket = _SocketFalso()
       ..respuestas.addAll(respuestas)
       ..sinContestar.addAll(sinContestar);
+    cola = _ColaEnMemoria();
     final c = ProviderContainer(
       overrides: [
         pairingStoreProvider.overrideWithValue(_Emparejado()),
         socketOpenerProvider.overrideWithValue((_) async => socket),
+        outboxStoreProvider.overrideWithValue(cola),
+        mirrorCacheProvider.overrideWithValue(_SinCache()),
+        // Ids fijos: la prueba de que **el mismo id sobrevive al reintento** no se
+        // puede escribir contra un generador que cambia solo.
+        clientMsgIdProvider.overrideWithValue(() => 'enc-1'),
       ],
     );
     addTearDown(c.dispose);
@@ -336,16 +369,23 @@ void main() {
     });
 
     testWidgets('mandar un encargo llega como sendErrand', (tester) async {
-      await conUna(tester);
+      final c = await conUna(tester);
+      // La cola tiene que estar construida antes de mandar.
+      await c.read(outboxProvider.future);
       await tester.enterText(
         find.byKey(const ValueKey('encargo')),
         'ordena la carpeta',
       );
       await tester.tap(find.byKey(const ValueKey('mandar')));
       await tester.pump();
+      await tester.pump();
 
+      // Va por la cola **también con cobertura**, y sale al instante: si el camino
+      // con red fuera otro, habría dos formas de mandar y solo una llevaría el
+      // `clientMsgId` guardado.
       expect(socket.ultima('sendErrand').params['text'], 'ordena la carpeta');
       expect(socket.ultima('sendErrand').params['conversation'], 'a');
+      expect(socket.ultima('sendErrand').id, 'enc-1');
     });
 
     testWidgets('mientras trabaja, el botón es detener y no mandar', (
@@ -368,11 +408,18 @@ void main() {
       expect(find.byKey(const ValueKey('mandar')), findsNothing);
     });
 
-    testWidgets('un fallo dice si se puede repetir', (tester) async {
-      // Aquí el silencio se pide: contestar a mano es el punto de la prueba.
-      await conUnaSinContestar(tester, {'sendErrand'});
+    testWidgets('un rechazo del Mac saca el encargo de la cola', (
+      tester,
+    ) async {
+      // Antes de la cola, esta prueba miraba el aviso en pantalla. Ahora lo que
+      // importa es otra cosa: un rechazo que **no se arregla insistiendo** tiene que
+      // salir de la cola, o el teléfono lo reintenta en bucle contra un Mac que ya
+      // dijo que no.
+      final c = await conUnaSinContestar(tester, {'sendErrand'});
+      await c.read(outboxProvider.future);
       await tester.enterText(find.byKey(const ValueKey('encargo')), 'algo');
       await tester.tap(find.byKey(const ValueKey('mandar')));
+      await tester.pump();
       await tester.pump();
 
       final peticion = socket.ultima('sendErrand');
@@ -383,11 +430,31 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // «No se pudo» a secas deja a quien lo lee sin saber si volver a pulsar.
-      expect(
-        find.text('Esa conversación ya no está abierta en el Mac.'),
-        findsOneWidget,
+      expect(c.read(outboxProvider).value, isEmpty);
+    });
+
+    testWidgets('lo que espera salir se ve en la pantalla', (tester) async {
+      // Un encargo escrito sin cobertura que no se ve por ninguna parte se da por
+      // perdido y se vuelve a escribir.
+      final c = await conUnaSinContestar(tester, {'sendErrand'});
+      await c.read(outboxProvider.future);
+      await tester.enterText(
+        find.byKey(const ValueKey('encargo')),
+        'esto está esperando',
       );
+      await tester.tap(find.byKey(const ValueKey('mandar')));
+      await tester.pump();
+      await tester.pump();
+
+      // Se deja pasar el plazo del `ack`, que es lo que ocurre de verdad cuando el
+      // Mac no contesta: el enlace lo da por «pudo no llegar» y el encargo **se queda
+      // en la cola**. Además cierra los dos temporizadores, que si no el arnés se
+      // queja con razón.
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+
+      expect(find.byKey(const ValueKey('esperando')), findsOneWidget);
+      expect(find.text('esto está esperando'), findsOneWidget);
     });
 
     testWidgets('si el Mac la cierra, se dice en vez de dejar la pantalla', (

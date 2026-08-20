@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
-import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/domain/remote_mirror.dart';
 import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 import 'package:nexus/features/remote/presentation/widgets/write_phrase_sheet.dart';
 
@@ -47,34 +47,27 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     if (texto.isEmpty) return;
     setState(() => _mandando = true);
 
-    final error = await ref
+    // Todo va por la cola, con red y sin ella. **El campo se vacía en cuanto se
+    // encola**, no cuando el Mac contesta: lo que el usuario acaba de escribir ya
+    // está guardado, y dejarlo en el campo invita a mandarlo otra vez.
+    final cupo = await ref
         .read(mirrorProvider.notifier)
         .mandar(widget.conversationId, texto);
 
     if (!mounted) return;
     setState(() => _mandando = false);
-    if (error == null) {
+    if (cupo) {
       _campo.clear();
       return;
     }
-    // Se dice **qué** pasó y si se puede repetir. «No se pudo» a secas deja a quien
-    // lo lee sin saber si volver a pulsar o esperar.
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(_decir(error))));
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(
+        content: Text(
+          'Hay demasiados encargos esperando. Espera a que se manden.',
+        ),
+      ),
+    );
   }
-
-  String _decir(LinkError error) => switch (error.failure) {
-    LinkFailure.sinConfirmacion => 'No llegó al Mac. Puedes volver a mandarlo.',
-    // Reintentar esto no sirve: ya está allí, y el Mac contestaría «duplicada».
-    LinkFailure.sinRespuesta => 'Llegó al Mac y no ha contestado todavía.',
-    LinkFailure.desconectado => 'Sin conexión con el Mac.',
-    LinkFailure.rechazada => switch (error.code) {
-      'unknownConversation' => 'Esa conversación ya no está abierta en el Mac.',
-      'badParams' => 'El Mac no entendió el encargo.',
-      _ => 'El Mac no lo aceptó (${error.code}).',
-    },
-  };
 
   @override
   Widget build(BuildContext context) {
@@ -137,6 +130,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                         style: TextStyle(color: colors.err),
                       ),
                     ),
+                  // Lo que está esperando salir. Se enseña **aquí y no en un cajón
+                  // aparte**: un encargo escrito sin cobertura que no se ve por
+                  // ninguna parte se da por perdido y se vuelve a escribir.
+                  _Esperando(conversationId: widget.conversationId),
                 ],
               ),
             ),
@@ -152,6 +149,49 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Los encargos que todavía no salieron.
+class _Esperando extends ConsumerWidget {
+  const _Esperando({required this.conversationId});
+
+  final String conversationId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final esperando = ref.watch(pendingForProvider(conversationId));
+    if (esperando.isEmpty) return const SizedBox.shrink();
+    final colors = context.colors;
+
+    return Column(
+      key: const ValueKey('esperando'),
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final encargo in esperando)
+          Padding(
+            padding: const EdgeInsets.only(top: 14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 3, right: 10),
+                  child: Icon(Icons.schedule, size: 13, color: colors.mute),
+                ),
+                Expanded(
+                  child: Text(
+                    encargo.text,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: colors.mute,
+                      fontStyle: FontStyle.italic,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+      ],
     );
   }
 }
