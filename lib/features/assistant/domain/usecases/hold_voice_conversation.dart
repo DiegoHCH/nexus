@@ -253,6 +253,7 @@ class HoldVoiceConversation {
       var aborted = false;
       int? turnTokens;
       int? contextTokens;
+      String? modelo;
       final ended = Completer<void>();
       void finish() {
         if (!ended.isCompleted) ended.complete();
@@ -350,6 +351,7 @@ class HoldVoiceConversation {
           ok: ok,
           turnTokens: turnTokens,
           contextTokens: contextTokens,
+          model: modelo,
         ),
       );
       keepAlive();
