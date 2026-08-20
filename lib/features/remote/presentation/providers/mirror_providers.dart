@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/domain/remote_mirror.dart';
+import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 
@@ -22,6 +23,10 @@ class MirrorController extends Notifier<RemoteMirror> {
     });
     final deFotos = enlace.fotos.listen((foto) {
       state = RemoteMirror.desdeSnapshot(foto);
+      // Se guarda lo que llega, para poder leerlo sin red. **Solo el snapshot y la
+      // lista**, no cada evento: guardar en disco por cada delta de texto sería
+      // escribir cientos de veces por respuesta.
+      unawaited(ref.read(mirrorCacheProvider).write(foto.data));
     });
 
     // Al conectar se pide la lista. Hace falta aunque haya snapshot: la foto trae lo
@@ -37,7 +42,18 @@ class MirrorController extends Notifier<RemoteMirror> {
       deEstado.cancel();
     });
 
+    // Lo último que se leyó, mientras no haya red. Se aplica **solo si el espejo
+    // sigue vacío**: llega tarde por definición —viene de disco— y sobrescribir algo
+    // que ya llegó del Mac con una foto de anoche es peor que no tener caché.
+    unawaited(_restaurar());
+
     return const RemoteMirror();
+  }
+
+  Future<void> _restaurar() async {
+    final guardada = await ref.read(mirrorCacheProvider).read();
+    if (guardada == null || !state.vacio) return;
+    state = RemoteMirror.desdeSnapshot(Snapshot(seq: 0, data: guardada));
   }
 
   /// Vuelve a pedir la lista. Lo llama el arranque y el tirón hacia abajo.
@@ -49,6 +65,11 @@ class MirrorController extends Notifier<RemoteMirror> {
       final lista = (datos['conversations'] as List? ?? const [])
           .cast<Map<String, Object?>>();
       state = state.conLista(lista);
+      unawaited(
+        ref.read(mirrorCacheProvider).write({
+          'conversations': [for (final c in state.visibles) c.toJson()],
+        }),
+      );
     } on LinkError {
       // Sin lista se sigue con lo que haya. Vaciar el espejo porque una petición
       // falló dejaría la pantalla en blanco justo cuando se pierde la cobertura —
@@ -56,23 +77,19 @@ class MirrorController extends Notifier<RemoteMirror> {
     }
   }
 
-  /// Manda un encargo.
+  /// Manda un encargo **a través de la cola**.
   ///
-  /// Devuelve el error para que la pantalla lo diga. **No reintenta**: reintentar con
-  /// criterio es el outbox, y un reintento a medias aquí es la forma de que un
-  /// encargo corra dos veces por creer que no llegó.
-  Future<LinkError?> mandar(String conversationId, String texto) async {
-    try {
-      await ref
-          .read(channelLinkProvider)
-          .pedir(
-            RemoteMethod.sendErrand,
-            params: {'conversation': conversationId, 'text': texto},
-          );
-      return null;
-    } on LinkError catch (error) {
-      return error;
-    }
+  /// Siempre por la cola, también con cobertura: si el camino con red fuera otro,
+  /// habría dos formas de mandar un encargo y solo una tendría el `clientMsgId`
+  /// guardado. La cola lo intenta al instante cuando hay enlace, así que con red el
+  /// comportamiento es el mismo y sin ella el encargo no se pierde.
+  ///
+  /// Devuelve `false` si no cabe.
+  Future<bool> mandar(String conversationId, String texto) async {
+    final encolado = await ref
+        .read(outboxProvider.notifier)
+        .encolar(conversationId, texto);
+    return encolado != null;
   }
 
   Future<LinkError?> detener(String conversationId) async {
