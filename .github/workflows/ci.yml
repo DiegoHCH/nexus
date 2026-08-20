@@ -42,6 +42,20 @@ jobs:
       - name: flutter analyze
         run: flutter analyze
 
+      # El paquete del protocolo va aparte porque es Dart puro y tiene su propio
+      # `pubspec`: `flutter test` de la app **no lo mira**. Sin esto sus 31 pruebas
+      # existirían y no las correría nadie, que es exactamente el problema que este
+      # workflow vino a resolver.
+      #
+      # Y una de ellas es la que compara el código con `docs/PROTOCOL.md`: si se
+      # queda sin ejecutar, el documento y el contrato pueden separarse en silencio.
+      - name: el paquete del protocolo
+        working-directory: packages/nexus_protocol
+        run: |
+          dart pub get
+          dart analyze
+          dart test
+
       - name: flutter test
         run: flutter test
 
