@@ -22,6 +22,7 @@ class ChannelServer {
     required this.gatekeeper,
     required this.log,
     this.despacho,
+    this.snapshot,
     this.registro,
     ProtocolRange? protocolo,
   }) : protocolo = protocolo ?? ProtocolRange.mine;
@@ -38,6 +39,12 @@ class ChannelServer {
   /// Los eventos que ya se emitieron, para poder decir en la bienvenida por dónde
   /// va la numeración.
   final EventLog log;
+
+  /// El estado entero, para quien pide desde un `seq` que ya se tiró.
+  ///
+  /// Una función y no el puente: el servidor no tiene por qué saber de dónde sale la
+  /// foto, y así las pruebas del portero siguen sin necesitar la app detrás.
+  final Snapshot Function()? snapshot;
 
   /// Dónde anotar lo que pasa, que es la decisión 2.5 empezada: quién intentó
   /// entrar, con qué resultado y cuándo.
@@ -62,6 +69,17 @@ class ChannelServer {
   bool get escuchando => _http != null;
 
   int? get puerto => _http?.port;
+
+  /// Manda un evento a todos los que están dentro **y ya saludaron**.
+  ///
+  /// Lo segundo importa: un evento antes de la bienvenida llegaría a un cliente que
+  /// todavía no sabe qué versión se habla, y es lo que convierte un handshake en
+  /// papel mojado.
+  void difundir(Event evento) {
+    for (final cliente in _conexiones) {
+      if (cliente.saludado) cliente.enviar(evento);
+    }
+  }
 
   /// Levanta el servidor. Devuelve el puerto de verdad.
   Future<int> start({
@@ -177,6 +195,7 @@ class ChannelServer {
             return;
           }
           saludado = true;
+          cliente.saludado = true;
           plazo?.cancel();
           _negociar(cliente, marco);
           return;
@@ -188,8 +207,12 @@ class ChannelServer {
           unawaited(_despachar(cliente, marco));
           return;
         }
-        // Lo que no es una petición se anota para que no desaparezca en silencio.
-        // Aquí caerán `Resume` y `Snapshot` cuando exista el puente de eventos.
+        if (marco is Resume) {
+          _reanudar(cliente, marco);
+          return;
+        }
+        // Lo que no es ni petición ni resync se anota para que no desaparezca en
+        // silencio. Un `Snapshot` que llegue desde el móvil cae aquí: no lo manda él.
         registro?.call('marco sin despacho: ${marco.runtimeType}');
         cliente.entrantes.add(marco);
       },
@@ -205,6 +228,41 @@ class ChannelServer {
       },
       cancelOnError: true,
     );
+  }
+
+  /// «Mándame desde el 412».
+  ///
+  /// Es el camino normal de reconectar, y el snapshot es la excepción — decisión 4.4.
+  /// Con tres conversaciones vivas la diferencia entre reenviar veinte eventos y
+  /// mandar el estado entero es lo que hace que reconectar en 4G sea barato.
+  void _reanudar(ChannelClient cliente, Resume peticion) {
+    final pendientes = log.desde(peticion.lastSeq);
+
+    if (pendientes == null) {
+      // Lo que pide ya se tiró del búfer. Mandar una lista incompleta sería peor que
+      // negarse: el cliente se creería al día con un hueco dentro.
+      final foto = snapshot?.call();
+      if (foto == null) {
+        registro?.call('resync imposible y sin snapshot que dar');
+        cliente.enviar(
+          const Failure(
+            code: 'unavailable',
+            message: 'no hay estado que reenviar',
+          ),
+        );
+        return;
+      }
+      registro?.call('resync desde ${peticion.lastSeq}: snapshot');
+      cliente.enviar(foto);
+      return;
+    }
+
+    registro?.call(
+      'resync desde ${peticion.lastSeq}: ${pendientes.length} eventos',
+    );
+    for (final evento in pendientes) {
+      cliente.enviar(evento);
+    }
   }
 
   /// Pasa la petición al despacho y manda lo que salga, en orden.
@@ -275,6 +333,9 @@ class ChannelClient {
 
   /// Quién dijo ser en el saludo. `null` hasta que salude.
   Peer? peer;
+
+  /// Si ya pasó el handshake. Los eventos solo van a quien lo pasó.
+  bool saludado = false;
 
   /// Lo que llega y todavía no tiene quien lo atienda.
   final entrantes = <Frame>[];

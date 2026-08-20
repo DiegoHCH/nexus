@@ -5,10 +5,12 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
 import 'package:nexus/features/remote/domain/dispatcher.dart';
+import 'package:nexus/features/remote/domain/event_bridge.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/gatekeeper.dart';
 import 'package:nexus/features/remote/domain/tailscale.dart';
 import 'package:nexus/features/remote/presentation/assistant_surface.dart';
+import 'package:nexus/features/remote/presentation/event_publisher.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,9 +93,17 @@ class ChannelController extends Notifier<ChannelState> {
   EventLog get eventos => _eventos;
   ChannelServer? get servidor => _servidor;
 
+  /// Quien cuenta lo que pasa. Vive mientras el canal está encendido: sin nadie
+  /// escuchando al otro lado, mirar el estado de tres conversaciones para no mandar
+  /// nada es trabajo que se hace para tirarlo.
+  EventPublisher? _publicador;
+
   @override
   ChannelState build() {
-    ref.onDispose(() => unawaited(_servidor?.stop()));
+    ref.onDispose(() {
+      _publicador?.parar();
+      unawaited(_servidor?.stop());
+    });
     unawaited(_alArrancar());
     return const ChannelOff();
   }
@@ -127,6 +137,15 @@ class ChannelController extends Notifier<ChannelState> {
         .read(channelTokenControllerProvider.notifier)
         .asegurar();
 
+    // El puente se construye antes del servidor porque el servidor necesita su
+    // snapshot, y el puente necesita difundir a través del servidor. El círculo se
+    // rompe con una variable: `difundir` se resuelve cuando se llama, no ahora.
+    ChannelServer? enPie;
+    final puente = EventBridge(
+      log: _eventos,
+      publicar: (evento) => enPie?.difundir(evento),
+    );
+
     final servidor = ChannelServer(
       // El despacho se construye al encender y no en un proveedor propio, porque
       // el deduplicador es suyo y tiene memoria: uno por encendido significa que
@@ -146,8 +165,10 @@ class ChannelController extends Notifier<ChannelState> {
         hostEsperado: '${direccion.address}:$canalPuerto',
       ),
       log: _eventos,
+      snapshot: puente.snapshot,
       registro: (linea) => debugPrint('canal · $linea'),
     );
+    enPie = servidor;
 
     try {
       await servidor.start(direccion: direccion, puerto: canalPuerto);
@@ -173,6 +194,7 @@ class ChannelController extends Notifier<ChannelState> {
     }
 
     _servidor = servidor;
+    _publicador = EventPublisher(ref: ref, bridge: puente)..arrancar();
     state = ChannelOn(address: direccion.address, port: canalPuerto);
     if (recordar) {
       final prefs = await SharedPreferences.getInstance();
@@ -181,6 +203,10 @@ class ChannelController extends Notifier<ChannelState> {
   }
 
   Future<void> apagar() async {
+    // Primero el publicador: si se parara después de cerrar el socket, un cambio de
+    // estado a mitad de camino intentaría difundir a conexiones ya cerradas.
+    _publicador?.parar();
+    _publicador = null;
     final servidor = _servidor;
     _servidor = null;
     await servidor?.stop();
