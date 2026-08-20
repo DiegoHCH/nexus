@@ -242,6 +242,20 @@ envío, que es lo que se quería evitar.
 Lo mismo con el historial y la actividad, que hoy se sirven de golpe: **paginación**,
 porque el teléfono no puede tragarse una sesión entera.
 
+Y los eventos se hacen de **diferencias de estado, no de deltas acumulados**. El
+escritorio ya tiene un flujo de deltas y era lo obvio de reenviar, pero un flujo
+acumulado tiene una propiedad mala: si se pierde uno, el teléfono queda mal para
+siempre y nada lo delata. Con diferencias, cada envío se calcula contra lo último que
+salió de verdad, así que un hueco se cierra solo en el siguiente.
+
+De ahí sale también la regla del texto: lo normal es mandar **solo lo que falta**,
+pero cuando la respuesta no es continuación de la anterior —empezó otro turno— va con
+`replace`. Sin esa distinción el teléfono pegaría la respuesta nueva al final de la
+vieja, y eso pasa en cada segundo encargo.
+
+La ventana es **por conversación y no global**: la cuenta empieza cuando cambió *esa*,
+así que un cambio nunca espera al reloj de otra.
+
 ### 4.6 · El `ack` va antes de ejecutar, no con el resultado
 
 Es el orden y no un detalle. Un encargo dura minutos: si la confirmación llegara

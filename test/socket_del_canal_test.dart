@@ -32,6 +32,8 @@ void main() {
   Future<ChannelServer> servidorListo({
     DateTime Function()? reloj,
     Dispatcher? despacho,
+    Snapshot Function()? snapshot,
+    EventLog? registroEventos,
   }) async {
     final registro = <String>[];
     // Se pide un puerto libre primero, se cierra, y se reusa: es la única forma de
@@ -46,8 +48,9 @@ void main() {
         hostEsperado: '127.0.0.1:$libre',
         reloj: reloj,
       ),
-      log: EventLog(),
+      log: registroEventos ?? EventLog(),
       despacho: despacho,
+      snapshot: snapshot,
       registro: registro.add,
     );
     await s.start(direccion: InternetAddress.loopbackIPv4, puerto: libre);
@@ -371,6 +374,122 @@ void main() {
       for (final linea in anotado) {
         expect(linea, isNot(contains(secreta)));
       }
+      await ws.close();
+    });
+  });
+
+  group('los eventos y el resync', () {
+    /// Saluda y devuelve el flujo de marcos posteriores a la bienvenida.
+    Future<(WebSocket, Stream<Frame>)> conectado(ChannelServer s) async {
+      final ws = await WebSocket.connect(
+        'ws://127.0.0.1:${s.puerto}/',
+        headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+      );
+      final marcos = ws
+          .map((dynamic d) => Frame.decode(d as String))
+          .asBroadcastStream();
+      final bienvenida = marcos.first;
+      ws.add(
+        const Hello(
+          protocol: ProtocolRange.mine,
+          peer: Peer.mobile,
+          appVersion: '0.0.8',
+        ).encode(),
+      );
+      await bienvenida.timeout(const Duration(seconds: 5));
+      return (ws, marcos);
+    }
+
+    test('un evento llega a quien ya saludó', () async {
+      final log = EventLog();
+      servidor = await servidorListo(registroEventos: log);
+      final (ws, marcos) = await conectado(servidor);
+
+      final siguiente = marcos.first;
+      servidor.difundir(
+        log.emitir('text', {'conversation': 'a', 'append': 'ya'}),
+      );
+      final marco = await siguiente.timeout(const Duration(seconds: 5));
+
+      expect(marco, isA<Event>());
+      expect((marco as Event).data['append'], 'ya');
+      await ws.close();
+    });
+
+    test('a quien NO ha saludado no le llega nada', () async {
+      // Un evento antes de la bienvenida iría a un cliente que todavía no sabe qué
+      // versión se habla: es lo que convierte el handshake en papel mojado.
+      final log = EventLog();
+      servidor = await servidorListo(registroEventos: log);
+      final ws = await WebSocket.connect(
+        'ws://127.0.0.1:${servidor.puerto}/',
+        headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+      );
+      final recibidos = <Frame>[];
+      ws.listen((dynamic d) => recibidos.add(Frame.decode(d as String)));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      servidor.difundir(log.emitir('text', {'append': 'no deberías ver esto'}));
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(recibidos, isEmpty);
+      await ws.close();
+    });
+
+    test('«mándame desde el N» reenvía solo lo que falta', () async {
+      final log = EventLog();
+      for (var i = 0; i < 5; i++) {
+        log.emitir('text', {'append': 'trozo $i'});
+      }
+      servidor = await servidorListo(registroEventos: log);
+      final (ws, marcos) = await conectado(servidor);
+
+      final dos = marcos.take(2).toList();
+      ws.add(const Resume(lastSeq: 3).encode());
+      final recibidos = await dos.timeout(const Duration(seconds: 5));
+
+      // Dos y no cinco: en 4G esa es la diferencia entre barato y caro.
+      expect(recibidos.map((f) => (f as Event).seq), [4, 5]);
+      await ws.close();
+    });
+
+    test('pedir desde un seq que ya se tiró da el snapshot', () async {
+      final log = EventLog(capacidad: 3);
+      for (var i = 0; i < 10; i++) {
+        log.emitir('text', {'append': 'trozo $i'});
+      }
+      servidor = await servidorListo(
+        registroEventos: log,
+        snapshot: () => Snapshot(seq: log.lastSeq, data: const {'todo': true}),
+      );
+      final (ws, marcos) = await conectado(servidor);
+
+      final respuesta = marcos.first;
+      // El 2 ya se tiró del búfer de tres.
+      ws.add(const Resume(lastSeq: 2).encode());
+      final marco = await respuesta.timeout(const Duration(seconds: 5));
+
+      // Reenviar una lista incompleta sería peor que esto: el cliente se creería al
+      // día con un hueco dentro.
+      expect(marco, isA<Snapshot>());
+      expect((marco as Snapshot).seq, 10);
+      await ws.close();
+    });
+
+    test('sin snapshot que dar, se dice — no se calla', () async {
+      final log = EventLog(capacidad: 2);
+      for (var i = 0; i < 5; i++) {
+        log.emitir('text', {'append': 'x'});
+      }
+      servidor = await servidorListo(registroEventos: log);
+      final (ws, marcos) = await conectado(servidor);
+
+      final respuesta = marcos.first;
+      ws.add(const Resume(lastSeq: 1).encode());
+      final marco = await respuesta.timeout(const Duration(seconds: 5));
+
+      expect(marco, isA<Failure>());
+      expect((marco as Failure).code, 'unavailable');
       await ws.close();
     });
   });
