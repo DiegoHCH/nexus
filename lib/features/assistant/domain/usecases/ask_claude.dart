@@ -61,7 +61,18 @@ class AskClaude {
   /// [remember] a `false` para lo que no es una petición del usuario —hoy,
   /// comprimir la conversación—: eso no debe aparecer en «lo que le has
   /// pedido», donde la lista sirve para repetir una petición anterior.
-  Stream<ClaudeEvent> call(String instruction, {bool remember = true}) async* {
+  /// [allowWrites] es un **tope, no un permiso**: puede bajar lo que la carpeta
+  /// concede, nunca subirlo. Lo usa el canal del teléfono, que manda encargos con
+  /// `false` mientras no tenga la frase de escritura.
+  ///
+  /// Viaja con el encargo y no en un ajuste global porque si no, capar al teléfono
+  /// caparía también los encargos que se lanzan desde el escritorio — y entonces
+  /// tener el móvil conectado te quitaría permisos a ti.
+  Stream<ClaudeEvent> call(
+    String instruction, {
+    bool remember = true,
+    bool allowWrites = true,
+  }) async* {
     final context = await _readContext(instruction);
     // Sin carpeta emparejada no hay dónde trabajar, y lo honesto es decirlo:
     // antes se lanzaba igual y Claude respondía sobre la raíz del disco.
@@ -109,7 +120,9 @@ class AskClaude {
           '$instruction\n\n(Si no se te pide otra cosa, responde en '
           '${context.language}.)',
           workingDirectory: folder,
-          canEdit: context.canEdit,
+          // El AND, y **el único sitio donde se decide**: lo que concede la
+          // carpeta y lo que el origen del encargo permite. Gana el más estricto.
+          canEdit: context.canEdit && allowWrites,
           extraDirectories: context.extraDirectories,
           resumeSessionId: memory.sessionId,
           claudeProfile: context.claudeProfile,

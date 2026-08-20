@@ -156,9 +156,13 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(messages: messages);
   }
 
+  /// [allowWrites] es un **tope y no un permiso**: baja lo que la carpeta concede,
+  /// nunca lo sube. Lo usa el canal del teléfono, que manda `false` mientras no
+  /// tenga abierta la frase de escritura.
   Future<void> submit(
     String instruction, {
     List<String> attachments = const [],
+    bool allowWrites = true,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -193,7 +197,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
-    _subscription = ask(paraClaude).listen(
+    _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
       (event) => switch (event) {
         ClaudeQueued() => _onQueued(),
         ClaudeSessionStarted() => _onSessionStarted(event.model),
