@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/remote/domain/constant_time.dart';
 
 /// Por qué se rechaza una conexión.
 ///
@@ -87,24 +88,11 @@ class Gatekeeper {
 
   /// Compara sin que el **tiempo** diga cuánto acertaste.
   ///
-  /// Con `==`, Dart corta en el primer byte distinto: un token que empieza bien
-  /// tarda más en fallar que uno que empieza mal, y con suficientes intentos eso se
-  /// mide y se adivina byte a byte. Aquí se recorre siempre lo mismo y se acumula
-  /// la diferencia.
-  ///
-  /// La longitud sí se filtra, y es aceptable: la del token la fija esta app, es la
-  /// misma para todos y no es secreta. Lo que no puede filtrarse es el contenido.
+  /// Delega en [igualesSinDelatar], que vive aparte desde que hay dos secretos que
+  /// comparar: el token y la frase de escritura. Se conserva aquí como puerta de
+  /// entrada porque es donde se busca al leer el portero.
   @visibleForTesting
-  static bool coincide(String a, String b) {
-    final ua = a.codeUnits;
-    final ub = b.codeUnits;
-    var diferencia = ua.length ^ ub.length;
-    final hasta = ua.length > ub.length ? ua.length : ub.length;
-    for (var i = 0; i < hasta; i++) {
-      diferencia |= (i < ua.length ? ua[i] : 0) ^ (i < ub.length ? ub[i] : 0);
-    }
-    return diferencia == 0;
-  }
+  static bool coincide(String a, String b) => igualesSinDelatar(a, b);
 
   bool _pasado(String ip) {
     _limpiar();
