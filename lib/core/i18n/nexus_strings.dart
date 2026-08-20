@@ -264,6 +264,19 @@ abstract class NexusStrings {
   String get sectionLanguage;
   String get sectionHistory;
   String get sectionMobile;
+  String get channelTitle;
+  String get channelExplainer;
+  String get channelSwitch;
+  String get channelStarting;
+  String get channelListeningAt;
+  String get channelToken;
+  String get channelCopyToken;
+  String get channelRotateToken;
+  String get channelRotateWarning;
+  String get channelNeedsTailscale;
+  String get channelPortBusy;
+  String get channelUnknownProblem;
+  String get channelNoPhoneYet;
   String get sectionModel;
   String get nexusVoice;
   String get audioOutput;
@@ -873,6 +886,44 @@ class NexusStringsEs extends NexusStrings {
   String get sectionLanguage => 'Idioma';
   @override
   String get sectionMobile => 'Móvil';
+  @override
+  String get channelTitle => 'El canal del teléfono';
+  @override
+  String get channelExplainer =>
+      'Escucha solo por Tailscale, nunca en la red local. Con eso el cifrado y la '
+      'identidad ya los pone WireGuard, y no hacen falta certificados.';
+  @override
+  String get channelSwitch => 'Aceptar conexiones del teléfono';
+  @override
+  String get channelStarting => 'Abriendo el canal…';
+  @override
+  String get channelListeningAt => 'Escuchando en';
+  @override
+  String get channelToken => 'Token';
+  @override
+  String get channelCopyToken => 'Copiar';
+  @override
+  String get channelRotateToken => 'Rotar';
+  @override
+  String get channelRotateWarning =>
+      'Rotarlo cierra las conexiones abiertas y deja fuera a todos los teléfonos: '
+      'es la forma de revocar el acceso.';
+  @override
+  String get channelNeedsTailscale =>
+      'No encuentro Tailscale en este Mac. El canal solo escucha por ahí, así que '
+      'hay que instalarlo y entrar con tu cuenta — en el Mac y en el teléfono.';
+  @override
+  String get channelPortBusy =>
+      'El puerto 7845 está ocupado. Casi siempre es otra copia de Nexus abierta: '
+      'ciérrala y vuelve a encenderlo.';
+  @override
+  String get channelUnknownProblem =>
+      'El canal no pudo abrirse. El motivo queda en el registro del sistema.';
+  @override
+  String get channelNoPhoneYet =>
+      'La app del teléfono todavía no existe. El canal ya acepta conexiones y '
+      'contesta al saludo, pero aún no atiende peticiones: esto es la mitad de '
+      'abajo terminada, no la de arriba.';
   @override
   String get sectionModel => 'Modelo';
   @override
@@ -1745,6 +1796,45 @@ class NexusStringsEn extends NexusStrings {
   String get sectionLanguage => 'Language';
   @override
   String get sectionMobile => 'Mobile';
+  @override
+  String get channelTitle => 'The phone channel';
+  @override
+  String get channelExplainer =>
+      'It listens over Tailscale only, never on the local network. That way '
+      'WireGuard already provides the encryption and the identity, and no '
+      'certificates are needed.';
+  @override
+  String get channelSwitch => 'Accept connections from the phone';
+  @override
+  String get channelStarting => 'Opening the channel…';
+  @override
+  String get channelListeningAt => 'Listening on';
+  @override
+  String get channelToken => 'Token';
+  @override
+  String get channelCopyToken => 'Copy';
+  @override
+  String get channelRotateToken => 'Rotate';
+  @override
+  String get channelRotateWarning =>
+      'Rotating it closes open connections and locks every phone out: that is how '
+      'access is revoked.';
+  @override
+  String get channelNeedsTailscale =>
+      'I cannot find Tailscale on this Mac. The channel only listens there, so it '
+      'has to be installed and signed in — on the Mac and on the phone.';
+  @override
+  String get channelPortBusy =>
+      'Port 7845 is taken. Almost always another copy of Nexus is open: close it '
+      'and turn this on again.';
+  @override
+  String get channelUnknownProblem =>
+      'The channel could not open. The reason is in the system log.';
+  @override
+  String get channelNoPhoneYet =>
+      'The phone app does not exist yet. The channel already accepts connections '
+      'and answers the handshake, but does not serve requests: this is the bottom '
+      'half finished, not the top one.';
   @override
   String get sectionModel => 'Model';
   @override

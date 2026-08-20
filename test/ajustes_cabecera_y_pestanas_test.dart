@@ -63,8 +63,12 @@ void main() {
       Rect anterior = tester.getRect(
         find.byKey(const ValueKey('seccion-voice')),
       );
+      // El orden es el del enum, escrito a mano a propósito: añadir una sección
+      // obliga a pasar por aquí, y así una pestaña nueva no puede colarse sin que
+      // nadie compruebe que no deja un hueco. «mobile» entró justo así.
       for (final nombre in [
         'permissions',
+        'mobile',
         'history',
         'stats',
         'superpowers',
