@@ -316,7 +316,11 @@ class HoldVoiceConversation {
                 ),
               );
             case ClaudeSessionStarted():
-              break;
+              // El modelo se guarda para sacarlo con el fin del encargo. Esto era
+              // un `break`, y ese `break` era el defecto: sin modelo el medidor
+              // asumía una ventana de 200k, así que hablando con un modelo de un
+              // millón el porcentaje salía multiplicado por cinco.
+              modelo = event.model;
           }
         },
         onError: (Object error) {
