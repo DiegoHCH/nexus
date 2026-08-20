@@ -45,4 +45,18 @@ class SecureStorageDataSource {
 
   Future<void> write(String key, String value) =>
       _storage.write(key: key, value: value);
+
+  /// Borra una entrada. Se traga el fallo del llavero por lo mismo que [read]:
+  /// **quien pide borrar un secreto no puede quedarse esperando.**
+  ///
+  /// Y el silencio aquí es menos grave que en la lectura: si el borrado falla, el
+  /// token viejo sigue valiendo — pero quien rotó ya tiene uno nuevo guardado, así
+  /// que el peor caso es una entrada huérfana, no un canal abierto.
+  Future<void> delete(String key) async {
+    try {
+      await _storage.delete(key: key);
+    } on PlatformException catch (error) {
+      debugPrint('No se pudo borrar «$key» del llavero: ${error.message}');
+    }
+  }
 }
