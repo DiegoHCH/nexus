@@ -253,6 +253,7 @@ class HoldVoiceConversation {
       var aborted = false;
       int? turnTokens;
       int? contextTokens;
+      String? modelo;
       final ended = Completer<void>();
       void finish() {
         if (!ended.isCompleted) ended.complete();
@@ -315,7 +316,11 @@ class HoldVoiceConversation {
                 ),
               );
             case ClaudeSessionStarted():
-              break;
+              // El modelo se guarda para sacarlo con el fin del encargo. Esto era
+              // un `break`, y ese `break` era el defecto: sin modelo el medidor
+              // asumía una ventana de 200k, así que hablando con un modelo de un
+              // millón el porcentaje salía multiplicado por cinco.
+              modelo = event.model;
           }
         },
         onError: (Object error) {
@@ -350,6 +355,7 @@ class HoldVoiceConversation {
           ok: ok,
           turnTokens: turnTokens,
           contextTokens: contextTokens,
+          model: modelo,
         ),
       );
       keepAlive();

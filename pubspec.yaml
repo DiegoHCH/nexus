@@ -1,12 +1,17 @@
 name: nexus
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.0.7+7
+version: 0.0.8+8
 
 environment:
   sdk: ^3.12.2
 
 dependencies:
+  # El contrato del canal teléfono ↔ Mac. Por ruta y no publicado: lo comparten el
+  # servidor que vive aquí y el cliente móvil, y un contrato publicado tendría que
+  # versionarse aparte para nada — los dos lados salen de este repositorio.
+  nexus_protocol:
+    path: packages/nexus_protocol
   crypto: ^3.0.7
   desktop_drop: ^0.7.1
   file_selector: ^1.1.0

@@ -110,6 +110,7 @@ final class VoiceToolFinished extends VoiceEvent {
   const VoiceToolFinished({
     required this.ok,
     this.turnTokens,
+    this.model,
     this.contextTokens,
   });
 
@@ -125,6 +126,19 @@ final class VoiceToolFinished extends VoiceEvent {
   /// falló o se canceló: ahí no hay medida que dar, y poner cero se leería como
   /// una sesión vacía comprobada.
   final int? turnTokens;
+  /// Qué modelo corría, tal como lo dice el `init` del CLI —con su variante de
+  /// ventana entre corchetes: `claude-opus-5[1m]`—.
+  ///
+  /// Viaja con el fin del encargo por lo mismo que los tokens: hablando, el
+  /// evento que lo trae **se descartaba**, y sin modelo el medidor daba por
+  /// hecha una ventana de 200k. En una sesión de un millón eso multiplicaba el
+  /// porcentaje por cinco: 176k de contexto se enseñaban como 88 % cuando eran
+  /// el 18 %.
+  ///
+  /// Es el mismo agujero que ya se tapó una vez con los tokens y se dejó a
+  /// medias: se arregló el numerador y se olvidó el denominador.
+  final String? model;
+
   final int? contextTokens;
 }
 

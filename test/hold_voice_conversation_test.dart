@@ -15,6 +15,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
+import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 
 /// El micrófono, callado: esta prueba va de lo que llega del servicio.
 class _Mic implements VoiceInput {
@@ -152,7 +153,11 @@ HoldVoiceConversation _conversation(
   log ?? (_) {},
 );
 
-AskClaude _askClaude(_Bridge bridge) => AskClaude(
+AskClaude _askClaude2(ClaudeBridge bridge) => _armar(bridge);
+
+AskClaude _askClaude(_Bridge bridge) => _armar(bridge);
+
+AskClaude _armar(ClaudeBridge bridge) => AskClaude(
   bridge,
   (_) async => (
     workingDirectory: '/repo',
@@ -170,6 +175,41 @@ AskClaude _askClaude(_Bridge bridge) => AskClaude(
   FolderErrandQueue(),
   _Awake(),
 );
+
+
+/// Un puente que **anuncia el modelo**, como hace el CLI en su evento `init`.
+///
+/// El `_Bridge` de arriba solo emite el fin de turno, y por eso ninguna prueba
+/// veía que el modelo se estaba tirando: el evento que lo trae no existía en las
+/// pruebas.
+class _BridgeQueDiceElModelo implements ClaudeBridge {
+  _BridgeQueDiceElModelo(this.model);
+
+  final String model;
+
+  @override
+  Stream<ClaudeEvent> ask(
+    String instruction, {
+    required String workingDirectory,
+    required bool canEdit,
+    List<String> extraDirectories = const [],
+    String? resumeSessionId,
+    String? claudeProfile,
+    String? model,
+    String? effort,
+    String? artifactsFolder,
+    List<String> disallowedTools = const [],
+  }) async* {
+    // El orden es el de verdad: primero el `init` con el modelo, y el fin de
+    // turno con las cifras al final.
+    yield ClaudeSessionStarted(sessionId: 'ses-1', model: this.model);
+    yield const ClaudeTurnCompleted(
+      result: 'hecho',
+      turnTokens: 1200,
+      contextTokens: 175922,
+    );
+  }
+}
 
 void main() {
   test(
@@ -379,4 +419,50 @@ void main() {
     });
   });
 
+
+  test('hablando, el fin del encargo lleva el modelo y no solo los tokens', () async {
+    // La prueba que faltaba, y que se echó en falta de la peor manera: el arreglo
+    // se dio por hecho con el cableado muerto. Las pruebas de entonces miraban el
+    // medidor y la entidad —los dos correctos— mientras el evento que trae el
+    // modelo seguía descartándose con un `break`.
+    //
+    // Sin el modelo, `contextWindow` da por hecha una ventana de 200k: los 175.922
+    // tokens de una sesión de un millón salían como 88 % en vez de 18 %.
+    final session = _Session();
+    final conversation = HoldVoiceConversation(
+      _Mic(),
+      _Gateway(session),
+      _Speaker(),
+      _askClaude2(_BridgeQueDiceElModelo('claude-opus-5[1m]')),
+      (_) {},
+    );
+
+    final vistos = <VoiceEvent>[];
+    final subscription = conversation().listen(vistos.add);
+    await Future<void>.delayed(Duration.zero);
+
+    session.emit(const VoiceUserTranscript('corre los tests'));
+    session.emit(const VoiceTurnCompleted());
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+
+    final fin = vistos.whereType<VoiceToolFinished>().singleOrNull;
+    expect(fin, isNotNull, reason: 'el encargo tiene que terminar');
+    expect(
+      fin!.model,
+      'claude-opus-5[1m]',
+      reason: 'el modelo del `init` tiene que viajar con el fin del encargo: sin '
+          'él el medidor asume 200k y el porcentaje sale por cinco',
+    );
+    expect(fin.contextTokens, 175922);
+
+    // Y aplicado como lo aplica el controlador, la ventana sale bien.
+    final medidor = const SessionMeter().copyWith(
+      model: fin.model,
+      contextTokens: fin.contextTokens,
+    );
+    expect(medidor.contextWindow, 1000000);
+    expect(medidor.contextPercent, 18);
+
+    await subscription.cancel();
+  });
 }
