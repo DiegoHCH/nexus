@@ -1,0 +1,16 @@
+name: nexus_protocol
+description: >-
+  El contrato del canal teléfono ↔ Mac: los mensajes, su versión y qué se puede
+  pedir. Lo comparten el servidor del escritorio y el cliente móvil.
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.12.2
+
+dependencies:
+  meta: ^1.16.0
+
+dev_dependencies:
+  test: ^1.25.0
+  lints: ^6.0.0
