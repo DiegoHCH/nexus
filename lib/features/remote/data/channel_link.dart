@@ -27,11 +27,50 @@ class WebSocketChannelSocket implements ChannelSocket {
     required String token,
     Duration plazo = const Duration(seconds: 10),
   }) async {
-    final ws = await WebSocket.connect(
-      url.toString(),
-      headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
-    ).timeout(plazo);
-    return WebSocketChannelSocket(ws);
+    try {
+      final ws = await WebSocket.connect(
+        url.toString(),
+        headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+      ).timeout(plazo);
+      return WebSocketChannelSocket(ws);
+    } on WebSocketException {
+      // **Algo contestó y no aceptó el upgrade.** Eso ya distingue lo importante: la
+      // red llega, así que el problema es el portero.
+      //
+      // Y el código de estado no viene en la excepción —`dart:io` lanza un
+      // `WebSocketException` con un mensaje que no lo incluye— así que se pregunta
+      // otra vez con una petición normal. Es una petición de más **solo cuando ya
+      // falló**, y es lo que convierte «reconectando» en «vuelve a copiar el token».
+      throw ChannelRefused(await _porQue(url, token, plazo));
+    } on SocketException {
+      // No se pudo abrir el socket: no hay ruta. En este canal casi siempre significa
+      // que falta Tailscale en este aparato — que es el precio escrito de escuchar
+      // solo ahí, y lo que ninguna pantalla decía.
+      throw const ChannelUnreachable();
+    } on TimeoutException {
+      throw const ChannelUnreachable();
+    }
+  }
+
+  /// Pregunta el estado con una petición normal, para poder decir por qué.
+  static Future<int?> _porQue(Uri url, String token, Duration plazo) async {
+    final cliente = HttpClient()..connectionTimeout = plazo;
+    try {
+      final peticion = await cliente.getUrl(
+        url.replace(scheme: url.scheme == 'wss' ? 'https' : 'http'),
+      );
+      peticion.headers.set(HttpHeaders.authorizationHeader, 'Bearer $token');
+      final respuesta = await peticion.close().timeout(plazo);
+      await respuesta.drain<void>();
+      return respuesta.statusCode;
+    } on Object {
+      // Si esto también falla, se contesta sin código: se sabe que algo hay al otro
+      // lado —el upgrade obtuvo respuesta— y no se sabe qué dijo. Mejor eso que
+      // inventarse un motivo.
+      return null;
+    } finally {
+      cliente.close(force: true);
+    }
   }
 
   final WebSocket _ws;
@@ -53,6 +92,25 @@ class WebSocketChannelSocket implements ChannelSocket {
   }
 }
 
+/// El Mac contestó y no dejó entrar.
+///
+/// Con el código, cuando se pudo averiguar: un 403 es el portero —token o dirección—
+/// y un 426 es «autenticado pero esto no es un WebSocket», que solo pasa con un
+/// cliente mal escrito.
+class ChannelRefused implements Exception {
+  const ChannelRefused(this.status);
+
+  final int? status;
+
+  @override
+  String toString() => 'ChannelRefused(${status ?? "sin código"})';
+}
+
+/// No se llegó al Mac.
+class ChannelUnreachable implements Exception {
+  const ChannelUnreachable();
+}
+
 /// En qué anda el enlace. Son los cuatro estados que pide la ficha `lo6`, más el
 /// final del que no se sale reintentando.
 enum LinkState {
@@ -70,6 +128,18 @@ enum LinkState {
   /// arregla, y reintentar en bucle es lo que convierte un mensaje claro en una app
   /// que parece colgada.
   hayQueActualizar,
+
+  /// El Mac contestó y no dejó entrar. Casi siempre: el token no es, o la dirección
+  /// no es la que el portero espera.
+  ///
+  /// **No es terminal**, y esa fue la decisión difícil: el portero contesta el mismo
+  /// 403 cuando el token está mal y cuando se gastó el límite de intentos, así que
+  /// darse por vencido dejaría clavado a un teléfono que solo tenía que esperar. Se
+  /// sigue reintentando **despacio** y se dice qué comprobar.
+  rechazado,
+
+  /// No se llegó. En este canal casi siempre es que falta Tailscale en el teléfono.
+  noSeLlega,
 }
 
 /// Por qué falló una petición.
@@ -182,6 +252,9 @@ class ChannelLink {
   /// El último evento visto. De aquí sale el `Resume` al reconectar.
   int _ultimoSeq = 0;
   int get ultimoSeq => _ultimoSeq;
+
+  /// El código con el que el Mac rechazó, si lo hubo. Para poder decirlo.
+  int? ultimoRechazo;
 
   ChannelSocket? _socket;
   StreamSubscription<String>? _escucha;
@@ -303,7 +376,25 @@ class ChannelLink {
         debugPrint('el enlace no pudo conectar: $error');
         await _tirarSocket();
         if (!_quiereEstarConectado || _cerrado) return;
-        await _dormir(esperas[intento.clamp(0, esperas.length - 1)]);
+
+        // **Aquí está el arreglo.** Antes todo fallo era el mismo «reconectando», y
+        // «no tengo Tailscale» y «el token no es» pedían cosas distintas: una es
+        // instalar algo y la otra volver a emparejar. Sin distinguirlas, la pantalla
+        // no podía decir ninguna de las dos.
+        _pasarA(switch (error) {
+          ChannelRefused() => LinkState.rechazado,
+          ChannelUnreachable() => LinkState.noSeLlega,
+          _ => LinkState.reconectando,
+        });
+        ultimoRechazo = error is ChannelRefused ? error.status : null;
+
+        // Un rechazo se reintenta **por el final de la escalera**: el portero limita
+        // intentos por IP, así que insistir rápido con un token malo es la forma de
+        // gastarse el cupo y quedarse fuera también cuando el token se arregle.
+        final espera = error is ChannelRefused
+            ? esperas.last
+            : esperas[intento.clamp(0, esperas.length - 1)];
+        await _dormir(espera);
         intento++;
       }
     }

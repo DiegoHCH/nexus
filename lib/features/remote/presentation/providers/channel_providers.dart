@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
+import 'package:nexus/features/remote/data/access_log_file.dart';
+import 'package:nexus/features/remote/domain/access_log.dart';
 import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/remote/domain/event_bridge.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
@@ -22,6 +24,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// que el portero exige incluye el puerto — con uno efímero no se podría componer
 /// antes de escuchar.
 const canalPuerto = 7845;
+
+/// El registro append-only de la 2.5.
+///
+/// Uno para toda la app y no uno por encendido: el sentido de un registro es que
+/// sobreviva a apagar y encender el canal — si se reiniciara con él, no se podría
+/// mirar por qué falló el intento anterior.
+final accessLogProvider = Provider<AccessLog>((ref) => AccessLogFile());
 
 /// En qué anda el canal.
 @immutable
@@ -165,6 +174,7 @@ class ChannelController extends Notifier<ChannelState> {
         hostEsperado: '${direccion.address}:$canalPuerto',
       ),
       log: _eventos,
+      diario: ref.read(accessLogProvider),
       snapshot: puente.snapshot,
       registro: (linea) => debugPrint('canal · $linea'),
     );
