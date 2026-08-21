@@ -149,6 +149,54 @@ class Dispatcher {
         await surface.stopErrand(_id(call));
         return Result(id: call.id, data: {'stopped': true});
 
+      case RemoteMethod.archive:
+        final pagina = await surface.archive(
+          cursor: _entero(call, 'cursor', 0),
+          limit: _entero(call, 'limit', 30).clamp(1, maxPagina),
+        );
+        return Result(
+          id: call.id,
+          data: {
+            'conversations': [for (final c in pagina.items) c.toJson()],
+            'nextCursor': ?pagina.nextCursor,
+          },
+        );
+
+      case RemoteMethod.resumeConversation:
+        final vivo = await surface.resumeConversation(_texto(call, 'archived'));
+        // Se devuelve el id de la conversación **viva**, que puede no ser el del
+        // archivo: si ya estaba abierta, lo correcto es llevar a esa en vez de abrir
+        // una segunda sobre la misma carpeta.
+        return Result(id: call.id, data: {'conversation': vivo});
+
+      case RemoteMethod.folders:
+        final carpetas = await surface.folders();
+        return Result(
+          id: call.id,
+          data: {
+            'folders': [for (final f in carpetas) f.toJson()],
+          },
+        );
+
+      case RemoteMethod.openConversation:
+        final id = await surface.openConversation(_texto(call, 'folder'));
+        return Result(id: call.id, data: {'conversation': id});
+
+      case RemoteMethod.artifacts:
+        final lista = await surface.artifacts();
+        return Result(
+          id: call.id,
+          data: {
+            'artifacts': [for (final a in lista) a.toJson()],
+          },
+        );
+
+      case RemoteMethod.artifact:
+        return Result(
+          id: call.id,
+          data: {'content': await surface.artifact(_texto(call, 'artifact'))},
+        );
+
       case RemoteMethod.unlockWrites:
         return _abrirEscritura(call);
     }
@@ -193,6 +241,19 @@ class Dispatcher {
       id: call.id,
       data: {'until': unlock.grant!.until.toIso8601String()},
     );
+  }
+
+  /// Un parámetro de texto obligatorio.
+  ///
+  /// Uno solo para todos en vez de una comprobación por método: la que se escribe a
+  /// mano en cada sitio es la que un día se olvida, y olvidarla aquí significa pasarle
+  /// un `null` a la app.
+  String _texto(Call call, String clave) {
+    final valor = call.params[clave] as String?;
+    if (valor == null || valor.isEmpty) {
+      throw FormatException('falta «$clave»');
+    }
+    return valor;
   }
 
   String _id(Call call) {

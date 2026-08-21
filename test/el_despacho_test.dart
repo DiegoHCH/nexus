@@ -91,6 +91,87 @@ class _Falsa implements RemoteSurface {
     diario.add('app:stopErrand');
     _mirar(conversationId);
   }
+
+  // ── lo que salió de usar el teléfono de verdad ──
+
+  /// Las carpetas que este Mac «tiene emparejadas».
+  final carpetas = {'/tmp/uno', '/tmp/dos'};
+
+  /// Los artifacts que existen, por su ruta.
+  final documentos = {'/tmp/uno/informe.md': 'el informe entero'};
+
+  @override
+  Future<RemotePage<ArchivedConversation>> archive({
+    int cursor = 0,
+    int limit = 30,
+  }) async {
+    diario.add('app:archive($cursor,$limit)');
+    final todas = [
+      for (var i = 0; i < 5; i++)
+        ArchivedConversation(
+          id: 'arch$i',
+          folder: '/tmp/uno',
+          title: 'lo que se pidio $i',
+          when: DateTime(2026, 8, 20, 10 + i),
+          turns: i,
+          open: i == 0,
+        ),
+    ];
+    final trozo = todas.skip(cursor).take(limit).toList();
+    return RemotePage(
+      items: trozo,
+      nextCursor: cursor + trozo.length >= todas.length
+          ? null
+          : cursor + trozo.length,
+    );
+  }
+
+  @override
+  Future<String> resumeConversation(String archivedId) async {
+    diario.add('app:resume($archivedId)');
+    if (!archivedId.startsWith('arch')) throw UnknownConversation(archivedId);
+    // La viva puede no ser la del archivo: si su carpeta ya tenia una abierta, se
+    // devuelve esa.
+    return 'a';
+  }
+
+  @override
+  Future<List<RemoteFolder>> folders() async {
+    diario.add('app:folders');
+    return [
+      for (final c in carpetas)
+        RemoteFolder(path: c, canWrite: c == '/tmp/uno', busy: c == '/tmp/uno'),
+    ];
+  }
+
+  @override
+  Future<String> openConversation(String folderPath) async {
+    diario.add('app:openConversation($folderPath)');
+    if (!carpetas.contains(folderPath)) throw UnknownConversation(folderPath);
+    return 'nueva';
+  }
+
+  @override
+  Future<List<RemoteArtifact>> artifacts() async {
+    diario.add('app:artifacts');
+    return [
+      for (final ruta in documentos.keys)
+        RemoteArtifact(
+          id: ruta,
+          name: ruta.split('/').last,
+          when: DateTime(2026, 8, 20),
+          bytes: documentos[ruta]!.length,
+        ),
+    ];
+  }
+
+  @override
+  Future<String> artifact(String artifactId) async {
+    diario.add('app:artifact($artifactId)');
+    final contenido = documentos[artifactId];
+    if (contenido == null) throw UnknownConversation(artifactId);
+    return contenido;
+  }
 }
 
 class _Frases implements WritePhraseStore {
@@ -358,6 +439,75 @@ void main() {
       );
       expect((salida.last as Result).data['stopped'], isTrue);
       expect(diario, contains('app:stopErrand'));
+    });
+  });
+
+  group('lo que salió de usar el teléfono', () {
+    test('abrir solo vale en una carpeta que el Mac ya tenga', () async {
+      // **Esta es la línea que separa esto de emparejar.** El motivo de que emparejar
+      // se quede en el escritorio es que por red se elegiría a ciegas cualquier ruta
+      // del disco; sin esta comprobación, este método sería exactamente eso.
+      final buena = await atender(
+        pedir(RemoteMethod.openConversation, con: {'folder': '/tmp/uno'}),
+      );
+      expect((buena.last as Result).data['conversation'], 'nueva');
+
+      final ajena = await atender(
+        pedir(
+          RemoteMethod.openConversation,
+          id: 'm2',
+          con: {'folder': '/Users/otro/secretos'},
+        ),
+      );
+      expect((ajena.last as Failure).code, 'unknownConversation');
+    });
+
+    test('un artifact fuera de la lista no se lee', () async {
+      // Sin esto, el id seria una ruta libre y el metodo se convertiria en «leer
+      // cualquier archivo del Mac» — que es lo que ningun metodo de este canal puede
+      // ser.
+      final fuera = await atender(
+        pedir(RemoteMethod.artifact, con: {'artifact': '/etc/passwd'}),
+      );
+      expect((fuera.last as Failure).code, 'unknownConversation');
+    });
+
+    test('el archivo pagina y dice cuál ya está abierta', () async {
+      final salida = await atender(
+        pedir(RemoteMethod.archive, con: {'limit': 2}),
+      );
+      final datos = (salida.last as Result).data;
+      final lista = datos['conversations']! as List;
+
+      expect(lista, hasLength(2));
+      // Ofrecer «retomar» algo que ya esta vivo llevaria a abrir una segunda sobre la
+      // misma carpeta, que el escritorio no permite.
+      expect((lista.first as Map)['open'], isTrue);
+      expect(datos['nextCursor'], 2);
+    });
+
+    test('retomar devuelve la conversación viva, no la del archivo', () async {
+      final salida = await atender(
+        pedir(RemoteMethod.resumeConversation, con: {'archived': 'arch3'}),
+      );
+      expect((salida.last as Result).data['conversation'], 'a');
+    });
+
+    test('las carpetas dicen si escriben y si están ocupadas', () async {
+      final salida = await atender(pedir(RemoteMethod.folders));
+      final lista = (salida.last as Result).data['folders']! as List;
+
+      // Las dos cosas se mandan para poder avisar **antes** de abrir: empezar en una
+      // de solo lectura y descubrirlo al primer encargo es trabajo para tirar.
+      final uno =
+          lista.firstWhere((f) => (f as Map)['path'] == '/tmp/uno') as Map;
+      expect(uno['canWrite'], isTrue);
+      expect(uno['busy'], isTrue);
+    });
+
+    test('sin el parámetro obligatorio: badParams', () async {
+      final salida = await atender(pedir(RemoteMethod.openConversation));
+      expect((salida.last as Failure).code, 'badParams');
     });
   });
 

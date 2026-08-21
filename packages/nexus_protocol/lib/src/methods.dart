@@ -30,6 +30,36 @@ enum RemoteMethod {
   /// Y el permiso vigente — de lectura.
   permission('el permiso vigente'),
 
+  /// El archivo de conversaciones pasadas, para poder retomar una.
+  ///
+  /// Salió de usar el teléfono: **si en el Mac no hay ninguna conversación abierta, el
+  /// móvil no puede hacer nada**. Eso convierte «mira cómo va lo que dejaste
+  /// corriendo» en «solo sirve si te acordaste de dejarlo abierto», que es la mitad de
+  /// lo que un mando a distancia tiene que poder.
+  archive('el archivo de conversaciones'),
+
+  /// Retomar una del archivo. Es lo mismo que hace `⌘H` en el escritorio.
+  resumeConversation('retomar una del archivo'),
+
+  /// Las carpetas que el Mac **ya tiene emparejadas**.
+  ///
+  /// No es emparejar: la lista la pone el Mac. La diferencia importa porque
+  /// [DeniedOnPurpose.pairFolder] sigue fuera, y su motivo —elegir a ciegas cualquier
+  /// ruta del disco— aquí no se cumple.
+  folders('las carpetas emparejadas'),
+
+  /// Abrir una conversación nueva sobre una de esas carpetas.
+  openConversation('abrir una conversación sobre una carpeta ya emparejada'),
+
+  /// Los documentos que Claude produjo.
+  ///
+  /// De lectura, y son el **resultado** del trabajo: poder mandar un encargo y no
+  /// poder ver lo que produjo es medio canal.
+  artifacts('los artifacts'),
+
+  /// El contenido de uno.
+  artifact('el contenido de un artifact'),
+
   /// Subirlo a escritura, **con la frase**.
   ///
   /// Estuvo en [DeniedOnPurpose] mientras la confirmación era del escritorio, y
@@ -59,7 +89,7 @@ enum RemoteMethod {
 enum DeniedOnPurpose {
   /// Es un selector de archivos local. Por red sería elegir a ciegas cualquier
   /// ruta del disco.
-  pairFolder('emparejar carpetas'),
+  pairFolder('emparejar una carpeta nueva'),
 
   /// Escribe en disco, y se administra desde el escritorio.
   createSkill('crear skills'),

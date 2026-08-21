@@ -1,3 +1,8 @@
+import 'dart:io';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
@@ -90,7 +95,10 @@ class AssistantSurface implements RemoteSurface {
     final grant = _ref.read(writeUnlockProvider).grant;
     return RemotePermission(
       // Del espacio de trabajo, que es de donde sale al lanzar cada encargo.
-      folderCanWrite: _ref.read(workspaceControllerProvider).permission.canWrite,
+      folderCanWrite: _ref
+          .read(workspaceControllerProvider)
+          .permission
+          .canWrite,
       remoteWriteUntil: grant?.until,
     );
   }
@@ -112,6 +120,124 @@ class AssistantSurface implements RemoteSurface {
     await _ref
         .read(assistantControllerProvider(_existente(conversationId)).notifier)
         .stopWork();
+  }
+
+  // ─────────── lo que salió de usar el teléfono de verdad ───────────
+
+  @override
+  Future<RemotePage<ArchivedConversation>> archive({
+    int cursor = 0,
+    int limit = 30,
+  }) async {
+    final guardadas = await _ref.read(localConversationStoreProvider).listAll();
+    // Lo más reciente primero: en un archivo, lo de hace diez minutos es lo que se
+    // busca y lo de hace un mes es lo que se hojea.
+    guardadas.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+
+    final vivas = _ref.read(conversationsProvider);
+    final trozo = guardadas.skip(cursor).take(limit).toList();
+
+    return RemotePage(
+      items: [
+        for (final r in trozo)
+          ArchivedConversation(
+            id: r.id,
+            folder: r.folderPath,
+            // El primer encargo como título: es lo que el escritorio ya usa, y
+            // resulta ser el mejor título que nadie ha escrito.
+            title: _titulo(r),
+            when: r.startedAt,
+            turns: r.messages.length,
+            // Si ya está abierta, se dice: ofrecer «retomar» algo vivo lleva a abrir
+            // una segunda sobre la misma carpeta, que el escritorio no permite.
+            open: vivas.hasFolder(r.folderPath),
+          ),
+      ],
+      nextCursor: cursor + trozo.length >= guardadas.length
+          ? null
+          : cursor + trozo.length,
+    );
+  }
+
+  static String _titulo(ConversationRecord registro) {
+    for (final m in registro.messages) {
+      if (m.author == ChatAuthor.user && m.text.trim().isNotEmpty) {
+        return m.text.trim();
+      }
+    }
+    return registro.projectName;
+  }
+
+  @override
+  Future<String> resumeConversation(String archivedId) async {
+    final guardadas = await _ref.read(localConversationStoreProvider).listAll();
+    final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
+    if (registro == null) throw UnknownConversation(archivedId);
+
+    // **Retomar es abrir su carpeta**, y `open` ya devuelve la que hubiera si esa
+    // carpeta tenía una viva. Eso es lo correcto: dos conversaciones sobre el mismo
+    // repo compartirían la sesión de Claude y se pisarían el contexto.
+    final id = await _ref
+        .read(conversationsProvider.notifier)
+        .open(registro.folderPath);
+    if (id == null) throw UnknownConversation(archivedId);
+    return id;
+  }
+
+  @override
+  Future<List<RemoteFolder>> folders() async {
+    final espacio = _ref.read(workspaceControllerProvider);
+    final vivas = _ref.read(conversationsProvider);
+    return [
+      for (final carpeta in espacio.folders)
+        RemoteFolder(
+          path: carpeta.path,
+          canWrite: carpeta.modality != FolderModality.textOnly,
+          busy: vivas.hasFolder(carpeta.path),
+        ),
+    ];
+  }
+
+  @override
+  Future<String> openConversation(String folderPath) async {
+    final espacio = _ref.read(workspaceControllerProvider);
+    // **Solo entre las que el Mac ya tiene.** Es lo que separa esto de emparejar: sin
+    // esta comprobación, el teléfono podría mandar cualquier ruta del disco y estaría
+    // haciendo justo lo que la decisión dejó fuera.
+    if (!espacio.folders.any((f) => f.path == folderPath)) {
+      throw UnknownConversation(folderPath);
+    }
+    final id = await _ref.read(conversationsProvider.notifier).open(folderPath);
+    if (id == null) throw UnknownConversation(folderPath);
+    return id;
+  }
+
+  @override
+  Future<List<RemoteArtifact>> artifacts() async {
+    final lista = await _ref.read(artifactsProvider.future);
+    return [
+      for (final a in lista)
+        RemoteArtifact(
+          // La ruta como id: es lo que el escritorio ya usa para abrirlos, y no hace
+          // falta inventar otro identificador que habría que mantener en paralelo.
+          id: a.path,
+          name: a.name,
+          when: a.at,
+          bytes: File(a.path).existsSync() ? File(a.path).lengthSync() : 0,
+        ),
+    ];
+  }
+
+  @override
+  Future<String> artifact(String artifactId) async {
+    final lista = await _ref.read(artifactsProvider.future);
+    // **Solo los que están en la lista.** Sin esto, el `artifactId` sería una ruta
+    // libre y el método se convertiría en «leer cualquier archivo del Mac», que es
+    // exactamente lo que ningún método de este canal puede ser.
+    if (!lista.any((a) => a.path == artifactId)) {
+      throw UnknownConversation(artifactId);
+    }
+    return File(artifactId).readAsString();
   }
 }
 

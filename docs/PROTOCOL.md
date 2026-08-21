@@ -168,12 +168,25 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   Estuvo en el lado de «se queda en el Mac» mientras la confirmación era del
   escritorio; con la frase ya no tiene que serlo, y dejarlo ahí era lo que hacía
   imposible editar en remoto.
+- **El archivo de conversaciones**, y **retomar una del archivo**. Salió de usar el
+  teléfono: si en el
+  Mac no hay ninguna conversación abierta, el móvil no podía hacer nada — y eso
+  convierte «mira cómo va lo que dejaste» en «solo sirve si te acordaste de dejarlo
+  abierto». Retomar es lo mismo que hace `⌘H` en el escritorio.
+- **Los artifacts** y **el contenido de un artifact**: los documentos que produce
+  Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
+  poder ver lo que produjo es medio canal.
+- **Abrir una conversación sobre una carpeta ya emparejada**, y también
+  **las carpetas emparejadas**, para poder elegir. Esto es lo que parece chocar con «emparejar carpetas se queda en el Mac»
+  y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier
+  ruta del disco**, y aquí el Mac ofrece la lista y el teléfono escoge de ella. Nadie
+  elige una ruta que el Mac no tuviera ya. Emparejar una carpeta nueva sigue fuera.
 
 ### Se queda en el Mac
 
 | | Por qué |
 |---|---|
-| **Emparejar carpetas** | Es un selector de archivos local. Por red sería elegir a ciegas cualquier ruta del disco |
+| **Emparejar una carpeta nueva** | Es un selector de archivos local. Por red sería elegir a ciegas cualquier ruta del disco. **Elegir entre las ya emparejadas sí va**, porque ahí la lista la pone el Mac |
 | **Crear skills** | Escribe en disco, y se administra desde el escritorio |
 | **Definir o cambiar la frase de escritura** | Es la llave del permiso: pedirla por el mismo canal que la usa sería regalarla |
 
