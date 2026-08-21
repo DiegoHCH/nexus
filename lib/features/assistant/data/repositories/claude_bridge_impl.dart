@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/data/repositories/project_context_promp
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
 class ClaudeBridgeImpl implements ClaudeBridge {
   const ClaudeBridgeImpl(
@@ -93,6 +94,11 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           rules: context.rules,
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,
+          // La cuenta sale **de aquí** y no de un parámetro nuevo: es donde el
+          // perfil de la carpeta y el destino de los documentos se encuentran por
+          // primera vez, y derivarla más arriba obligaría a llevarla de la mano por
+          // tres sitios que no la usan.
+          artifactsAccount: ClaudeProfile.nameFromPath(claudeProfile),
         ),
       )) {
         // Cada mensaje del asistente es una petición: su `usage` dice cuánto

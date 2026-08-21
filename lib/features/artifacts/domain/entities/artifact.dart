@@ -44,11 +44,22 @@ class Artifact {
   };
 
   /// Lo que se lee como texto tal cual. Se manda por el canal como una cadena, así
-  /// que el teléfono puede enseñarlo aunque el visor del Mac no lo pinte.
-  static const textual = {'.md', '.txt', '.csv'};
+  /// que el teléfono puede enseñarlo **y pintarlo**.
+  ///
+  /// El `.html` está aquí porque un HTML es texto: no hacía falta inventar transporte
+  /// binario para poder abrirlo en el teléfono, solo mandarlo. De los ciento
+  /// dieciocho documentos que había cuando esto se escribió, noventa eran `.md` y
+  /// veintiocho `.html` — ni una imagen, ni un PDF—, así que esto cubre todo lo que
+  /// existe de verdad y el aviso de «solo en la Mac» queda para lo que aún no hay.
+  static const textual = {'.md', '.txt', '.csv', '.html', '.htm'};
 
   /// Qué cuenta como documento producido: lo que alguien puede abrir en algún sitio.
-  static const listable = {...viewable, ...textual};
+  ///
+  /// `final` y no `const`: los dos conjuntos se solapan —un `.html` lo pinta el visor
+  /// del Mac **y** viaja como texto— y un `const` con elementos repetidos no compila.
+  /// Que se solapen no es un defecto: son dos preguntas distintas sobre el mismo
+  /// archivo.
+  static final Set<String> listable = {...viewable, ...textual};
 
   static bool isViewable(String path) => _extensionEn(path, viewable);
 

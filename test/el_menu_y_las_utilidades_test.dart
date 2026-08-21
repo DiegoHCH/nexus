@@ -421,12 +421,22 @@ void main() {
       );
     });
 
-    testWidgets('los botones separan por cuenta', (tester) async {
+    testWidgets('los cubos: general, private, work', (tester) async {
       final c = await conectado(
         tester,
         respuestas: const {
           'artifacts': {
+            // `private` va **primero** a proposito: si el primero fuera de `work`,
+            // esta prueba pasaria igual sin la preferencia —el respaldo es el cubo del
+            // primero— y no mediria nada.
             'artifacts': [
+              {
+                'id': '/a/p.html',
+                'name': 'de-private.html',
+                'bytes': 10,
+                'text': true,
+                'account': 'private',
+              },
               {
                 'id': '/a/w.html',
                 'name': 'de-work.html',
@@ -434,12 +444,13 @@ void main() {
                 'text': true,
                 'account': 'work',
               },
+              // Sin cuenta: lo que vive en la raiz de la carpeta y no es de ningun
+              // perfil. Antes caia en «todas» y no tenia sitio propio.
               {
-                'id': '/a/p.html',
-                'name': 'de-private.html',
+                'id': '/a/g.html',
+                'name': 'de-nadie.html',
                 'bytes': 10,
                 'text': true,
-                'account': 'private',
               },
             ],
           },
@@ -449,19 +460,53 @@ void main() {
       await tester.pump();
       await tester.pump();
 
-      // De partida, todo — y de cada uno se ve de quien es.
+      // Al abrir, `work`: es el mundo en el que se trabaja casi siempre, y no hay un
+      // boton de «todas» — mezclar cuentas es lo que obliga a leer la lista entera.
       expect(find.text('de-work.html'), findsOne);
-      expect(find.text('de-private.html'), findsOne);
+      expect(find.text('de-private.html'), findsNothing);
+      expect(find.text('de-nadie.html'), findsNothing);
 
-      await tester.tap(find.byKey(const ValueKey('cuenta-work')));
+      await tester.tap(find.byKey(const ValueKey('cuenta-private')));
+      await tester.pump();
+      expect(find.text('de-private.html'), findsOne);
+      expect(find.text('de-work.html'), findsNothing);
+
+      await tester.tap(find.byKey(const ValueKey('cuenta-general')));
+      await tester.pump();
+      expect(
+        find.text('de-nadie.html'),
+        findsOne,
+        reason: 'general es un cubo de verdad: lo que no es de ningun perfil',
+      );
+      expect(find.text('de-work.html'), findsNothing);
+    });
+
+    testWidgets('con un solo cubo no se dibujan botones', (tester) async {
+      // Un boton unico solo ocupa sitio, y dos con uno vacio ofrecen un sitio donde
+      // mirar en el que no hay nada.
+      final c = await conectado(
+        tester,
+        respuestas: const {
+          'artifacts': {
+            'artifacts': [
+              {
+                'id': '/a/w.html',
+                'name': 'la-unica.html',
+                'bytes': 10,
+                'text': true,
+                'account': 'work',
+              },
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(app(c, const ArtifactsPage()));
+      await tester.pump();
       await tester.pump();
 
-      expect(find.text('de-work.html'), findsOne);
-      expect(
-        find.text('de-private.html'),
-        findsNothing,
-        reason: 'los botones tienen que filtrar de verdad, no solo pintarse',
-      );
+      expect(find.text('la-unica.html'), findsOne);
+      expect(find.byKey(const ValueKey('cuenta-work')), findsNothing);
+      expect(find.text('GENERAL'), findsNothing);
     });
 
     testWidgets('la lista enseña el peso, y el contenido se pide aparte', (

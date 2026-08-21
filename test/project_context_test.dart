@@ -45,6 +45,62 @@ void main() {
       expect(texto, contains('no sus reglas completas'));
     });
 
+    group('donde dejar los documentos', () {
+      test(
+        'dentro de la carpeta de la cuenta cuando la conversacion tiene una',
+        () {
+          final texto = ProjectContextPrompt.compose(
+            rules: const [],
+            artifactsFolder: '/Users/alguien/documentos',
+            artifactsAccount: 'work',
+          )!;
+
+          expect(texto, contains('/Users/alguien/documentos/work'));
+        },
+      );
+
+      test('en la raiz cuando no hay cuenta', () {
+        // La cuenta por defecto —`.claude` a secas— no tiene subcarpeta, y meterla en
+        // una inventada llamada «default» separaria por algo que el usuario no eligio.
+        final texto = ProjectContextPrompt.compose(
+          rules: const [],
+          artifactsFolder: '/Users/alguien/documentos',
+        )!;
+
+        expect(texto, contains('/Users/alguien/documentos con un nombre'));
+      });
+
+      test('el puente pasa la cuenta de verdad', () {
+        // Esto no es un detalle de estilo: `compose` puede aceptar la cuenta y que
+        // nadie se la pase, y entonces todo compila, todas las pruebas de arriba pasan
+        // y los documentos siguen cayendo en la raiz. Casi paso.
+        final puente = File(
+          'lib/features/assistant/data/repositories/claude_bridge_impl.dart',
+        ).readAsStringSync();
+
+        expect(
+          puente,
+          contains(
+            'artifactsAccount: ClaudeProfile.nameFromPath(claudeProfile)',
+          ),
+          reason:
+              'el puente es donde el perfil de la carpeta y el destino de los '
+              'documentos se encuentran; si no lo pasa ahi, no lo pasa nadie',
+        );
+      });
+
+      test('sin carpeta elegida no se dice nada', () {
+        // Inventarle un destino seria escribir donde no nos ha invitado.
+        expect(
+          ProjectContextPrompt.compose(
+            rules: const [],
+            artifactsAccount: 'work',
+          ),
+          isNull,
+        );
+      });
+    });
+
     group('cuando no cabe', () {
       test('se sacrifica lo de arriba, y se avisa de qué se cayó', () {
         final grande = 'x' * (ProjectContextPrompt.maxRulesChars ~/ 2 + 100);

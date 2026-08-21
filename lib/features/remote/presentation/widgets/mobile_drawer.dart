@@ -106,19 +106,12 @@ class MobileDrawer extends ConsumerWidget {
                 alTocar: () =>
                     ref.read(pairingControllerProvider.notifier).olvidar(),
               ),
-              // Sin `Spacer` aquí: es un `Expanded`, y un `Expanded` dentro de algo
-              // que hace scroll es una contradicción. Es el mismo fallo que ya rompió
-              // Ajustes y la pantalla de emparejar — tercera vez, y por eso queda
-              // escrito.
-              const SizedBox(height: NexusSpacing.s6),
-              Padding(
-                padding: const EdgeInsets.all(NexusSpacing.s4),
-                child: Text(
-                  'Abrir una conversación es lo único de aquí que cambia algo, y solo '
-                  'sobre una carpeta que el Mac ya tenía.',
-                  style: NexusTypography.mono.copyWith(color: colors.faint),
-                ),
-              ),
+              // Sin `Spacer` aquí si algún día se añade algo debajo: es un
+              // `Expanded`, y un `Expanded` dentro de algo que hace scroll es una
+              // contradicción. Es el mismo fallo que ya rompió Ajustes y la pantalla de
+              // emparejar — tercera vez, y por eso queda escrito aunque ahora no haya
+              // nada al final.
+              const SizedBox(height: NexusSpacing.s4),
             ],
           ),
         ),

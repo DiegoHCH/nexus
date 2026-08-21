@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
@@ -101,24 +102,54 @@ class _ListaDeUtilidad extends StatelessWidget {
 }
 
 /// Una fila de las tres listas: título, un dato debajo, y un chip opcional.
-/// Las cuentas que hay **en lo que se está enseñando**, ordenadas.
+/// Los cubos que hay **en lo que se está enseñando**: «general» y uno por cuenta.
 ///
-/// De los propios datos y no de una lista fija: si el Mac tiene dos perfiles pero
-/// todo lo guardado es de uno, dibujar dos botones ofrece un sitio vacío donde mirar.
-List<String> _cuentasDe(Iterable<String?>? valores) =>
-    (valores ?? const <String?>[]).nonNulls.toSet().toList()..sort();
+/// `null` es general —lo que no es de ningún perfil— y va primero. No hay un botón de
+/// «todas»: mezclar cuentas en una sola lista es justo lo que obliga a leer treinta y
+/// seis nombres para dar con el de esta mañana, y quien trabaja con dos mundos los
+/// mira por separado.
+///
+/// Salen de los propios datos y no de una lista fija: un botón para un cubo vacío
+/// ofrece un sitio donde mirar en el que no hay nada.
+List<String?> _cubos(Iterable<String?>? valores) {
+  final todos = (valores ?? const <String?>[]).toList();
+  return [
+    if (todos.any((c) => c == null)) null,
+    ...todos.nonNulls.toSet().toList()..sort(),
+  ];
+}
 
-/// Lo de una cuenta, o todo si no hay ninguna elegida.
+/// Lo del cubo elegido, y nada más. `null` trae lo que no tiene cuenta.
 List<T> _soloDe<T>(
   List<T> todo,
   String? cuenta,
   String? Function(T) cuentaDe,
-) => cuenta == null
-    ? todo
-    : [
-        for (final e in todo)
-          if (cuentaDe(e) == cuenta) e,
-      ];
+) => [
+  for (final e in todo)
+    if (cuentaDe(e) == cuenta) e,
+];
+
+/// El cubo preferido al abrir, cuando existe.
+///
+/// Es una preferencia, no una regla del dominio: se abre en el mundo en el que se
+/// trabaja casi siempre, y de ahí un nombre concreto en el código. Cambiarlo es
+/// cambiar esta constante; el resto no sabe nada de ella.
+const _cuboPreferido = 'work';
+
+/// Qué cubo sale elegido al abrir.
+///
+/// [_cuboPreferido] si está entre los que hay; si no, el del primero de la lista, que
+/// al venir ordenada de lo más reciente a lo más antiguo es el mundo en el que se
+/// estaba trabajando. Empezar siempre en «general» abriría el archivo en el cubo casi
+/// vacío y obligaría a un toque antes de ver nada.
+String? _cuboDePartida<T>(
+  List<T>? datos,
+  String? Function(T) cuentaDe,
+  List<String?> cubos,
+) {
+  if (cubos.contains(_cuboPreferido)) return _cuboPreferido;
+  return (datos == null || datos.isEmpty) ? null : cuentaDe(datos.first);
+}
 
 /// Los botones de cuenta, arriba de la lista.
 ///
@@ -132,36 +163,32 @@ List<T> _soloDe<T>(
 /// **descubrir**, no lo que se sabe de antemano.
 class _CuentasArriba extends StatelessWidget {
   const _CuentasArriba({
-    required this.cuentas,
+    required this.cubos,
     required this.elegida,
     required this.alElegir,
   });
 
-  final List<String> cuentas;
+  /// `null` entre ellos es «general».
+  final List<String?> cubos;
 
-  /// `null` es «todas», y es lo de partida.
   final String? elegida;
   final ValueChanged<String?> alElegir;
 
   @override
   Widget build(BuildContext context) {
-    if (cuentas.length < 2) return const SizedBox.shrink();
+    // Con un solo cubo no hay elección que hacer, y un botón único solo ocupa sitio.
+    if (cubos.length < 2) return const SizedBox.shrink();
 
     return Wrap(
       spacing: NexusSpacing.s2,
       runSpacing: NexusSpacing.s2,
       children: [
-        _Boton(
-          rotulo: 'Todas',
-          activo: elegida == null,
-          alTocar: () => alElegir(null),
-        ),
-        for (final cuenta in cuentas)
+        for (final cubo in cubos)
           _Boton(
-            key: ValueKey('cuenta-$cuenta'),
-            rotulo: cuenta,
-            activo: elegida == cuenta,
-            alTocar: () => alElegir(cuenta),
+            key: ValueKey('cuenta-${cubo ?? 'general'}'),
+            rotulo: cubo ?? 'General',
+            activo: elegida == cubo,
+            alTocar: () => alElegir(cubo),
           ),
       ],
     );
@@ -291,18 +318,28 @@ class _ArchivePageState extends ConsumerState<ArchivePage> {
   /// filtro que se olvida, y entonces «no aparece» se lee como «no está».
   String? _cuenta;
 
+  /// Si ya se eligió a mano. Hace falta un flag aparte porque `null` **es un cubo de
+  /// verdad** —«general»— y por tanto no puede significar también «sin elegir».
+  bool _elegido = false;
+
   @override
   Widget build(BuildContext context) {
     final archivo = ref.watch(archiveProvider);
-    final cuentas = _cuentasDe(archivo.value?.map((c) => c.account));
+    final cubos = _cubos(archivo.value?.map((c) => c.account));
+    final cuenta = _elegido
+        ? _cuenta
+        : _cuboDePartida(archivo.value, (e) => e.account, cubos);
 
     return _ListaDeUtilidad(
       rotulo: 'El archivo',
       alRefrescar: () => ref.refresh(archiveProvider.future),
       arriba: _CuentasArriba(
-        cuentas: cuentas,
-        elegida: _cuenta,
-        alElegir: (cuenta) => setState(() => _cuenta = cuenta),
+        cubos: cubos,
+        elegida: cuenta,
+        alElegir: (cubo) => setState(() {
+          _cuenta = cubo;
+          _elegido = true;
+        }),
       ),
       pie:
           'Retomar una que ya está abierta lleva a la que hay: dos conversaciones '
@@ -313,11 +350,11 @@ class _ArchivePageState extends ConsumerState<ArchivePage> {
           texto: 'Todavía no hay nada guardado.',
         ),
         AsyncData(:final value)
-            when _soloDe(value, _cuenta, (c) => c.account).isEmpty =>
-          _Vacia(texto: 'Nada de «$_cuenta» en el archivo.'),
+            when _soloDe(value, cuenta, (c) => c.account).isEmpty =>
+          _Vacia(texto: 'Nada de «${cuenta ?? 'general'}» en el archivo.'),
         AsyncData(:final value) => Column(
           children: [
-            for (final c in _soloDe(value, _cuenta, (e) => e.account))
+            for (final c in _soloDe(value, cuenta, (e) => e.account))
               _Fila(
                 key: ValueKey('archivada-${c.id}'),
                 titulo: c.title,
@@ -370,18 +407,28 @@ class ArtifactsPage extends ConsumerStatefulWidget {
 class _ArtifactsPageState extends ConsumerState<ArtifactsPage> {
   String? _cuenta;
 
+  /// Si ya se eligió a mano. Hace falta un flag aparte porque `null` **es un cubo de
+  /// verdad** —«general»— y por tanto no puede significar también «sin elegir».
+  bool _elegido = false;
+
   @override
   Widget build(BuildContext context) {
     final lista = ref.watch(artifactsListProvider);
-    final cuentas = _cuentasDe(lista.value?.map((a) => a.account));
+    final cubos = _cubos(lista.value?.map((a) => a.account));
+    final cuenta = _elegido
+        ? _cuenta
+        : _cuboDePartida(lista.value, (e) => e.account, cubos);
 
     return _ListaDeUtilidad(
       rotulo: 'Los artifacts',
       alRefrescar: () => ref.refresh(artifactsListProvider.future),
       arriba: _CuentasArriba(
-        cuentas: cuentas,
-        elegida: _cuenta,
-        alElegir: (cuenta) => setState(() => _cuenta = cuenta),
+        cubos: cubos,
+        elegida: cuenta,
+        alElegir: (cubo) => setState(() {
+          _cuenta = cubo;
+          _elegido = true;
+        }),
       ),
       pie:
           'El peso va delante porque abrir uno grande con datos móviles es una '
@@ -391,11 +438,11 @@ class _ArtifactsPageState extends ConsumerState<ArtifactsPage> {
           texto: 'Claude no ha producido documentos todavía.',
         ),
         AsyncData(:final value)
-            when _soloDe(value, _cuenta, (a) => a.account).isEmpty =>
-          _Vacia(texto: 'Ningún documento de «$_cuenta».'),
+            when _soloDe(value, cuenta, (a) => a.account).isEmpty =>
+          _Vacia(texto: 'Ningún documento de «${cuenta ?? 'general'}».'),
         AsyncData(:final value) => Column(
           children: [
-            for (final a in _soloDe(value, _cuenta, (e) => e.account))
+            for (final a in _soloDe(value, cuenta, (e) => e.account))
               _Fila(
                 key: ValueKey('artifact-${a.id}'),
                 titulo: a.name,
@@ -429,6 +476,19 @@ class ArtifactPage extends ConsumerWidget {
   final String id;
   final String nombre;
 
+  /// Si hay que pintarlo en vez de leerlo en crudo.
+  ///
+  /// Por la extensión del nombre y no por mirar el contenido: un documento que empieza
+  /// con `<!doctype` casi seguro es HTML, pero uno que no empieza así también puede
+  /// serlo, y adivinar acabaría enseñando etiquetas a veces. La extensión es lo que el
+  /// Mac ya usa para decidir qué es un documento.
+  bool get _sePinta {
+    final punto = nombre.lastIndexOf('.');
+    if (punto == -1) return false;
+    const html = {'.html', '.htm'};
+    return html.contains(nombre.substring(punto).toLowerCase());
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
@@ -436,8 +496,14 @@ class ArtifactPage extends ConsumerWidget {
 
     return _ListaDeUtilidad(
       rotulo: nombre,
-      pie: 'Se pidió al abrirlo, no con la lista.',
+      pie: _sePinta
+          ? 'Se pinta dentro de la app: un mockup se mira, no se lee.'
+          : 'Se pidió al abrirlo, no con la lista.',
       cuerpo: switch (contenido) {
+        AsyncData(:final value) when _sePinta => _Pintado(
+          html: value,
+          key: const ValueKey('artifact-pintado'),
+        ),
         AsyncData(:final value) => SelectableText(
           value,
           key: const ValueKey('contenido-del-artifact'),
@@ -452,6 +518,60 @@ class ArtifactPage extends ConsumerWidget {
   }
 }
 
+/// Un documento HTML, pintado **dentro de la app**.
+///
+/// No se abre en el navegador del sistema, y es el punto: salir de la app para ver un
+/// mockup que la propia app acaba de traer por su canal rompe la vuelta —se pierde el
+/// sitio en la lista— y encima el navegador no tiene el documento: lo tiene esto.
+///
+/// El HTML llega por el canal como una cadena porque **un HTML es texto**: no hay
+/// fichero que servir ni URL que autorizar, así que el visor no abre ninguna puerta
+/// nueva. Sin navegación: lo que se pinta es lo que llegó, y un enlace que saliera a
+/// la red convertiría un visor de documentos en un navegador.
+class _Pintado extends StatefulWidget {
+  const _Pintado({super.key, required this.html});
+
+  final String html;
+
+  @override
+  State<_Pintado> createState() => _PintadoState();
+}
+
+class _PintadoState extends State<_Pintado> {
+  late final WebViewController _control;
+
+  @override
+  void initState() {
+    super.initState();
+    _control = WebViewController()
+      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // Transparente detrás: un mockup con fondo oscuro sobre el blanco de por
+      // defecto se ve con un marco blanco alrededor.
+      ..setBackgroundColor(Colors.transparent)
+      ..setNavigationDelegate(
+        NavigationDelegate(
+          // Solo se carga lo que se le dio. Un `about:blank` o el propio contenido
+          // pasan; cualquier navegación a la red se bloquea, que es lo que separa un
+          // visor de un navegador metido con calzador.
+          onNavigationRequest: (peticion) =>
+              peticion.url.startsWith('http') && peticion.isMainFrame
+              ? NavigationDecision.prevent
+              : NavigationDecision.navigate,
+        ),
+      )
+      ..loadHtmlString(widget.html);
+  }
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    // Alto fijo y no `Expanded`: esto vive dentro de un `SingleChildScrollView`, y un
+    // `Expanded` ahí es la contradicción que ya rompió tres pantallas. El alto es casi
+    // toda la ventana, que es lo que un mockup necesita para leerse.
+    height: MediaQuery.of(context).size.height * 0.72,
+    child: WebViewWidget(controller: _control),
+  );
+}
+
 /// Elegir carpeta para una conversación nueva.
 class FoldersPage extends ConsumerStatefulWidget {
   const FoldersPage({super.key});
@@ -463,18 +583,28 @@ class FoldersPage extends ConsumerStatefulWidget {
 class _FoldersPageState extends ConsumerState<FoldersPage> {
   String? _cuenta;
 
+  /// Si ya se eligió a mano. Hace falta un flag aparte porque `null` **es un cubo de
+  /// verdad** —«general»— y por tanto no puede significar también «sin elegir».
+  bool _elegido = false;
+
   @override
   Widget build(BuildContext context) {
     final carpetas = ref.watch(foldersProvider);
-    final cuentas = _cuentasDe(carpetas.value?.map((f) => f.account));
+    final cubos = _cubos(carpetas.value?.map((f) => f.account));
+    final cuenta = _elegido
+        ? _cuenta
+        : _cuboDePartida(carpetas.value, (e) => e.account, cubos);
 
     return _ListaDeUtilidad(
       rotulo: 'Conversación nueva',
       alRefrescar: () => ref.refresh(foldersProvider.future),
       arriba: _CuentasArriba(
-        cuentas: cuentas,
-        elegida: _cuenta,
-        alElegir: (cuenta) => setState(() => _cuenta = cuenta),
+        cubos: cubos,
+        elegida: cuenta,
+        alElegir: (cubo) => setState(() {
+          _cuenta = cubo;
+          _elegido = true;
+        }),
       ),
       pie:
           'Solo las que el Mac ya tiene emparejadas: la lista la pone él. Emparejar '
@@ -484,11 +614,11 @@ class _FoldersPageState extends ConsumerState<FoldersPage> {
           texto: 'El Mac no tiene ninguna carpeta emparejada.',
         ),
         AsyncData(:final value)
-            when _soloDe(value, _cuenta, (f) => f.account).isEmpty =>
-          _Vacia(texto: 'Ninguna carpeta de «$_cuenta».'),
+            when _soloDe(value, cuenta, (f) => f.account).isEmpty =>
+          _Vacia(texto: 'Ninguna carpeta de «${cuenta ?? 'general'}».'),
         AsyncData(:final value) => Column(
           children: [
-            for (final f in _soloDe(value, _cuenta, (e) => e.account))
+            for (final f in _soloDe(value, cuenta, (e) => e.account))
               _Fila(
                 key: ValueKey('carpeta-${f.path}'),
                 titulo: _cola(f.path),

@@ -190,6 +190,11 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   —leer un binario como cadena no da una imagen— y el teléfono se quedaba con un fallo
   genérico donde tenía que haber un «esto se abre en el Mac». Un documento que no es
   texto se enseña igual, apagado: esconderlo deja preguntándose si falta algo.
+  Un `.html` **es** texto, así que viaja por el canal como una cadena y el teléfono lo
+  pinta en un visor propio: no hizo falta inventar transporte binario ni servir
+  ficheros por HTTP, y por tanto el canal no gana ninguna puerta nueva. Ese visor no
+  navega: lo que se pinta es lo que llegó, y un enlace a la red lo convertiría en un
+  navegador.
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.
