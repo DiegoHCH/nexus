@@ -6,8 +6,9 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/remote/domain/remote_mirror.dart';
 import 'package:nexus/features/remote/presentation/pages/conversation_page.dart';
 import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
-import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
-import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
+import 'package:nexus/features/remote/presentation/pages/utility_pages.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_drawer.dart';
 
 /// Lo que hay abierto en el Mac.
 ///
@@ -15,35 +16,50 @@ import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 /// trabajan en paralelo**: entrar directo a una escondería que las otras dos están
 /// avanzando, que es justo lo que un teléfono viene a resolver — mirar cómo va lo que
 /// dejaste corriendo.
-class ConversationsPage extends ConsumerWidget {
+class ConversationsPage extends ConsumerStatefulWidget {
   const ConversationsPage({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<ConversationsPage> createState() => _ConversationsPageState();
+}
+
+class _ConversationsPageState extends ConsumerState<ConversationsPage> {
+  /// El cajón se abre desde aquí y no desde un `Builder` en la cabecera: con la llave
+  /// en el estado, quien abre el menú es la pantalla y la cabecera solo avisa.
+  final _llave = GlobalKey<ScaffoldState>();
+
+  void _ir(Widget pantalla) {
+    // Se cierra el menú **antes** de navegar: si se deja abierto, al volver aparece
+    // encima de la pantalla nueva y parece que no se hizo nada.
+    Navigator.of(context).pop();
+    Navigator.of(
+      context,
+    ).push(MaterialPageRoute<void>(builder: (_) => pantalla));
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final espejo = ref.watch(mirrorProvider);
 
     return Scaffold(
+      key: _llave,
       backgroundColor: colors.void_,
+      drawer: MobileDrawer(
+        alAbrirNueva: () => _ir(const FoldersPage()),
+        alAbrirArchivo: () => _ir(const ArchivePage()),
+        alAbrirArtifacts: () => _ir(const ArtifactsPage()),
+      ),
       body: SafeArea(
         child: Column(
           children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 14),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const LinkBadge(),
-                  TextButton(
-                    key: const ValueKey('olvidar'),
-                    onPressed: () =>
-                        ref.read(pairingControllerProvider.notifier).olvidar(),
-                    child: Text(
-                      'Olvidar',
-                      style: TextStyle(color: colors.mute),
-                    ),
-                  ),
-                ],
+              // La cabecera del sistema, con el hamburguesa. «Olvidar» se fue al
+              // menú: era la única acción destructiva y estaba en la esquina de la
+              // pantalla principal, a un toque de todo lo demás.
+              child: MobileChrome(
+                alMenu: () => _llave.currentState?.openDrawer(),
               ),
             ),
             Expanded(

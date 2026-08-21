@@ -173,6 +173,14 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   Mac no hay ninguna conversación abierta, el móvil no podía hacer nada — y eso
   convierte «mira cómo va lo que dejaste» en «solo sirve si te acordaste de dejarlo
   abierto». Retomar es lo mismo que hace `⌘H` en el escritorio.
+- Ese archivo es **la misma lista que enseña `⌘H`**, no la del almacén interno de la
+  app: buena parte de las conversaciones vive en el vault que el usuario configuró, y
+  leer solo el almacén hacía que el teléfono enseñara una donde el escritorio enseñaba
+  treinta y una. Cada una lleva **de qué cuenta es** —`work`, `private`—, porque el
+  escritorio las separa en pestañas y en el teléfono no hay sitio para pestañas.
+- La lista **se pagina** con `cursor` y `nextCursor`. El teléfono sigue el cursor hasta
+  que no venga: una sola página con un límite deja fuera conversaciones sin decirlo, y
+  una lista que se corta en silencio se lee como una lista completa.
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.

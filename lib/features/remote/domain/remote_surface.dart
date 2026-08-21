@@ -91,6 +91,7 @@ class ArchivedConversation {
     required this.when,
     this.turns = 0,
     this.open = false,
+    this.account,
   });
 
   final String id;
@@ -107,6 +108,14 @@ class ArchivedConversation {
   /// «retomar» algo que ya está vivo: lleva a la que hay.
   final bool open;
 
+  /// De qué cuenta de Claude es —`work`, `private`—, cuando hay más de una.
+  ///
+  /// Va porque sin ella la lista del teléfono es indistinguible: el archivo real
+  /// tiene veintinueve de una cuenta y nueve de otra, y el escritorio las separa en
+  /// pestañas. Nula cuando el registro no lo dice, que es lo que pasa con las
+  /// guardadas antes de que existieran las cuentas.
+  final String? account;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'folder': folder,
@@ -114,6 +123,7 @@ class ArchivedConversation {
     'when': when.toIso8601String(),
     'turns': turns,
     if (open) 'open': true,
+    'account': ?account,
   };
 }
 

@@ -129,10 +129,15 @@ class AssistantSurface implements RemoteSurface {
     int cursor = 0,
     int limit = 30,
   }) async {
-    final guardadas = await _ref.read(localConversationStoreProvider).listAll();
-    // Lo más reciente primero: en un archivo, lo de hace diez minutos es lo que se
-    // busca y lo de hace un mes es lo que se hojea.
-    guardadas.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    // **Las dos fuentes, no una.** La primera versión leía solo el almacén propio de
+    // la app y enseñaba **una** conversación mientras el escritorio enseñaba treinta y una:
+    // el resto vive en el vault que el usuario eligió —la carpeta de Obsidian, con sus
+    // pestañas de cuenta— y el historial del escritorio suma los dos.
+    //
+    // Se reusa el provider que ya hace esa suma en vez de repetirla aquí: repetirla
+    // daría dos ideas de qué es «el archivo», y la del teléfono se quedaría vieja el
+    // día que se añada un destino.
+    final guardadas = await _ref.read(allSavedConversationsProvider.future);
 
     final vivas = _ref.read(conversationsProvider);
     final trozo = guardadas.skip(cursor).take(limit).toList();
@@ -151,6 +156,7 @@ class AssistantSurface implements RemoteSurface {
             // Si ya está abierta, se dice: ofrecer «retomar» algo vivo lleva a abrir
             // una segunda sobre la misma carpeta, que el escritorio no permite.
             open: vivas.hasFolder(r.folderPath),
+            account: r.profileName,
           ),
       ],
       nextCursor: cursor + trozo.length >= guardadas.length
@@ -170,7 +176,10 @@ class AssistantSurface implements RemoteSurface {
 
   @override
   Future<String> resumeConversation(String archivedId) async {
-    final guardadas = await _ref.read(localConversationStoreProvider).listAll();
+    // La **misma** fuente que `archive()`, y no el almacén propio: si se listan
+    // veintiséis y se buscan entre una, retomar cualquiera del vault contestaba
+    // «conversación desconocida» — un archivo que enseña cosas que no se pueden abrir.
+    final guardadas = await _ref.read(allSavedConversationsProvider.future);
     final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
     if (registro == null) throw UnknownConversation(archivedId);
 

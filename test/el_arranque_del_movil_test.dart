@@ -69,6 +69,46 @@ void main() {
     }
   });
 
+  test('las pantallas del móvil no usan tipografía de escritorio', () {
+    // El fallo que esto evita, y pasó: las filas de las listas se escribieron con
+    // `NexusTypography.subtitle`, que son **34 px** — un titular de escritorio. En
+    // una fila de teléfono ocupa el doble de lo que debe, y cuatro elementos se
+    // comían la pantalla. Se vio usándolo: «me parece una exageración lo grande de
+    // los items».
+    //
+    // Los tokens no llevan el tamaño en el nombre, así que `subtitle` suena a algo
+    // pequeño y no lo es. Esto ata el nombre al sitio donde vale.
+    const soloEscritorio = ['subtitle', 'title', 'hero'];
+    final delMovil = Directory('lib/features/remote/presentation')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .toList();
+    expect(delMovil, isNotEmpty, reason: 'la carpeta existe');
+
+    final culpables = <String>[];
+    for (final f in delMovil) {
+      // La sección de Ajustes vive aquí pero es del escritorio: ahí sí valen.
+      if (f.path.contains('mobile_section')) continue;
+      final fuente = f.readAsStringSync();
+      for (final token in soloEscritorio) {
+        // Con el nombre **completo**: `contains('subtitle')` encaja también con
+        // `subtitleMobile`, que es el correcto — la primera versión de esta prueba
+        // señalaba cuatro archivos que estaban bien.
+        if (RegExp('NexusTypography\\.$token\\b').hasMatch(fuente)) {
+          culpables.add('${f.path.split('/').last} · $token');
+        }
+      }
+    }
+    expect(
+      culpables,
+      isEmpty,
+      reason:
+          'en un teléfono se usan label(10) · data(11) · mono(13) · body(15) · '
+          'lead(17) · subtitleMobile(20)',
+    );
+  });
+
   test('el main del escritorio no se toca desde aquí', () {
     // Los dos puntos de entrada son distintos a propósito —el del escritorio arranca
     // atajos, ventana y autoactualizado, y nada de eso existe en un teléfono— y esta
@@ -76,5 +116,48 @@ void main() {
     // alguien los une, lo que esta prueba vigila deja de estar donde mira.
     expect(File('lib/main.dart').existsSync(), isTrue);
     expect(fuente.contains('NexusMovil'), isTrue);
+  });
+
+  test('el archivo del móvil lee la misma fuente que ⌘H', () {
+    final hoja = File(
+      'lib/features/history/presentation/widgets/conversation_history_sheet.dart',
+    ).readAsStringSync();
+    final remoto = File(
+      'lib/features/remote/presentation/assistant_surface.dart',
+    ).readAsStringSync();
+
+    final delEscritorio = RegExp(
+      r'ref\.watch\((\w+SavedConversationsProvider)\)',
+    ).firstMatch(hoja)?.group(1);
+    expect(
+      delEscritorio,
+      isNotNull,
+      reason:
+          'la hoja de historial ya no lista con un *SavedConversationsProvider; '
+          'mira qué usa ahora y trae el móvil con ella',
+    );
+
+    // Los dos métodos, no uno: listar en un sitio y buscar en otro es lo que hacía
+    // que retomar una del vault contestara «conversación desconocida».
+    for (final metodo in ['archive', 'resumeConversation']) {
+      // Por indices y no con una regex: la firma de `archive` ocupa cuatro lineas con
+      // llaves de parametros nombrados dentro, y casarla a mano cuesta mas que cortar.
+      // El corte es en '\n  }\n' —el cierre del metodo— y no en '\n  }', que es
+      // tambien el cierre de los parametros nombrados y dejaba fuera todo el cuerpo.
+      final desde = remoto.indexOf('$metodo(');
+      expect(
+        desde,
+        isNot(-1),
+        reason: 'no encontre $metodo en la superficie remota',
+      );
+      final cuerpo = remoto.substring(desde, remoto.indexOf('\n  }\n', desde));
+      expect(
+        cuerpo,
+        contains('$delEscritorio.future'),
+        reason:
+            '$metodo no lee $delEscritorio: el telefono ensenara menos '
+            'conversaciones que la Mac, o no podra abrir las que ensena',
+      );
+    }
   });
 }

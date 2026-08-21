@@ -19,7 +19,11 @@ import 'package:nexus/features/remote/presentation/providers/pairing_providers.d
 /// como un chip: mayúsculas, mono, con borde. No es un adorno — es la única forma que
 /// tiene el teléfono de decir que lo que enseña es un reflejo y no autonomía.
 class MobileChrome extends ConsumerWidget {
-  const MobileChrome({super.key, this.alFinal, this.enVezDe});
+  const MobileChrome({super.key, this.alMenu, this.alFinal, this.enVezDe});
+
+  /// Abre el menú. `null` en las pantallas donde no hay menú que abrir —emparejar,
+  /// conectando— porque un hamburguesa que no lleva a ningún sitio es peor que ninguno.
+  final VoidCallback? alMenu;
 
   /// Lo que va a la derecha del chip, si hace falta algo más.
   final Widget? alFinal;
@@ -50,6 +54,31 @@ class MobileChrome extends ConsumerWidget {
 
     return Row(
       children: [
+        if (alMenu != null) ...[
+          // Tres líneas dibujadas y no `Icons.menu`: el icono de Material tiene su
+          // propio grosor y sus propios remates, y al lado de las hairlines de 1px de
+          // esta app se ve grueso. Estas son del mismo peso que todo lo demás.
+          InkWell(
+            key: const ValueKey('abrir-el-menu'),
+            onTap: alMenu,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(
+                vertical: NexusSpacing.s2,
+                horizontal: 2,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  for (var i = 0; i < 3; i++) ...[
+                    Container(width: 20, height: 1, color: colors.mute),
+                    if (i < 2) const SizedBox(height: 4),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: NexusSpacing.s3),
+        ],
         Text(
           'N E X U S',
           style: NexusTypography.brand.copyWith(color: colors.mute),
