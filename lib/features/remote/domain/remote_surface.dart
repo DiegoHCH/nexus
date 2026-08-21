@@ -42,6 +42,132 @@ abstract class RemoteSurface {
   });
 
   Future<void> stopErrand(String conversationId);
+
+  // ─────────── lo que salió de usar el teléfono de verdad ───────────
+  //
+  // Con el canal funcionando apareció el hueco: **si en el Mac no hay ninguna
+  // conversación abierta, el móvil no puede hacer nada**. Eso convierte «mira cómo va
+  // lo que dejaste corriendo» en «solo sirve si te acordaste de dejarlo abierto».
+
+  /// Las conversaciones pasadas, paginadas. Es lo que el escritorio enseña con `⌘H`.
+  Future<RemotePage<ArchivedConversation>> archive({
+    int cursor = 0,
+    int limit = 30,
+  });
+
+  /// Retoma una del archivo y devuelve el id de la conversación viva.
+  ///
+  /// Devuelve el id porque **retomar puede darte una que ya estaba abierta**: si la
+  /// conversación del archivo corresponde a una viva, lo correcto es llevarte a esa y
+  /// no abrir una segunda sobre la misma carpeta.
+  Future<String> resumeConversation(String archivedId);
+
+  /// Las carpetas que el Mac **ya tiene emparejadas**.
+  ///
+  /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La
+  /// distinción es la que permite que esto exista sin contradecir la decisión de que
+  /// emparejar una carpeta nueva se queda en el escritorio.
+  Future<List<RemoteFolder>> folders();
+
+  /// Abre una conversación sobre una carpeta ya emparejada.
+  Future<String> openConversation(String folderPath);
+
+  /// Los documentos que Claude produjo.
+  Future<List<RemoteArtifact>> artifacts();
+
+  /// El contenido de uno. Aparte de la lista **porque la lista se pide siempre y el
+  /// contenido casi nunca**: mandar los cuerpos con el listado sería mandar por 4G
+  /// documentos que no se van a abrir.
+  Future<String> artifact(String artifactId);
+}
+
+/// Una conversación del archivo.
+@immutable
+class ArchivedConversation {
+  const ArchivedConversation({
+    required this.id,
+    required this.folder,
+    required this.title,
+    required this.when,
+    this.turns = 0,
+    this.open = false,
+  });
+
+  final String id;
+  final String folder;
+
+  /// Con qué se reconoce. En el escritorio es lo primero que se pidió en esa
+  /// conversación, que resulta ser el mejor título que nadie ha escrito.
+  final String title;
+
+  final DateTime when;
+  final int turns;
+
+  /// Si esa conversación está **abierta ahora mismo**. Importa para no ofrecer
+  /// «retomar» algo que ya está vivo: lleva a la que hay.
+  final bool open;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'folder': folder,
+    'title': title,
+    'when': when.toIso8601String(),
+    'turns': turns,
+    if (open) 'open': true,
+  };
+}
+
+/// Una carpeta emparejada, tal como se ofrece para elegir.
+@immutable
+class RemoteFolder {
+  const RemoteFolder({
+    required this.path,
+    required this.canWrite,
+    this.busy = false,
+  });
+
+  final String path;
+
+  /// Lo que esa carpeta concede. Se manda para que el teléfono pueda avisar **antes**
+  /// de abrir: empezar una conversación en una carpeta de solo lectura y descubrirlo
+  /// al primer encargo es trabajo para tirar.
+  final bool canWrite;
+
+  /// Si ya tiene una conversación abierta. El escritorio no permite dos sobre la
+  /// misma carpeta —compartirían la sesión de Claude y se pisarían el contexto— así
+  /// que el teléfono tiene que poder decirlo en vez de fallar al intentarlo.
+  final bool busy;
+
+  Map<String, Object?> toJson() => {
+    'path': path,
+    'canWrite': canWrite,
+    if (busy) 'busy': true,
+  };
+}
+
+/// Un documento que produjo Claude.
+@immutable
+class RemoteArtifact {
+  const RemoteArtifact({
+    required this.id,
+    required this.name,
+    required this.when,
+    this.bytes = 0,
+  });
+
+  final String id;
+  final String name;
+  final DateTime when;
+
+  /// El tamaño, para poder decidir si se abre con datos móviles.
+  final int bytes;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'when': when.toIso8601String(),
+    'bytes': bytes,
+  };
 }
 
 /// Se pidió algo de una conversación que no existe.

@@ -336,13 +336,24 @@ class ChannelLink {
   /// respuesta, así que una consulta perdida se vuelve a pedir con id nuevo. Meterlas
   /// en el mismo saco es la forma de que consultar deje de funcionar tras un corte.
   static bool reintentable(RemoteMethod metodo) => switch (metodo) {
+    // Lo que **cambia algo en el Mac**: el mismo id lo protege de correr dos veces.
+    // Abrir y retomar una conversación entran aquí porque crean estado — reenviarlas
+    // con id nuevo abriría dos conversaciones sobre la misma carpeta.
     RemoteMethod.sendErrand ||
     RemoteMethod.stopErrand ||
-    RemoteMethod.unlockWrites => true,
+    RemoteMethod.unlockWrites ||
+    RemoteMethod.openConversation ||
+    RemoteMethod.resumeConversation => true,
+    // Lo que solo **lee**: una consulta perdida se vuelve a pedir con id nuevo,
+    // porque el deduplicador protege efectos y no respuestas.
     RemoteMethod.conversations ||
     RemoteMethod.history ||
     RemoteMethod.meter ||
-    RemoteMethod.permission => false,
+    RemoteMethod.permission ||
+    RemoteMethod.archive ||
+    RemoteMethod.folders ||
+    RemoteMethod.artifacts ||
+    RemoteMethod.artifact => false,
   };
 
   // ──────────────────────────── por dentro ────────────────────────────
