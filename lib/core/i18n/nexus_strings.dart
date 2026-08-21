@@ -775,7 +775,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get usageWeekly => 'Semanal';
   @override
-  String get usageUnavailable => 'Sin dato: esa cuenta no tiene sesión abierta.';
+  String get usageUnavailable =>
+      'Sin dato: esa cuenta no tiene sesión abierta.';
   @override
   String get usageStale =>
       'Sin dato por ahora: la sesión sigue abierta, pero su acceso caducó. '
@@ -931,9 +932,9 @@ class NexusStringsEs extends NexusStrings {
       'El canal no pudo abrirse. El motivo queda en el registro del sistema.';
   @override
   String get channelNoPhoneYet =>
-      'La app del teléfono todavía no existe. El canal ya acepta conexiones y '
-      'contesta al saludo, pero aún no atiende peticiones: esto es la mitad de '
-      'abajo terminada, no la de arriba.';
+      'La app del teléfono ya existe: se instala desde el repositorio, se empareja '
+      'pegando aquí la dirección y el token, y necesita Tailscale en el teléfono '
+      'igual que aquí. Lo que no hay todavía es una versión publicada del móvil.';
   @override
   String get phraseTitle => 'Frase de escritura';
   @override
@@ -1712,13 +1713,15 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get usageWeekly => 'Weekly';
   @override
-  String get usageUnavailable => 'No reading: that account has no session open.';
+  String get usageUnavailable =>
+      'No reading: that account has no session open.';
   @override
   String get usageStale =>
       'No reading for now: the session is still open, but its access expired. '
       'It comes back as soon as you use this account.';
   @override
-  String get usageUnreachable => 'No reading: the quota could not be asked for.';
+  String get usageUnreachable =>
+      'No reading: the quota could not be asked for.';
   @override
   String get noReadingYet => 'No reading';
   @override
@@ -1867,9 +1870,9 @@ class NexusStringsEn extends NexusStrings {
       'The channel could not open. The reason is in the system log.';
   @override
   String get channelNoPhoneYet =>
-      'The phone app does not exist yet. The channel already accepts connections '
-      'and answers the handshake, but does not serve requests: this is the bottom '
-      'half finished, not the top one.';
+      'The phone app exists now: it installs from the repository, pairs by pasting '
+      'the address and token from here, and needs Tailscale on the phone just as it '
+      'does here. What there is no yet is a published mobile release.';
   @override
   String get phraseTitle => 'Write phrase';
   @override

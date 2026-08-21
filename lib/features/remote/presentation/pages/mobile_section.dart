@@ -9,11 +9,14 @@ import 'package:nexus/features/remote/presentation/providers/write_phrase_provid
 
 /// El canal del teléfono: encenderlo, ver dónde escucha, y rotar el token.
 ///
-/// Esta sección estaba **listada y apagada** desde el principio, como recordatorio
-/// de una fase que no existía. Ya existe la mitad: el canal se enciende y acepta
-/// conexiones. Lo que no existe es la app del teléfono, y eso se dice aquí en vez
-/// de dejarlo adivinar — una sección que promete un móvil que no hay es peor que
-/// una apagada.
+/// Esta sección estaba **listada y apagada** desde el principio, como recordatorio de
+/// una fase que no existía. Ya existe entera: el canal se enciende, acepta conexiones,
+/// atiende peticiones y cuenta lo que pasa, y hay una app de teléfono que habla con él.
+///
+/// Lo que se dice aquí ahora es **lo que hace falta para usarla** —emparejar pegando
+/// estos dos valores, y Tailscale en los dos aparatos— porque eso es lo que la primera
+/// prueba real demostró que faltaba decir: sin Tailscale en el teléfono el paquete no
+/// sale del wifi, y la pantalla del móvil solo podía decir «reconectando».
 class MobileSection extends ConsumerWidget {
   const MobileSection({super.key});
 
@@ -24,60 +27,69 @@ class MobileSection extends ConsumerWidget {
     final estado = ref.watch(channelControllerProvider);
     final control = ref.read(channelControllerProvider.notifier);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          strings.channelTitle,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s2),
-        Text(
-          strings.channelExplainer,
-          style: NexusTypography.mono.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s5),
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                strings.channelSwitch,
-                style: NexusTypography.data.copyWith(color: colors.ink),
-              ),
-            ),
-            Switch(
-              key: const ValueKey('interruptor-del-canal'),
-              value: estado is ChannelOn || estado is ChannelStarting,
-              onChanged: (encender) =>
-                  encender ? control.encender() : control.apagar(),
-            ),
-          ],
-        ),
-        const SizedBox(height: NexusSpacing.s5),
-        switch (estado) {
-          ChannelOff() => const SizedBox.shrink(),
-          ChannelStarting() => _Nota(strings.channelStarting),
-          final ChannelOn on => _Encendido(url: on.url),
-          final ChannelUnavailable no => _Problema(no.reason),
-        },
-        const SizedBox(height: NexusSpacing.s7),
-        const _Frase(),
-        const SizedBox(height: NexusSpacing.s7),
-        // Dicho sin rodeos y no en letra pequeña al final: quien enciende esto hoy
-        // no tiene con qué conectarse.
-        Container(
-          decoration: BoxDecoration(
-            color: colors.deep,
-            border: Border.all(color: colors.rule),
-            borderRadius: BorderRadius.circular(NexusRadius.sm),
+    // **El scroll, aquí y solo aquí.** El primer intento fue envolver el hueco donde
+    // Ajustes pinta cualquier seccion, y eso rompio las que llenan el alto a
+    // proposito —historial, permisos, voz, superpoderes usan `Expanded` en su raiz—:
+    // un `Expanded` dentro de algo que hace scroll es una contradiccion, y Flutter la
+    // rechaza. El arreglo estrecho es el correcto: esta seccion creció hasta no caber,
+    // y es la unica que se corta.
+    return SingleChildScrollView(
+      padding: const EdgeInsets.only(bottom: NexusSpacing.s6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            strings.channelTitle,
+            style: NexusTypography.label.copyWith(color: colors.faint),
           ),
-          padding: const EdgeInsets.all(NexusSpacing.s5),
-          child: Text(
-            strings.channelNoPhoneYet,
+          const SizedBox(height: NexusSpacing.s2),
+          Text(
+            strings.channelExplainer,
             style: NexusTypography.mono.copyWith(color: colors.faint),
           ),
-        ),
-      ],
+          const SizedBox(height: NexusSpacing.s5),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  strings.channelSwitch,
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
+              ),
+              Switch(
+                key: const ValueKey('interruptor-del-canal'),
+                value: estado is ChannelOn || estado is ChannelStarting,
+                onChanged: (encender) =>
+                    encender ? control.encender() : control.apagar(),
+              ),
+            ],
+          ),
+          const SizedBox(height: NexusSpacing.s5),
+          switch (estado) {
+            ChannelOff() => const SizedBox.shrink(),
+            ChannelStarting() => _Nota(strings.channelStarting),
+            final ChannelOn on => _Encendido(url: on.url),
+            final ChannelUnavailable no => _Problema(no.reason),
+          },
+          const SizedBox(height: NexusSpacing.s7),
+          const _Frase(),
+          const SizedBox(height: NexusSpacing.s7),
+          // Dicho sin rodeos y no en letra pequeña al final: quien enciende esto hoy
+          // no tiene con qué conectarse.
+          Container(
+            decoration: BoxDecoration(
+              color: colors.deep,
+              border: Border.all(color: colors.rule),
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+            ),
+            padding: const EdgeInsets.all(NexusSpacing.s5),
+            child: Text(
+              strings.channelNoPhoneYet,
+              style: NexusTypography.mono.copyWith(color: colors.faint),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -133,7 +145,9 @@ class _Encendido extends ConsumerWidget {
               ),
             TextButton(
               key: const ValueKey('rotar-el-token'),
-              onPressed: ref.read(channelControllerProvider.notifier).rotarToken,
+              onPressed: ref
+                  .read(channelControllerProvider.notifier)
+                  .rotarToken,
               child: Text(strings.channelRotateToken),
             ),
           ],
@@ -241,13 +255,17 @@ class _Frase extends ConsumerWidget {
             if (definida)
               TextButton(
                 key: const ValueKey('quitar-la-frase'),
-                onPressed: ref.read(writePhraseControllerProvider.notifier).borrar,
+                onPressed: ref
+                    .read(writePhraseControllerProvider.notifier)
+                    .borrar,
                 child: Text(strings.phraseRemove),
               ),
             TextButton(
               key: const ValueKey('definir-la-frase'),
               onPressed: () => _PhraseDialog.open(context),
-              child: Text(definida ? strings.phraseChange : strings.phraseDefine),
+              child: Text(
+                definida ? strings.phraseChange : strings.phraseDefine,
+              ),
             ),
           ],
         ),
@@ -267,10 +285,8 @@ class _Frase extends ConsumerWidget {
 class _PhraseDialog extends ConsumerStatefulWidget {
   const _PhraseDialog();
 
-  static Future<void> open(BuildContext context) => showDialog<void>(
-    context: context,
-    builder: (_) => const _PhraseDialog(),
-  );
+  static Future<void> open(BuildContext context) =>
+      showDialog<void>(context: context, builder: (_) => const _PhraseDialog());
 
   @override
   ConsumerState<_PhraseDialog> createState() => _PhraseDialogState();
@@ -279,6 +295,10 @@ class _PhraseDialog extends ConsumerStatefulWidget {
 class _PhraseDialogState extends ConsumerState<_PhraseDialog> {
   final _campo = TextEditingController();
   bool _corta = false;
+
+  /// Si se está viendo la frase. **Nace tapada**: se destapa a propósito, no por
+  /// defecto — que es lo que hace que el ojo sea una ayuda y no una fuga.
+  bool _visible = false;
 
   @override
   void dispose() {
@@ -328,9 +348,27 @@ class _PhraseDialogState extends ConsumerState<_PhraseDialog> {
                 key: const ValueKey('campo-de-la-frase'),
                 controller: _campo,
                 autofocus: true,
-                obscureText: true,
+                obscureText: !_visible,
                 onSubmitted: (_) => _guardar(),
                 style: NexusTypography.mono.copyWith(color: colors.ink),
+                decoration: InputDecoration(
+                  // **El ojo hace falta justo aquí y no en el teléfono.** Esta es la
+                  // pantalla donde la frase se *define*: teclearla a ciegas y
+                  // equivocarse deja una frase que después no se puede averiguar —el
+                  // Mac la guarda y no la vuelve a enseñar—, así que la única salida
+                  // sería redefinirla sin saber que eso era lo que pasaba. En el móvil
+                  // se teclea una ya conocida, y allí sí conviene taparla: se teclea a
+                  // veces delante de gente.
+                  suffixIcon: IconButton(
+                    key: const ValueKey('ver-la-frase'),
+                    onPressed: () => setState(() => _visible = !_visible),
+                    icon: Icon(
+                      _visible ? Icons.visibility_off : Icons.visibility,
+                      size: 17,
+                    ),
+                    color: colors.mute,
+                  ),
+                ),
               ),
               if (_corta) ...[
                 const SizedBox(height: NexusSpacing.s3),
