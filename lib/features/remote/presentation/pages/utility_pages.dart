@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -494,16 +496,66 @@ class ArtifactPage extends ConsumerWidget {
     final colors = context.colors;
     final contenido = ref.watch(artifactProvider(id));
 
+    // **Pantalla propia para lo que se pinta, y no un hueco dentro de la lista.**
+    //
+    // Metido en el molde no servía de nada, por dos motivos a la vez: el molde envuelve
+    // todo en un `SingleChildScrollView`, y el scroll de fuera se queda los gestos —así
+    // que el documento no se podía mover—; y su padding lateral le robaba el ancho, con
+    // lo que un mockup de 390 px no cabía en un teléfono de 360.
+    //
+    // Aquí no hay nada alrededor: el visor ocupa el cuerpo entero y el que hace scroll
+    // es él, que es quien sabe cuánto mide su contenido.
+    if (_sePinta) {
+      return Scaffold(
+        backgroundColor: colors.void_,
+        appBar: AppBar(
+          backgroundColor: colors.void_,
+          surfaceTintColor: Colors.transparent,
+          elevation: 0,
+          title: const MobileChrome(),
+          titleSpacing: NexusSpacing.s3,
+        ),
+        body: SafeArea(
+          top: false,
+          child: Column(
+            children: [
+              // El nombre sigue arriba: en una pila de mockups parecidos es lo único
+              // que dice cuál se está mirando.
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  NexusSpacing.s5,
+                  0,
+                  NexusSpacing.s5,
+                  NexusSpacing.s3,
+                ),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Text(
+                    nombre.toUpperCase(),
+                    style: NexusTypography.label.copyWith(color: colors.mute),
+                  ),
+                ),
+              ),
+              Expanded(
+                child: switch (contenido) {
+                  AsyncData(:final value) => _Pintado(
+                    html: value,
+                    key: const ValueKey('artifact-pintado'),
+                  ),
+                  AsyncError() => const _Vacia(texto: 'No pude leerlo.'),
+                  _ => const _Cargando(),
+                },
+              ),
+            ],
+          ),
+        ),
+      );
+    }
+
     return _ListaDeUtilidad(
       rotulo: nombre,
-      pie: _sePinta
-          ? 'Se pinta dentro de la app: un mockup se mira, no se lee.'
-          : 'Se pidió al abrirlo, no con la lista.',
+      pie: 'Se pidió al abrirlo, no con la lista.',
       cuerpo: switch (contenido) {
-        AsyncData(:final value) when _sePinta => _Pintado(
-          html: value,
-          key: const ValueKey('artifact-pintado'),
-        ),
         AsyncData(:final value) => SelectableText(
           value,
           key: const ValueKey('contenido-del-artifact'),
@@ -559,16 +611,21 @@ class _PintadoState extends State<_Pintado> {
               : NavigationDecision.navigate,
         ),
       )
+      // Zoom permitido: los mockups vienen con su `viewport`, pero algunos están
+      // pensados para una ventana ancha, y en un teléfono acercar es la diferencia
+      // entre mirarlo y adivinarlo.
+      ..enableZoom(true)
       ..loadHtmlString(widget.html);
   }
 
   @override
-  Widget build(BuildContext context) => SizedBox(
-    // Alto fijo y no `Expanded`: esto vive dentro de un `SingleChildScrollView`, y un
-    // `Expanded` ahí es la contradicción que ya rompió tres pantallas. El alto es casi
-    // toda la ventana, que es lo que un mockup necesita para leerse.
-    height: MediaQuery.of(context).size.height * 0.72,
-    child: WebViewWidget(controller: _control),
+  Widget build(BuildContext context) => WebViewWidget(
+    controller: _control,
+    // Los gestos verticales son suyos. Sin esto —y con un scroll por encima— el
+    // documento se queda quieto y parece que el visor no funciona.
+    gestureRecognizers: {
+      Factory<VerticalDragGestureRecognizer>(VerticalDragGestureRecognizer.new),
+    },
   );
 }
 

@@ -9,6 +9,8 @@ import 'package:nexus/core/platform/system_files.dart';
 import 'package:nexus/core/platform/system_thumbnails.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'dart:io';
 
 /// Los documentos que han salido de las conversaciones, en una lista.
 ///
@@ -28,14 +30,14 @@ class ArtifactsSheet extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final folder = ref.watch(artifactsFolderProvider);
-    // Solo lo que **este** visor abre. La lista de abajo ya trae también los de
-    // texto —un `.md` es un documento— pero abrirlo aquí lo mandaría a un
-    // `WKWebView` a enseñar markdown en crudo. Que el teléfono los enseñe y el Mac
-    // no es una diferencia de visores, no un descuido: cambiarlo es rehacer este
-    // visor, y eso no es parte de esto.
-    final artifacts = (ref.watch(artifactsProvider).value ?? const <Artifact>[])
-        .where((a) => Artifact.isViewable(a.path))
-        .toList();
+    // **Todo lo que es un documento**, no solo lo que el `WKWebView` pinta.
+    //
+    // Estuvo filtrado a lo que abría ese visor, y el resultado era que los noventa
+    // `.md` de la carpeta no existían para esta pantalla: la lista decía «no hay nada»
+    // teniendo ciento dieciocho. El visor sigue siendo el mismo; lo que cambia es que
+    // un markdown se abre **aquí dentro**, con el mismo pintor que usa el chat, en vez
+    // de mandarse a un navegador que lo enseñaría en crudo.
+    final artifacts = ref.watch(artifactsProvider).value ?? const <Artifact>[];
 
     return Dialog(
       backgroundColor: colors.rise,
@@ -131,7 +133,12 @@ class _Row extends ConsumerWidget {
       // La fila entera abre: es lo que se quiere hacer el noventa por ciento de
       // las veces, y obligar a apuntar a un icono de dieciséis píxeles para
       // hacerlo sería cobrar puntería por lo normal.
-      onTap: () => ref.read(artifactsDataSourceProvider).open(artifact.path),
+      // Cada uno donde se lee mejor: lo que el visor del sistema pinta va a su
+      // ventana —ahí se puede hacer zoom, imprimir, arrastrar—; un markdown se pinta
+      // aquí, porque mandarlo a un `WKWebView` enseñaría las almohadillas.
+      onTap: () => Artifact.isViewable(artifact.path)
+          ? ref.read(artifactsDataSourceProvider).open(artifact.path)
+          : _MarkdownSheet.open(context, artifact),
       child: Container(
         padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
         decoration: BoxDecoration(
@@ -236,6 +243,83 @@ class _PreviewState extends State<_Preview> {
                 fit: BoxFit.cover,
                 filterQuality: FilterQuality.medium,
               ),
+      ),
+    );
+  }
+}
+
+/// Un documento de texto, pintado dentro de la app.
+///
+/// Con el mismo pintor que el chat y no con el visor del sistema: `WKWebView` no
+/// interpreta markdown, así que enseñaría las almohadillas y los guiones. Y con el
+/// texto seleccionable, que es la mitad de para qué se abre un informe.
+class _MarkdownSheet extends StatelessWidget {
+  const _MarkdownSheet({required this.artifact});
+
+  final Artifact artifact;
+
+  static Future<void> open(BuildContext context, Artifact artifact) =>
+      showDialog<void>(
+        context: context,
+        builder: (_) => _MarkdownSheet(artifact: artifact),
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Dialog(
+      backgroundColor: colors.rise,
+      shape: RoundedRectangleBorder(
+        side: BorderSide(color: colors.rule2),
+        borderRadius: BorderRadius.circular(NexusRadius.md),
+      ),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760, maxHeight: 620),
+        child: Padding(
+          padding: const EdgeInsets.all(NexusSpacing.s6),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                artifact.name,
+                style: NexusTypography.label.copyWith(color: colors.accent),
+              ),
+              const SizedBox(height: NexusSpacing.s4),
+              Expanded(
+                child: FutureBuilder<String>(
+                  future: File(artifact.path).readAsString(),
+                  builder: (context, estado) {
+                    if (estado.hasError) {
+                      return Text(
+                        'No se pudo leer.',
+                        style: NexusTypography.data.copyWith(
+                          color: colors.mute,
+                        ),
+                      );
+                    }
+                    if (!estado.hasData) return const SizedBox.shrink();
+                    return Markdown(
+                      data: estado.data!,
+                      selectable: true,
+                      padding: EdgeInsets.zero,
+                      styleSheet: MarkdownStyleSheet(
+                        p: NexusTypography.body.copyWith(color: colors.ink),
+                        code: NexusTypography.mono.copyWith(
+                          color: colors.accent,
+                        ),
+                        h1: NexusTypography.title.copyWith(color: colors.ink),
+                        h2: NexusTypography.lead.copyWith(color: colors.ink),
+                        h3: NexusTypography.body.copyWith(color: colors.mute),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
