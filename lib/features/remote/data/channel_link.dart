@@ -256,6 +256,15 @@ class ChannelLink {
   /// El código con el que el Mac rechazó, si lo hubo. Para poder decirlo.
   int? ultimoRechazo;
 
+  final _acento = StreamController<int>.broadcast();
+
+  /// El acento que eligió el Mac, cada vez que se saluda.
+  ///
+  /// Un `Stream` y no un valor porque **llega en cada conexión**: cambiar el acento en
+  /// el escritorio tiene que alcanzar al teléfono en su siguiente saludo, sin que
+  /// nadie lo pida.
+  Stream<int> get acento => _acento.stream;
+
   ChannelSocket? _socket;
   StreamSubscription<String>? _escucha;
 
@@ -290,6 +299,7 @@ class ChannelLink {
     await _estado.close();
     await _eventos.close();
     await _fotos.close();
+    await _acento.close();
   }
 
   /// Pide algo y espera la respuesta.
@@ -438,7 +448,8 @@ class ChannelLink {
     }
 
     switch (marco) {
-      case Welcome(:final seq):
+      case Welcome(:final seq, :final accent):
+        if (accent != null && !_acento.isClosed) _acento.add(accent);
         // **El `seq` de la bienvenida dice si vamos al día sin pedir nada.** Si
         // coincide con lo último visto, no hay resync que hacer; si no, se pide.
         _pasarA(LinkState.conectado);

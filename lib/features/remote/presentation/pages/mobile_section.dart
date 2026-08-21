@@ -6,6 +6,10 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
+import 'package:nexus/features/remote/domain/channel_token.dart';
+import 'package:nexus/features/remote/domain/pairing.dart';
+import 'package:nexus/features/remote/domain/pairing_code.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 
 /// El canal del teléfono: encenderlo, ver dónde escucha, y rotar el token.
 ///
@@ -156,6 +160,63 @@ class _Encendido extends ConsumerWidget {
         Text(
           strings.channelRotateWarning,
           style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        if (token.value case final actual?) ...[
+          const SizedBox(height: NexusSpacing.s6),
+          _CodigoParaElMovil(url: url, token: actual),
+        ],
+      ],
+    );
+  }
+}
+
+/// El QR que el teléfono escanea.
+///
+/// **No es un mecanismo de emparejamiento: es no teclear 43 caracteres.** Lleva
+/// exactamente los dos valores que están justo encima —la dirección y el token— así
+/// que escribirlos a mano sigue siendo la ruta de verdad y esta es la cómoda.
+///
+/// **Se enseña siempre, sin botón.** La primera versión lo escondía detrás de un «ver
+/// el código» razonando que un QR con el token dentro acaba en cualquier foto de esta
+/// pantalla — y el razonamiento no aguanta: la dirección se enseña entera y el token
+/// se copia con un clic justo encima, así que el secreto ya estaba a un gesto. Lo
+/// único que añadía el botón era un paso en la pantalla que se abre **para** emparejar.
+class _CodigoParaElMovil extends StatelessWidget {
+  const _CodigoParaElMovil({required this.url, required this.token});
+
+  final String url;
+  final ChannelToken token;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final pareja = Pairing(url: Uri.parse(url), token: token);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.channelQrExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        // Sobre blanco y con margen: un QR sobre el fondo oscuro de la app lo lee
+        // **peor** casi cualquier cámara, porque los lectores esperan módulos oscuros
+        // sobre claro. Es el único sitio de la app donde algo se pinta en blanco, y
+        // tiene ese motivo.
+        Container(
+          key: const ValueKey('el-qr'),
+          padding: const EdgeInsets.all(NexusSpacing.s3),
+          color: Colors.white,
+          child: QrImageView(
+            data: PairingCode.componer(pareja),
+            size: 190,
+            backgroundColor: Colors.white,
+            // Corrección media: un QR en pantalla no se arruga ni se mancha, así que
+            // la redundancia alta solo lo haría más denso y más difícil de enfocar.
+            errorCorrectionLevel: QrErrorCorrectLevel.M,
+          ),
         ),
       ],
     );

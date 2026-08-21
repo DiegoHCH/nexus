@@ -1,6 +1,9 @@
 import 'dart:async';
 
+import 'package:flutter/material.dart';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/storage/secure_storage_data_source.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/data/pairing_store_impl.dart';
@@ -89,6 +92,29 @@ final linkStateProvider = StreamProvider<LinkState>((ref) {
       yield* fuente;
     }),
   );
+});
+
+/// Aplica en el teléfono el acento que eligió el Mac.
+///
+/// El color es una preferencia del usuario y la app es **una**: que el móvil salga en
+/// cian de fábrica mientras el escritorio lleva semanas en otro tono lo delata como
+/// una app distinta.
+///
+/// Se guarda como cualquier otra elección, así que sobrevive a cerrar la app y se
+/// aplica antes del primer saludo de la siguiente sesión — pero **el Mac sigue siendo
+/// la fuente**: cada conexión lo vuelve a mandar, y si se cambia allí, el teléfono lo
+/// recoge sin que nadie lo pida.
+final accentFromMacProvider = Provider<void>((ref) {
+  final enlace = ref.watch(channelLinkProvider);
+  final suscripcion = enlace.acento.listen((argb) {
+    final actual = ref.read(accentControllerProvider).chosen.toARGB32();
+    // Solo si cambió: `select` escribe en preferencias, y hacerlo en cada
+    // reconexión —un móvil entra y sale de cobertura todo el rato— sería escribir en
+    // disco para dejarlo igual.
+    if (argb == actual) return;
+    unawaited(ref.read(accentControllerProvider.notifier).select(Color(argb)));
+  });
+  ref.onDispose(suscripcion.cancel);
 });
 
 /// Conecta cuando hay con quién, y no antes.

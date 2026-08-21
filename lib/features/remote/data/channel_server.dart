@@ -24,6 +24,7 @@ class ChannelServer {
     required this.log,
     this.despacho,
     this.snapshot,
+    this.acento,
     this.registro,
     this.diario,
     ProtocolRange? protocolo,
@@ -41,6 +42,13 @@ class ChannelServer {
   /// Los eventos que ya se emitieron, para poder decir en la bienvenida por dónde
   /// va la numeración.
   final EventLog log;
+
+  /// El acento elegido en este Mac, en ARGB.
+  ///
+  /// Una función y no un valor: se lee **al saludar**, así que un teléfono que
+  /// reconecta después de cambiarlo recoge el nuevo. Con un valor fijo se congelaría
+  /// al encender el canal, que es el mismo error que meterlo en el QR.
+  final int Function()? acento;
 
   /// El estado entero, para quien pide desde un `seq` que ya se tiró.
   ///
@@ -340,7 +348,16 @@ class ChannelServer {
     switch (resultado) {
       case Negotiation.ok:
         cliente.peer = saludo.peer;
-        cliente.enviar(Welcome(protocol: protocolo, seq: log.lastSeq));
+        cliente.enviar(
+          Welcome(
+            protocol: protocolo,
+            seq: log.lastSeq,
+            // El teléfono se pinta con el color del Mac: la app es una, y que el
+            // móvil salga en cian de fábrica cuando el escritorio lleva meses en otro
+            // tono lo delata como una app distinta.
+            accent: acento?.call(),
+          ),
+        );
         _anotar(
           'saludo',
           ip: cliente.ip,
