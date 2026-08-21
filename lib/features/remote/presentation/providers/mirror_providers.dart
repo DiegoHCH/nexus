@@ -57,6 +57,10 @@ class MirrorController extends Notifier<RemoteMirror> {
   }
 
   /// Vuelve a pedir la lista. Lo llama el arranque y el tirón hacia abajo.
+  /// Si la última vez que se pidió la lista, el Mac contestó.
+  var _preguntado = false;
+  bool get preguntado => _preguntado;
+
   Future<void> refrescar() async {
     try {
       final datos = await ref
@@ -65,6 +69,10 @@ class MirrorController extends Notifier<RemoteMirror> {
       final lista = (datos['conversations'] as List? ?? const [])
           .cast<Map<String, Object?>>();
       state = state.conLista(lista);
+      // Sin lista no había nada que distinguir; con ella, el espejo ya sabe si el Mac
+      // contestó. De aquí sale poder decir «nada abierto» en vez de «no pude
+      // preguntar», que eran lo mismo en pantalla.
+      _preguntado = true;
       unawaited(
         ref.read(mirrorCacheProvider).write({
           'conversations': [for (final c in state.visibles) c.toJson()],
@@ -74,6 +82,46 @@ class MirrorController extends Notifier<RemoteMirror> {
       // Sin lista se sigue con lo que haya. Vaciar el espejo porque una petición
       // falló dejaría la pantalla en blanco justo cuando se pierde la cobertura —
       // que es cuando más falta hace poder leer lo último.
+      //
+      // Lo que sí cambia es que **se sabe que no se pudo preguntar**: «nada abierto en
+      // el Mac» y «no conseguí preguntar» se dibujaban idénticos, y son cosas
+      // distintas.
+      _preguntado = false;
+    }
+  }
+
+  /// Trae una página de historial.
+  ///
+  /// **Se pide y no llega solo**, al contrario que la respuesta en curso: lo dicho
+  /// antes puede ser una sesión de tres horas, y empujarlo entero sería mandar por 4G
+  /// lo que casi nunca se va a leer. Por eso el Mac lo pagina desde el final.
+  ///
+  /// Devuelve `false` si no se pudo, para que la pantalla no se quede prometiendo que
+  /// viene más.
+  Future<bool> masHistorial(String conversationId) async {
+    final conv = state.conversations[conversationId];
+    // `cursor` cuenta desde el final: 0 es lo último dicho. Si ya se llegó al
+    // principio, `masHistorial` es `null` y no se pide nada — pedirlo devolvería la
+    // misma página para siempre.
+    if (conv == null) return false;
+    final cursor = conv.history.isEmpty ? 0 : conv.masHistorial;
+    if (conv.history.isNotEmpty && cursor == null) return false;
+
+    try {
+      final datos = await ref
+          .read(channelLinkProvider)
+          .pedir(
+            RemoteMethod.history,
+            params: {'conversation': conversationId, 'cursor': cursor ?? 0},
+          );
+      state = state.conHistorial(
+        conversationId,
+        (datos['messages'] as List? ?? const []).cast<Map<String, Object?>>(),
+        siguiente: datos['nextCursor'] as int?,
+      );
+      return true;
+    } on LinkError {
+      return false;
     }
   }
 

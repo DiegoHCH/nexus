@@ -34,10 +34,9 @@ class LinkBadge extends ConsumerWidget {
         const SizedBox(width: 8),
         Text(
           texto,
-          style: Theme.of(context).textTheme.labelSmall?.copyWith(
-            color: color,
-            letterSpacing: 0.8,
-          ),
+          style: Theme.of(
+            context,
+          ).textTheme.labelSmall?.copyWith(color: color, letterSpacing: 0.8),
         ),
       ],
     );
@@ -49,12 +48,20 @@ class LinkBadge extends ConsumerWidget {
   /// que ahora mismo no hay Mac: en la primera el teléfono está haciendo algo y no
   /// hay nada que tocar, y en la segunda toca mirar si el Mac está encendido. Un solo
   /// mensaje para las dos manda a comprobar cosas mientras se arreglaba solo.
-  (String, Color) _decir(LinkState estado, NexusColors colors) => switch (estado) {
+  (String, Color) _decir(
+    LinkState estado,
+    NexusColors colors,
+  ) => switch (estado) {
     LinkState.conectado => ('conectado', colors.ok),
     LinkState.conectando => ('conectando', colors.mute),
     LinkState.reconectando => ('reconectando', colors.warn),
     LinkState.resincronizando => ('poniéndose al día', colors.warn),
     LinkState.sinConexion => ('sin conexión', colors.err),
+    // Los dos que antes se veían como «reconectando» y pedían cosas distintas: uno es
+    // instalar Tailscale y el otro volver a emparejar. Se descubrió con un teléfono
+    // real dando vueltas en «reconectando» sin poder decir cuál de los dos era.
+    LinkState.noSeLlega => ('no llego al Mac · ¿Tailscale?', colors.err),
+    LinkState.rechazado => ('el Mac no acepta el token', colors.err),
     // Terminal: reintentar no lo arregla, así que el mensaje no puede sonar a
     // «espera un momento».
     LinkState.hayQueActualizar => ('hay que actualizar', colors.err),

@@ -55,7 +55,14 @@ class ConversationsPage extends ConsumerWidget {
                 color: colors.accent,
                 backgroundColor: colors.deep,
                 child: espejo.vacio
-                    ? const _Vacio()
+                    // Vacío **no siempre significa lo mismo**: puede que el Mac no
+                    // tenga nada abierto, o que no se haya podido preguntar. Se
+                    // dibujaban idénticos, y son dos cosas distintas.
+                    ? _Vacio(
+                        preguntado: ref
+                            .read(mirrorProvider.notifier)
+                            .preguntado,
+                      )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
                         itemCount: espejo.visibles.length,
@@ -72,7 +79,10 @@ class ConversationsPage extends ConsumerWidget {
 }
 
 class _Vacio extends StatelessWidget {
-  const _Vacio();
+  const _Vacio({required this.preguntado});
+
+  /// Si el Mac contestó a la última petición de la lista.
+  final bool preguntado;
 
   @override
   Widget build(BuildContext context) {
@@ -90,7 +100,9 @@ class _Vacio extends StatelessWidget {
         const SizedBox(height: 28),
         Center(
           child: Text(
-            'Nada abierto en el Mac',
+            preguntado
+                ? 'Nada abierto en el Mac'
+                : 'No pude preguntarle al Mac',
             style: Theme.of(
               context,
             ).textTheme.bodyMedium?.copyWith(color: colors.mute),

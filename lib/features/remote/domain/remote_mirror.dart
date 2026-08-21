@@ -102,6 +102,32 @@ class RemoteMirror {
     return RemoteMirror(conversations: mapa, order: orden);
   }
 
+  /// Añade una página de historial.
+  ///
+  /// **Delante de lo que ya hay**, porque las páginas llegan hacia atrás: la primera
+  /// es lo último dicho y cada siguiente es más antigua. Añadirlas al final pondría la
+  /// conversación del revés.
+  RemoteMirror conHistorial(
+    String id,
+    List<Map<String, Object?>> pagina, {
+    required int? siguiente,
+  }) {
+    final antes = conversations[id];
+    if (antes == null) return this;
+    final mensajes = [for (final m in pagina) MirroredMessage.fromJson(m)];
+    return RemoteMirror(
+      conversations: {
+        ...conversations,
+        id: antes.copyWith(
+          history: [...mensajes, ...antes.history],
+          masHistorial: siguiente,
+          finDelHistorial: siguiente == null,
+        ),
+      },
+      order: order,
+    );
+  }
+
   /// La lista de conversaciones que devuelve el método `conversations`.
   ///
   /// Se mezcla con lo que ya hay en vez de reemplazarlo: esa respuesta trae **quién
@@ -140,6 +166,8 @@ class MirroredConversation {
     this.contextTokens,
     this.percent,
     this.error,
+    this.history = const [],
+    this.masHistorial,
   });
 
   factory MirroredConversation.fromJson(Map<String, Object?> j) {
@@ -157,6 +185,11 @@ class MirroredConversation {
       contextTokens: medidor['contextTokens'] as int?,
       percent: medidor['percent'] as int?,
       error: j['error'] as String?,
+      history: [
+        for (final m in (j['history'] as List? ?? const []))
+          MirroredMessage.fromJson(m as Map<String, Object?>),
+      ],
+      masHistorial: j['nextCursor'] as int?,
     );
   }
 
@@ -182,6 +215,17 @@ class MirroredConversation {
 
   final String? error;
 
+  /// Lo dicho antes, **del más viejo al más nuevo**.
+  ///
+  /// Vive aquí y no en el `reply` porque son dos cosas: el `reply` es lo que se está
+  /// escribiendo **ahora** y llega por eventos, mientras el historial se **pide** y
+  /// viene paginado. Meterlos en el mismo campo obligaría a decidir, en cada delta de
+  /// texto, si añade a la respuesta o al pasado.
+  final List<MirroredMessage> history;
+
+  /// Por dónde seguir pidiendo, o `null` si ya se llegó al principio.
+  final int? masHistorial;
+
   /// Lo que se enseña como nombre. La ruta si se sabe; el id si todavía no.
   String get nombre => folder ?? id;
 
@@ -204,6 +248,10 @@ class MirroredConversation {
       'percent': ?percent,
     },
     'error': ?error,
+    // El historial **también va a la caché**: es lo que permite abrir la app sin red
+    // y leer lo que se dijo, que es la mitad del sentido de tener caché.
+    'history': [for (final m in history) m.toJson()],
+    'nextCursor': ?masHistorial,
   };
 
   MirroredConversation conTexto(String trozo, {required bool reemplazar}) =>
@@ -220,6 +268,9 @@ class MirroredConversation {
     int? percent,
     String? error,
     bool borrarError = false,
+    List<MirroredMessage>? history,
+    int? masHistorial,
+    bool finDelHistorial = false,
   }) => MirroredConversation(
     id: id,
     folder: folder ?? this.folder,
@@ -234,7 +285,27 @@ class MirroredConversation {
     // borrar necesita decirse aparte. Sin esto, «ya no hay error» sería imposible de
     // expresar y el aviso se quedaría pegado.
     error: borrarError ? null : (error ?? this.error),
+    history: history ?? this.history,
+    // Igual que el error: «ya no hay más» es un `null` que hay que poder decir, y un
+    // `null` en un `copyWith` no se distingue de «no lo pases».
+    masHistorial: finDelHistorial ? null : (masHistorial ?? this.masHistorial),
   );
+}
+
+/// Un mensaje del historial.
+@immutable
+class MirroredMessage {
+  const MirroredMessage({required this.mine, required this.text});
+
+  factory MirroredMessage.fromJson(Map<String, Object?> j) => MirroredMessage(
+    mine: j['mine'] == true,
+    text: (j['text'] as String?) ?? '',
+  );
+
+  final bool mine;
+  final String text;
+
+  Map<String, Object?> toJson() => {'mine': mine, 'text': text};
 }
 
 @immutable
