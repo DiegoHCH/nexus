@@ -9,6 +9,7 @@ import 'package:nexus/features/remote/presentation/widgets/write_phrase_sheet.da
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
 import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -290,18 +291,25 @@ class _Medidor extends StatelessWidget {
         ? colors.warn
         : colors.accent;
 
+    // Dos cajas y no un `LinearProgressIndicator`: el de Material redondea las
+    // puntas y anima al cambiar de valor, y una barra que se desliza sola parece que
+    // está midiendo algo en vivo — esto es una cifra que llegó del Mac. Cuadrada y
+    // quieta, como la del mockup.
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NexusSpacing.s5,
+        vertical: NexusSpacing.s2,
+      ),
       child: Row(
         children: [
           Expanded(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(3),
-              child: LinearProgressIndicator(
-                value: porcentaje / 100,
-                minHeight: 4,
-                backgroundColor: colors.rule,
-                color: color,
+            child: Container(
+              height: 4,
+              color: colors.rule,
+              alignment: Alignment.centerLeft,
+              child: FractionallySizedBox(
+                widthFactor: (porcentaje / 100).clamp(0.0, 1.0),
+                child: Container(color: color),
               ),
             ),
           ),
@@ -311,9 +319,7 @@ class _Medidor extends StatelessWidget {
             // ventana asumida es el error que ya se cometió en el escritorio.
             '$porcentaje %',
             key: const ValueKey('medidor'),
-            style: Theme.of(
-              context,
-            ).textTheme.labelSmall?.copyWith(color: color),
+            style: NexusTypography.label.copyWith(color: color),
           ),
         ],
       ),
@@ -409,67 +415,107 @@ class _Compositor extends ConsumerWidget {
           // El permiso se dice **antes de escribir el encargo**, no al mandarlo.
           // Enterarse de que era solo lectura después de teclear tres frases es
           // hacer trabajo para tirarlo.
-          InkWell(
-            key: const ValueKey('permiso'),
-            onTap: () => mostrarFraseDeEscritura(context, ref),
-            child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 6),
-              child: Row(
-                children: [
-                  Icon(
-                    puedeEscribir ? Icons.edit : Icons.lock_outline,
-                    size: 14,
-                    color: puedeEscribir ? colors.ok : colors.mute,
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    puedeEscribir
-                        ? 'puede editar hasta las ${_hora(hasta)}'
-                        : 'solo lectura · toca para abrir con tu frase',
-                    style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      color: puedeEscribir ? colors.ok : colors.mute,
-                    ),
-                  ),
-                ],
-              ),
+          //
+          // Y es el interruptor del mockup, no una línea con un candado: se ven **los
+          // dos estados a la vez**, así que se lee en qué está sin recordar qué
+          // significaba el icono. `PermissionToggle` ya lo dibuja —existía y esta
+          // pantalla no lo usaba— y sabe que bajar a solo lectura no pide frase y
+          // subir sí.
+          Align(
+            alignment: Alignment.centerLeft,
+            child: PermissionToggle(
+              key: const ValueKey('permiso'),
+              puedeEditar: puedeEscribir,
+              alTocar: () => mostrarFraseDeEscritura(context, ref),
             ),
           ),
-          const SizedBox(height: 6),
+          if (puedeEscribir) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                // La hora, que es lo que el interruptor no puede decir: «puede
+                // editar» sin hasta cuándo invita a confiar en que sigue abierto.
+                'hasta las ${_hora(hasta)}',
+                style: NexusTypography.label.copyWith(color: colors.faint),
+              ),
+            ),
+          ],
+          const SizedBox(height: NexusSpacing.s3),
           Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               Expanded(
-                child: TextField(
-                  key: const ValueKey('encargo'),
-                  controller: campo,
-                  minLines: 1,
-                  maxLines: 4,
-                  style: TextStyle(color: colors.ink),
-                  decoration: InputDecoration(
-                    hintText: 'Qué hay que hacer',
-                    hintStyle: TextStyle(color: colors.faint),
+                child: Container(
+                  // La caja del mockup: `rise`, un hairline y radio 2 — y 44 de alto
+                  // mínimo, que es la medida de algo que se toca con el pulgar.
+                  constraints: const BoxConstraints(minHeight: 44),
+                  decoration: BoxDecoration(
+                    color: colors.rise,
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(color: colors.rule),
+                  ),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: NexusSpacing.s3,
+                    vertical: 2,
+                  ),
+                  child: TextField(
+                    key: const ValueKey('encargo'),
+                    controller: campo,
+                    minLines: 1,
+                    maxLines: 4,
+                    style: NexusTypography.body.copyWith(color: colors.ink),
+                    decoration: InputDecoration(
+                      hintText: 'Qué hay que hacer',
+                      hintStyle: NexusTypography.body.copyWith(
+                        color: colors.faint,
+                      ),
+                      // Sin las líneas de Material: la caja ya es el borde, y dos
+                      // bordes dibujan un campo dentro de otro.
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      isDense: true,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(width: 8),
-              // Mientras trabaja, el botón es **detener** y no mandar: mandar otro
+              const SizedBox(width: NexusSpacing.s2),
+              // **El mismo sitio es mandar o detener**, nunca los dos: mandar otro
               // encima es lo que en el escritorio pone el segundo encargo en cola, y
               // en un teléfono eso se hace sin darse cuenta.
+              //
+              // Un cuadro con un glifo y no un `IconButton`: el botón de Material
+              // trae su salpicadura circular y su área de 48, que en una fila de
+              // hairlines se ve como una pieza prestada de otra app.
               if (conversacion.streaming)
-                IconButton(
+                _Cuadro(
                   key: const ValueKey('detener'),
-                  onPressed: alDetener,
-                  icon: const Icon(Icons.stop_circle_outlined),
+                  glifo: '■',
                   color: colors.err,
+                  alTocar: alDetener,
                 )
               else
-                IconButton(
+                _Cuadro(
                   key: const ValueKey('mandar'),
-                  onPressed: mandando ? null : alMandar,
-                  icon: const Icon(Icons.arrow_upward),
+                  glifo: '↑',
                   color: colors.accent,
+                  alTocar: mandando ? null : alMandar,
                 ),
             ],
           ),
+          if (conversacion.streaming) ...[
+            const SizedBox(height: NexusSpacing.s2),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                // El texto exacto del mockup. Dice la consecuencia y no la
+                // prohibición: el botón ya no manda, así que esto explica por qué.
+                'Mandar otro encima lo pondría en cola sin decirlo',
+                style: NexusTypography.label.copyWith(color: colors.faint),
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -478,4 +524,47 @@ class _Compositor extends ConsumerWidget {
   static String _hora(DateTime cuando) =>
       '${cuando.hour.toString().padLeft(2, '0')}:'
       '${cuando.minute.toString().padLeft(2, '0')}';
+}
+
+/// El botón del compositor: un cuadro con un glifo.
+///
+/// Cuadrado de 44 —lo mismo que el campo de al lado, así que la fila queda a una sola
+/// altura— con un hairline del color de lo que hace y el glifo dentro. Apagado se ve
+/// igual pero en `rule`: quitarlo movería el campo justo cuando se está escribiendo.
+class _Cuadro extends StatelessWidget {
+  const _Cuadro({
+    super.key,
+    required this.glifo,
+    required this.color,
+    required this.alTocar,
+  });
+
+  final String glifo;
+  final Color color;
+  final VoidCallback? alTocar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final vivo = alTocar != null;
+
+    return InkWell(
+      onTap: alTocar,
+      child: Container(
+        width: 44,
+        height: 44,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(2),
+          border: Border.all(color: vivo ? color : colors.rule),
+        ),
+        child: Text(
+          glifo,
+          style: NexusTypography.body.copyWith(
+            color: vivo ? color : colors.rule2,
+          ),
+        ),
+      ),
+    );
+  }
 }

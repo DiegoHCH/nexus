@@ -9,6 +9,8 @@ import 'package:nexus/features/remote/presentation/providers/mirror_providers.da
 import 'package:nexus/features/remote/presentation/pages/utility_pages.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_drawer.dart';
+import 'package:nexus/core/design_system/nexus_spacing.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
 
 /// Lo que hay abierto en el Mac.
 ///
@@ -119,9 +121,7 @@ class _Vacio extends StatelessWidget {
             preguntado
                 ? 'Nada abierto en el Mac'
                 : 'No pude preguntarle al Mac',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colors.mute),
+            style: NexusTypography.body.copyWith(color: colors.mute),
           ),
         ),
       ],
@@ -137,11 +137,15 @@ class _Tarjeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final texto = Theme.of(context).textTheme;
-
-    return Card(
-      color: colors.deep,
-      margin: const EdgeInsets.only(bottom: 12),
+    // **Una fila con hairline, no una tarjeta.** Una `Card` trae elevación, esquinas
+    // de 12 y su propio color de superficie: tres cosas que este sistema no usa en
+    // ninguna otra parte, y que hacían que esta pantalla se leyera como otra app. Las
+    // demás listas del teléfono —el archivo, los artifacts, el menú— ya son filas
+    // separadas por una línea de un píxel.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.rule)),
+      ),
       child: InkWell(
         key: ValueKey('abrir-${conversacion.id}'),
         onTap: () => Navigator.of(context).push(
@@ -149,9 +153,8 @@ class _Tarjeta extends StatelessWidget {
             builder: (_) => ConversationPage(conversationId: conversacion.id),
           ),
         ),
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -164,34 +167,59 @@ class _Tarjeta extends StatelessWidget {
                       // distingue por la cola, no por la cabeza.
                       _cola(conversacion.nombre),
                       overflow: TextOverflow.ellipsis,
-                      style: texto.bodyLarge?.copyWith(color: colors.ink),
+                      style: NexusTypography.lead.copyWith(color: colors.ink),
                     ),
                   ),
                   if (conversacion.focused)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
-                      child: Icon(Icons.mic, size: 15, color: colors.accent),
+                      // Con la palabra y no con un icono de micrófono: en una fila de
+                      // texto un glifo de Material es la única forma redonda de la
+                      // pantalla, y encima hay que saber qué significa.
+                      child: Text(
+                        'ESCUCHA',
+                        style: NexusTypography.label.copyWith(
+                          color: colors.accent,
+                        ),
+                      ),
                     ),
                 ],
               ),
               if (conversacion.streaming) ...[
                 const SizedBox(height: 10),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.6,
+                    // Un punto con halo y no una rueda girando: **el único elemento
+                    // que gira en este sistema es el orbe**, y una segunda cosa
+                    // girando compite con él sin decir nada más. Es la misma marca
+                    // que el paso «ahora mismo» dentro de la conversación.
+                    Container(
+                      width: 7,
+                      height: 7,
+                      margin: const EdgeInsets.only(top: 5, right: 10),
+                      decoration: BoxDecoration(
                         color: colors.accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.accent.withValues(alpha: 0.8),
+                            blurRadius: 12,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      conversacion.steps.isEmpty
-                          ? 'trabajando'
-                          : conversacion.steps.last.text,
-                      style: texto.bodySmall?.copyWith(color: colors.mute),
+                    Expanded(
+                      child: Text(
+                        conversacion.steps.isEmpty
+                            ? 'trabajando'
+                            : conversacion.steps.last.text,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: NexusTypography.mono.copyWith(
+                          color: colors.mute,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -201,7 +229,7 @@ class _Tarjeta extends StatelessWidget {
                   conversacion.reply,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: texto.bodySmall?.copyWith(color: colors.mute),
+                  style: NexusTypography.mono.copyWith(color: colors.mute),
                 ),
               ],
               if (conversacion.error != null) ...[
@@ -210,7 +238,7 @@ class _Tarjeta extends StatelessWidget {
                   conversacion.error!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: texto.bodySmall?.copyWith(color: colors.err),
+                  style: NexusTypography.mono.copyWith(color: colors.err),
                 ),
               ],
             ],
