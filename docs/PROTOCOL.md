@@ -173,6 +173,28 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   Mac no hay ninguna conversación abierta, el móvil no podía hacer nada — y eso
   convierte «mira cómo va lo que dejaste» en «solo sirve si te acordaste de dejarlo
   abierto». Retomar es lo mismo que hace `⌘H` en el escritorio.
+- Ese archivo es **la misma lista que enseña `⌘H`**, no la del almacén interno de la
+  app: buena parte de las conversaciones vive en el vault que el usuario configuró, y
+  leer solo el almacén hacía que el teléfono enseñara una donde el escritorio enseñaba
+  treinta y una. Cada una lleva **de qué cuenta es** —`work`, `private`—, porque el
+  escritorio las separa en pestañas y en el teléfono no hay sitio para pestañas.
+- La lista **se pagina** con `cursor` y `nextCursor`. El teléfono sigue el cursor hasta
+  que no venga: una sola página con un límite deja fuera conversaciones sin decirlo, y
+  una lista que se corta en silencio se lee como una lista completa.
+- Las **carpetas** llevan también su cuenta, y por un motivo distinto al del archivo:
+  abrir una conversación **es elegir una cuenta sin verlo** —la carpeta lleva su perfil
+  pegado en el Mac—, así que desde el teléfono se elegía a ciegas qué memoria y qué
+  contexto iban a atender el encargo.
+- Los **artifacts** llevan su cuenta y, además, **si son texto**. Lo segundo va en la
+  lista y no se descubre al abrir: pedir un `.png` acababa en un error de codificación
+  —leer un binario como cadena no da una imagen— y el teléfono se quedaba con un fallo
+  genérico donde tenía que haber un «esto se abre en el Mac». Un documento que no es
+  texto se enseña igual, apagado: esconderlo deja preguntándose si falta algo.
+  Un `.html` **es** texto, así que viaja por el canal como una cadena y el teléfono lo
+  pinta en un visor propio: no hizo falta inventar transporte binario ni servir
+  ficheros por HTTP, y por tanto el canal no gana ninguna puerta nueva. Ese visor no
+  navega: lo que se pinta es lo que llegó, y un enlace a la red lo convertiría en un
+  navegador.
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.

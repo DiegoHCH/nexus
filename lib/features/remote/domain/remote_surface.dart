@@ -91,6 +91,7 @@ class ArchivedConversation {
     required this.when,
     this.turns = 0,
     this.open = false,
+    this.account,
   });
 
   final String id;
@@ -107,6 +108,14 @@ class ArchivedConversation {
   /// «retomar» algo que ya está vivo: lleva a la que hay.
   final bool open;
 
+  /// De qué cuenta de Claude es —`work`, `private`—, cuando hay más de una.
+  ///
+  /// Va porque sin ella la lista del teléfono es indistinguible: el archivo real
+  /// tiene veintinueve de una cuenta y nueve de otra, y el escritorio las separa en
+  /// pestañas. Nula cuando el registro no lo dice, que es lo que pasa con las
+  /// guardadas antes de que existieran las cuentas.
+  final String? account;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'folder': folder,
@@ -114,6 +123,7 @@ class ArchivedConversation {
     'when': when.toIso8601String(),
     'turns': turns,
     if (open) 'open': true,
+    'account': ?account,
   };
 }
 
@@ -124,6 +134,7 @@ class RemoteFolder {
     required this.path,
     required this.canWrite,
     this.busy = false,
+    this.account,
   });
 
   final String path;
@@ -138,10 +149,18 @@ class RemoteFolder {
   /// que el teléfono tiene que poder decirlo en vez de fallar al intentarlo.
   final bool busy;
 
+  /// Con qué cuenta de Claude trabaja esa carpeta —`work`, `private`—.
+  ///
+  /// Va porque **abrir una conversación es elegir una cuenta sin verlo**: la carpeta
+  /// lleva su perfil pegado en el Mac, y desde el teléfono se elegía a ciegas cuál de
+  /// los dos mundos —qué memoria, qué contexto, qué sesión— iba a atender el encargo.
+  final String? account;
+
   Map<String, Object?> toJson() => {
     'path': path,
     'canWrite': canWrite,
     if (busy) 'busy': true,
+    'account': ?account,
   };
 }
 
@@ -153,6 +172,8 @@ class RemoteArtifact {
     required this.name,
     required this.when,
     this.bytes = 0,
+    this.text = false,
+    this.account,
   });
 
   final String id;
@@ -162,11 +183,24 @@ class RemoteArtifact {
   /// El tamaño, para poder decidir si se abre con datos móviles.
   final int bytes;
 
+  /// Si su contenido se puede mandar como texto.
+  ///
+  /// Va en la lista y no se descubre al abrir: pedir un `.png` devolvía un error de
+  /// codificación —leerlo como cadena no da una imagen— y el teléfono se quedaba con
+  /// un fallo donde tenía que haber un «esto ábrelo en el Mac». Decirlo antes
+  /// convierte un fallo en una fila que ya avisa.
+  final bool text;
+
+  /// De qué cuenta salió, cuando la carpeta está dividida por perfil.
+  final String? account;
+
   Map<String, Object?> toJson() => {
     'id': id,
     'name': name,
     'when': when.toIso8601String(),
     'bytes': bytes,
+    if (text) 'text': true,
+    'account': ?account,
   };
 }
 
@@ -182,6 +216,21 @@ class UnknownConversation implements Exception {
 
   @override
   String toString() => 'UnknownConversation($id)';
+}
+
+/// Se pidió el contenido de un documento que no es texto.
+///
+/// Tiene su propio tipo y no cae en el error genérico porque **es una respuesta, no
+/// una avería**: el documento existe, está en la lista, y lo que no se puede es
+/// mandarlo por un canal de texto. Con un fallo genérico el teléfono decía «no se
+/// pudo atender», que manda a buscar el problema al sitio equivocado.
+class BinaryArtifact implements Exception {
+  const BinaryArtifact(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'BinaryArtifact($id)';
 }
 
 @immutable

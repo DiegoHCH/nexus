@@ -100,6 +100,92 @@ void main() {
 
     expect(_SpyCli.lastDirs, contains('/Users/x/Documentos'));
   });
+
+  group('que cuenta como documento y que viaja como texto', () {
+    test('un .html es las dos cosas', () {
+      // Las dos preguntas se solapan a proposito: el visor del Mac lo pinta **y**
+      // viaja por el canal como una cadena, porque un HTML es texto. De eso depende
+      // que el telefono pueda abrir los veintiocho que hay.
+      expect(Artifact.isViewable('/x/mockup.html'), isTrue);
+      expect(Artifact.isTextual('/x/mockup.html'), isTrue);
+      expect(Artifact.isListable('/x/mockup.html'), isTrue);
+    });
+
+    test(
+      'un .md es documento y texto, aunque el visor del Mac no lo pinte',
+      () {
+        expect(Artifact.isListable('/x/informe.md'), isTrue);
+        expect(Artifact.isTextual('/x/informe.md'), isTrue);
+        expect(Artifact.isViewable('/x/informe.md'), isFalse);
+      },
+    );
+
+    test('un .png es documento pero NO texto', () {
+      // Leerlo como cadena da un error de codificacion, no una imagen: por eso se
+      // dice en la lista en vez de descubrirse al abrir.
+      expect(Artifact.isListable('/x/logo.png'), isTrue);
+      expect(Artifact.isTextual('/x/logo.png'), isFalse);
+    });
+
+    test('un .zip no es nada de esto', () {
+      expect(Artifact.isListable('/x/todo.zip'), isFalse);
+    });
+  });
+
+  group('donde se abre cada documento', () {
+    // Las dos son comprobaciones **sobre el codigo** y no sobre pixeles, y se dice:
+    // una hoja de macOS con miniaturas de QuickLook y un visor web con vista de
+    // plataforma no se levantan en un test de widgets sin montar media plataforma.
+    // Lo que se ata es la decision, que es justo lo que se rompio las dos veces.
+
+    test('la lista del Mac no esconde lo que su visor no pinta', () {
+      // Estuvo filtrada a `isViewable` y el resultado era una pantalla que decia «no
+      // hay documentos» con ciento dieciocho en la carpeta: noventa eran `.md`.
+      final hoja = File(
+        'lib/features/artifacts/presentation/widgets/artifacts_sheet.dart',
+      ).readAsStringSync();
+      final lista = hoja.substring(
+        hoja.indexOf('final artifacts ='),
+        hoja.indexOf(';', hoja.indexOf('final artifacts =')),
+      );
+
+      expect(
+        lista,
+        isNot(contains('isViewable')),
+        reason:
+            'filtrar la lista por lo que abre el visor esconde documentos que '
+            'existen; el tipo decide donde se abren, no si se enseñan',
+      );
+      // Y sigue habiendo dos caminos al abrir: uno no vale para los dos.
+      expect(hoja, contains('Artifact.isViewable(artifact.path)'));
+    });
+
+    test('el visor del movil no vive dentro de un scroll', () {
+      // El molde de las listas envuelve todo en un `SingleChildScrollView`, y el
+      // scroll de fuera se queda los gestos: el documento no se movia y parecia que el
+      // visor estaba roto. Con su pantalla propia el que hace scroll es el visor.
+      final pagina = File(
+        'lib/features/remote/presentation/pages/utility_pages.dart',
+      ).readAsStringSync();
+      final desde = pagina.indexOf('class ArtifactPage');
+      final cuerpo = pagina.substring(
+        desde,
+        pagina.indexOf('\nclass ', desde + 10),
+      );
+
+      final pintado = cuerpo.indexOf('_Pintado(');
+      expect(pintado, isNot(-1), reason: 'ya no se pinta nada en el movil');
+      // El `_Pintado` va en el `Scaffold` propio, que aparece **antes** que el molde.
+      expect(
+        cuerpo.indexOf('Scaffold('),
+        lessThan(pintado),
+        reason:
+            'si el visor cae dentro de _ListaDeUtilidad, vuelve a no poder hacer '
+            'scroll y a perder el ancho por el padding',
+      );
+      expect(cuerpo.indexOf('_ListaDeUtilidad('), greaterThan(pintado));
+    });
+  });
 }
 
 /// Se queda con lo que se le pasó al proceso, sin lanzar ninguno.

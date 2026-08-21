@@ -26,6 +26,22 @@ class ClaudeProfile {
   /// sesión deja el encargo fallando con un error del CLI que no dice qué
   /// hacer; enseñarlo aquí convierte un fallo en una elección informada.
   final bool signedIn;
+
+  /// El nombre de cuenta que le corresponde a un directorio de configuración, o
+  /// `null` si ese directorio no es una cuenta —`.claude` a secas, la de siempre—.
+  ///
+  /// Existe como función pura porque hay quien necesita el nombre **sin poder
+  /// esperar** a que se listen las cuentas del disco: recorrer el home es asíncrono,
+  /// y quien arranca un encargo lo hace en el mismo momento en que lo lanza. La
+  /// derivación es la misma que usa [ClaudeProfilesDataSource.list], y vive aquí para
+  /// que no haya dos.
+  static String? nameFromPath(String? configDir) {
+    if (configDir == null || configDir.isEmpty) return null;
+    final ultimo = configDir.split('/').where((p) => p.isNotEmpty).lastOrNull;
+    if (ultimo == null || !ultimo.startsWith('.claude-')) return null;
+    final nombre = ultimo.substring(8);
+    return nombre.isEmpty ? null : nombre;
+  }
 }
 
 /// Encuentra las cuentas de Claude que hay en el Mac.
@@ -80,7 +96,7 @@ class ClaudeProfilesDataSource {
       profiles.add(
         ClaudeProfile(
           path: entity.path,
-          name: name.substring(8),
+          name: ClaudeProfile.nameFromPath(entity.path) ?? name,
           signedIn: await _hasSession(entity.path),
         ),
       );
