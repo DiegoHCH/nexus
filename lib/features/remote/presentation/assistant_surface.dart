@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
@@ -137,6 +138,16 @@ class AssistantSurface implements RemoteSurface {
     // Se reusa el provider que ya hace esa suma en vez de repetirla aquí: repetirla
     // daría dos ideas de qué es «el archivo», y la del teléfono se quedaría vieja el
     // día que se añada un destino.
+    // **Primero que los ajustes estén leídos del disco.** Los notifiers de ajustes
+    // devuelven «nada configurado» mientras su lectura va de camino, y el escritorio
+    // no lo nota porque su pantalla sigue mirando y se redibuja cuando llegan. Aquí no
+    // hay segunda oportunidad: se contesta una vez, y contestar «hay una» cuando hay
+    // treinta y una es peor que tardar 20 ms más.
+    //
+    // Se espera aquí y no dentro del provider: un provider que mira el estado que va a
+    // cambiar y encima espera se queda sin futuro a mitad —Riverpod lo destruye al
+    // llegar el cambio— y el teléfono recibiría un fallo en vez de una lista.
+    await _ref.read(archiveControllerProvider.notifier).cargado;
     final guardadas = await _ref.read(allSavedConversationsProvider.future);
 
     final vivas = _ref.read(conversationsProvider);
@@ -179,6 +190,7 @@ class AssistantSurface implements RemoteSurface {
     // La **misma** fuente que `archive()`, y no el almacén propio: si se listan
     // veintiséis y se buscan entre una, retomar cualquiera del vault contestaba
     // «conversación desconocida» — un archivo que enseña cosas que no se pueden abrir.
+    await _ref.read(archiveControllerProvider.notifier).cargado;
     final guardadas = await _ref.read(allSavedConversationsProvider.future);
     final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
     if (registro == null) throw UnknownConversation(archivedId);
@@ -197,12 +209,21 @@ class AssistantSurface implements RemoteSurface {
   Future<List<RemoteFolder>> folders() async {
     final espacio = _ref.read(workspaceControllerProvider);
     final vivas = _ref.read(conversationsProvider);
+    // El nombre de la cuenta y no la ruta de su perfil: `.claude-work` es un detalle
+    // del disco del Mac, y «work» es lo que se lee en las dos pantallas. Si el Mac no
+    // sabe de perfiles, no se inventa ninguno.
+    final cuentas = await _ref.read(claudeProfilesProvider.future);
+    String? nombreDe(String? perfil) => perfil == null
+        ? null
+        : cuentas.where((c) => c.path == perfil).firstOrNull?.name;
+
     return [
       for (final carpeta in espacio.folders)
         RemoteFolder(
           path: carpeta.path,
           canWrite: carpeta.modality != FolderModality.textOnly,
           busy: vivas.hasFolder(carpeta.path),
+          account: nombreDe(carpeta.claudeProfile),
         ),
     ];
   }
@@ -223,6 +244,10 @@ class AssistantSurface implements RemoteSurface {
 
   @override
   Future<List<RemoteArtifact>> artifacts() async {
+    // Igual que el archivo: la carpeta de documentos se lee del disco después de
+    // construirse el notifier, y sin esperarla se contestaba «no hay ninguno» habiendo
+    // uno. Es el mismo fallo dos veces, así que va escrito en los dos sitios.
+    await _ref.read(artifactsFolderProvider.notifier).cargada;
     final lista = await _ref.read(artifactsProvider.future);
     return [
       for (final a in lista)
@@ -233,12 +258,15 @@ class AssistantSurface implements RemoteSurface {
           name: a.name,
           when: a.at,
           bytes: File(a.path).existsSync() ? File(a.path).lengthSync() : 0,
+          text: Artifact.isTextual(a.path),
+          account: a.account,
         ),
     ];
   }
 
   @override
   Future<String> artifact(String artifactId) async {
+    await _ref.read(artifactsFolderProvider.notifier).cargada;
     final lista = await _ref.read(artifactsProvider.future);
     // **Solo los que están en la lista.** Sin esto, el `artifactId` sería una ruta
     // libre y el método se convertiría en «leer cualquier archivo del Mac», que es
@@ -246,6 +274,9 @@ class AssistantSurface implements RemoteSurface {
     if (!lista.any((a) => a.path == artifactId)) {
       throw UnknownConversation(artifactId);
     }
+    // Y solo los de texto: sin esto, pedir un `.png` acaba en un error de
+    // codificación a mitad de leer, que el teléfono no puede explicar.
+    if (!Artifact.isTextual(artifactId)) throw BinaryArtifact(artifactId);
     return File(artifactId).readAsString();
   }
 }

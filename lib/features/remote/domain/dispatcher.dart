@@ -73,6 +73,12 @@ class Dispatcher {
         code: 'unknownConversation',
         message: 'la conversación ${error.id} ya no está abierta',
       );
+    } on BinaryArtifact catch (error) {
+      yield Failure(
+        id: call.id,
+        code: 'binaryArtifact',
+        message: 'ese documento no es texto: ${error.id} se abre en el Mac',
+      );
     } on FormatException catch (error) {
       yield Failure(id: call.id, code: 'badParams', message: error.message);
     } on Object catch (error) {

@@ -28,7 +28,14 @@ class ArtifactsSheet extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final folder = ref.watch(artifactsFolderProvider);
-    final artifacts = ref.watch(artifactsProvider).value ?? const <Artifact>[];
+    // Solo lo que **este** visor abre. La lista de abajo ya trae también los de
+    // texto —un `.md` es un documento— pero abrirlo aquí lo mandaría a un
+    // `WKWebView` a enseñar markdown en crudo. Que el teléfono los enseñe y el Mac
+    // no es una diferencia de visores, no un descuido: cambiarlo es rehacer este
+    // visor, y eso no es parte de esto.
+    final artifacts = (ref.watch(artifactsProvider).value ?? const <Artifact>[])
+        .where((a) => Artifact.isViewable(a.path))
+        .toList();
 
     return Dialog(
       backgroundColor: colors.rise,

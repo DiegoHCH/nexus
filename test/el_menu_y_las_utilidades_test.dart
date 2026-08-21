@@ -389,6 +389,81 @@ void main() {
   });
 
   group('los artifacts', () {
+    testWidgets('lo que no es texto lo dice y no se puede tocar', (
+      tester,
+    ) async {
+      // Un `.png` por un canal de texto no da una imagen: da un error de codificacion.
+      // Antes se descubria al abrir, y el telefono se quedaba con un fallo generico.
+      final c = await conectado(
+        tester,
+        respuestas: const {
+          'artifacts': {
+            'artifacts': [
+              {'id': '/tmp/mockup.png', 'name': 'mockup.png', 'bytes': 90000},
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(app(c, const ArtifactsPage()));
+      await tester.pump();
+      await tester.pump();
+
+      // Se enseña igual: esconderlo deja preguntandose si falta algo.
+      expect(find.text('mockup.png'), findsOne);
+      expect(find.text('SOLO EN LA MAC'), findsOne);
+
+      await tester.tap(find.byKey(const ValueKey('artifact-/tmp/mockup.png')));
+      await tester.pump();
+      expect(
+        socket.pidio('artifact'),
+        isFalse,
+        reason: 'tocarlo solo podia acabar en un fallo, asi que no se toca',
+      );
+    });
+
+    testWidgets('los botones separan por cuenta', (tester) async {
+      final c = await conectado(
+        tester,
+        respuestas: const {
+          'artifacts': {
+            'artifacts': [
+              {
+                'id': '/a/w.html',
+                'name': 'de-work.html',
+                'bytes': 10,
+                'text': true,
+                'account': 'work',
+              },
+              {
+                'id': '/a/p.html',
+                'name': 'de-private.html',
+                'bytes': 10,
+                'text': true,
+                'account': 'private',
+              },
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(app(c, const ArtifactsPage()));
+      await tester.pump();
+      await tester.pump();
+
+      // De partida, todo — y de cada uno se ve de quien es.
+      expect(find.text('de-work.html'), findsOne);
+      expect(find.text('de-private.html'), findsOne);
+
+      await tester.tap(find.byKey(const ValueKey('cuenta-work')));
+      await tester.pump();
+
+      expect(find.text('de-work.html'), findsOne);
+      expect(
+        find.text('de-private.html'),
+        findsNothing,
+        reason: 'los botones tienen que filtrar de verdad, no solo pintarse',
+      );
+    });
+
     testWidgets('la lista enseña el peso, y el contenido se pide aparte', (
       tester,
     ) async {
@@ -397,7 +472,13 @@ void main() {
         respuestas: {
           'artifacts': {
             'artifacts': [
-              {'id': '/tmp/informe.md', 'name': 'informe.md', 'bytes': 14336},
+              {
+                'id': '/tmp/informe.md',
+                'name': 'informe.md',
+                'bytes': 14336,
+                // Lo manda el Mac: es quien sabe si eso se puede leer como texto.
+                'text': true,
+              },
             ],
           },
           'artifact': {'content': '# El informe\n\nTodo bien.'},

@@ -11,29 +11,50 @@ class ArtifactsDataSource {
 
   /// Lo que hay dentro, de lo más reciente a lo más antiguo.
   ///
-  /// Un nivel y no recursivo: la carpeta de artefactos es un cajón, no un
-  /// árbol, y bajar recursivamente metería en la lista el `assets/` que muchos
-  /// documentos traen al lado.
-  Future<List<Artifact>> list(String directory) async {
+  /// **La raíz y, un nivel más abajo, las carpetas que son una cuenta.** Nada más.
+  /// Seguir bajando metería en la lista el `assets/` que muchos documentos traen al
+  /// lado —había dos ahí mismo cuando esto se escribió, `assets-reformas` y
+  /// `assets-zonas-comunes`— y por eso no se recorre el árbol entero: se entra solo
+  /// donde se sabe qué hay.
+  ///
+  /// [cuentas] son los nombres de perfil del Mac. Sin ellos se mira solo la raíz, que
+  /// es el comportamiento de antes: un Mac con una sola cuenta no gana nada y no
+  /// arriesga nada.
+  Future<List<Artifact>> list(
+    String directory, {
+    Set<String> cuentas = const {},
+  }) async {
     final dir = Directory(directory);
     if (!dir.existsSync()) return const [];
 
-    final artifacts = <Artifact>[];
+    final artifacts = <Artifact>[
+      ..._enUnaCarpeta(dir, null),
+      for (final cuenta in cuentas)
+        ..._enUnaCarpeta(Directory('$directory/$cuenta'), cuenta),
+    ]..sort((a, b) => b.at.compareTo(a.at));
+    return artifacts;
+  }
+
+  List<Artifact> _enUnaCarpeta(Directory dir, String? cuenta) {
+    if (!dir.existsSync()) return const [];
     try {
-      for (final entry in dir.listSync(followLinks: false)) {
-        if (entry is! File) continue;
-        final name = entry.path.split('/').last;
-        if (name.startsWith('.') || !Artifact.isViewable(entry.path)) continue;
-        artifacts.add(
-          Artifact(path: entry.path, name: name, at: entry.statSync().modified),
-        );
-      }
+      return [
+        for (final entry in dir.listSync(followLinks: false))
+          if (entry is File)
+            if (!entry.path.split('/').last.startsWith('.') &&
+                Artifact.isListable(entry.path))
+              Artifact(
+                path: entry.path,
+                name: entry.path.split('/').last,
+                at: entry.statSync().modified,
+                account: cuenta,
+              ),
+      ];
     } on FileSystemException {
+      // Una carpeta que no se puede leer no invalida las otras: se enseña lo que
+      // haya. Devolver vacío entero por un permiso suelto esconde todo lo demás.
       return const [];
     }
-
-    artifacts.sort((a, b) => b.at.compareTo(a.at));
-    return artifacts;
   }
 
   /// Abre el documento en su propia ventana. Si ya estaba abierto, la trae al

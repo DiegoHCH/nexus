@@ -49,17 +49,22 @@ class FolderEntry {
     required this.path,
     required this.canWrite,
     required this.busy,
+    this.account,
   });
 
   factory FolderEntry.fromJson(Map<String, Object?> j) => FolderEntry(
     path: j['path']! as String,
     canWrite: j['canWrite'] == true,
     busy: j['busy'] == true,
+    account: j['account'] as String?,
   );
 
   final String path;
   final bool canWrite;
   final bool busy;
+
+  /// Con qué cuenta trabaja. Abrir aquí es elegir cuenta, así que se ve antes.
+  final String? account;
 }
 
 @immutable
@@ -68,17 +73,28 @@ class ArtifactEntry {
     required this.id,
     required this.name,
     required this.bytes,
+    this.text = false,
+    this.account,
   });
 
   factory ArtifactEntry.fromJson(Map<String, Object?> j) => ArtifactEntry(
     id: j['id']! as String,
     name: (j['name'] as String?) ?? '',
     bytes: (j['bytes'] as int?) ?? 0,
+    text: j['text'] == true,
+    account: j['account'] as String?,
   );
 
   final String id;
   final String name;
   final int bytes;
+
+  /// Si se puede leer aquí. Un `.png` viaja mal por un canal de texto, y decirlo en
+  /// la lista evita tocar algo que solo puede fallar.
+  final bool text;
+
+  /// De qué cuenta salió —`work`, `private`—, cuando están separados por perfil.
+  final String? account;
 }
 
 /// El archivo de conversaciones.

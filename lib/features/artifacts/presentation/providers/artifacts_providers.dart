@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 final artifactsDataSourceProvider = Provider<ArtifactsDataSource>(
@@ -19,9 +20,15 @@ final artifactsDataSourceProvider = Provider<ArtifactsDataSource>(
 class ArtifactsFolder extends Notifier<String?> {
   static const _key = 'artifacts.folder';
 
+  /// Se completa cuando la carpeta **ya se leyó del disco**. Mismo motivo que en los
+  /// ajustes del archivo: `build()` devuelve `null` y carga después, así que el
+  /// teléfono —que pide la lista una vez— recibía «no hay carpeta» y enseñaba cero
+  /// documentos habiendo uno.
+  late final Future<void> cargada;
+
   @override
   String? build() {
-    _load();
+    cargada = _load().catchError((Object _) {});
     return null;
   }
 
@@ -51,5 +58,11 @@ final artifactsFolderProvider = NotifierProvider<ArtifactsFolder, String?>(
 final artifactsProvider = FutureProvider<List<Artifact>>((ref) async {
   final folder = ref.watch(artifactsFolderProvider);
   if (folder == null) return const [];
-  return ref.watch(artifactsDataSourceProvider).list(folder);
+  // Las cuentas del Mac, para saber en qué subcarpetas se puede entrar. Si no se
+  // pueden leer, se sigue con la raíz: quedarse sin lista por eso sería peor.
+  final cuentas = await ref
+      .watch(claudeProfilesProvider.future)
+      .then((p) => p.map((c) => c.name).toSet())
+      .onError((_, _) => const <String>{});
+  return ref.watch(artifactsDataSourceProvider).list(folder, cuentas: cuentas);
 });
