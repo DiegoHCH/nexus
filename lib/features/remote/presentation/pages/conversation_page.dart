@@ -6,6 +6,9 @@ import 'package:nexus/features/remote/presentation/providers/mirror_providers.da
 import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 import 'package:nexus/features/remote/presentation/widgets/write_phrase_sheet.dart';
+import 'package:nexus/core/design_system/nexus_spacing.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
+import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -181,31 +184,14 @@ class _Mensaje extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
-    // Lo tuyo alineado a la derecha y lo de Nexus a la izquierda, que es la
-    // convención que nadie tiene que aprender. Y **lo tuyo no se interpreta como
-    // markdown**, igual que en el escritorio: un asterisco que escribiste tú se queda
-    // como asterisco.
-    return Align(
-      alignment: mensaje.mine ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 10),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.82,
-        ),
-        decoration: BoxDecoration(
-          color: mensaje.mine ? colors.rise : colors.deep,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Text(
-          mensaje.text,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: mensaje.mine ? colors.ink : colors.mute,
-          ),
-        ),
-      ),
-    );
+    // Lo tuyo no se interpreta como markdown, igual que en el escritorio: un
+    // asterisco que escribiste tú se queda como asterisco. Eso lo hace `TurnBlock`.
+    // **Un bloque y no una burbuja.** Lo que había eran `Container` redondeados
+    // alineados a un lado y a otro —la convención de una app de mensajería— y esto no
+    // lo es: el teléfono no ejecuta nada, refleja. `TurnBlock` ya dibuja la pila de
+    // bloques con hairline y la etiqueta arriba, que es lo que dibuja el mockup, así
+    // que aquí no se repite: se usa.
+    return TurnBlock(mine: mensaje.mine, text: mensaje.text);
   }
 }
 
@@ -233,15 +219,14 @@ class _Esperando extends ConsumerWidget {
               children: [
                 Padding(
                   padding: const EdgeInsets.only(top: 3, right: 10),
-                  child: Icon(Icons.schedule, size: 13, color: colors.mute),
+                  child: _Marca(color: colors.rule2),
                 ),
                 Expanded(
                   child: Text(
                     encargo.text,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: colors.mute,
-                      fontStyle: FontStyle.italic,
-                    ),
+                    // En mono y no en cursiva: la cursiva era la forma de decir «esto
+                    // todavía no es real», y aquí eso ya lo dice la marca apagada.
+                    style: NexusTypography.mono.copyWith(color: colors.mute),
                   ),
                 ),
               ],
@@ -250,6 +235,42 @@ class _Esperando extends ConsumerWidget {
       ],
     );
   }
+}
+
+/// La marca de un paso: un punto de 7 px, y nada más.
+///
+/// Es lo que dibuja el mockup —`.act .mk::before`— y no un icono de Material. La
+/// diferencia importa porque un icono trae su propio idioma: un ✓ de Material dice
+/// «tarea completada en una lista de tareas», y un punto que cambia de color dice «esto
+/// pasó, esto está pasando», que es lo que un registro cuenta.
+///
+/// Tres colores y un halo: `rule2` lo que no ha llegado, `ok` lo hecho, y el acento con
+/// resplandor lo que está ocurriendo ahora — el único elemento que brilla, igual que el
+/// orbe.
+class _Marca extends StatelessWidget {
+  const _Marca({required this.color, this.brilla = false});
+
+  final Color color;
+  final bool brilla;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: 14,
+    height: 14,
+    child: Center(
+      child: Container(
+        width: 7,
+        height: 7,
+        decoration: BoxDecoration(
+          color: color,
+          shape: BoxShape.circle,
+          boxShadow: brilla
+              ? [BoxShadow(color: color.withValues(alpha: 0.8), blurRadius: 12)]
+              : null,
+        ),
+      ),
+    ),
+  );
 }
 
 class _Medidor extends StatelessWidget {
@@ -312,26 +333,39 @@ class _Pasos extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final paso in pasos)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 8),
+          Container(
+            // Hairline entre pasos, como los bloques de arriba: es el mismo sistema, y
+            // una lista con separadores propios se leería como otra app.
+            decoration: BoxDecoration(
+              border: Border(bottom: BorderSide(color: colors.rule)),
+            ),
+            padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(top: 4, right: 10),
-                  child: Icon(
-                    paso.done ? Icons.check : Icons.more_horiz,
-                    size: 13,
-                    // Los que escriben, en el color de aviso: es la única forma que
-                    // tiene el teléfono de decir que algo está tocando archivos.
-                    color: paso.writes ? colors.warn : colors.mute,
+                  padding: const EdgeInsets.only(right: 10),
+                  child: _Marca(
+                    // El que escribe manda sobre lo demás: es la única forma que tiene
+                    // el teléfono de decir que algo está tocando archivos, y eso
+                    // importa más que si ya terminó.
+                    color: paso.writes
+                        ? colors.warn
+                        : paso.done
+                        ? colors.ok
+                        : colors.accent,
+                    brilla: !paso.done,
                   ),
                 ),
                 Expanded(
                   child: Text(
                     paso.text,
-                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: paso.writes ? colors.warn : colors.mute,
+                    style: NexusTypography.mono.copyWith(
+                      color: paso.writes
+                          ? colors.warn
+                          : paso.done
+                          ? colors.faint
+                          : colors.ink,
                     ),
                   ),
                 ),
