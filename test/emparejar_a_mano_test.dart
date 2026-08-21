@@ -66,6 +66,30 @@ void main() {
       expect(leido.problema, isNull);
     });
 
+    test('la dirección a secas vale: se le pone el ws://', () {
+      // Lo que se copia del Mac lleva el esquema, pero lo que se teclea de memoria es
+      // la dirección y el puerto. Exigir el `ws://` era una regla mía, no del canal.
+      final leido = leerEmparejamiento(
+        url: '100.73.35.55:7845',
+        token: tokenBueno,
+      );
+
+      expect(leido.problema, isNull);
+      expect(leido.emparejamiento!.comoSeVe, '100.73.35.55:7845');
+      expect(leido.emparejamiento!.url.scheme, 'ws');
+    });
+
+    test('y sigue avisando si esa dirección no es de Tailscale', () {
+      // El aviso tiene que sobrevivir a completar el esquema: si al añadir `ws://` se
+      // perdiera la comprobación, se habría cambiado un mensaje útil por otro.
+      final leido = leerEmparejamiento(
+        url: '192.168.1.40:7845',
+        token: tokenBueno,
+      );
+      expect(leido.problema, isNull);
+      expect(fueraDeTailscale(leido.emparejamiento!.url), isTrue);
+    });
+
     test('pegar la del navegador se dice como lo que es', () {
       final leido = leerEmparejamiento(
         url: 'http://100.64.0.1:7845',
@@ -93,7 +117,10 @@ void main() {
     });
 
     test('lo ilegible es ilegible', () {
-      final leido = leerEmparejamiento(url: 'esto no es una url', token: tokenBueno);
+      final leido = leerEmparejamiento(
+        url: 'esto no es una url',
+        token: tokenBueno,
+      );
       expect(leido.problema, PairingProblem.urlIlegible);
     });
   });
@@ -257,7 +284,9 @@ void main() {
       expect(store.escrituras, 0);
     });
 
-    testWidgets('el aviso de Tailscale sale mientras se escribe', (tester) async {
+    testWidgets('el aviso de Tailscale sale mientras se escribe', (
+      tester,
+    ) async {
       final c = montar(_Memoria());
       await tester.pumpWidget(app(c));
 

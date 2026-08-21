@@ -89,7 +89,7 @@ class _PairingPageState extends ConsumerState<PairingPage> {
               _Campo(
                 key: const ValueKey('campo-url'),
                 etiqueta: 'Dirección',
-                pista: 'ws://100.x.y.z:7845',
+                pista: '100.x.y.z:7845',
                 controlador: _url,
                 alPegar: () => _pegarEn(_url),
                 alEscribir: () => setState(() => _problema = null),
@@ -122,7 +122,8 @@ class _PairingPageState extends ConsumerState<PairingPage> {
                   // Avisa y **no bloquea**: el Mac solo escucha en Tailscale, así
                   // que esta dirección probablemente no conecte — pero quien tenga
                   // otro montaje sabe más que esta comprobación.
-                  texto: 'Esa dirección no parece de Tailscale, y el Mac solo '
+                  texto:
+                      'Esa dirección no parece de Tailscale, y el Mac solo '
                       'escucha ahí. Puedes seguir, pero probablemente no conecte.',
                 ),
               ],
@@ -141,8 +142,10 @@ class _PairingPageState extends ConsumerState<PairingPage> {
 
   String _decir(PairingProblem problema) => switch (problema) {
     PairingProblem.urlIlegible => 'Esa dirección no se entiende.',
+    // Ya no se ve por escribir la dirección a secas —eso se completa— así que
+    // llegar aquí significa haber pegado algo de otro sitio.
     PairingProblem.esquemaEquivocado =>
-      'Tiene que empezar por ws:// — el canal no es una página web.',
+      'Eso parece la dirección de una web, no la del canal.',
     PairingProblem.faltaElPuerto =>
       'Falta el puerto. El canal escucha en el 7845.',
     PairingProblem.tokenCorto => 'Ese token está incompleto.',
