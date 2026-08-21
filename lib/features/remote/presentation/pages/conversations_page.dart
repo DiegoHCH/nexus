@@ -80,6 +80,17 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                         preguntado: ref
                             .read(mirrorProvider.notifier)
                             .preguntado,
+                        // La salida va desde aquí porque **es la pantalla la que sabe
+                        // navegar**, y porque sin ella el vacío era un callejón: «nada
+                        // abierto en el Mac» y ninguna forma de abrir algo, salvo que
+                        // ya supieras que estaba detrás del menú.
+                        alEmpezar: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const FoldersPage(),
+                          ),
+                        ),
+                        alReintentar: () =>
+                            ref.read(mirrorProvider.notifier).refrescar(),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -97,10 +108,19 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
 }
 
 class _Vacio extends StatelessWidget {
-  const _Vacio({required this.preguntado});
+  const _Vacio({
+    required this.preguntado,
+    required this.alEmpezar,
+    required this.alReintentar,
+  });
 
   /// Si el Mac contestó a la última petición de la lista.
   final bool preguntado;
+
+  /// Abrir una conversación nueva sobre una carpeta que el Mac ya tiene.
+  final VoidCallback alEmpezar;
+
+  final Future<void> Function() alReintentar;
 
   @override
   Widget build(BuildContext context) {
@@ -108,22 +128,53 @@ class _Vacio extends StatelessWidget {
     // Una lista vacía **no es un error**: es un Mac sin conversaciones abiertas, y
     // eso pasa a diario. Se dibuja como un estado y no como un fallo — y con
     // scroll, para que el tirón de refrescar siga funcionando.
+    // **Y las tres partes que el mockup exige, no dos.** Tenía qué pasó y por qué, y
+    // le faltaba qué se puede hacer: la pantalla decía «nada abierto en el Mac» y no
+    // ofrecía abrir nada, así que empezar dependía de saber que estaba detrás del
+    // menú. Un estado vacío sin salida es un callejón con buenos modales.
     return ListView(
+      padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s5),
       children: [
-        const SizedBox(height: 80),
+        const SizedBox(height: 60),
         const SizedBox(
           height: 140,
           child: NexusOrb(state: NexusOrbState.sleep, showHorizon: false),
         ),
-        const SizedBox(height: 28),
-        Center(
-          child: Text(
-            preguntado
-                ? 'Nada abierto en el Mac'
-                : 'No pude preguntarle al Mac',
-            style: NexusTypography.body.copyWith(color: colors.mute),
-          ),
+        const SizedBox(height: NexusSpacing.s6),
+        Text(
+          preguntado ? 'Nada abierto en el Mac' : 'No pude preguntarle al Mac',
+          key: const ValueKey('titulo-del-vacio'),
+          style: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
         ),
+        const SizedBox(height: NexusSpacing.s3),
+        Text(
+          preguntado
+              // Se dice **sobre qué** se abre, que es la parte que no es obvia: una
+              // conversación no nace de la nada, nace sobre una carpeta que el Mac ya
+              // tenía emparejada.
+              ? 'Una conversación empieza sobre una de las carpetas que el Mac ya '
+                    'tiene emparejadas.'
+              : 'El Mac no contestó a la última petición. Puede estar dormido, o '
+                    'fuera de Tailscale.',
+          style: NexusTypography.body.copyWith(color: colors.mute),
+        ),
+        const SizedBox(height: NexusSpacing.s6),
+        if (preguntado)
+          WideAction(
+            key: const ValueKey('empezar-desde-el-vacio'),
+            texto: 'Conversación nueva',
+            principal: true,
+            alTocar: alEmpezar,
+          )
+        else
+          // Sin respuesta del Mac la salida **no** es abrir una carpeta —eso fallaría
+          // igual—: es volver a preguntar.
+          WideAction(
+            key: const ValueKey('reintentar-desde-el-vacio'),
+            texto: 'Volver a preguntar',
+            principal: true,
+            alTocar: alReintentar,
+          ),
       ],
     );
   }
