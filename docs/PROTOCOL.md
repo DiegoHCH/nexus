@@ -6,9 +6,10 @@ Este documento existe porque el atajo tentador es reenviar a lo bruto lo que ya
 hay —los providers de Riverpod— y acabar con métodos sin criterio y con agujeros.
 El contrato se escribe primero. Casi nada de esto es código.
 
-> **Estado**: decidido el 19 ago 2026. Lo que sigue no son propuestas: son las
-> decisiones con las que se va a escribir el servidor. Cuando alguna cambie, se
-> cambia **aquí** y luego en el código.
+> **Estado**: decidido el 19 ago 2026, con la **2.4 corregida el 20 ago**. Lo que
+> sigue no son propuestas: son las decisiones con las que se está escribiendo el
+> servidor. Cuando alguna cambie, se cambia **aquí** y luego en el código — como
+> pasó con la 2.4, que pedía algo imposible y lo dice en su propio apartado.
 
 ---
 
@@ -70,19 +71,75 @@ esperados.
 
 ### 2.4 · El móvil nace en solo lectura
 
-Pasar a edición **se confirma en el escritorio** y **caduca a los 30 minutos**.
+Y **solo lectura no significa que no pueda mandar encargos**: sí puede, y así lo
+dice la sección 3. Significa que su encargo corre con `canEdit: false` — Claude
+lee el repositorio y contesta, pero no escribe.
 
-La caducidad se cuenta desde la confirmación y **no se renueva con la actividad**.
-Si se renovara, un teléfono en uso mantendría el permiso abierto indefinidamente
-— que es exactamente el escenario del teléfono perdido que esto viene a evitar.
+Subir a edición pide **la frase de escritura** y **caduca a los 30 minutos**.
 
-Nexus llega con esto medio resuelto: el permiso ya es un eje explícito de la
-interfaz y el modo se fija al lanzar cada encargo, así que la caducidad es un
-temporizador y no una reingeniería.
+La caducidad se cuenta desde que se concede y **no se renueva con la actividad**.
+Si se renovara, un teléfono en uso mantendría el permiso abierto
+indefinidamente — que es exactamente el escenario del teléfono perdido que esto
+viene a evitar.
 
 El riesgo de fondo, para no perderlo de vista: el interruptor **puede editar**
 mapea a `acceptEdits`, que escribe sin preguntar. Abrir eso por red es lo que
 justifica todo este documento.
+
+#### Esto decía «se confirma en el escritorio», y estaba mal
+
+Corregido el 20 ago, y el motivo merece quedar escrito porque el error es fácil de
+repetir.
+
+**Si la confirmación exige el escritorio, editar en remoto es imposible por
+definición**: justo cuando estás fuera, no hay nadie en el Mac para conceder nada.
+La función se quedaba sin su caso principal.
+
+El error de fondo fue confundir el requisito con una de sus formas. El requisito
+real es:
+
+> Subir a edición tiene que exigir **algo que quien robe el teléfono no tenga**.
+
+La proximidad al Mac era una manera de conseguir eso, y resulta ser la única que
+además te excluye a ti.
+
+#### Y por qué no vale el Face ID del teléfono
+
+Fue lo primero que se pensó, y **no sirve aquí**: el Mac no puede comprobar que
+haya ocurrido. Si el teléfono dice «el usuario se autenticó», hay que creérselo — y
+quien haya sacado el token del Keystore puede mandar esa misma frase sin ninguna
+cara delante.
+
+Face ID protege contra alguien que coge tu teléfono desbloqueado y abre la app. No
+protege contra quien se llevó el token, que es el escenario que importa.
+
+#### La frase de escritura
+
+Un segundo secreto **que el Mac sí puede verificar**:
+
+- Se define en el Mac y vive en su llavero, igual que el token.
+- **No se guarda nunca en el teléfono.** Se teclea cuando se quiere escribir.
+- Viaja dentro del WebSocket, que ya va cifrado por WireGuard, y **nunca a un
+  registro**: es un objeto con `toString` redactado, como el token.
+- Se compara **en tiempo constante** y con su propio límite de intentos, aparte del
+  de la conexión: adivinarla por un canal ya autenticado no puede ser gratis.
+- Concede **treinta minutos para todo el canal**, no por carpeta. Por carpeta sería
+  más fino y en la práctica es la misma persona tecleando la misma frase varias
+  veces: fricción sin ganancia.
+
+**Sin frase definida, el móvil se queda en solo lectura para siempre.** Es el
+estado por defecto y es el correcto: quien no la haya puesto no ha dicho en ningún
+momento que quiera que el teléfono escriba.
+
+Y como complemento —no como sustituto— el Mac puede **preautorizar** una ventana
+antes de salir, para no teclearla cada media hora.
+
+| | ¿puede escribir? |
+|---|---|
+| Tú, desde donde sea | **sí**, con la frase |
+| Quien tenga tu teléfono | no: el token está ahí, la frase no |
+| Quien saque el token del Keystore | no, por lo mismo |
+| Quien entre en el Mac | sí — pero ahí ya está todo perdido, y este documento no lo cubre |
 
 ### 2.5 · Registro append-only
 
@@ -107,6 +164,10 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
 - El stream de actividad y de respuesta.
 - Las conversaciones y su historial.
 - El estado del medidor de contexto y el permiso vigente.
+- **Subir el permiso** a escritura, y solo con la frase de escritura de la 2.4.
+  Estuvo en el lado de «se queda en el Mac» mientras la confirmación era del
+  escritorio; con la frase ya no tiene que serlo, y dejarlo ahí era lo que hacía
+  imposible editar en remoto.
 
 ### Se queda en el Mac
 
@@ -114,7 +175,7 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
 |---|---|
 | **Emparejar carpetas** | Es un selector de archivos local. Por red sería elegir a ciegas cualquier ruta del disco |
 | **Crear skills** | Escribe en disco, y se administra desde el escritorio |
-| **Subir el permiso a «puede editar»** | Por la 2.4: se confirma en el escritorio |
+| **Definir o cambiar la frase de escritura** | Es la llave del permiso: pedirla por el mismo canal que la usa sería regalarla |
 
 La regla, traída de La Oficina: **un canal remoto que pueda instalar o mutar
 cosas amplía mucho la superficie a cambio de poca ganancia.**
@@ -180,6 +241,55 @@ envío, que es lo que se quería evitar.
 
 Lo mismo con el historial y la actividad, que hoy se sirven de golpe: **paginación**,
 porque el teléfono no puede tragarse una sesión entera.
+
+Y los eventos se hacen de **diferencias de estado, no de deltas acumulados**. El
+escritorio ya tiene un flujo de deltas y era lo obvio de reenviar, pero un flujo
+acumulado tiene una propiedad mala: si se pierde uno, el teléfono queda mal para
+siempre y nada lo delata. Con diferencias, cada envío se calcula contra lo último que
+salió de verdad, así que un hueco se cierra solo en el siguiente.
+
+De ahí sale también la regla del texto: lo normal es mandar **solo lo que falta**,
+pero cuando la respuesta no es continuación de la anterior —empezó otro turno— va con
+`replace`. Sin esa distinción el teléfono pegaría la respuesta nueva al final de la
+vieja, y eso pasa en cada segundo encargo.
+
+La ventana es **por conversación y no global**: la cuenta empieza cuando cambió *esa*,
+así que un cambio nunca espera al reloj de otra.
+
+### 4.6 · El `ack` va antes de ejecutar, no con el resultado
+
+Es el orden y no un detalle. Un encargo dura minutos: si la confirmación llegara
+con el resultado, el móvil pasaría esos minutos sin saber si su petición llegó — y
+un móvil que no lo sabe **reenvía**, que es exactamente lo que abre la 4.3.
+
+Así que toda petición recibe dos marcos: el `ack` al instante, y después el `result`
+o el `failure`. Un reenvío recibe `ack` con `duplicate` y **no se ejecuta**.
+
+Para `sendErrand`, el `result` dice **que arrancó**, no que terminara: lo que pasa
+dentro llega como eventos.
+
+### 4.7 · Cuando algo no se puede atender, se contesta
+
+Nunca se deja una petición sin respuesta. Un teléfono esperando para siempre se lee
+como «el Mac no responde», y manda a buscar el problema al sitio equivocado.
+
+Los códigos, que son lo que el móvil convierte en algo que enseñar:
+
+| código | qué pasó | qué hace el móvil |
+|---|---|---|
+| `unknownMethod` | este Mac no conoce el método | actualizar el escritorio |
+| `unknownConversation` | esa conversación ya no está abierta | quitarla y recargar la lista |
+| `badParams` | falta algo o no se entiende | es un fallo del cliente |
+| `noPhrase` | no hay frase de escritura definida en el Mac | «defínela en el Mac» |
+| `wrongPhrase` | la frase no era | volver a pedirla |
+| `tooManyAttempts` | se gastó el cupo de intentos | esperar |
+| `unavailable` | el canal no atiende peticiones | reconectar |
+| `internal` | algo se rompió por dentro | reintentar |
+
+Dos reglas sobre lo que **no** viaja. El `internal` va **sin detalles**: lo que sabe
+el Mac se queda en su registro. Y la frase de escritura no aparece nunca en un marco
+de respuesta ni en el registro — el registro anota el método y jamás los parámetros,
+porque `debugPrint` acaba en el registro del sistema.
 
 ---
 

@@ -11,6 +11,7 @@ import 'package:nexus/features/workspace/presentation/pages/settings/appearance_
 import 'package:nexus/features/workspace/presentation/pages/settings/help_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/history_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/language_section.dart';
+import 'package:nexus/features/remote/presentation/pages/mobile_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/permissions_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/voice_section.dart';
 
@@ -78,10 +79,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return CallbackShortcuts(
+  Widget build(BuildContext context) => CallbackShortcuts(
       bindings: {
         const SingleActivator(LogicalKeyboardKey.escape): () =>
             Navigator.of(context).maybePop(),
@@ -115,7 +113,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                 active: _section == section,
                                 onTap: () => setState(() => _section = section),
                               ),
-                            _disabled(context.strings.sectionMobile, colors),
                           ],
                         ),
                       ),
@@ -126,6 +123,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           child: switch (_section) {
                             _Section.voice => const VoiceSection(),
                             _Section.permissions => const PermissionsSection(),
+                            _Section.mobile => const MobileSection(),
                             _Section.history => const HistorySection(),
                             _Section.stats => const StatsSection(),
                             _Section.superpowers => const SuperpowersSection(),
@@ -144,15 +142,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         ),
       ),
     );
-  }
-
-  Widget _disabled(String label, NexusColors colors) => Padding(
-    padding: const EdgeInsets.only(bottom: NexusSpacing.s4),
-    child: Text(
-      label.toUpperCase(),
-      style: NexusTypography.label.copyWith(color: colors.rule2),
-    ),
-  );
 }
 
 class _SectionLink extends StatelessWidget {
@@ -278,6 +267,7 @@ class _SettingsTopBar extends ConsumerWidget {
 enum _Section {
   voice,
   permissions,
+  mobile,
   history,
   stats,
   superpowers,
@@ -288,6 +278,7 @@ enum _Section {
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
     _Section.permissions => strings.sectionPermissions,
+    _Section.mobile => strings.sectionMobile,
     _Section.history => strings.sectionHistory,
     _Section.stats => strings.sectionStats,
     _Section.superpowers => strings.sectionSuperpowers,

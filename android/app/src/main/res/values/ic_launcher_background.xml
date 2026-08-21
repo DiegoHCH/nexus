@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- El mismo vacío del que nace la estética de la app. -->
+    <color name="ic_launcher_background">#04070D</color>
+</resources>

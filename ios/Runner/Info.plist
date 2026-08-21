@@ -14,8 +14,20 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
+	<!-- El canal va a una dirección de Tailscale (100.64.0.0/10). Desde iOS 14
+	     hablar con aparatos de la red local pide permiso, y sin esta descripción
+	     el sistema **cierra la app** al pedirlo en vez de preguntar.
+	     Que Tailscale cuente como «red local» está sin comprobar —su tráfico va
+	     por un túnel, no por el wifi— pero declararlo no cuesta nada y la
+	     alternativa es un cierre sin mensaje. Se confirmará al conectar de
+	     verdad, que es la pieza 3.
+	     ATS no debería aplicar aquí: `dart:io` abre sockets del sistema y no pasa
+	     por NSURLSession, que es a lo que ATS mira. También sin comprobar en un
+	     dispositivo: si `ws://` fuera bloqueado, se vería en esa misma pieza. -->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Nexus habla con tu Mac por tu red privada para llevarte tus conversaciones.</string>
 	<key>CFBundleName</key>
-	<string>nexus</string>
+	<string>Nexus</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<key>CFBundleShortVersionString</key>

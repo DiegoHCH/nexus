@@ -47,9 +47,13 @@ void main() {
     final cuantas = tester.widgetList(pestanas).length;
     expect(
       cuantas,
-      8,
+      // Nueve desde que «Móvil» dejó de estar apagada: el canal del teléfono ya se
+      // enciende, así que la sección tiene contenido. Este número se sube **a
+      // mano y a propósito** — es lo que hace que añadir una sección pase por
+      // aquí, y esta prueba avisó de la novena en el primer intento.
+      9,
       reason:
-          'se esperaban ocho secciones y hay $cuantas: si se añade una al enum, '
+          'se esperaban nueve secciones y hay $cuantas: si se añade una al enum, '
           'esta prueba tiene que verla — y si desaparece, también',
     );
 

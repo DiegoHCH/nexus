@@ -264,6 +264,29 @@ abstract class NexusStrings {
   String get sectionLanguage;
   String get sectionHistory;
   String get sectionMobile;
+  String get channelTitle;
+  String get channelExplainer;
+  String get channelSwitch;
+  String get channelStarting;
+  String get channelListeningAt;
+  String get channelToken;
+  String get channelCopyToken;
+  String get channelRotateToken;
+  String get channelRotateWarning;
+  String get channelNeedsTailscale;
+  String get channelPortBusy;
+  String get channelUnknownProblem;
+  String get channelNoPhoneYet;
+  String get phraseTitle;
+  String get phraseExplainer;
+  String get phraseDefined;
+  String get phraseMissing;
+  String get phraseDefine;
+  String get phraseChange;
+  String get phraseRemove;
+  String get phraseTooShort;
+  String get phraseSave;
+  String get phraseChangeWarning;
   String get sectionModel;
   String get nexusVoice;
   String get audioOutput;
@@ -873,6 +896,69 @@ class NexusStringsEs extends NexusStrings {
   String get sectionLanguage => 'Idioma';
   @override
   String get sectionMobile => 'Móvil';
+  @override
+  String get channelTitle => 'El canal del teléfono';
+  @override
+  String get channelExplainer =>
+      'Escucha solo por Tailscale, nunca en la red local. Con eso el cifrado y la '
+      'identidad ya los pone WireGuard, y no hacen falta certificados.';
+  @override
+  String get channelSwitch => 'Aceptar conexiones del teléfono';
+  @override
+  String get channelStarting => 'Abriendo el canal…';
+  @override
+  String get channelListeningAt => 'Escuchando en';
+  @override
+  String get channelToken => 'Token';
+  @override
+  String get channelCopyToken => 'Copiar';
+  @override
+  String get channelRotateToken => 'Rotar';
+  @override
+  String get channelRotateWarning =>
+      'Rotarlo cierra las conexiones abiertas y deja fuera a todos los teléfonos: '
+      'es la forma de revocar el acceso.';
+  @override
+  String get channelNeedsTailscale =>
+      'No encuentro Tailscale en este Mac. El canal solo escucha por ahí, así que '
+      'hay que instalarlo y entrar con tu cuenta — en el Mac y en el teléfono.';
+  @override
+  String get channelPortBusy =>
+      'El puerto 7845 está ocupado. Casi siempre es otra copia de Nexus abierta: '
+      'ciérrala y vuelve a encenderlo.';
+  @override
+  String get channelUnknownProblem =>
+      'El canal no pudo abrirse. El motivo queda en el registro del sistema.';
+  @override
+  String get channelNoPhoneYet =>
+      'La app del teléfono todavía no existe. El canal ya acepta conexiones y '
+      'contesta al saludo, pero aún no atiende peticiones: esto es la mitad de '
+      'abajo terminada, no la de arriba.';
+  @override
+  String get phraseTitle => 'Frase de escritura';
+  @override
+  String get phraseExplainer =>
+      'El token deja entrar al teléfono; esta frase es la que le deja escribir. No '
+      'se guarda en el teléfono: se teclea cuando hace falta y la comprueba este '
+      'Mac, así que llevarse el teléfono no basta para escribir.';
+  @override
+  String get phraseDefined => 'Definida';
+  @override
+  String get phraseMissing =>
+      'Sin definir: el teléfono puede pedir cosas y leer, pero no escribir.';
+  @override
+  String get phraseDefine => 'Definir';
+  @override
+  String get phraseChange => 'Cambiar';
+  @override
+  String get phraseRemove => 'Quitar';
+  @override
+  String get phraseTooShort => 'Al menos ocho caracteres.';
+  @override
+  String get phraseSave => 'Guardar';
+  @override
+  String get phraseChangeWarning =>
+      'Cambiarla o quitarla cierra el permiso de escritura que estuviera abierto.';
   @override
   String get sectionModel => 'Modelo';
   @override
@@ -1745,6 +1831,70 @@ class NexusStringsEn extends NexusStrings {
   String get sectionLanguage => 'Language';
   @override
   String get sectionMobile => 'Mobile';
+  @override
+  String get channelTitle => 'The phone channel';
+  @override
+  String get channelExplainer =>
+      'It listens over Tailscale only, never on the local network. That way '
+      'WireGuard already provides the encryption and the identity, and no '
+      'certificates are needed.';
+  @override
+  String get channelSwitch => 'Accept connections from the phone';
+  @override
+  String get channelStarting => 'Opening the channel…';
+  @override
+  String get channelListeningAt => 'Listening on';
+  @override
+  String get channelToken => 'Token';
+  @override
+  String get channelCopyToken => 'Copy';
+  @override
+  String get channelRotateToken => 'Rotate';
+  @override
+  String get channelRotateWarning =>
+      'Rotating it closes open connections and locks every phone out: that is how '
+      'access is revoked.';
+  @override
+  String get channelNeedsTailscale =>
+      'I cannot find Tailscale on this Mac. The channel only listens there, so it '
+      'has to be installed and signed in — on the Mac and on the phone.';
+  @override
+  String get channelPortBusy =>
+      'Port 7845 is taken. Almost always another copy of Nexus is open: close it '
+      'and turn this on again.';
+  @override
+  String get channelUnknownProblem =>
+      'The channel could not open. The reason is in the system log.';
+  @override
+  String get channelNoPhoneYet =>
+      'The phone app does not exist yet. The channel already accepts connections '
+      'and answers the handshake, but does not serve requests: this is the bottom '
+      'half finished, not the top one.';
+  @override
+  String get phraseTitle => 'Write phrase';
+  @override
+  String get phraseExplainer =>
+      'The token lets the phone in; this phrase is what lets it write. It is never '
+      'stored on the phone: it is typed when needed and checked by this Mac, so '
+      'taking the phone is not enough to write.';
+  @override
+  String get phraseDefined => 'Defined';
+  @override
+  String get phraseMissing =>
+      'Not set: the phone can ask and read, but not write.';
+  @override
+  String get phraseDefine => 'Set';
+  @override
+  String get phraseChange => 'Change';
+  @override
+  String get phraseRemove => 'Remove';
+  @override
+  String get phraseTooShort => 'At least eight characters.';
+  @override
+  String get phraseSave => 'Save';
+  @override
+  String get phraseChangeWarning =>
+      'Changing or removing it closes any write permission already open.';
   @override
   String get sectionModel => 'Model';
   @override

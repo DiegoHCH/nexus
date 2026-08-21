@@ -31,6 +31,8 @@ migrate_working_dir/
 .pub-cache/
 .pub/
 /build/
+# Y el de cada paquete: `/build/` está anclado a la raíz y no los cubría.
+packages/*/build/
 /coverage/
 
 # Symbolication related
