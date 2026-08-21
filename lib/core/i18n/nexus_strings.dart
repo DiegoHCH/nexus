@@ -277,6 +277,7 @@ abstract class NexusStrings {
   String get channelPortBusy;
   String get channelUnknownProblem;
   String get channelNoPhoneYet;
+  String get channelQrExplainer;
   String get phraseTitle;
   String get phraseExplainer;
   String get phraseDefined;
@@ -930,6 +931,11 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get channelUnknownProblem =>
       'El canal no pudo abrirse. El motivo queda en el registro del sistema.';
+  @override
+  @override
+  String get channelQrExplainer =>
+      'Escanéalo desde la app del teléfono. Lleva esta dirección y este token, así '
+      'que es lo mismo que teclearlos — solo que sin teclear 43 caracteres.';
   @override
   String get channelNoPhoneYet =>
       'La app del teléfono ya existe: se instala desde el repositorio, se empareja '
@@ -1868,6 +1874,11 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get channelUnknownProblem =>
       'The channel could not open. The reason is in the system log.';
+  @override
+  @override
+  String get channelQrExplainer =>
+      'Scan it from the phone app. It carries this address and this token, so it is '
+      'the same as typing them — only without typing 43 characters.';
   @override
   String get channelNoPhoneYet =>
       'The phone app exists now: it installs from the repository, pairs by pasting '

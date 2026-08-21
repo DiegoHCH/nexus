@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
 import 'package:nexus/features/remote/data/access_log_file.dart';
@@ -176,6 +177,9 @@ class ChannelController extends Notifier<ChannelState> {
       log: _eventos,
       diario: ref.read(accessLogProvider),
       snapshot: puente.snapshot,
+      // Se lee en cada saludo, no al encender: cambiar el acento en el Mac tiene que
+      // llegar al teléfono en su siguiente conexión.
+      acento: () => ref.read(accentControllerProvider).chosen.toARGB32(),
       registro: (linea) => debugPrint('canal · $linea'),
     );
     enPie = servidor;

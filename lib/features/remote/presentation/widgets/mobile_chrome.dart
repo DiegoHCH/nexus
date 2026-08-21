@@ -19,15 +19,33 @@ import 'package:nexus/features/remote/presentation/providers/pairing_providers.d
 /// como un chip: mayúsculas, mono, con borde. No es un adorno — es la única forma que
 /// tiene el teléfono de decir que lo que enseña es un reflejo y no autonomía.
 class MobileChrome extends ConsumerWidget {
-  const MobileChrome({super.key, this.alFinal});
+  const MobileChrome({super.key, this.alFinal, this.enVezDe});
 
   /// Lo que va a la derecha del chip, si hace falta algo más.
   final Widget? alFinal;
 
+  /// Un estado que **manda sobre el real**.
+  ///
+  /// Existe por un fallo concreto: la pantalla de «buscando tu Mac» se retiene cinco
+  /// segundos a propósito para que se vea el orbe, y en una red rápida el enlace ya
+  /// está conectado antes de que acabe. El chip decía la verdad —`CONECTADO`— debajo
+  /// de un título que decía «buscando». **La pantalla mentía, no el chip.**
+  ///
+  /// Así que quien retiene una pantalla dice también qué estado afirma. No se resuelve
+  /// escondiendo el chip: un rechazo o un «no llego» que ocurran durante esos cinco
+  /// segundos tienen que verse igual, y para eso el sustituto solo se usa cuando el
+  /// estado real es `conectado`.
+  final LinkState? enVezDe;
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
-    final estado = ref.watch(linkStateProvider).value ?? LinkState.sinConexion;
+    final real = ref.watch(linkStateProvider).value ?? LinkState.sinConexion;
+    // El sustituto **solo cuando el real es «conectado»**: si mientras se retiene la
+    // pantalla apareciera un rechazo, taparlo sería el mismo error al revés.
+    final estado = (enVezDe != null && real == LinkState.conectado)
+        ? enVezDe!
+        : real;
     final (texto, vivo) = _decir(estado);
 
     return Row(
@@ -105,6 +123,124 @@ class StateChip extends StatelessWidget {
         texto.toUpperCase(),
         style: NexusTypography.label.copyWith(color: color),
       ),
+    );
+  }
+}
+
+/// El botón ancho del mockup: borde fino, mono, mayúsculas, todo el ancho.
+///
+/// Vive aquí y no dentro de una pantalla porque lo usan las tres —escanear, escribir a
+/// mano, conectando— y **tres copias del mismo botón se separan**: la primera vez que
+/// alguien cambie el radio o el grosor, dos de las tres se quedan atrás y el ojo lo
+/// nota sin saber por qué.
+class WideAction extends StatelessWidget {
+  const WideAction({
+    super.key,
+    required this.texto,
+    required this.alTocar,
+    this.principal = false,
+  });
+
+  final String texto;
+  final VoidCallback? alTocar;
+
+  /// En acento. Para la acción que la pantalla viene a hacer.
+  final bool principal;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final apagado = alTocar == null;
+    final color = apagado
+        ? colors.faint
+        : (principal ? colors.accent : colors.mute);
+
+    return SizedBox(
+      width: double.infinity,
+      child: InkWell(
+        onTap: alTocar,
+        child: Container(
+          alignment: Alignment.center,
+          padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s4),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(
+              color: principal && !apagado
+                  ? colors.accent.withValues(alpha: 0.5)
+                  : colors.rule2,
+            ),
+          ),
+          child: Text(
+            texto.toUpperCase(),
+            style: NexusTypography.label.copyWith(color: color),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Un campo del sistema: rótulo arriba, caja con borde fino, texto en mono.
+///
+/// **Sin botón de pegar a la derecha.** La primera versión ponía un icono de pegar en
+/// cada campo, razonando que nadie teclea 43 caracteres — y era ruido: una pulsación
+/// larga sobre el campo ya da el menú de pegar del sistema, que además es el gesto que
+/// la gente ya conoce. El icono ocupaba sitio para ofrecer algo que ya estaba.
+class MobileField extends StatelessWidget {
+  const MobileField({
+    super.key,
+    required this.etiqueta,
+    required this.pista,
+    required this.controlador,
+    this.alEscribir,
+  });
+
+  final String etiqueta;
+  final String pista;
+  final TextEditingController controlador;
+  final VoidCallback? alEscribir;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          etiqueta.toUpperCase(),
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Container(
+          decoration: BoxDecoration(
+            color: colors.rise,
+            borderRadius: BorderRadius.circular(2),
+            border: Border.all(color: colors.rule),
+          ),
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s3,
+            vertical: 2,
+          ),
+          child: TextField(
+            controller: controlador,
+            onChanged: (_) => alEscribir?.call(),
+            autocorrect: false,
+            enableSuggestions: false,
+            style: NexusTypography.mono.copyWith(color: colors.ink),
+            decoration: InputDecoration(
+              hintText: pista,
+              hintStyle: NexusTypography.mono.copyWith(color: colors.faint),
+              // Sin las líneas de Material: la caja ya es el borde, y dos bordes
+              // dibujan un campo dentro de otro.
+              border: InputBorder.none,
+              enabledBorder: InputBorder.none,
+              focusedBorder: InputBorder.none,
+              isDense: true,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

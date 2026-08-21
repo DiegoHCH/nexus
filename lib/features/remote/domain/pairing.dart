@@ -43,6 +43,13 @@ enum PairingProblem {
 
   /// El token no tiene la pinta de un token del canal.
   tokenCorto,
+
+  /// El QR es de otra cosa: una wifi, una URL, un billete.
+  ///
+  /// **No es un error de quien escanea**: es que apuntó a otro código. Decirlo así
+  /// evita el mensaje que más molesta —«código inválido»— cuando lo único que pasó es
+  /// que la cámara vio antes otro QR que había en la mesa.
+  noEsDeNexus,
 }
 
 /// Lee lo que el usuario pegó.

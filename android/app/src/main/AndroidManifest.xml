@@ -4,6 +4,12 @@
          debug y profile, así que funcionaría mientras se desarrolla y fallaría
          justo al publicarla. -->
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- La cámara, solo para leer el código de emparejamiento. -->
+    <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Y declarada **no obligatoria**: sin esto, Play oculta la app en cualquier
+         aparato sin cámara, y escribir el código a mano funciona igual. -->
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <application
         android:label="Nexus"
         android:name="${applicationName}"
