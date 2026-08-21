@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/remote/domain/access_log.dart';
 import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/gatekeeper.dart';
@@ -24,6 +25,7 @@ class ChannelServer {
     this.despacho,
     this.snapshot,
     this.registro,
+    this.diario,
     ProtocolRange? protocolo,
   }) : protocolo = protocolo ?? ProtocolRange.mine;
 
@@ -46,9 +48,19 @@ class ChannelServer {
   /// foto, y así las pruebas del portero siguen sin necesitar la app detrás.
   final Snapshot Function()? snapshot;
 
-  /// Dónde anotar lo que pasa, que es la decisión 2.5 empezada: quién intentó
-  /// entrar, con qué resultado y cuándo.
+  /// Dónde anotar lo que pasa **para depurar durante el desarrollo**.
+  ///
+  /// Sigue existiendo porque en `flutter run` es lo cómodo. Lo que no es, es el
+  /// registro de la 2.5: en release no llega a ninguna parte —medido— así que el
+  /// registro de verdad es [diario].
   final void Function(String)? registro;
+
+  /// El registro append-only de la decisión 2.5.
+  ///
+  /// Aparte del [registro] porque son dos cosas distintas con el mismo nombre: uno es
+  /// para mirar mientras se programa y el otro es para poder contestar «por qué me
+  /// rechazó» un mes después.
+  final AccessLog? diario;
 
   final ProtocolRange protocolo;
 
@@ -69,6 +81,19 @@ class ChannelServer {
   bool get escuchando => _http != null;
 
   int? get puerto => _http?.port;
+
+  void _anotar(String que, {String? ip, String? motivo, String? detalle}) {
+    registro?.call([que, ?ip, ?motivo, ?detalle].join(' '));
+    diario?.anotar(
+      AccessEntry(
+        cuando: DateTime.now(),
+        que: que,
+        ip: ip,
+        motivo: motivo,
+        detalle: detalle,
+      ),
+    );
+  }
 
   /// Manda un evento a todos los que están dentro **y ya saludaron**.
   ///
@@ -92,7 +117,7 @@ class ChannelServer {
     final servidor = await HttpServer.bind(direccion, puerto, shared: false);
     _http = servidor;
     unawaited(_atender(servidor));
-    registro?.call('canal escuchando en ${direccion.address}:${servidor.port}');
+    _anotar('escuchando', detalle: '${direccion.address}:${servidor.port}');
     return servidor.port;
   }
 
@@ -103,7 +128,7 @@ class ChannelServer {
       await cliente.close();
     }
     await servidor?.close(force: true);
-    registro?.call('canal cerrado');
+    _anotar('cerrado');
   }
 
   Future<void> _atender(HttpServer servidor) async {
@@ -124,7 +149,10 @@ class ChannelServer {
     );
 
     if (rechazo != null) {
-      registro?.call('rechazado $ip: ${rechazo.name}');
+      // **El motivo va aquí y no en la respuesta.** El 403 es uno solo para todos los
+      // rechazos a propósito; este es el sitio donde el dueño del Mac puede ver cuál
+      // fue, que es justo lo que faltaba para poder diagnosticar un «reconectando».
+      _anotar('rechazado', ip: ip, motivo: rechazo.name);
       // **Un solo código para todos los rechazos, y sin cuerpo.**
       //
       // Distinguir «token equivocado» de «Host ajeno» le diría a quien lo intenta
@@ -140,6 +168,7 @@ class ChannelServer {
       // Autenticado pero no es un WebSocket. No es un ataque: es alguien
       // probando con el navegador… salvo que el navegador ya se rechazó por
       // `Origin`. Así que casi siempre es `curl`.
+      _anotar('sinUpgrade', ip: ip);
       peticion.response.statusCode = HttpStatus.upgradeRequired;
       await peticion.response.close();
       return;
@@ -148,7 +177,7 @@ class ChannelServer {
     final socket = await WebSocketTransformer.upgrade(peticion);
     final cliente = ChannelClient(socket: socket, ip: ip);
     _conexiones.add(cliente);
-    registro?.call('conectado $ip');
+    _anotar('conectado', ip: ip);
     unawaited(_saludar(cliente));
   }
 
@@ -173,7 +202,7 @@ class ChannelServer {
 
     plazo = Timer(const Duration(seconds: 10), () {
       if (saludado) return;
-      registro?.call('sin saludo en 10 s: se cierra ${cliente.ip}');
+      _anotar('sinSaludo', ip: cliente.ip, motivo: 'plazo de 10 s');
       unawaited(cliente.close());
     });
 
@@ -190,7 +219,11 @@ class ChannelServer {
 
         if (!saludado) {
           if (marco is! Hello) {
-            registro?.call('primer mensaje no era un saludo: se cierra');
+            _anotar(
+              'sinSaludo',
+              ip: cliente.ip,
+              motivo: 'el primero no era un saludo',
+            );
             unawaited(cliente.close());
             return;
           }
@@ -219,12 +252,12 @@ class ChannelServer {
       onDone: () {
         plazo?.cancel();
         _conexiones.remove(cliente);
-        registro?.call('desconectado ${cliente.ip}');
+        _anotar('desconectado', ip: cliente.ip);
       },
       onError: (Object error) {
         plazo?.cancel();
         _conexiones.remove(cliente);
-        registro?.call('conexión perdida con ${cliente.ip}: $error');
+        _anotar('perdido', ip: cliente.ip, motivo: 'conexión caída');
       },
       cancelOnError: true,
     );
@@ -288,7 +321,9 @@ class ChannelServer {
 
     // El método sí se registra, **y los parámetros nunca**: por ahí pasa la frase
     // de escritura, y un registro es exactamente donde no debe quedar escrita.
-    registro?.call('${cliente.ip} pide ${peticion.method}');
+    // **El método y jamás los parámetros**: por ahí pasa la frase de escritura, y
+    // esto se escribe en un archivo que se queda en el disco.
+    _anotar('pide', ip: cliente.ip, detalle: peticion.method);
     try {
       await for (final respuesta in despacho.attend(peticion)) {
         cliente.enviar(respuesta);
@@ -306,7 +341,11 @@ class ChannelServer {
       case Negotiation.ok:
         cliente.peer = saludo.peer;
         cliente.enviar(Welcome(protocol: protocolo, seq: log.lastSeq));
-        registro?.call('saludo de ${saludo.peer.name} ${saludo.appVersion}');
+        _anotar(
+          'saludo',
+          ip: cliente.ip,
+          detalle: '${saludo.peer.name} ${saludo.appVersion}',
+        );
       case Negotiation.clientMustUpdate:
       case Negotiation.serverMustUpdate:
         // Se dice **a quién le toca**, no un «no nos entendemos». Los dos sentidos
@@ -316,7 +355,11 @@ class ChannelServer {
             ? Peer.mobile
             : Peer.desktop;
         cliente.enviar(UpgradeRequired(protocol: protocolo, who: quien));
-        registro?.call('versión incompatible: actualiza ${quien.name}');
+        _anotar(
+          'versionIncompatible',
+          ip: cliente.ip,
+          motivo: 'actualiza ${quien.name}',
+        );
         // Se cierra después de decirlo: dejarlo abierto invitaría a reintentar en
         // bucle sin que nada cambie.
         unawaited(cliente.close());

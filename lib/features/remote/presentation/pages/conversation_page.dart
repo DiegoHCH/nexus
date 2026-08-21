@@ -28,11 +28,16 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     // El permiso se pregunta al abrir. No se hereda de otra conversación: la
     // carpeta de cada una concede lo suyo, así que un valor compartido diría que
     // puedes escribir en una donde no.
-    Future.microtask(
-      () => ref
+    Future.microtask(() async {
+      final notifier = ref.read(mirrorProvider.notifier);
+      await ref
           .read(writePermissionProvider.notifier)
-          .consultar(widget.conversationId),
-    );
+          .consultar(widget.conversationId);
+      // El historial se pide al abrir, no antes: la lista de conversaciones no lo
+      // trae, y traerlo con la lista sería mandar por 4G el pasado de tres
+      // conversaciones para leer el de una.
+      await notifier.masHistorial(widget.conversationId);
+    });
   }
 
   @override
@@ -112,6 +117,21 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                 controller: _scroll,
                 padding: const EdgeInsets.all(20),
                 children: [
+                  // Más arriba lo más viejo: se lee hacia abajo, como una
+                  // conversación.
+                  if (conv.masHistorial != null)
+                    Center(
+                      child: TextButton(
+                        key: const ValueKey('mas-historial'),
+                        onPressed: () => ref
+                            .read(mirrorProvider.notifier)
+                            .masHistorial(widget.conversationId),
+                        child: const Text('Ver lo anterior'),
+                      ),
+                    ),
+                  for (final mensaje in conv.history)
+                    _Mensaje(mensaje: mensaje),
+                  if (conv.history.isNotEmpty) const SizedBox(height: 8),
                   if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
                   if (conv.reply.isNotEmpty)
                     Padding(
@@ -147,6 +167,42 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                   .detener(widget.conversationId),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Un mensaje de lo dicho antes.
+class _Mensaje extends StatelessWidget {
+  const _Mensaje({required this.mensaje});
+
+  final MirroredMessage mensaje;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    // Lo tuyo alineado a la derecha y lo de Nexus a la izquierda, que es la
+    // convención que nadie tiene que aprender. Y **lo tuyo no se interpreta como
+    // markdown**, igual que en el escritorio: un asterisco que escribiste tú se queda
+    // como asterisco.
+    return Align(
+      alignment: mensaje.mine ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        constraints: BoxConstraints(
+          maxWidth: MediaQuery.of(context).size.width * 0.82,
+        ),
+        decoration: BoxDecoration(
+          color: mensaje.mine ? colors.rise : colors.deep,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          mensaje.text,
+          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: mensaje.mine ? colors.ink : colors.mute,
+          ),
         ),
       ),
     );
