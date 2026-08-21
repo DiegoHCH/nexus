@@ -160,4 +160,23 @@ void main() {
       );
     }
   });
+  test('el canal se construye desde el arranque, no solo en su pantalla', () {
+    // El fallo que esto ata: durante horas el telefono decia «no se llega» y no habia
+    // nada roto en el telefono — el Mac no escuchaba porque lo unico que construia el
+    // canal era la seccion «Movil» de Ajustes. El `remote_channel_on` guardado no
+    // servia de nada si nadie miraba ese provider.
+    //
+    // Se comprueba en la raiz de la app y no con un test de widgets porque arrancar
+    // la app entera aqui exige llavero, Tailscale y un puerto libre: lo que importa
+    // es que **alguien de vida larga** lo mire, y la raiz es ese alguien.
+    final raiz = File('lib/main.dart').readAsStringSync();
+
+    expect(
+      raiz,
+      contains('ref.watch(channelControllerProvider)'),
+      reason:
+          'sin esto, encender el canal solo dura mientras Ajustes este abierto, y '
+          'la promesa de recordarlo es mentira',
+    );
+  });
 }
