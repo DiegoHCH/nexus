@@ -6,8 +6,10 @@ import 'package:nexus/core/design_system/nexus_theme.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/features/remote/domain/pairing.dart';
+import 'package:nexus/features/remote/data/channel_link.dart';
+import 'package:nexus/features/remote/presentation/pages/connecting_page.dart';
 import 'package:nexus/features/remote/presentation/pages/conversations_page.dart';
-import 'package:nexus/features/remote/presentation/pages/pairing_page.dart';
+import 'package:nexus/features/remote/presentation/pages/scan_page.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
@@ -99,8 +101,11 @@ class _Arranque extends ConsumerWidget {
       // Mientras se lee el llavero. Corto, pero existe: sin esto se vería un
       // pestañeo de la pantalla de emparejar en cada arranque **ya emparejado**.
       AsyncLoading() => const _Esperando(),
-      AsyncError() => const PairingPage(),
-      AsyncData(value: null) => const PairingPage(),
+      // Sin emparejar se entra por el **escáner**, y escribirlo a mano está a un
+      // toque desde ahí. No al revés: el QR es el camino cómodo y teclear 43
+      // caracteres es la salida, no la puerta.
+      AsyncError() => const ScanPage(),
+      AsyncData(value: null) => const ScanPage(),
       // Emparejado: directo a la lista. La portada con el orbe cumplió su función
       // —demostrar que la app arranca compartiendo el diseño— y ahora sería un toque
       // de más antes de ver lo que importa.
@@ -119,7 +124,23 @@ class _Conectado extends ConsumerWidget {
     // sobrevive a navegar: morir al entrar en una conversación desconectaría justo
     // al abrirla.
     ref.watch(autoConnectProvider);
-    return const ConversationsPage();
+    // Y esto es lo que hace que el teléfono se pinte con el color del Mac. Se lee
+    // aquí, encima de la lista, porque tiene que estar escuchando **antes** del primer
+    // saludo: el acento llega con él.
+    ref.watch(accentFromMacProvider);
+
+    final estado = ref.watch(linkStateProvider).value;
+    // Mientras no esté conectado se enseña «buscando tu Mac», y con un mínimo en
+    // pantalla: en la misma red el handshake tarda menos que un fotograma, así que sin
+    // el mínimo esa pantalla parpadeaba y quedaba un salto raro.
+    return MinimoEnPantalla(
+      mostrar: estado != LinkState.conectado,
+      despues: const ConversationsPage(),
+      child: ConnectingPage(
+        alCancelar: () =>
+            ref.read(pairingControllerProvider.notifier).olvidar(),
+      ),
+    );
   }
 }
 

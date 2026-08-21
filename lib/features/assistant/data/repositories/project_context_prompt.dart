@@ -38,6 +38,7 @@ abstract final class ProjectContextPrompt {
     required List<ContextFile> rules,
     ContextFile? sharedContext,
     String? artifactsFolder,
+    String? artifactsAccount,
   }) {
     final sections = <String>[];
 
@@ -47,10 +48,22 @@ abstract final class ProjectContextPrompt {
     // existe. Se dice **solo si el usuario eligió carpeta**: inventarle un
     // destino sería escribir donde no nos ha invitado.
     if (artifactsFolder != null && artifactsFolder.isNotEmpty) {
+      // **Dentro de la carpeta de la cuenta cuando la conversación tiene una.** La
+      // carpeta de documentos sigue siendo una, y aun así lo de `work` y lo de
+      // `private` se separa: no porque un mockup pertenezca a una cuenta —no lo
+      // hace— sino porque quien trabaja con dos mundos los mira por separado, y una
+      // lista mezclada obliga a leer treinta y seis nombres para dar con el de esta
+      // mañana.
+      //
+      // No se crea la carpeta aquí: la crea quien escriba dentro. Crearla al arrancar
+      // dejaría una carpeta vacía por cada conversación que no produjo nada.
+      final destino = artifactsAccount == null || artifactsAccount.isEmpty
+          ? artifactsFolder
+          : '$artifactsFolder/$artifactsAccount';
       sections.add(
         'Cuando generes un documento para mirar —un mockup, un informe, una '
         'presentación, una hoja de cálculo, una imagen—, guárdalo en '
-        '$artifactsFolder con un nombre que se entienda de aquí a un mes. '
+        '$destino con un nombre que se entienda de aquí a un mes. '
         'Lo que es código del proyecto NO va ahí: eso va donde le toque dentro '
         'del repositorio.',
       );

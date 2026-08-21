@@ -84,4 +84,26 @@ void main() {
       expect(cambiada.claudeProfile, '/x/.claude-private');
     });
   });
+  group('el nombre de la cuenta desde su ruta', () {
+    // Existe como funcion pura porque quien arranca un encargo necesita el nombre en
+    // ese mismo instante, y listar las cuentas del disco es asincrono.
+    test('saca el nombre de un .claude-*', () {
+      expect(ClaudeProfile.nameFromPath('/Users/alguien/.claude-work'), 'work');
+    });
+
+    test('la de siempre no es una cuenta', () {
+      // `.claude` a secas significa «la por defecto», que es la opcion de arriba y no
+      // una cuenta con nombre. Devolver algo aqui inventaria una subcarpeta.
+      expect(ClaudeProfile.nameFromPath('/Users/alguien/.claude'), isNull);
+      expect(ClaudeProfile.nameFromPath(null), isNull);
+      expect(ClaudeProfile.nameFromPath(''), isNull);
+    });
+
+    test('una barra al final no lo despista', () {
+      expect(
+        ClaudeProfile.nameFromPath('/Users/alguien/.claude-private/'),
+        'private',
+      );
+    });
+  });
 }

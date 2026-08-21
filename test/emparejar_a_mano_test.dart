@@ -8,6 +8,7 @@ import 'package:nexus/features/remote/domain/pairing.dart';
 import 'package:nexus/features/remote/presentation/pages/pairing_page.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
 import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 
 // Emparejar a mano, que es la primera forma y no un apaño mientras llega el QR: el
 // QR transporta estos mismos dos valores y solo ahorra teclearlos.
@@ -66,6 +67,30 @@ void main() {
       expect(leido.problema, isNull);
     });
 
+    test('la dirección a secas vale: se le pone el ws://', () {
+      // Lo que se copia del Mac lleva el esquema, pero lo que se teclea de memoria es
+      // la dirección y el puerto. Exigir el `ws://` era una regla mía, no del canal.
+      final leido = leerEmparejamiento(
+        url: '100.73.35.55:7845',
+        token: tokenBueno,
+      );
+
+      expect(leido.problema, isNull);
+      expect(leido.emparejamiento!.comoSeVe, '100.73.35.55:7845');
+      expect(leido.emparejamiento!.url.scheme, 'ws');
+    });
+
+    test('y sigue avisando si esa dirección no es de Tailscale', () {
+      // El aviso tiene que sobrevivir a completar el esquema: si al añadir `ws://` se
+      // perdiera la comprobación, se habría cambiado un mensaje útil por otro.
+      final leido = leerEmparejamiento(
+        url: '192.168.1.40:7845',
+        token: tokenBueno,
+      );
+      expect(leido.problema, isNull);
+      expect(fueraDeTailscale(leido.emparejamiento!.url), isTrue);
+    });
+
     test('pegar la del navegador se dice como lo que es', () {
       final leido = leerEmparejamiento(
         url: 'http://100.64.0.1:7845',
@@ -93,7 +118,10 @@ void main() {
     });
 
     test('lo ilegible es ilegible', () {
-      final leido = leerEmparejamiento(url: 'esto no es una url', token: tokenBueno);
+      final leido = leerEmparejamiento(
+        url: 'esto no es una url',
+        token: tokenBueno,
+      );
       expect(leido.problema, PairingProblem.urlIlegible);
     });
   });
@@ -257,7 +285,9 @@ void main() {
       expect(store.escrituras, 0);
     });
 
-    testWidgets('el aviso de Tailscale sale mientras se escribe', (tester) async {
+    testWidgets('el aviso de Tailscale sale mientras se escribe', (
+      tester,
+    ) async {
       final c = montar(_Memoria());
       await tester.pumpWidget(app(c));
 
@@ -306,6 +336,72 @@ void main() {
 
       expect(store.escrituras, 1);
       expect(find.byKey(const ValueKey('problema')), findsNothing);
+    });
+  });
+
+  group('la pantalla retenida no miente', () {
+    testWidgets('con el enlace ya conectado, el chip dice lo que la pantalla afirma', (
+      tester,
+    ) async {
+      // El fallo que esto cierra, y lo encontró usándolo: la pantalla de «buscando tu
+      // Mac» se retiene cinco segundos para que se vea el orbe, y en una red rápida el
+      // enlace ya conectó antes de que acabe. El chip decía `CONECTADO` debajo de un
+      // título que decía «buscando». **La pantalla mentía, no el chip** — así que quien
+      // retiene una pantalla dice también qué estado afirma.
+      final c = ProviderContainer(
+        overrides: [
+          linkStateProvider.overrideWith(
+            (ref) => Stream.value(LinkState.conectado),
+          ),
+        ],
+      );
+      addTearDown(c.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: NexusTheme.dark(),
+            home: const Scaffold(
+              body: MobileChrome(enVezDe: LinkState.conectando),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('CONECTANDO'), findsOne);
+      expect(find.text('CONECTADO'), findsNothing);
+    });
+
+    testWidgets('pero un rechazo durante la espera SÍ se ve', (tester) async {
+      // La otra mitad, y es la que hace que el sustituto no sea una mentira propia: si
+      // mientras se retiene la pantalla el Mac rechaza el token, taparlo con
+      // «conectando» sería el mismo error al revés.
+      final c = ProviderContainer(
+        overrides: [
+          linkStateProvider.overrideWith(
+            (ref) => Stream.value(LinkState.rechazado),
+          ),
+        ],
+      );
+      addTearDown(c.dispose);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: c,
+          child: MaterialApp(
+            theme: NexusTheme.dark(),
+            home: const Scaffold(
+              body: MobileChrome(enVezDe: LinkState.conectando),
+            ),
+          ),
+        ),
+      );
+      await tester.pump();
+
+      expect(find.text('CONECTANDO'), findsNothing);
+      expect(find.textContaining('TOKEN'), findsOne);
     });
   });
 

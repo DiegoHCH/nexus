@@ -62,7 +62,9 @@ void main() {
     expect(find.byKey(const ValueKey('quitar-la-frase')), findsNothing);
   });
 
-  testWidgets('con frase definida dice que la hay, y nunca cuál', (tester) async {
+  testWidgets('con frase definida dice que la hay, y nunca cuál', (
+    tester,
+  ) async {
     await abrir(tester, _Memoria(const WritePhrase('la-frase-de-verdad')));
     await tester.pump(const Duration(milliseconds: 100));
 
@@ -75,6 +77,41 @@ void main() {
     expect(find.textContaining('verdad'), findsNothing);
   });
 
+  testWidgets('el ojo destapa la frase, y nace tapada', (tester) async {
+    // Pedido usándolo: definir una frase a ciegas y equivocarse deja una que después
+    // **no se puede averiguar** —el Mac la guarda y no la vuelve a enseñar—, así que
+    // la única salida sería redefinirla sin saber que eso era lo que pasaba.
+    await abrir(tester, _Memoria());
+    await tester.tap(find.byKey(const ValueKey('definir-la-frase')));
+    await tester.pumpAndSettle();
+
+    TextField campo() => tester.widget<TextField>(
+      find.byKey(const ValueKey('campo-de-la-frase')),
+    );
+
+    // Tapada por defecto: el ojo es una ayuda que se pide, no el estado normal.
+    expect(campo().obscureText, isTrue);
+
+    await tester.tap(find.byKey(const ValueKey('ver-la-frase')));
+    await tester.pumpAndSettle();
+    expect(campo().obscureText, isFalse);
+
+    // Y se puede volver a tapar, que es la otra mitad de un ojo.
+    await tester.tap(find.byKey(const ValueKey('ver-la-frase')));
+    await tester.pumpAndSettle();
+    expect(campo().obscureText, isTrue);
+  });
+
+  testWidgets('la sección de Móvil se puede recorrer', (tester) async {
+    // Creció hasta no caber —interruptor, dirección, token, rotar, frase— y se
+    // cortaba al llegar al borde. El scroll va **solo aquí** y no en el hueco donde
+    // Ajustes pinta cualquier sección: envolverlas todas rompe las que llenan el alto
+    // a propósito, porque un `Expanded` dentro de algo que hace scroll es una
+    // contradicción que Flutter rechaza.
+    await abrir(tester, _Memoria());
+    expect(find.byType(SingleChildScrollView), findsWidgets);
+  });
+
   testWidgets('una frase corta no se guarda, y lo dice al intentarlo', (
     tester,
   ) async {
@@ -83,7 +120,10 @@ void main() {
 
     await tester.tap(find.byKey(const ValueKey('definir-la-frase')));
     await tester.pumpAndSettle();
-    await tester.enterText(find.byKey(const ValueKey('campo-de-la-frase')), 'corta');
+    await tester.enterText(
+      find.byKey(const ValueKey('campo-de-la-frase')),
+      'corta',
+    );
     await tester.tap(find.byKey(const ValueKey('guardar-la-frase')));
     await tester.pumpAndSettle();
 
@@ -120,13 +160,18 @@ void main() {
     expect(campo.obscureText, isTrue);
   });
 
-  testWidgets('cambiarla cierra el permiso que estuviera abierto', (tester) async {
+  testWidgets('cambiarla cierra el permiso que estuviera abierto', (
+    tester,
+  ) async {
     // Si no, quien tuviera permiso seguiría escribiendo con una frase que ya no
     // existe — y cambiarla es justo lo que hace alguien que quiere cortar.
     final store = _Memoria(const WritePhrase('la-de-antes'));
     final container = await abrir(tester, store);
     final unlock = container.read(writeUnlockProvider);
-    unlock.intentar(guardada: const WritePhrase('la-de-antes'), recibida: 'la-de-antes');
+    unlock.intentar(
+      guardada: const WritePhrase('la-de-antes'),
+      recibida: 'la-de-antes',
+    );
     expect(unlock.puedeEscribir, isTrue);
 
     await container
@@ -140,7 +185,10 @@ void main() {
     final store = _Memoria(const WritePhrase('la-de-antes'));
     final container = await abrir(tester, store);
     final unlock = container.read(writeUnlockProvider);
-    unlock.intentar(guardada: const WritePhrase('la-de-antes'), recibida: 'la-de-antes');
+    unlock.intentar(
+      guardada: const WritePhrase('la-de-antes'),
+      recibida: 'la-de-antes',
+    );
 
     await container.read(writePhraseControllerProvider.notifier).borrar();
 

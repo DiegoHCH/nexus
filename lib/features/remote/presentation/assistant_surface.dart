@@ -1,3 +1,9 @@
+import 'dart:io';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
@@ -90,7 +96,10 @@ class AssistantSurface implements RemoteSurface {
     final grant = _ref.read(writeUnlockProvider).grant;
     return RemotePermission(
       // Del espacio de trabajo, que es de donde sale al lanzar cada encargo.
-      folderCanWrite: _ref.read(workspaceControllerProvider).permission.canWrite,
+      folderCanWrite: _ref
+          .read(workspaceControllerProvider)
+          .permission
+          .canWrite,
       remoteWriteUntil: grant?.until,
     );
   }
@@ -112,6 +121,163 @@ class AssistantSurface implements RemoteSurface {
     await _ref
         .read(assistantControllerProvider(_existente(conversationId)).notifier)
         .stopWork();
+  }
+
+  // ─────────── lo que salió de usar el teléfono de verdad ───────────
+
+  @override
+  Future<RemotePage<ArchivedConversation>> archive({
+    int cursor = 0,
+    int limit = 30,
+  }) async {
+    // **Las dos fuentes, no una.** La primera versión leía solo el almacén propio de
+    // la app y enseñaba **una** conversación mientras el escritorio enseñaba treinta y una:
+    // el resto vive en el vault que el usuario eligió —la carpeta de Obsidian, con sus
+    // pestañas de cuenta— y el historial del escritorio suma los dos.
+    //
+    // Se reusa el provider que ya hace esa suma en vez de repetirla aquí: repetirla
+    // daría dos ideas de qué es «el archivo», y la del teléfono se quedaría vieja el
+    // día que se añada un destino.
+    // **Primero que los ajustes estén leídos del disco.** Los notifiers de ajustes
+    // devuelven «nada configurado» mientras su lectura va de camino, y el escritorio
+    // no lo nota porque su pantalla sigue mirando y se redibuja cuando llegan. Aquí no
+    // hay segunda oportunidad: se contesta una vez, y contestar «hay una» cuando hay
+    // treinta y una es peor que tardar 20 ms más.
+    //
+    // Se espera aquí y no dentro del provider: un provider que mira el estado que va a
+    // cambiar y encima espera se queda sin futuro a mitad —Riverpod lo destruye al
+    // llegar el cambio— y el teléfono recibiría un fallo en vez de una lista.
+    await _ref.read(archiveControllerProvider.notifier).cargado;
+    final guardadas = await _ref.read(allSavedConversationsProvider.future);
+
+    final vivas = _ref.read(conversationsProvider);
+    final trozo = guardadas.skip(cursor).take(limit).toList();
+
+    return RemotePage(
+      items: [
+        for (final r in trozo)
+          ArchivedConversation(
+            id: r.id,
+            folder: r.folderPath,
+            // El primer encargo como título: es lo que el escritorio ya usa, y
+            // resulta ser el mejor título que nadie ha escrito.
+            title: _titulo(r),
+            when: r.startedAt,
+            turns: r.messages.length,
+            // Si ya está abierta, se dice: ofrecer «retomar» algo vivo lleva a abrir
+            // una segunda sobre la misma carpeta, que el escritorio no permite.
+            open: vivas.hasFolder(r.folderPath),
+            account: r.profileName,
+          ),
+      ],
+      nextCursor: cursor + trozo.length >= guardadas.length
+          ? null
+          : cursor + trozo.length,
+    );
+  }
+
+  static String _titulo(ConversationRecord registro) {
+    for (final m in registro.messages) {
+      if (m.author == ChatAuthor.user && m.text.trim().isNotEmpty) {
+        return m.text.trim();
+      }
+    }
+    return registro.projectName;
+  }
+
+  @override
+  Future<String> resumeConversation(String archivedId) async {
+    // La **misma** fuente que `archive()`, y no el almacén propio: si se listan
+    // veintiséis y se buscan entre una, retomar cualquiera del vault contestaba
+    // «conversación desconocida» — un archivo que enseña cosas que no se pueden abrir.
+    await _ref.read(archiveControllerProvider.notifier).cargado;
+    final guardadas = await _ref.read(allSavedConversationsProvider.future);
+    final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
+    if (registro == null) throw UnknownConversation(archivedId);
+
+    // **Retomar es abrir su carpeta**, y `open` ya devuelve la que hubiera si esa
+    // carpeta tenía una viva. Eso es lo correcto: dos conversaciones sobre el mismo
+    // repo compartirían la sesión de Claude y se pisarían el contexto.
+    final id = await _ref
+        .read(conversationsProvider.notifier)
+        .open(registro.folderPath);
+    if (id == null) throw UnknownConversation(archivedId);
+    return id;
+  }
+
+  @override
+  Future<List<RemoteFolder>> folders() async {
+    final espacio = _ref.read(workspaceControllerProvider);
+    final vivas = _ref.read(conversationsProvider);
+    // El nombre de la cuenta y no la ruta de su perfil: `.claude-work` es un detalle
+    // del disco del Mac, y «work» es lo que se lee en las dos pantallas. Si el Mac no
+    // sabe de perfiles, no se inventa ninguno.
+    final cuentas = await _ref.read(claudeProfilesProvider.future);
+    String? nombreDe(String? perfil) => perfil == null
+        ? null
+        : cuentas.where((c) => c.path == perfil).firstOrNull?.name;
+
+    return [
+      for (final carpeta in espacio.folders)
+        RemoteFolder(
+          path: carpeta.path,
+          canWrite: carpeta.modality != FolderModality.textOnly,
+          busy: vivas.hasFolder(carpeta.path),
+          account: nombreDe(carpeta.claudeProfile),
+        ),
+    ];
+  }
+
+  @override
+  Future<String> openConversation(String folderPath) async {
+    final espacio = _ref.read(workspaceControllerProvider);
+    // **Solo entre las que el Mac ya tiene.** Es lo que separa esto de emparejar: sin
+    // esta comprobación, el teléfono podría mandar cualquier ruta del disco y estaría
+    // haciendo justo lo que la decisión dejó fuera.
+    if (!espacio.folders.any((f) => f.path == folderPath)) {
+      throw UnknownConversation(folderPath);
+    }
+    final id = await _ref.read(conversationsProvider.notifier).open(folderPath);
+    if (id == null) throw UnknownConversation(folderPath);
+    return id;
+  }
+
+  @override
+  Future<List<RemoteArtifact>> artifacts() async {
+    // Igual que el archivo: la carpeta de documentos se lee del disco después de
+    // construirse el notifier, y sin esperarla se contestaba «no hay ninguno» habiendo
+    // uno. Es el mismo fallo dos veces, así que va escrito en los dos sitios.
+    await _ref.read(artifactsFolderProvider.notifier).cargada;
+    final lista = await _ref.read(artifactsProvider.future);
+    return [
+      for (final a in lista)
+        RemoteArtifact(
+          // La ruta como id: es lo que el escritorio ya usa para abrirlos, y no hace
+          // falta inventar otro identificador que habría que mantener en paralelo.
+          id: a.path,
+          name: a.name,
+          when: a.at,
+          bytes: File(a.path).existsSync() ? File(a.path).lengthSync() : 0,
+          text: Artifact.isTextual(a.path),
+          account: a.account,
+        ),
+    ];
+  }
+
+  @override
+  Future<String> artifact(String artifactId) async {
+    await _ref.read(artifactsFolderProvider.notifier).cargada;
+    final lista = await _ref.read(artifactsProvider.future);
+    // **Solo los que están en la lista.** Sin esto, el `artifactId` sería una ruta
+    // libre y el método se convertiría en «leer cualquier archivo del Mac», que es
+    // exactamente lo que ningún método de este canal puede ser.
+    if (!lista.any((a) => a.path == artifactId)) {
+      throw UnknownConversation(artifactId);
+    }
+    // Y solo los de texto: sin esto, pedir un `.png` acaba en un error de
+    // codificación a mitad de leer, que el teléfono no puede explicar.
+    if (!Artifact.isTextual(artifactId)) throw BinaryArtifact(artifactId);
+    return File(artifactId).readAsString();
   }
 }
 

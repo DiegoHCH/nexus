@@ -168,12 +168,47 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   Estuvo en el lado de «se queda en el Mac» mientras la confirmación era del
   escritorio; con la frase ya no tiene que serlo, y dejarlo ahí era lo que hacía
   imposible editar en remoto.
+- **El archivo de conversaciones**, y **retomar una del archivo**. Salió de usar el
+  teléfono: si en el
+  Mac no hay ninguna conversación abierta, el móvil no podía hacer nada — y eso
+  convierte «mira cómo va lo que dejaste» en «solo sirve si te acordaste de dejarlo
+  abierto». Retomar es lo mismo que hace `⌘H` en el escritorio.
+- Ese archivo es **la misma lista que enseña `⌘H`**, no la del almacén interno de la
+  app: buena parte de las conversaciones vive en el vault que el usuario configuró, y
+  leer solo el almacén hacía que el teléfono enseñara una donde el escritorio enseñaba
+  treinta y una. Cada una lleva **de qué cuenta es** —`work`, `private`—, porque el
+  escritorio las separa en pestañas y en el teléfono no hay sitio para pestañas.
+- La lista **se pagina** con `cursor` y `nextCursor`. El teléfono sigue el cursor hasta
+  que no venga: una sola página con un límite deja fuera conversaciones sin decirlo, y
+  una lista que se corta en silencio se lee como una lista completa.
+- Las **carpetas** llevan también su cuenta, y por un motivo distinto al del archivo:
+  abrir una conversación **es elegir una cuenta sin verlo** —la carpeta lleva su perfil
+  pegado en el Mac—, así que desde el teléfono se elegía a ciegas qué memoria y qué
+  contexto iban a atender el encargo.
+- Los **artifacts** llevan su cuenta y, además, **si son texto**. Lo segundo va en la
+  lista y no se descubre al abrir: pedir un `.png` acababa en un error de codificación
+  —leer un binario como cadena no da una imagen— y el teléfono se quedaba con un fallo
+  genérico donde tenía que haber un «esto se abre en el Mac». Un documento que no es
+  texto se enseña igual, apagado: esconderlo deja preguntándose si falta algo.
+  Un `.html` **es** texto, así que viaja por el canal como una cadena y el teléfono lo
+  pinta en un visor propio: no hizo falta inventar transporte binario ni servir
+  ficheros por HTTP, y por tanto el canal no gana ninguna puerta nueva. Ese visor no
+  navega: lo que se pinta es lo que llegó, y un enlace a la red lo convertiría en un
+  navegador.
+- **Los artifacts** y **el contenido de un artifact**: los documentos que produce
+  Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
+  poder ver lo que produjo es medio canal.
+- **Abrir una conversación sobre una carpeta ya emparejada**, y también
+  **las carpetas emparejadas**, para poder elegir. Esto es lo que parece chocar con «emparejar carpetas se queda en el Mac»
+  y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier
+  ruta del disco**, y aquí el Mac ofrece la lista y el teléfono escoge de ella. Nadie
+  elige una ruta que el Mac no tuviera ya. Emparejar una carpeta nueva sigue fuera.
 
 ### Se queda en el Mac
 
 | | Por qué |
 |---|---|
-| **Emparejar carpetas** | Es un selector de archivos local. Por red sería elegir a ciegas cualquier ruta del disco |
+| **Emparejar una carpeta nueva** | Es un selector de archivos local. Por red sería elegir a ciegas cualquier ruta del disco. **Elegir entre las ya emparejadas sí va**, porque ahí la lista la pone el Mac |
 | **Crear skills** | Escribe en disco, y se administra desde el escritorio |
 | **Definir o cambiar la frase de escritura** | Es la llave del permiso: pedirla por el mismo canal que la usa sería regalarla |
 

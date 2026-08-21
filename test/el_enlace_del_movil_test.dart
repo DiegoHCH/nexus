@@ -504,13 +504,24 @@ void main() {
             m.name: ChannelLink.reintentable(m),
         },
         {
+          // Cambian algo en el Mac: el mismo id los protege de correr dos veces.
           'sendErrand': true,
           'stopErrand': true,
           'unlockWrites': true,
+          // Abrir y retomar **crean estado**: reenviarlas con id nuevo abriría dos
+          // conversaciones sobre la misma carpeta, que el escritorio no permite.
+          'openConversation': true,
+          'resumeConversation': true,
+          // Solo leen: una consulta perdida se vuelve a pedir con id nuevo, porque el
+          // deduplicador protege efectos y no respuestas.
           'conversations': false,
           'history': false,
           'meter': false,
           'permission': false,
+          'archive': false,
+          'folders': false,
+          'artifacts': false,
+          'artifact': false,
         },
       );
     });

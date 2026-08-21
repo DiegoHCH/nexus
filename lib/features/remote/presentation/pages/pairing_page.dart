@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
+import 'package:nexus/core/design_system/nexus_spacing.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
 import 'package:nexus/features/remote/domain/pairing.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 
-/// Emparejar a mano: pegar la dirección y el token.
+/// Escribir la dirección y el token a mano.
 ///
-/// Es la primera forma y no un apaño mientras llega el QR. El QR transporta estos
-/// mismos dos valores, así que lo que ahorra es teclear — y no se puede construir
-/// antes de que exista esta pantalla, porque comprobarlo exige una cámara apuntando
-/// a un Mac.
+/// **No es el plan B: es la misma ruta.** El QR transporta estos dos valores y nada
+/// más, así que las dos producen el mismo emparejamiento y validan con la misma
+/// función — el escáner solo ahorra teclear.
 ///
-/// Los dos valores se copian de Ajustes → Móvil en el escritorio, que ya enseña la
-/// dirección como texto seleccionable y tiene botón de copiar el token.
+/// Y por eso se ve igual. La primera versión estaba hecha con Material —`FilledButton`,
+/// campos con la línea de Material y un icono de pegar en cada uno— mientras la
+/// pantalla de escanear seguía el sistema del proyecto: **dos pantallas de la misma
+/// app, a un toque de distancia y con dos lenguajes distintos, se leen como dos apps**.
+///
+/// Los iconos de pegar se fueron con el rediseño y no se echan de menos: una pulsación
+/// larga sobre el campo ya da el menú de pegar del sistema, que además es el gesto que
+/// la gente ya conoce. El icono ocupaba sitio para ofrecer algo que ya estaba.
 class PairingPage extends ConsumerStatefulWidget {
   const PairingPage({super.key});
 
@@ -35,19 +42,11 @@ class _PairingPageState extends ConsumerState<PairingPage> {
   }
 
   /// El aviso de Tailscale se calcula **mientras escribe**, no al guardar: llegar a
-  /// «no conecta» y entonces enterarse es el camino largo.
+  /// «no conecta» y enterarse entonces es el camino largo.
   bool get _avisoDeTailscale {
     final leido = leerEmparejamiento(url: _url.text, token: _token.text);
     final pareja = leido.emparejamiento;
     return pareja != null && fueraDeTailscale(pareja.url);
-  }
-
-  Future<void> _pegarEn(TextEditingController campo) async {
-    final datos = await Clipboard.getData(Clipboard.kTextPlain);
-    final texto = datos?.text;
-    if (texto == null || texto.isEmpty) return;
-    campo.text = texto.trim();
-    setState(() => _problema = null);
   }
 
   Future<void> _emparejar() async {
@@ -65,74 +64,98 @@ class _PairingPageState extends ConsumerState<PairingPage> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final texto = Theme.of(context).textTheme;
 
     return Scaffold(
       backgroundColor: colors.void_,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 40),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Text(
-                'Emparejar con tu Mac',
-                style: texto.headlineSmall?.copyWith(color: colors.ink),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'En el Mac: Ajustes → Móvil. Enciende el canal, copia la dirección '
-                'y el token.',
-                style: texto.bodyMedium?.copyWith(color: colors.mute),
-              ),
-              const SizedBox(height: 32),
-              _Campo(
-                key: const ValueKey('campo-url'),
-                etiqueta: 'Dirección',
-                pista: 'ws://100.x.y.z:7845',
-                controlador: _url,
-                alPegar: () => _pegarEn(_url),
-                alEscribir: () => setState(() => _problema = null),
-              ),
-              const SizedBox(height: 20),
-              _Campo(
-                key: const ValueKey('campo-token'),
-                etiqueta: 'Token',
-                pista: '43 caracteres',
-                controlador: _token,
-                // **No se oculta con puntos.** Aquí hay que poder ver que se pegó
-                // entero, y quien mira la pantalla es quien acaba de copiarlo de su
-                // propio Mac. Ocultarlo protegería de nadie y estorbaría siempre.
-                alPegar: () => _pegarEn(_token),
-                alEscribir: () => setState(() => _problema = null),
-              ),
-              if (_problema != null) ...[
-                const SizedBox(height: 20),
-                _Aviso(
-                  key: const ValueKey('problema'),
-                  color: colors.err,
-                  texto: _decir(_problema!),
+          // Con scroll: al abrir el teclado, dos campos y un botón no caben en una
+          // pantalla de 390 y el aviso de Tailscale se quedaba fuera justo cuando
+          // aparecía.
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s5,
+            vertical: NexusSpacing.s4,
+          ),
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              minHeight:
+                  MediaQuery.of(context).size.height -
+                  MediaQuery.of(context).padding.vertical -
+                  NexusSpacing.s8,
+            ),
+            child: Column(
+              children: [
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  'ESCRIBIR EL CÓDIGO A MANO',
+                  style: NexusTypography.label.copyWith(color: colors.mute),
+                ),
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  'En el Mac: Ajustes → Móvil. Enciende el canal y copia la '
+                  'dirección y el token.',
+                  textAlign: TextAlign.center,
+                  style: NexusTypography.subtitleMobile.copyWith(
+                    color: colors.ink,
+                  ),
+                ),
+                const SizedBox(height: NexusSpacing.s7),
+                MobileField(
+                  key: const ValueKey('campo-url'),
+                  etiqueta: 'Dirección',
+                  pista: '100.x.y.z:7845',
+                  controlador: _url,
+                  alEscribir: () => setState(() => _problema = null),
+                ),
+                const SizedBox(height: NexusSpacing.s5),
+                MobileField(
+                  key: const ValueKey('campo-token'),
+                  etiqueta: 'Token',
+                  pista: '43 caracteres',
+                  controlador: _token,
+                  alEscribir: () => setState(() => _problema = null),
+                ),
+                if (_problema != null) ...[
+                  const SizedBox(height: NexusSpacing.s4),
+                  _Aviso(
+                    key: const ValueKey('problema'),
+                    color: colors.err,
+                    texto: _decir(_problema!),
+                  ),
+                ],
+                if (_problema == null && _avisoDeTailscale) ...[
+                  const SizedBox(height: NexusSpacing.s4),
+                  _Aviso(
+                    key: const ValueKey('aviso-tailscale'),
+                    color: colors.warn,
+                    // Avisa y **no bloquea**: el Mac solo escucha en Tailscale, así
+                    // que esta dirección probablemente no conecte — pero quien tenga
+                    // otro montaje sabe más que esta comprobación.
+                    texto:
+                        'Esa dirección no parece de Tailscale, y el Mac solo escucha '
+                        'ahí. Puedes seguir, pero probablemente no conecte.',
+                  ),
+                ],
+                // **Sin `Spacer` aquí.** Es un `Expanded`, y un `Expanded` dentro de
+                // algo que hace scroll es una contradicción: el scroll ofrece altura
+                // infinita y el flex quiere repartir la que sobra. Es el mismo fallo
+                // que rompió la pantalla de Ajustes hace un rato — y lo repetí.
+                const SizedBox(height: NexusSpacing.s8),
+                WideAction(
+                  key: const ValueKey('emparejar'),
+                  texto: _guardando ? 'Guardando…' : 'Emparejar',
+                  principal: true,
+                  alTocar: _guardando ? null : _emparejar,
+                ),
+                const SizedBox(height: NexusSpacing.s4),
+                Text(
+                  'El teléfono no ejecuta nada:\ntodo corre en el Mac y se muestra '
+                  'aquí.',
+                  textAlign: TextAlign.center,
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
                 ),
               ],
-              if (_problema == null && _avisoDeTailscale) ...[
-                const SizedBox(height: 20),
-                _Aviso(
-                  key: const ValueKey('aviso-tailscale'),
-                  color: colors.warn,
-                  // Avisa y **no bloquea**: el Mac solo escucha en Tailscale, así
-                  // que esta dirección probablemente no conecte — pero quien tenga
-                  // otro montaje sabe más que esta comprobación.
-                  texto: 'Esa dirección no parece de Tailscale, y el Mac solo '
-                      'escucha ahí. Puedes seguir, pero probablemente no conecte.',
-                ),
-              ],
-              const SizedBox(height: 32),
-              FilledButton(
-                key: const ValueKey('emparejar'),
-                onPressed: _guardando ? null : _emparejar,
-                child: Text(_guardando ? 'Guardando…' : 'Emparejar'),
-              ),
-            ],
+            ),
           ),
         ),
       ),
@@ -142,73 +165,15 @@ class _PairingPageState extends ConsumerState<PairingPage> {
   String _decir(PairingProblem problema) => switch (problema) {
     PairingProblem.urlIlegible => 'Esa dirección no se entiende.',
     PairingProblem.esquemaEquivocado =>
-      'Tiene que empezar por ws:// — el canal no es una página web.',
+      'Eso parece la dirección de una web, no la del canal.',
     PairingProblem.faltaElPuerto =>
       'Falta el puerto. El canal escucha en el 7845.',
     PairingProblem.tokenCorto => 'Ese token está incompleto.',
+    // No se ve escribiendo a mano —esto viene del escáner— pero el `switch` es
+    // exhaustivo a propósito: un caso nuevo obliga a decidir qué se dice, en vez de
+    // caer en un «error» genérico que nadie escribió.
+    PairingProblem.noEsDeNexus => 'Ese código no es de Nexus.',
   };
-}
-
-class _Campo extends StatelessWidget {
-  const _Campo({
-    super.key,
-    required this.etiqueta,
-    required this.pista,
-    required this.controlador,
-    required this.alPegar,
-    required this.alEscribir,
-  });
-
-  final String etiqueta;
-  final String pista;
-  final TextEditingController controlador;
-  final VoidCallback alPegar;
-  final VoidCallback alEscribir;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          etiqueta,
-          style: Theme.of(context).textTheme.labelMedium?.copyWith(
-            color: colors.mute,
-            letterSpacing: 1.2,
-          ),
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            Expanded(
-              child: TextField(
-                controller: controlador,
-                onChanged: (_) => alEscribir(),
-                autocorrect: false,
-                enableSuggestions: false,
-                style: TextStyle(color: colors.ink, fontFamily: 'monospace'),
-                decoration: InputDecoration(
-                  hintText: pista,
-                  hintStyle: TextStyle(color: colors.faint),
-                ),
-              ),
-            ),
-            const SizedBox(width: 8),
-            // Pegar tiene su propio botón porque **es la única forma real de
-            // rellenar esto**: nadie teclea 43 caracteres al azar, y el menú de
-            // pegar del sistema pide una pulsación larga que no se ve.
-            IconButton(
-              onPressed: alPegar,
-              icon: const Icon(Icons.content_paste),
-              tooltip: 'Pegar',
-              color: colors.accent,
-            ),
-          ],
-        ),
-      ],
-    );
-  }
 }
 
 class _Aviso extends StatelessWidget {
@@ -220,16 +185,16 @@ class _Aviso extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      width: double.infinity,
+      padding: const EdgeInsets.all(NexusSpacing.s3),
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.10),
-        borderRadius: BorderRadius.circular(10),
+        // 2px como todo lo demás: el radio grande de la primera versión era de
+        // Material y se veía prestado al lado de la pantalla de escanear.
+        borderRadius: BorderRadius.circular(2),
         border: Border.all(color: color.withValues(alpha: 0.35)),
       ),
-      child: Text(
-        texto,
-        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: color),
-      ),
+      child: Text(texto, style: NexusTypography.mono.copyWith(color: color)),
     );
   }
 }

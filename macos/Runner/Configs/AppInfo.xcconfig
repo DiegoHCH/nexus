@@ -20,3 +20,23 @@ PRODUCT_COPYRIGHT = Copyright © 2026 Katana Labs. All rights reserved.
 // necesitaría que Xcode tuviera sesión abierta para emitir perfiles.
 DEVELOPMENT_TEAM = Y9H7TRB5L7
 CODE_SIGN_IDENTITY = Developer ID Application
+
+// `pod install` avisa —una vez por configuración, tres en total— de que «no pudo
+// poner su configuración base porque el proyecto ya tiene una propia» y sugiere
+// apuntar la base del target Runner a `Pods-Runner.<config>.xcconfig`. **No se
+// hace, y el aviso es esperado**: esta es la disposición estándar de Flutter en
+// macOS —el target Runner tiene como base este AppInfo.xcconfig— y lo de Pods ya
+// llega igual, por otra rama. `macos/Flutter/Flutter-Debug.xcconfig` (y su
+// gemelo Release) abren con
+//   #include? "Pods/Target Support Files/Pods-Runner/Pods-Runner.debug.xcconfig"
+// que Xcode resuelve contra SRCROOT (= `macos/`), y esos dos los incluye
+// `Runner/Configs/Debug.xcconfig` / `Release.xcconfig`, que son la base a nivel
+// de **proyecto**. Como AppInfo.xcconfig no define ninguno de los ajustes de
+// Pods, estos bajan al target sin que nadie los pise: se comprueba con
+// `xcodebuild -showBuildSettings`, donde OTHER_LDFLAGS trae `-framework
+// "Sparkle"` y compañía y PODS_ROOT apunta a `macos/Pods`.
+//
+// Hacer lo que sugiere el aviso sería el error caro: la base del target solo
+// admite un archivo, así que poner el de Pods **borra este** —y con él el bundle
+// id, el equipo y la identidad de firma de aquí arriba—, que es justo lo que
+// rompe la firma con Developer ID y las releases de Sparkle.

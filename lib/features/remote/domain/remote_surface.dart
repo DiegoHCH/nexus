@@ -42,6 +42,166 @@ abstract class RemoteSurface {
   });
 
   Future<void> stopErrand(String conversationId);
+
+  // ─────────── lo que salió de usar el teléfono de verdad ───────────
+  //
+  // Con el canal funcionando apareció el hueco: **si en el Mac no hay ninguna
+  // conversación abierta, el móvil no puede hacer nada**. Eso convierte «mira cómo va
+  // lo que dejaste corriendo» en «solo sirve si te acordaste de dejarlo abierto».
+
+  /// Las conversaciones pasadas, paginadas. Es lo que el escritorio enseña con `⌘H`.
+  Future<RemotePage<ArchivedConversation>> archive({
+    int cursor = 0,
+    int limit = 30,
+  });
+
+  /// Retoma una del archivo y devuelve el id de la conversación viva.
+  ///
+  /// Devuelve el id porque **retomar puede darte una que ya estaba abierta**: si la
+  /// conversación del archivo corresponde a una viva, lo correcto es llevarte a esa y
+  /// no abrir una segunda sobre la misma carpeta.
+  Future<String> resumeConversation(String archivedId);
+
+  /// Las carpetas que el Mac **ya tiene emparejadas**.
+  ///
+  /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La
+  /// distinción es la que permite que esto exista sin contradecir la decisión de que
+  /// emparejar una carpeta nueva se queda en el escritorio.
+  Future<List<RemoteFolder>> folders();
+
+  /// Abre una conversación sobre una carpeta ya emparejada.
+  Future<String> openConversation(String folderPath);
+
+  /// Los documentos que Claude produjo.
+  Future<List<RemoteArtifact>> artifacts();
+
+  /// El contenido de uno. Aparte de la lista **porque la lista se pide siempre y el
+  /// contenido casi nunca**: mandar los cuerpos con el listado sería mandar por 4G
+  /// documentos que no se van a abrir.
+  Future<String> artifact(String artifactId);
+}
+
+/// Una conversación del archivo.
+@immutable
+class ArchivedConversation {
+  const ArchivedConversation({
+    required this.id,
+    required this.folder,
+    required this.title,
+    required this.when,
+    this.turns = 0,
+    this.open = false,
+    this.account,
+  });
+
+  final String id;
+  final String folder;
+
+  /// Con qué se reconoce. En el escritorio es lo primero que se pidió en esa
+  /// conversación, que resulta ser el mejor título que nadie ha escrito.
+  final String title;
+
+  final DateTime when;
+  final int turns;
+
+  /// Si esa conversación está **abierta ahora mismo**. Importa para no ofrecer
+  /// «retomar» algo que ya está vivo: lleva a la que hay.
+  final bool open;
+
+  /// De qué cuenta de Claude es —`work`, `private`—, cuando hay más de una.
+  ///
+  /// Va porque sin ella la lista del teléfono es indistinguible: el archivo real
+  /// tiene veintinueve de una cuenta y nueve de otra, y el escritorio las separa en
+  /// pestañas. Nula cuando el registro no lo dice, que es lo que pasa con las
+  /// guardadas antes de que existieran las cuentas.
+  final String? account;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'folder': folder,
+    'title': title,
+    'when': when.toIso8601String(),
+    'turns': turns,
+    if (open) 'open': true,
+    'account': ?account,
+  };
+}
+
+/// Una carpeta emparejada, tal como se ofrece para elegir.
+@immutable
+class RemoteFolder {
+  const RemoteFolder({
+    required this.path,
+    required this.canWrite,
+    this.busy = false,
+    this.account,
+  });
+
+  final String path;
+
+  /// Lo que esa carpeta concede. Se manda para que el teléfono pueda avisar **antes**
+  /// de abrir: empezar una conversación en una carpeta de solo lectura y descubrirlo
+  /// al primer encargo es trabajo para tirar.
+  final bool canWrite;
+
+  /// Si ya tiene una conversación abierta. El escritorio no permite dos sobre la
+  /// misma carpeta —compartirían la sesión de Claude y se pisarían el contexto— así
+  /// que el teléfono tiene que poder decirlo en vez de fallar al intentarlo.
+  final bool busy;
+
+  /// Con qué cuenta de Claude trabaja esa carpeta —`work`, `private`—.
+  ///
+  /// Va porque **abrir una conversación es elegir una cuenta sin verlo**: la carpeta
+  /// lleva su perfil pegado en el Mac, y desde el teléfono se elegía a ciegas cuál de
+  /// los dos mundos —qué memoria, qué contexto, qué sesión— iba a atender el encargo.
+  final String? account;
+
+  Map<String, Object?> toJson() => {
+    'path': path,
+    'canWrite': canWrite,
+    if (busy) 'busy': true,
+    'account': ?account,
+  };
+}
+
+/// Un documento que produjo Claude.
+@immutable
+class RemoteArtifact {
+  const RemoteArtifact({
+    required this.id,
+    required this.name,
+    required this.when,
+    this.bytes = 0,
+    this.text = false,
+    this.account,
+  });
+
+  final String id;
+  final String name;
+  final DateTime when;
+
+  /// El tamaño, para poder decidir si se abre con datos móviles.
+  final int bytes;
+
+  /// Si su contenido se puede mandar como texto.
+  ///
+  /// Va en la lista y no se descubre al abrir: pedir un `.png` devolvía un error de
+  /// codificación —leerlo como cadena no da una imagen— y el teléfono se quedaba con
+  /// un fallo donde tenía que haber un «esto ábrelo en el Mac». Decirlo antes
+  /// convierte un fallo en una fila que ya avisa.
+  final bool text;
+
+  /// De qué cuenta salió, cuando la carpeta está dividida por perfil.
+  final String? account;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'name': name,
+    'when': when.toIso8601String(),
+    'bytes': bytes,
+    if (text) 'text': true,
+    'account': ?account,
+  };
 }
 
 /// Se pidió algo de una conversación que no existe.
@@ -56,6 +216,21 @@ class UnknownConversation implements Exception {
 
   @override
   String toString() => 'UnknownConversation($id)';
+}
+
+/// Se pidió el contenido de un documento que no es texto.
+///
+/// Tiene su propio tipo y no cae en el error genérico porque **es una respuesta, no
+/// una avería**: el documento existe, está en la lista, y lo que no se puede es
+/// mandarlo por un canal de texto. Con un fallo genérico el teléfono decía «no se
+/// pudo atender», que manda a buscar el problema al sitio equivocado.
+class BinaryArtifact implements Exception {
+  const BinaryArtifact(this.id);
+
+  final String id;
+
+  @override
+  String toString() => 'BinaryArtifact($id)';
 }
 
 @immutable

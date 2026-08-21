@@ -75,17 +75,41 @@ class ArchiveController extends Notifier<ArchiveSettings> {
   static const _notionPagesKey = 'archive_notion_pages';
   static const _notionSentKey = 'archive_notion_sent';
 
+  /// Se completa cuando los ajustes **ya se leyeron del disco**.
+  ///
+  /// Existe por un fallo concreto: `build()` devuelve los de por defecto —«sin
+  /// archivo configurado»— y carga después. El escritorio no lo nota porque su
+  /// pantalla sigue mirando y se redibuja cuando llegan; el teléfono **pregunta una
+  /// vez y se queda con la respuesta**, así que veía una conversación en vez de
+  /// treinta y una si preguntaba en los primeros milisegundos de la app.
+  ///
+  /// Nunca falla: si el llavero no abre, se completa igual con lo que se pudo leer.
+  /// Esperar algo que puede lanzar convertiría un ajuste ilegible en un canal roto.
+  late final Future<void> cargado;
+
   @override
   ArchiveSettings build() {
-    unawaited(_load());
+    cargado = _load().catchError((Object _) {});
     return const ArchiveSettings();
   }
 
   Future<void> _load() async {
     final prefs = await SharedPreferences.getInstance();
-    final token = await ref
-        .read(secureStorageDataSourceProvider)
-        .read(_notionTokenKey);
+    // El llavero **aparte y sin poder tumbar al resto**: si no abre —bloqueado, lento,
+    // o simplemente ausente— antes se perdía la carga entera, y con ella la carpeta del
+    // vault. El síntoma era «no tengo archivo configurado», que es lo mismo que dice
+    // un Mac recién instalado, así que no había forma de distinguirlo de la verdad.
+    //
+    // Lo único que se pierde ahora es saber si hay token de Notion, que es exactamente
+    // lo que el llavero guardaba.
+    String? token;
+    try {
+      token = await ref
+          .read(secureStorageDataSourceProvider)
+          .read(_notionTokenKey);
+    } on Object {
+      token = null;
+    }
     state = ArchiveSettings(
       destination: ArchiveDestination.fromStored(
         prefs.getString(_destinationKey),

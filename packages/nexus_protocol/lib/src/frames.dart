@@ -72,7 +72,11 @@ enum Peer { desktop, mobile }
 /// Un token dentro del primer mensaje acabaría en cualquier traza que registre el
 /// primer mensaje, que es justo lo que se quería evitar.
 final class Hello extends Frame {
-  const Hello({required this.protocol, required this.peer, required this.appVersion});
+  const Hello({
+    required this.protocol,
+    required this.peer,
+    required this.appVersion,
+  });
 
   factory Hello.fromJson(Map<String, Object?> j) => Hello(
     protocol: ProtocolRange.fromJson(j['protocol']! as Map<String, Object?>),
@@ -98,14 +102,32 @@ final class Hello extends Frame {
 
 /// El servidor acepta y dice por dónde va la numeración de eventos.
 final class Welcome extends Frame {
-  const Welcome({required this.protocol, required this.seq});
+  const Welcome({required this.protocol, required this.seq, this.accent});
 
   factory Welcome.fromJson(Map<String, Object?> j) => Welcome(
     protocol: ProtocolRange.fromJson(j['protocol']! as Map<String, Object?>),
     seq: j['seq']! as int,
+    accent: j['accent'] as int?,
   );
 
   final ProtocolRange protocol;
+
+  /// El acento elegido en el Mac, en ARGB. `null` si este Mac es más viejo que este
+  /// campo.
+  ///
+  /// **Viaja en el saludo y no en el QR**, y esa es la decisión. En el QR quedaría
+  /// congelado en el momento de emparejar: el día que se cambia el acento en el Mac, el
+  /// teléfono se quedaría con el viejo y habría **dos fuentes de verdad para algo que
+  /// cambia**. En el saludo llega en cada conexión, así que cambiarlo en el Mac lo
+  /// arregla solo.
+  ///
+  /// Y va aquí porque el saludo es el sitio de lo que es **del Mac** y no de una
+  /// conversación — como el `seq` y el rango de protocolo.
+  ///
+  /// Opcional a propósito: añadir un campo obligatorio al saludo rompería a cualquier
+  /// teléfono que no lo conozca, y la tolerancia hacia adelante del protocolo existe
+  /// justo para no tener que hacer eso.
+  final int? accent;
 
   /// El último evento emitido. Con esto el cliente sabe si va al día o le faltan
   /// cosas, **sin pedir el snapshot entero**.
@@ -116,6 +138,7 @@ final class Welcome extends Frame {
     Frame.claveTipo: 'welcome',
     'protocol': protocol.toJson(),
     'seq': seq,
+    'accent': ?accent,
   };
 }
 

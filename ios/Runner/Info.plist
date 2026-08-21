@@ -24,6 +24,11 @@
 	     ATS no debería aplicar aquí: `dart:io` abre sockets del sistema y no pasa
 	     por NSURLSession, que es a lo que ATS mira. También sin comprobar en un
 	     dispositivo: si `ws://` fuera bloqueado, se vería en esa misma pieza. -->
+	<!-- La cámara es solo para leer el código de emparejamiento del Mac. Sin esta
+	     descripción el sistema **cierra la app** al pedir el permiso, en vez de
+	     preguntar — y se vería como un cierre sin motivo justo al abrir el escáner. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Nexus usa la cámara solo para leer el código que empareja este teléfono con tu Mac.</string>
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Nexus habla con tu Mac por tu red privada para llevarte tus conversaciones.</string>
 	<key>CFBundleName</key>

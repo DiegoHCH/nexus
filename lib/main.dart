@@ -17,6 +17,7 @@ import 'package:nexus/features/history/presentation/widgets/conversation_history
 import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
+import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -125,6 +126,19 @@ class _MainAppState extends ConsumerState<MainApp> {
     // puso Swift con lo que dice el sistema, y aquí ya se sabe si el usuario
     // eligió otra cosa.
     AppearanceChannel.apply(dark: ref.watch(isDarkProvider));
+
+    // **El canal del móvil, vivo desde el arranque.**
+    //
+    // Se mira aquí y no solo en su pantalla porque hasta ahora lo único que lo
+    // construía era la sección «Móvil» de Ajustes: el «si estaba encendido, se
+    // vuelve a encender» únicamente ocurría si abrías esa pantalla, y las veces que
+    // el teléfono conectó «solo» fue porque la app había reabierto justo ahí. Con la
+    // ventana en el HUD no escuchaba nadie, y el teléfono decía «no se llega» sin que
+    // hubiera nada que arreglar en el teléfono.
+    //
+    // Es lo que hace verdad la promesa de recordarlo: la razón de encender el canal
+    // es precisamente no tener que tocar el Mac.
+    ref.watch(channelControllerProvider);
 
     return MaterialApp(
       navigatorKey: _navigatorKey,

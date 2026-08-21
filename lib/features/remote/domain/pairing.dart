@@ -43,6 +43,13 @@ enum PairingProblem {
 
   /// El token no tiene la pinta de un token del canal.
   tokenCorto,
+
+  /// El QR es de otra cosa: una wifi, una URL, un billete.
+  ///
+  /// **No es un error de quien escanea**: es que apuntó a otro código. Decirlo así
+  /// evita el mensaje que más molesta —«código inválido»— cuando lo único que pasó es
+  /// que la cámara vio antes otro QR que había en la mesa.
+  noEsDeNexus,
 }
 
 /// Lee lo que el usuario pegó.
@@ -57,8 +64,29 @@ enum PairingProblem {
   required String url,
   required String token,
 }) {
-  final limpia = url.trim();
   final tokenLimpio = token.trim();
+
+  // **Sin esquema se le pone `ws://`.** Exigirlo era una regla mía y no del canal: lo
+  // que se copia del Mac es `ws://100.x.y.z:7845`, pero lo que un humano teclea de
+  // memoria es la dirección y el puerto — y rechazarlo con «tiene que empezar por
+  // ws://» es hacer trabajar al usuario para cumplir un formato que este código puede
+  // completar solo.
+  //
+  // Se detecta por la ausencia de `://` y no por lo que parezca: `100.73.35.55:7845`
+  // se lee como un URI con **esquema `100.73.35.55`** —sintácticamente lo es— así que
+  // sin esto pasaría el `tryParse` y fallaría por «esquema equivocado», que es
+  // justamente el mensaje que menos ayuda.
+  //
+  // Y se completa **solo si parece una dirección**: con un espacio dentro no lo es, y
+  // ponerle `ws://` a «esto no es una url» la convertía en un host raro sin puerto —
+  // así que la basura salía como «falta el puerto» en vez de como ilegible. Completar
+  // de más empeora el mensaje del caso que ya estaba bien.
+  final crudo = url.trim();
+  final parece =
+      crudo.isNotEmpty &&
+      !crudo.contains('://') &&
+      !crudo.contains(RegExp(r'\s'));
+  final limpia = parece ? 'ws://$crudo' : crudo;
 
   // Los 43 caracteres que salen de 32 bytes en base64url sin relleno. Se compara
   // con un margen y no con la igualdad exacta: el objetivo es atrapar el «pegué
