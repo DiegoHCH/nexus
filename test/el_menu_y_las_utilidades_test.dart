@@ -16,6 +16,7 @@ import 'package:nexus/features/remote/presentation/providers/pairing_providers.d
 import 'package:nexus/features/remote/presentation/widgets/mobile_drawer.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 
 // El menú y las tres pantallas que hay detrás.
 //
@@ -587,6 +588,37 @@ void main() {
       await tester.pump();
 
       expect(find.text('Nada abierto en el Mac'), findsOne);
+
+      // **Medido, no mirado.** El orbe se dibuja con radio
+      // `min(ancho, alto) × 0.30`, asi que estaba en una caja de 140 de alto y salia
+      // de 84 px: el alto era lo que lo ahogaba. Cuadrado y con el sitio que sobra,
+      // pasa de 300 en esta pantalla de prueba. El umbral es flojo a proposito —lo que
+      // se ata es que no vuelva a caber en una franja de 140—.
+      final orbe = tester.getSize(find.byType(NexusOrb));
+      expect(
+        orbe.height,
+        greaterThan(200),
+        reason: 'el orbe volvio a ser una franja',
+      );
+      expect(
+        orbe.width,
+        closeTo(orbe.height, 1),
+        reason: 'cuadrado: en un rectangulo el lado corto decide el radio',
+      );
+
+      // Y el boton, abajo del todo: es donde esta el pulgar, y es lo ultimo que se lee
+      // despues de saber que pasa.
+      final boton = tester.getRect(
+        find.byKey(const ValueKey('empezar-desde-el-vacio')),
+      );
+      final titulo = tester.getRect(find.text('Nada abierto en el Mac'));
+      expect(boton.top, greaterThan(titulo.bottom));
+      expect(
+        boton.bottom,
+        closeTo(tester.getSize(find.byType(ConversationsPage)).height, 40),
+        reason: 'pegado al fondo, no flotando justo debajo del texto',
+      );
+
       await tester.tap(find.byKey(const ValueKey('empezar-desde-el-vacio')));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 400));

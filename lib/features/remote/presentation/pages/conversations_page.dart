@@ -126,55 +126,106 @@ class _Vacio extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = context.colors;
     // Una lista vacía **no es un error**: es un Mac sin conversaciones abiertas, y
-    // eso pasa a diario. Se dibuja como un estado y no como un fallo — y con
-    // scroll, para que el tirón de refrescar siga funcionando.
+    // eso pasa a diario. Se dibuja como un estado y no como un fallo.
+    //
     // **Y las tres partes que el mockup exige, no dos.** Tenía qué pasó y por qué, y
     // le faltaba qué se puede hacer: la pantalla decía «nada abierto en el Mac» y no
     // ofrecía abrir nada, así que empezar dependía de saber que estaba detrás del
     // menú. Un estado vacío sin salida es un callejón con buenos modales.
-    return ListView(
-      padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s5),
-      children: [
-        const SizedBox(height: 60),
-        const SizedBox(
-          height: 140,
-          child: NexusOrb(state: NexusOrbState.sleep, showHorizon: false),
-        ),
-        const SizedBox(height: NexusSpacing.s6),
-        Text(
-          preguntado ? 'Nada abierto en el Mac' : 'No pude preguntarle al Mac',
-          key: const ValueKey('titulo-del-vacio'),
-          style: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
-        ),
-        const SizedBox(height: NexusSpacing.s3),
-        Text(
-          preguntado
-              // Se dice **sobre qué** se abre, que es la parte que no es obvia: una
-              // conversación no nace de la nada, nace sobre una carpeta que el Mac ya
-              // tenía emparejada.
-              ? 'Una conversación empieza sobre una de las carpetas que el Mac ya '
-                    'tiene emparejadas.'
-              : 'El Mac no contestó a la última petición. Puede estar dormido, o '
-                    'fuera de Tailscale.',
-          style: NexusTypography.body.copyWith(color: colors.mute),
-        ),
-        const SizedBox(height: NexusSpacing.s6),
-        if (preguntado)
-          WideAction(
-            key: const ValueKey('empezar-desde-el-vacio'),
-            texto: 'Conversación nueva',
-            principal: true,
-            alTocar: alEmpezar,
-          )
-        else
-          // Sin respuesta del Mac la salida **no** es abrir una carpeta —eso fallaría
-          // igual—: es volver a preguntar.
-          WideAction(
-            key: const ValueKey('reintentar-desde-el-vacio'),
-            texto: 'Volver a preguntar',
-            principal: true,
-            alTocar: alReintentar,
+    //
+    // `SliverFillRemaining` y no un `ListView` con huecos a dedo: hace falta que la
+    // columna tenga **alto de verdad** para que los `Spacer` reparten el sitio —el
+    // orbe centrado arriba, el botón pegado abajo— y a la vez que siga habiendo algo
+    // que se pueda arrastrar, o el tirón para refrescar deja de funcionar justo aquí,
+    // que es la pantalla donde más se tira. Un `Expanded` dentro de un scroll normal
+    // es la contradicción que ya rompió tres pantallas de esta app.
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          // `true` y no `false`: con `false` el sliver mide el **alto intrínseco** del
+          // hijo, y una columna con espacio flexible dentro no tiene ninguno —eso es
+          // lo que revienta—. Con `true` la columna recibe el alto de la ventana ya
+          // fijado, que es lo que hace falta para repartirlo.
+          hasScrollBody: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NexusSpacing.s5,
+              0,
+              NexusSpacing.s5,
+              NexusSpacing.s5,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // **El orbe se queda con todo el sitio que sobre.**
+                //
+                // `Flexible` y no un alto fijo: así se centra en el hueco libre, crece
+                // en una pantalla grande y **se encoge** en una pequeña o con la letra
+                // del sistema en grande, en vez de desbordar la columna. El cuadrado
+                // es lo que importa: el orbe se dibuja con radio
+                // `min(ancho, alto) × 0.30`, así que en la caja de 140 de alto que
+                // tenía salía de 84 px de diámetro — el alto era lo que lo ahogaba, no
+                // el ancho.
+                //
+                // Sin horizonte, como el mockup: la línea lo convierte en un paisaje, y
+                // aquí el orbe es una presencia y no un decorado.
+                Flexible(
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: NexusOrb(
+                        state: NexusOrbState.sleep,
+                        showHorizon: false,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  preguntado
+                      ? 'Nada abierto en el Mac'
+                      : 'No pude preguntarle al Mac',
+                  key: const ValueKey('titulo-del-vacio'),
+                  style: NexusTypography.subtitleMobile.copyWith(
+                    color: colors.ink,
+                  ),
+                ),
+                const SizedBox(height: NexusSpacing.s3),
+                Text(
+                  preguntado
+                      // Se dice **sobre qué** se abre, que es la parte que no es
+                      // obvia: una conversación no nace de la nada, nace sobre una
+                      // carpeta que el Mac ya tenía emparejada.
+                      ? 'Una conversación empieza sobre una de las carpetas que el '
+                            'Mac ya tiene emparejadas.'
+                      : 'El Mac no contestó a la última petición. Puede estar '
+                            'dormido, o fuera de Tailscale.',
+                  style: NexusTypography.body.copyWith(color: colors.mute),
+                ),
+                const SizedBox(height: NexusSpacing.s6),
+                // Abajo, y no debajo del texto: es donde está el pulgar, y es lo
+                // último que se lee después de saber qué pasa.
+                if (preguntado)
+                  WideAction(
+                    key: const ValueKey('empezar-desde-el-vacio'),
+                    texto: 'Conversación nueva',
+                    principal: true,
+                    alTocar: alEmpezar,
+                  )
+                else
+                  // Sin respuesta del Mac la salida **no** es abrir una carpeta —eso
+                  // fallaría igual—: es volver a preguntar.
+                  WideAction(
+                    key: const ValueKey('reintentar-desde-el-vacio'),
+                    texto: 'Volver a preguntar',
+                    principal: true,
+                    alTocar: alReintentar,
+                  ),
+              ],
+            ),
           ),
+        ),
       ],
     );
   }
