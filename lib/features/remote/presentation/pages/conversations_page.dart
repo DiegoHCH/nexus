@@ -9,6 +9,8 @@ import 'package:nexus/features/remote/presentation/providers/mirror_providers.da
 import 'package:nexus/features/remote/presentation/pages/utility_pages.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_drawer.dart';
+import 'package:nexus/core/design_system/nexus_spacing.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
 
 /// Lo que hay abierto en el Mac.
 ///
@@ -78,6 +80,17 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
                         preguntado: ref
                             .read(mirrorProvider.notifier)
                             .preguntado,
+                        // La salida va desde aquí porque **es la pantalla la que sabe
+                        // navegar**, y porque sin ella el vacío era un callejón: «nada
+                        // abierto en el Mac» y ninguna forma de abrir algo, salvo que
+                        // ya supieras que estaba detrás del menú.
+                        alEmpezar: () => Navigator.of(context).push(
+                          MaterialPageRoute<void>(
+                            builder: (_) => const FoldersPage(),
+                          ),
+                        ),
+                        alReintentar: () =>
+                            ref.read(mirrorProvider.notifier).refrescar(),
                       )
                     : ListView.builder(
                         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -95,33 +108,122 @@ class _ConversationsPageState extends ConsumerState<ConversationsPage> {
 }
 
 class _Vacio extends StatelessWidget {
-  const _Vacio({required this.preguntado});
+  const _Vacio({
+    required this.preguntado,
+    required this.alEmpezar,
+    required this.alReintentar,
+  });
 
   /// Si el Mac contestó a la última petición de la lista.
   final bool preguntado;
+
+  /// Abrir una conversación nueva sobre una carpeta que el Mac ya tiene.
+  final VoidCallback alEmpezar;
+
+  final Future<void> Function() alReintentar;
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
     // Una lista vacía **no es un error**: es un Mac sin conversaciones abiertas, y
-    // eso pasa a diario. Se dibuja como un estado y no como un fallo — y con
-    // scroll, para que el tirón de refrescar siga funcionando.
-    return ListView(
-      children: [
-        const SizedBox(height: 80),
-        const SizedBox(
-          height: 140,
-          child: NexusOrb(state: NexusOrbState.sleep, showHorizon: false),
-        ),
-        const SizedBox(height: 28),
-        Center(
-          child: Text(
-            preguntado
-                ? 'Nada abierto en el Mac'
-                : 'No pude preguntarle al Mac',
-            style: Theme.of(
-              context,
-            ).textTheme.bodyMedium?.copyWith(color: colors.mute),
+    // eso pasa a diario. Se dibuja como un estado y no como un fallo.
+    //
+    // **Y las tres partes que el mockup exige, no dos.** Tenía qué pasó y por qué, y
+    // le faltaba qué se puede hacer: la pantalla decía «nada abierto en el Mac» y no
+    // ofrecía abrir nada, así que empezar dependía de saber que estaba detrás del
+    // menú. Un estado vacío sin salida es un callejón con buenos modales.
+    //
+    // `SliverFillRemaining` y no un `ListView` con huecos a dedo: hace falta que la
+    // columna tenga **alto de verdad** para que los `Spacer` reparten el sitio —el
+    // orbe centrado arriba, el botón pegado abajo— y a la vez que siga habiendo algo
+    // que se pueda arrastrar, o el tirón para refrescar deja de funcionar justo aquí,
+    // que es la pantalla donde más se tira. Un `Expanded` dentro de un scroll normal
+    // es la contradicción que ya rompió tres pantallas de esta app.
+    return CustomScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      slivers: [
+        SliverFillRemaining(
+          // `true` y no `false`: con `false` el sliver mide el **alto intrínseco** del
+          // hijo, y una columna con espacio flexible dentro no tiene ninguno —eso es
+          // lo que revienta—. Con `true` la columna recibe el alto de la ventana ya
+          // fijado, que es lo que hace falta para repartirlo.
+          hasScrollBody: true,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+              NexusSpacing.s5,
+              0,
+              NexusSpacing.s5,
+              NexusSpacing.s5,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // **El orbe se queda con todo el sitio que sobre.**
+                //
+                // `Flexible` y no un alto fijo: así se centra en el hueco libre, crece
+                // en una pantalla grande y **se encoge** en una pequeña o con la letra
+                // del sistema en grande, en vez de desbordar la columna. El cuadrado
+                // es lo que importa: el orbe se dibuja con radio
+                // `min(ancho, alto) × 0.30`, así que en la caja de 140 de alto que
+                // tenía salía de 84 px de diámetro — el alto era lo que lo ahogaba, no
+                // el ancho.
+                //
+                // Sin horizonte, como el mockup: la línea lo convierte en un paisaje, y
+                // aquí el orbe es una presencia y no un decorado.
+                Flexible(
+                  child: Center(
+                    child: AspectRatio(
+                      aspectRatio: 1,
+                      child: NexusOrb(
+                        state: NexusOrbState.sleep,
+                        showHorizon: false,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  preguntado
+                      ? 'Nada abierto en el Mac'
+                      : 'No pude preguntarle al Mac',
+                  key: const ValueKey('titulo-del-vacio'),
+                  style: NexusTypography.subtitleMobile.copyWith(
+                    color: colors.ink,
+                  ),
+                ),
+                const SizedBox(height: NexusSpacing.s3),
+                Text(
+                  preguntado
+                      // Se dice **sobre qué** se abre, que es la parte que no es
+                      // obvia: una conversación no nace de la nada, nace sobre una
+                      // carpeta que el Mac ya tenía emparejada.
+                      ? 'Una conversación empieza sobre una de las carpetas que el '
+                            'Mac ya tiene emparejadas.'
+                      : 'El Mac no contestó a la última petición. Puede estar '
+                            'dormido, o fuera de Tailscale.',
+                  style: NexusTypography.body.copyWith(color: colors.mute),
+                ),
+                const SizedBox(height: NexusSpacing.s6),
+                // Abajo, y no debajo del texto: es donde está el pulgar, y es lo
+                // último que se lee después de saber qué pasa.
+                if (preguntado)
+                  WideAction(
+                    key: const ValueKey('empezar-desde-el-vacio'),
+                    texto: 'Conversación nueva',
+                    principal: true,
+                    alTocar: alEmpezar,
+                  )
+                else
+                  // Sin respuesta del Mac la salida **no** es abrir una carpeta —eso
+                  // fallaría igual—: es volver a preguntar.
+                  WideAction(
+                    key: const ValueKey('reintentar-desde-el-vacio'),
+                    texto: 'Volver a preguntar',
+                    principal: true,
+                    alTocar: alReintentar,
+                  ),
+              ],
+            ),
           ),
         ),
       ],
@@ -137,11 +239,15 @@ class _Tarjeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final texto = Theme.of(context).textTheme;
-
-    return Card(
-      color: colors.deep,
-      margin: const EdgeInsets.only(bottom: 12),
+    // **Una fila con hairline, no una tarjeta.** Una `Card` trae elevación, esquinas
+    // de 12 y su propio color de superficie: tres cosas que este sistema no usa en
+    // ninguna otra parte, y que hacían que esta pantalla se leyera como otra app. Las
+    // demás listas del teléfono —el archivo, los artifacts, el menú— ya son filas
+    // separadas por una línea de un píxel.
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border(top: BorderSide(color: colors.rule)),
+      ),
       child: InkWell(
         key: ValueKey('abrir-${conversacion.id}'),
         onTap: () => Navigator.of(context).push(
@@ -149,9 +255,8 @@ class _Tarjeta extends StatelessWidget {
             builder: (_) => ConversationPage(conversationId: conversacion.id),
           ),
         ),
-        borderRadius: BorderRadius.circular(12),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -164,34 +269,59 @@ class _Tarjeta extends StatelessWidget {
                       // distingue por la cola, no por la cabeza.
                       _cola(conversacion.nombre),
                       overflow: TextOverflow.ellipsis,
-                      style: texto.bodyLarge?.copyWith(color: colors.ink),
+                      style: NexusTypography.lead.copyWith(color: colors.ink),
                     ),
                   ),
                   if (conversacion.focused)
                     Padding(
                       padding: const EdgeInsets.only(left: 8),
-                      child: Icon(Icons.mic, size: 15, color: colors.accent),
+                      // Con la palabra y no con un icono de micrófono: en una fila de
+                      // texto un glifo de Material es la única forma redonda de la
+                      // pantalla, y encima hay que saber qué significa.
+                      child: Text(
+                        'ESCUCHA',
+                        style: NexusTypography.label.copyWith(
+                          color: colors.accent,
+                        ),
+                      ),
                     ),
                 ],
               ),
               if (conversacion.streaming) ...[
                 const SizedBox(height: 10),
                 Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    SizedBox(
-                      width: 12,
-                      height: 12,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 1.6,
+                    // Un punto con halo y no una rueda girando: **el único elemento
+                    // que gira en este sistema es el orbe**, y una segunda cosa
+                    // girando compite con él sin decir nada más. Es la misma marca
+                    // que el paso «ahora mismo» dentro de la conversación.
+                    Container(
+                      width: 7,
+                      height: 7,
+                      margin: const EdgeInsets.only(top: 5, right: 10),
+                      decoration: BoxDecoration(
                         color: colors.accent,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: colors.accent.withValues(alpha: 0.8),
+                            blurRadius: 12,
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(width: 10),
-                    Text(
-                      conversacion.steps.isEmpty
-                          ? 'trabajando'
-                          : conversacion.steps.last.text,
-                      style: texto.bodySmall?.copyWith(color: colors.mute),
+                    Expanded(
+                      child: Text(
+                        conversacion.steps.isEmpty
+                            ? 'trabajando'
+                            : conversacion.steps.last.text,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: NexusTypography.mono.copyWith(
+                          color: colors.mute,
+                        ),
+                      ),
                     ),
                   ],
                 ),
@@ -201,7 +331,7 @@ class _Tarjeta extends StatelessWidget {
                   conversacion.reply,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: texto.bodySmall?.copyWith(color: colors.mute),
+                  style: NexusTypography.mono.copyWith(color: colors.mute),
                 ),
               ],
               if (conversacion.error != null) ...[
@@ -210,7 +340,7 @@ class _Tarjeta extends StatelessWidget {
                   conversacion.error!,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
-                  style: texto.bodySmall?.copyWith(color: colors.err),
+                  style: NexusTypography.mono.copyWith(color: colors.err),
                 ),
               ],
             ],

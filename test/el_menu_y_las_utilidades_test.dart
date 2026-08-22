@@ -16,6 +16,7 @@ import 'package:nexus/features/remote/presentation/providers/pairing_providers.d
 import 'package:nexus/features/remote/presentation/widgets/mobile_drawer.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 
 // El menú y las tres pantallas que hay detrás.
 //
@@ -41,6 +42,13 @@ class _SocketFalso implements ChannelSocket {
   /// se acaban, manda `respuestas`.
   final porTurno = <String, List<Map<String, Object?>>>{};
 
+  /// Metodos a los que **no se contesta nada**: ni `ack` ni resultado.
+  ///
+  /// Hace falta porque este socket contesta a todo, y con eso el caso «el Mac no
+  /// contesto» no se podia escribir: la pantalla creia siempre haber preguntado con
+  /// exito. Es el Mac dormido o fuera de Tailscale, que es lo que pasa de verdad.
+  final callado = <String>{};
+
   @override
   Stream<String> get entrantes => _entrantes.stream;
 
@@ -49,6 +57,7 @@ class _SocketFalso implements ChannelSocket {
     final marco = Frame.decode(texto);
     enviados.add(marco);
     if (marco is! Call) return;
+    if (callado.contains(marco.method)) return;
     Future.microtask(() {
       recibe(Ack(id: marco.id));
       final cola = porTurno[marco.method];
@@ -111,8 +120,14 @@ void main() {
   Future<ProviderContainer> conectado(
     WidgetTester tester, {
     Map<String, Map<String, Object?>> respuestas = const {},
+    Set<String> callado = const {},
   }) async {
-    socket = _SocketFalso()..respuestas.addAll(respuestas);
+    // El silencio se declara **antes de conectar**: el saludo dispara ya la primera
+    // peticion de la lista, asi que ponerlo despues llega tarde — y con la respuesta
+    // vacia ya contestada, la pantalla creia haber preguntado con exito.
+    socket = _SocketFalso()
+      ..respuestas.addAll(respuestas)
+      ..callado.addAll(callado);
     final c = ProviderContainer(
       overrides: [
         pairingStoreProvider.overrideWithValue(_Emparejado()),
@@ -550,6 +565,99 @@ void main() {
 
       expect(socket.ultima('artifact').params['artifact'], '/tmp/informe.md');
       expect(find.textContaining('Todo bien.'), findsOne);
+    });
+  });
+  group('el vacío de la pantalla principal', () {
+    testWidgets('ofrece empezar, y lleva a elegir carpeta', (tester) async {
+      // El fallo que esto ata: la pantalla decia «nada abierto en el Mac» y no ofrecia
+      // abrir nada. Empezar dependia de saber que estaba detras del menu — un estado
+      // vacio sin salida es un callejon con buenos modales.
+      final c = await conectado(
+        tester,
+        respuestas: const {
+          'conversations': {'conversations': []},
+          'folders': {
+            'folders': [
+              {'path': '/Users/alguien/api', 'canWrite': true},
+            ],
+          },
+        },
+      );
+      await tester.pumpWidget(app(c, const ConversationsPage()));
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('Nada abierto en el Mac'), findsOne);
+
+      // **Medido, no mirado.** El orbe se dibuja con radio
+      // `min(ancho, alto) × 0.30`, asi que estaba en una caja de 140 de alto y salia
+      // de 84 px: el alto era lo que lo ahogaba. Cuadrado y con el sitio que sobra,
+      // pasa de 300 en esta pantalla de prueba. El umbral es flojo a proposito —lo que
+      // se ata es que no vuelva a caber en una franja de 140—.
+      final orbe = tester.getSize(find.byType(NexusOrb));
+      expect(
+        orbe.height,
+        greaterThan(200),
+        reason: 'el orbe volvio a ser una franja',
+      );
+      expect(
+        orbe.width,
+        closeTo(orbe.height, 1),
+        reason: 'cuadrado: en un rectangulo el lado corto decide el radio',
+      );
+
+      // Y el boton, abajo del todo: es donde esta el pulgar, y es lo ultimo que se lee
+      // despues de saber que pasa.
+      final boton = tester.getRect(
+        find.byKey(const ValueKey('empezar-desde-el-vacio')),
+      );
+      final titulo = tester.getRect(find.text('Nada abierto en el Mac'));
+      expect(boton.top, greaterThan(titulo.bottom));
+      expect(
+        boton.bottom,
+        closeTo(tester.getSize(find.byType(ConversationsPage)).height, 40),
+        reason: 'pegado al fondo, no flotando justo debajo del texto',
+      );
+
+      await tester.tap(find.byKey(const ValueKey('empezar-desde-el-vacio')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Y lleva a la lista de carpetas del Mac, no a un formulario: elegir entre las
+      // emparejadas no es emparejar.
+      expect(socket.pidio('folders'), isTrue);
+      expect(find.textContaining('…/alguien/api'), findsOne);
+    });
+
+    testWidgets('si el Mac no contesto, la salida es volver a preguntar', (
+      tester,
+    ) async {
+      // Abrir una carpeta fallaria igual, asi que ofrecerlo seria mandar a alguien a
+      // un segundo fallo. Se ofrece lo unico que puede funcionar.
+      final c = await conectado(
+        tester,
+        respuestas: const {},
+        callado: const {'conversations'},
+      );
+      await tester.pumpWidget(app(c, const ConversationsPage()));
+      await tester.pump();
+      // **Se deja vencer el plazo del `ack`.** Sin esto la peticion sigue en vuelo: la
+      // pantalla no sabe todavia que no se pudo preguntar —y el propio arnes protesta
+      // por el temporizador pendiente—. Cinco segundos es el plazo de la confirmacion,
+      // asi que con seis ya ha fallado.
+      await tester.pump(const Duration(seconds: 6));
+      await tester.pump();
+
+      expect(find.text('No pude preguntarle al Mac'), findsOne);
+      expect(
+        find.byKey(const ValueKey('reintentar-desde-el-vacio')),
+        findsOne,
+        reason: 'ofrecer abrir una carpeta aqui manda a un segundo fallo',
+      );
+      expect(
+        find.byKey(const ValueKey('empezar-desde-el-vacio')),
+        findsNothing,
+      );
     });
   });
 }
