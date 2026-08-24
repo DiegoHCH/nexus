@@ -47,6 +47,7 @@ void main() {
     bool streaming = false,
     String reply = '',
     String pregunta = '',
+    bool vozAbierta = false,
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
@@ -57,6 +58,7 @@ void main() {
     streaming: streaming,
     reply: reply,
     ask: pregunta,
+    voice: vozAbierta,
     steps: pasos,
     meter: medidor,
     error: error,
@@ -562,5 +564,23 @@ void main() {
       pasarElTiempo();
       expect(publicados.where((e) => e.kind == 'ask'), hasLength(1));
     });
+  });
+  test('el fin de la voz en el Mac se dice', () {
+    // El telefono presta el microfono pero quien decide cuando acaba es el Mac: su
+    // sesion se cierra sola por inactividad. Sin decirlo, el telefono se quedaba con
+    // el microfono abierto mandando a una sesion que ya no existia.
+    puente.observar(vista('a', vozAbierta: true));
+    pasarElTiempo();
+    expect(
+      publicados.where((e) => e.kind == 'voice').single.data['active'],
+      isTrue,
+    );
+
+    puente.observar(vista('a'));
+    pasarElTiempo();
+    expect(
+      publicados.where((e) => e.kind == 'voice').last.data['active'],
+      isFalse,
+    );
   });
 }

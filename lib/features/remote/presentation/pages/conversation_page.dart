@@ -30,6 +30,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   final _scroll = ScrollController();
   var _mandando = false;
 
+  /// La escucha de «el Mac ya terminó la voz».
+  ProviderSubscription<MirroredConversation?>? _delMac;
+
   @override
   void initState() {
     super.initState();
@@ -46,10 +49,25 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // conversaciones para leer el de una.
       await notifier.masHistorial(widget.conversationId);
     });
+
+    // **Cuando el Mac da por terminada la voz, aquí se cierra el micrófono.**
+    //
+    // El teléfono presta el micrófono pero quien decide cuándo acaba es el Mac: su
+    // sesión se cierra sola por inactividad. Sin esto el teléfono se quedaba con el
+    // micrófono abierto —diciendo en pantalla que escuchaba— mandando trozos a una
+    // sesión que ya no existía.
+    _delMac = ref.listenManual(conversationProvider(widget.conversationId), (
+      antes,
+      ahora,
+    ) {
+      if (antes?.voiceOnMac != true || ahora?.voiceOnMac != false) return;
+      ref.read(vozProvider.notifier).soltar(widget.conversationId);
+    });
   }
 
   @override
   void dispose() {
+    _delMac?.close();
     _campo.dispose();
     _scroll.dispose();
     super.dispose();

@@ -183,6 +183,13 @@ class EventBridge {
       salida.add(log.emitir('ask', {'conversation': id, 'text': ahora.ask}));
     }
 
+    // ── la sesión de voz ────────────────────────────────────────────────────
+    if (antes?.voice != ahora.voice) {
+      salida.add(
+        log.emitir('voice', {'conversation': id, 'active': ahora.voice}),
+      );
+    }
+
     // ── el turno ────────────────────────────────────────────────────────────
     if (antes?.streaming != ahora.streaming) {
       salida.add(
@@ -267,6 +274,7 @@ class ConversationView {
     required this.streaming,
     required this.reply,
     required this.ask,
+    required this.voice,
     required this.steps,
     required this.meter,
     required this.orb,
@@ -289,6 +297,15 @@ class ConversationView {
 
   /// Si hay algo corriendo.
   final bool streaming;
+
+  /// **Si el Mac tiene la sesión de voz abierta.**
+  ///
+  /// El teléfono presta su micrófono, pero quien decide cuándo termina es el Mac: la
+  /// sesión se cierra sola por inactividad. Sin esta señal, el teléfono se quedaba con
+  /// el micrófono abierto mandando trozos a una sesión que ya no existía, y en pantalla
+  /// seguía diciendo que estaba escuchando. Se dice y no se deduce del orbe: `sleep`
+  /// también sale al terminar un encargo escrito.
+  final bool voice;
 
   /// **El estado del orbe, tal cual lo tiene el Mac.**
   ///

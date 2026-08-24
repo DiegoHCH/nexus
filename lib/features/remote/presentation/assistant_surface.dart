@@ -255,6 +255,13 @@ class AssistantSurface implements RemoteSurface {
 
   Future<void> _encenderVoz(String conversationId) async {
     _existe(conversationId);
+    // **Se cancela la espera del cierre anterior**, y sin esto el segundo audio de una
+    // conversación moría: al soltar queda una espera que cierra la fuente cuando la
+    // sesión termine, y si se vuelve a hablar antes de que termine, esa espera
+    // disparaba después y cerraba **la fuente nueva**. El teléfono seguía mandando
+    // trozos a un micrófono ya cerrado.
+    final espera = _esperandoElFin.remove(conversationId);
+    if (espera != null) espera.close();
     // La fuente se abre **antes** de la sesión: cuando la sesión pida audio, el puerto
     // compartido tiene que ver ya el micrófono del teléfono activo, o le daría el del
     // Mac y estaríamos escuchando la habitación equivocada.
@@ -270,7 +277,7 @@ class AssistantSurface implements RemoteSurface {
   Future<void> stopVoice(String conversationId) =>
       _enFila(conversationId, () => _apagarVoz(conversationId));
 
-  /// Soltar el botón es **«ya está, contéstame»**, no «cancela».
+  /// Cerrar el micrófono desde el teléfono es **«ya está, contéstame»**, no «cancela».
   ///
   /// Esto derribaba la sesión de voz en el acto, y con ella la respuesta: medido, el
   /// teléfono soltaba a los 4,3 s y la primera señal de Gemini en una sesión igual
@@ -284,13 +291,20 @@ class AssistantSurface implements RemoteSurface {
   /// leyendo un stream terminado y eso se ve como la voz cortándose sola.
   Future<void> _apagarVoz(String conversationId) async {
     _existe(conversationId);
+    // **El micrófono se cierra en el acto.** Es lo que se tocó, y esperar a que la
+    // sesión terminara dejaba al Mac escuchando la habitación después de haber cerrado
+    // desde el teléfono.
+    _ref.read(remoteVoiceSourceProvider).silenciar();
+
     final hud = _ref.read(assistantControllerProvider(conversationId));
     if (!hud.voiceActive) {
-      // Sin sesión que esperar: es el caso del `stopVoice` que llega repetido o
+      // Sin sesión que esperar: es el caso del `stopVoice` repetido o del que llega
       // después de que la sesión ya se cerrara sola.
       _ref.read(remoteVoiceSourceProvider).cerrar();
       return;
     }
+    // Y el flujo se cierra cuando la sesión acabe de verdad, para que la siguiente
+    // empiece con uno limpio. La sesión sigue viva a propósito: le queda contestar.
     _cerrarLaFuenteCuandoTermine(conversationId);
   }
 

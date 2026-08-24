@@ -463,4 +463,34 @@ void main() {
       reason: 'volvio el sostener',
     );
   });
+
+  test('cerrar el microfono corta el audio en el acto, sin matar el flujo', () async {
+    // Lo que se pidio: tocar cerrar en el telefono cierra el microfono **ya**, no
+    // cuando la sesion del Mac se canse. Y lo que no puede pasar a la vez: cerrar el
+    // flujo, porque a la sesion le queda lo importante —contestar—.
+    final fuente = RemoteVoiceSource();
+    final leidos = <AudioFrame>[];
+    var cerrado = false;
+    fuente.abrir();
+    fuente.flujo!.listen(leidos.add, onDone: () => cerrado = true);
+
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+    expect(leidos, hasLength(1));
+
+    fuente.silenciar();
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(leidos, hasLength(1), reason: 'siguio entrando audio tras cerrar');
+    expect(cerrado, isFalse, reason: 'la sesion se quedo sin poder contestar');
+    expect(fuente.activo, isTrue);
+
+    // Y volver a abrir entra por el mismo flujo, que es el que la sesion viva lee.
+    fuente.abrir();
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+    expect(leidos, hasLength(2));
+    expect(cerrado, isFalse);
+  });
 }

@@ -56,6 +56,7 @@ class RemoteMirror {
       // Entera y no por trozos, al revés que la respuesta: una pregunta aparece de
       // golpe al terminar de transcribirse, así que no hay nada que ir sumando.
       'ask' => antes.copyWith(ask: (evento.data['text'] as String?) ?? ''),
+      'voice' => antes.copyWith(voiceOnMac: evento.data['active'] == true),
       'turn' => antes.copyWith(streaming: evento.data['streaming'] == true),
       // El estado del orbe **como lo mandó el Mac**, sin traducir. Un nombre que esta
       // versión no conozca deja el que había: un móvil viejo frente a un Mac nuevo
@@ -182,6 +183,7 @@ class MirroredConversation {
     this.title,
     this.reply = '',
     this.ask = '',
+    this.voiceOnMac = false,
     this.steps = const [],
     this.model,
     this.contextTokens,
@@ -243,6 +245,10 @@ class MirroredConversation {
   /// conversación contestando sola. Escribiendo no hace falta, pero tenerlo siempre es
   /// más barato que tener dos caminos según de dónde vino el turno.
   final String ask;
+
+  /// Si el Mac tiene la sesión de voz abierta. El teléfono presta el micrófono, pero
+  /// quien decide cuándo termina es el Mac.
+  final bool voiceOnMac;
   final List<MirroredStep> steps;
 
   final String? model;
@@ -339,6 +345,7 @@ class MirroredConversation {
     String? title,
     String? reply,
     String? ask,
+    bool? voiceOnMac,
     List<MirroredStep>? steps,
     String? model,
     int? contextTokens,
@@ -356,6 +363,7 @@ class MirroredConversation {
     orb: orb ?? this.orb,
     title: title ?? this.title,
     ask: ask ?? this.ask,
+    voiceOnMac: voiceOnMac ?? this.voiceOnMac,
     reply: reply ?? this.reply,
     steps: steps ?? this.steps,
     model: model ?? this.model,
