@@ -126,6 +126,7 @@ final class VoiceToolFinished extends VoiceEvent {
   /// falló o se canceló: ahí no hay medida que dar, y poner cero se leería como
   /// una sesión vacía comprobada.
   final int? turnTokens;
+
   /// Qué modelo corría, tal como lo dice el `init` del CLI —con su variante de
   /// ventana entre corchetes: `claude-opus-5[1m]`—.
   ///

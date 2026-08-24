@@ -26,6 +26,7 @@ abstract class ClaudeBridge {
     /// Dónde dejar lo que genere para mirar. `null` si el usuario no ha
     /// elegido carpeta, y entonces no se le dice nada.
     String? artifactsFolder,
+
     /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
     List<String> disallowedTools,
   });

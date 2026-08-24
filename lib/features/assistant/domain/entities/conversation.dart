@@ -8,7 +8,12 @@ import 'package:flutter/foundation.dart';
 /// a la que tenga el foco y las demás avanzan de fondo.
 @immutable
 class Conversation {
-  const Conversation({required this.id, required this.folderPath, this.name});
+  const Conversation({
+    required this.id,
+    required this.folderPath,
+    this.name,
+    this.recordId,
+  });
 
   final String id;
   final String folderPath;
@@ -22,13 +27,34 @@ class Conversation {
   /// encargo al retomarla.
   final String? name;
 
-  Conversation conNombre(String? nuevo) =>
-      Conversation(id: id, folderPath: folderPath, name: nuevo);
+  /// Con qué identidad se guarda, si adoptó una del archivo.
+  ///
+  /// Al retomar una del historial, la pestaña **adopta el id de ese registro** para
+  /// seguir escribiendo en él en vez de crear otro. Ese dato vivía solo en memoria, así
+  /// que al reabrir la app la recuperación buscaba un registro con el id de la
+  /// conversación —que no existe— y la pestaña volvía **vacía** con sus turnos intactos
+  /// en disco.
+  final String? recordId;
+
+  Conversation conNombre(String? nuevo) => Conversation(
+    id: id,
+    folderPath: folderPath,
+    name: nuevo,
+    recordId: recordId,
+  );
+
+  Conversation conRegistro(String? adoptado) => Conversation(
+    id: id,
+    folderPath: folderPath,
+    name: name,
+    recordId: adoptado,
+  );
 
   Map<String, dynamic> toJson() => {
     'id': id,
     'folderPath': folderPath,
     if (name != null) 'name': name,
+    if (recordId != null) 'recordId': recordId,
   };
 
   static Conversation? fromJson(Map<String, dynamic> json) {
@@ -41,6 +67,7 @@ class Conversation {
       id: id,
       folderPath: folderPath,
       name: json['name'] as String?,
+      recordId: json['recordId'] as String?,
     );
   }
 }
@@ -48,7 +75,11 @@ class Conversation {
 /// Las conversaciones abiertas y cuál tiene el foco.
 @immutable
 class Conversations {
-  const Conversations({this.items = const [], this.focusedId});
+  const Conversations({
+    this.items = const [],
+    this.focusedId,
+    this.cargado = false,
+  });
 
   /// El tope no es técnico, es de atención. Estuvo en tres con ese argumento, y el
   /// uso lo corrigió: seis caben porque **no se siguen todas a la vez** — se dejan
@@ -66,6 +97,19 @@ class Conversations {
 
   final List<Conversation> items;
   final String? focusedId;
+
+  /// Si ya se leyó del disco lo que había abierto.
+  ///
+  /// **Vacío y «todavía no sé» no son lo mismo**, y confundirlos es lo que hacía que la
+  /// app enseñara la pantalla de primera vez justo después de arrancar: la lista nace
+  /// vacía y el disco se lee después, así que durante esa ventana parecía que no había
+  /// ninguna conversación. Quien tocaba el orbe ahí se llevaba una conversación nueva
+  /// en vez de la que tenía abierta.
+  final bool cargado;
+
+  /// La misma lista, ya marcada como leída del disco.
+  Conversations copyCargado() =>
+      Conversations(items: items, focusedId: focusedId, cargado: true);
 
   bool get isEmpty => items.isEmpty;
   bool get isFull => items.length >= max;

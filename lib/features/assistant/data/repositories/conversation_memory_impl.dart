@@ -105,7 +105,8 @@ class ConversationMemoryImpl implements ConversationMemory {
     // significa «en esta carpeta con la cuenta que tenga puesta ahora».
     await _update(
       folderPath,
-      (entry) => {...entry, 'sessions': <String, dynamic>{}}..remove('sessionId'),
+      (entry) =>
+          {...entry, 'sessions': <String, dynamic>{}}..remove('sessionId'),
     );
   }
 

@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/presentation/providers/assistant_contro
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+
 /// Las fichas de la barra: carpeta, modelo, esfuerzo, cupo.
 ///
 /// Aparte desde que `composer_bar.dart` pasó de las 1.100 líneas. Es la pieza más
@@ -21,8 +22,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 /// esto era una etiqueta que decía que no había carpeta y no hacía nada — un
 /// cartel en el sitio donde uno va a arreglarlo.
 class ComposerChips extends ConsumerWidget {
-  const ComposerChips({
-    super.key,required this.folder, this.folderPath});
+  const ComposerChips({super.key, required this.folder, this.folderPath});
 
   final PairedFolder? folder;
 

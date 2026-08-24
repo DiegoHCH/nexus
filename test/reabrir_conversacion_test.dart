@@ -12,6 +12,7 @@ import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/assistant/data/datasources/conversations_data_source.dart';
 
 /// Reabrir la app y encontrarse la conversación **entera**.
 ///
@@ -63,6 +64,15 @@ class _SinMemoria implements ConversationMemory {
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override
   Future<void> forget(String folderPath) async {}
+}
+
+class _Lista implements ConversationsDataSource {
+  _Lista(this.contenido);
+  Map<String, dynamic> contenido;
+  @override
+  Future<Map<String, dynamic>> read() async => contenido;
+  @override
+  Future<void> write(Map<String, dynamic> json) async => contenido = json;
 }
 
 class _Espacio extends WorkspaceController {
@@ -141,5 +151,43 @@ void main() {
     await Future<void>.delayed(Duration.zero);
 
     expect(c.read(assistantControllerProvider(_id)).messages, isEmpty);
+  });
+  test('una retomada del archivo tambien vuelve con su contenido', () async {
+    // **El caso que mi primer arreglo no cubria, y el que importaba.** Al retomar del
+    // historial, la pestaña adopta el id de ese registro para seguir escribiendo en el
+    // en vez de crear otro. La recuperacion buscaba por el id de la conversacion, que
+    // no existe como fichero — asi que la pestaña volvia vacia con sus turnos intactos
+    // en disco. La prueba de antes usaba una conversacion cuyo id coincidia con su
+    // registro: el camino facil.
+    // Lo guardado al cerrar la app: la conversacion `c1` **escribiendo en**
+    // `el-del-archivo`, que es lo que deja retomar una del historial.
+    final c = ProviderContainer(
+      overrides: [
+        conversationFolderProvider(_id).overrideWithValue(_carpeta),
+        conversationMemoryProvider.overrideWithValue(const _SinMemoria()),
+        workspaceControllerProvider.overrideWith(_Espacio.new),
+        localConversationStoreProvider.overrideWithValue(
+          _Almacen([_registro(id: 'el-del-archivo')]),
+        ),
+        conversationsDataSourceProvider.overrideWithValue(
+          _Lista({
+            'items': [
+              {'id': _id, 'folderPath': _carpeta, 'recordId': 'el-del-archivo'},
+            ],
+            'focusedId': _id,
+          }),
+        ),
+      ],
+    );
+    addTearDown(c.dispose);
+    c.read(assistantControllerProvider(_id));
+    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      c.read(assistantControllerProvider(_id)).messages.map((m) => m.text),
+      ['ordena la casa', 'ya está ordenada'],
+      reason: 'si busca por el id de la conversacion, la pestaña vuelve vacia',
+    );
   });
 }

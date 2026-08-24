@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/presentation/providers/model_providers.
 import 'package:nexus/features/assistant/presentation/widgets/gauge.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+
 /// El cupo y la ventana de contexto.
 ///
 /// Aparte de los otros menús porque no es un menú de elegir: es un panel de
@@ -23,7 +24,10 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 /// menús.
 class UsageMenu extends ConsumerWidget {
   const UsageMenu({
-    super.key,required this.meter, required this.claudeProfile});
+    super.key,
+    required this.meter,
+    required this.claudeProfile,
+  });
 
   final SessionMeter meter;
   final String? claudeProfile;
@@ -42,99 +46,99 @@ class UsageMenu extends ConsumerWidget {
       label: strings.contextWindow,
       value: meter.contextLabel ?? strings.noReadingYet,
       child: PopupMenuButton<void>(
-      color: colors.deep,
-      tooltip: '',
-      onOpened: () => ref.invalidate(claudeUsageProvider(claudeProfile)),
-      itemBuilder: (context) => [
-        PopupMenuItem<void>(
-          enabled: false,
-          child: SizedBox(
-            width: 300,
-            child: Consumer(
-              builder: (context, ref, _) {
-                final leido = ref.watch(claudeUsageProvider(claudeProfile));
-                final usage = leido.value?.usage;
-                final estado = leido.value?.state;
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Gauge(
-                      label: strings.contextWindow,
-                      percent: context_,
-                      // Sin turno todavía no hay medida: se dice, en vez de
-                      // enseñar «0 / 1,0M», que se leería como una ventana
-                      // vacía comprobada y no como una que nadie ha mirado.
-                      //
-                      // Corto, y no la frase de la cuenta: esa habla de una
-                      // sesión caducada, que aquí ni viene a cuento —esto mide
-                      // la ventana de contexto— y además desbordaba el panel.
-                      value: meter.contextLabel ?? strings.noReadingYet,
-                      warnAt: 85,
-                    ),
-                    const SizedBox(height: NexusSpacing.s4),
-                    Text(
-                      usage == null ||
-                              (ref.watch(claudeProfilesProvider).value ??
-                                          const [])
-                                      .length <
-                                  2
-                          ? strings.usageLimits
-                          : '${strings.usageLimits} · ${usage.account}',
-                      style: NexusTypography.label.copyWith(
-                        color: colors.faint,
+        color: colors.deep,
+        tooltip: '',
+        onOpened: () => ref.invalidate(claudeUsageProvider(claudeProfile)),
+        itemBuilder: (context) => [
+          PopupMenuItem<void>(
+            enabled: false,
+            child: SizedBox(
+              width: 300,
+              child: Consumer(
+                builder: (context, ref, _) {
+                  final leido = ref.watch(claudeUsageProvider(claudeProfile));
+                  final usage = leido.value?.usage;
+                  final estado = leido.value?.state;
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Gauge(
+                        label: strings.contextWindow,
+                        percent: context_,
+                        // Sin turno todavía no hay medida: se dice, en vez de
+                        // enseñar «0 / 1,0M», que se leería como una ventana
+                        // vacía comprobada y no como una que nadie ha mirado.
+                        //
+                        // Corto, y no la frase de la cuenta: esa habla de una
+                        // sesión caducada, que aquí ni viene a cuento —esto mide
+                        // la ventana de contexto— y además desbordaba el panel.
+                        value: meter.contextLabel ?? strings.noReadingYet,
+                        warnAt: 85,
                       ),
-                    ),
-                    const SizedBox(height: NexusSpacing.s3),
-                    if (usage == null)
-                      // Sin dato no se dibuja una barra a cero: se leería como
-                      // «no has gastado nada», que es lo contrario de «no se
-                      // sabe». Y **el motivo importa**: que no haya sesión y
-                      // que la lectura esté caducada piden cosas distintas de
-                      // quien lo lee — iniciar sesión, o nada en absoluto.
+                      const SizedBox(height: NexusSpacing.s4),
                       Text(
-                        switch (estado) {
-                          UsageState.staleReading => strings.usageStale,
-                          UsageState.unreachable => strings.usageUnreachable,
-                          _ => strings.usageUnavailable,
-                        },
-                        style: NexusTypography.mono.copyWith(
+                        usage == null ||
+                                (ref.watch(claudeProfilesProvider).value ??
+                                            const [])
+                                        .length <
+                                    2
+                            ? strings.usageLimits
+                            : '${strings.usageLimits} · ${usage.account}',
+                        style: NexusTypography.label.copyWith(
                           color: colors.faint,
                         ),
-                      )
-                    else ...[
-                      Gauge(
-                        label: strings.usageFiveHour,
-                        percent: usage.fiveHourPercent,
-                        note: _resets(strings, usage.fiveHourResetsAt),
                       ),
                       const SizedBox(height: NexusSpacing.s3),
-                      Gauge(
-                        label: strings.usageWeekly,
-                        percent: usage.weeklyPercent,
-                        note: _resets(strings, usage.weeklyResetsAt),
-                      ),
+                      if (usage == null)
+                        // Sin dato no se dibuja una barra a cero: se leería como
+                        // «no has gastado nada», que es lo contrario de «no se
+                        // sabe». Y **el motivo importa**: que no haya sesión y
+                        // que la lectura esté caducada piden cosas distintas de
+                        // quien lo lee — iniciar sesión, o nada en absoluto.
+                        Text(
+                          switch (estado) {
+                            UsageState.staleReading => strings.usageStale,
+                            UsageState.unreachable => strings.usageUnreachable,
+                            _ => strings.usageUnavailable,
+                          },
+                          style: NexusTypography.mono.copyWith(
+                            color: colors.faint,
+                          ),
+                        )
+                      else ...[
+                        Gauge(
+                          label: strings.usageFiveHour,
+                          percent: usage.fiveHourPercent,
+                          note: _resets(strings, usage.fiveHourResetsAt),
+                        ),
+                        const SizedBox(height: NexusSpacing.s3),
+                        Gauge(
+                          label: strings.usageWeekly,
+                          percent: usage.weeklyPercent,
+                          note: _resets(strings, usage.weeklyResetsAt),
+                        ),
+                      ],
                     ],
-                  ],
-                );
-              },
+                  );
+                },
+              ),
+            ),
+          ),
+        ],
+        child: Tooltip(
+          message: meter.contextLabel == null
+              ? strings.contextWindow
+              : '${strings.contextWindow} · ${meter.contextLabel}',
+          child: CustomPaint(
+            size: const Size(15, 15),
+            painter: _ContextDial(
+              fraction: meter.contextFraction,
+              ring: colors.rule,
+              fill: context_ >= 85 ? colors.warn : colors.accent,
             ),
           ),
         ),
-      ],
-      child: Tooltip(
-        message: meter.contextLabel == null
-            ? strings.contextWindow
-            : '${strings.contextWindow} · ${meter.contextLabel}',
-        child: CustomPaint(
-          size: const Size(15, 15),
-          painter: _ContextDial(
-            fraction: meter.contextFraction,
-            ring: colors.rule,
-            fill: context_ >= 85 ? colors.warn : colors.accent,
-          ),
-        ),
-      ),
       ),
     );
   }

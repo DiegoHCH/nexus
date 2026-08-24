@@ -101,7 +101,15 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final focused = ref.watch(conversationsProvider).focused;
+    final conversaciones = ref.watch(conversationsProvider);
+    // **Hasta que no se sabe, no se dice nada.** La lista nace vacía y el disco se lee
+    // después, así que enseñar aquí la pantalla de primera vez era decir «no tienes
+    // ninguna» durante la ventana de carga — y quien tocaba el orbe en ese momento se
+    // llevaba una conversación **nueva** en lugar de la que tenía abierta. Esa es la
+    // conversación vacía que aparecía tras cada arranque.
+    if (!conversaciones.cargado) return const _Esperando();
+
+    final focused = conversaciones.focused;
     // Sin conversación abierta no se planta una pantalla de por medio: se
     // entra al orbe, con el hueco «NUEVA» y la caja lista. Escribir crea la
     // conversación — preguntar antes de dejarte escribir era un peaje.
@@ -132,13 +140,24 @@ class _HomePageState extends ConsumerState<HomePage> {
         // lo queda antes de que la tecla llegue a Flutter — así que el atajo no
         // fallaba, escondía la ventana. Es la misma trampa de ⌘, y no se pelea
         // con ella: ocultar con ⌘H lo espera cualquiera que use un Mac.
-        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () =>
-            ConversationHistorySheet.open(
-              context,
-              forgetFolder: focused.folderPath.split('/').last,
-              onPick: controller.resume,
-              onForget: controller.forgetConversation,
-            ),
+        const SingleActivator(
+          LogicalKeyboardKey.keyY,
+          meta: true,
+        ): () => ConversationHistorySheet.open(
+          context,
+          forgetFolder: focused.folderPath.split('/').last,
+          // **No `controller.resume`.** Eso pintaba el registro elegido dentro de
+          // la conversación que tenías delante: elegías una de otra carpeta y te
+          // cambiaba la que estabas mirando, con las dos escribiendo en el mismo
+          // sitio. Es el fallo que se reportó tres veces.
+          //
+          // El proveedor decide: si esa conversación ya está abierta va a su
+          // pestaña, y si no, abre una nueva sobre **su** carpeta. Había dos
+          // sitios que abren el historial —el menú y este atajo— y solo se arregló
+          // uno; de ahí que siguiera pasando.
+          onPick: (record) => ref.read(retomarDelArchivoProvider)(record),
+          onForget: controller.forgetConversation,
+        ),
       },
       child: Focus(
         autofocus: true,
@@ -301,6 +320,24 @@ class _HomePageState extends ConsumerState<HomePage> {
 /// Elegir carpeta sigue estando a un clic —en «NUEVA»— pero no se exige antes
 /// de dejarte escribir: plantar una pantalla de «¿dónde quieres trabajar?»
 /// delante de cada arranque es un peaje para responder casi siempre lo mismo.
+/// Mientras se lee del disco qué había abierto.
+///
+/// El orbe dormido y nada más: **ninguna acción**, porque cualquiera de ellas crearía
+/// una conversación y el sentido de esta pantalla es no crear ninguna por no saber
+/// todavía. Dura lo que tarda una lectura de preferencias, así que no lleva texto: un
+/// cartel que aparece y desaparece en un parpadeo se lee como un fallo.
+class _Esperando extends StatelessWidget {
+  const _Esperando();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.colors.void_,
+    body: const Center(
+      child: SizedBox(height: 220, child: NexusOrb(state: NexusOrbState.sleep)),
+    ),
+  );
+}
+
 class _FirstRun extends ConsumerStatefulWidget {
   const _FirstRun();
 

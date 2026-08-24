@@ -1,4 +1,3 @@
-
 import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_chips.dart';
@@ -195,7 +194,9 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
                     const SizedBox(width: NexusSpacing.s2),
                     Text(
                       context.strings.dropHere,
-                      style: NexusTypography.label.copyWith(color: colors.accent),
+                      style: NexusTypography.label.copyWith(
+                        color: colors.accent,
+                      ),
                     ),
                   ],
                 ),
