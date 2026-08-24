@@ -157,6 +157,35 @@ class ConversationsController extends Notifier<Conversations> {
     await _persist(Conversations(items: items, focusedId: state.focusedId));
   }
 
+  /// Espera a que la lista esté leída del disco.
+  ///
+  /// Público porque **quien pregunta desde fuera necesita lo mismo**: leer esta lista
+  /// recién construida devuelve vacío, y eso ya ha causado tres fallos distintos —la
+  /// pantalla de primera vez en el arranque, una lista que se sobreescribía, y una
+  /// conversación retomada que volvía vacía por no encontrar su registro adoptado—.
+  Future<void> asegurarCargado() => _reconcile();
+
+  /// Apunta con qué registro del archivo se guarda esa conversación.
+  ///
+  /// Lo llama el controlador al retomar una del historial. Va **en la lista guardada**
+  /// porque tiene que sobrevivir al cierre de la app: sin eso, al volver a abrirla la
+  /// recuperación buscaba un registro con el id de la conversación —que no existe
+  /// cuando adoptó otro— y la pestaña salía vacía con sus turnos intactos en disco.
+  Future<void> apuntarRegistro(String id, String recordId) async {
+    await _reconcile();
+    final ficha = state.items.where((c) => c.id == id).firstOrNull;
+    if (ficha == null || ficha.recordId == recordId) return;
+    await _persist(
+      Conversations(
+        items: [
+          for (final item in state.items)
+            if (item.id == id) item.conRegistro(recordId) else item,
+        ],
+        focusedId: state.focusedId,
+      ),
+    );
+  }
+
   Future<void> close(String id) async {
     // Y aquí igual: cerrar reescribe la lista. Sin cargar, «cerrar una» se convertía en
     // «dejar la lista vacía».

@@ -125,7 +125,22 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
 
-    final mia = guardadas.where((r) => r.id == conversationId).firstOrNull;
+    // La lista, leída del disco antes de preguntarle nada: recién construida está
+    // vacía, y preguntar ahí devolvía «no adoptó ningún registro» siempre.
+    await ref.read(conversationsProvider.notifier).asegurarCargado();
+
+    // **El registro adoptado primero.** Una conversación retomada del archivo escribe
+    // en el id de ese registro, no en el suyo: buscar por el propio no encontraba nada
+    // y la pestaña salía vacía.
+    final buscado =
+        ref
+            .read(conversationsProvider)
+            .items
+            .where((c) => c.id == conversationId)
+            .firstOrNull
+            ?.recordId ??
+        conversationId;
+    final mia = guardadas.where((r) => r.id == buscado).firstOrNull;
     if (mia == null || mia.messages.isEmpty) return;
     if (state.messages.isNotEmpty) return;
 
@@ -533,6 +548,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// diciendo se añade a ella.
   void resume(ConversationRecord record) {
     _recordId = record.id;
+    // **Y se apunta en la lista guardada.** Adoptar el registro solo en memoria era lo
+    // que hacía que al reabrir la app la conversación volviera vacía: la recuperación
+    // buscaba un fichero con el id de la conversación, y esta escribe en el del
+    // registro adoptado.
+    unawaited(
+      ref
+          .read(conversationsProvider.notifier)
+          .apuntarRegistro(conversationId, record.id),
+    );
     _startedAt = record.startedAt;
     state = state.copyWith(
       messages: record.messages,
