@@ -256,9 +256,42 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   raro. Va en base64 porque el canal es de texto: cuesta un tercio más, unos 43 KB/s a
   16 kHz mono de 16 bits, que es nada por Tailscale y bastante menos que mantener un
   segundo transporte solo para esto.
-- **El audio sube; la voz no baja.** Lo que Nexus responde en voz alta sale por los
-  altavoces del Mac, que es lo que decidió `lo8` y lo que hace que el teléfono sea un
-  mando a distancia y no un cliente autónomo. Sin Mac despierto y alcanzable no hay voz.
+- **La voz suena donde se preguntó.** Si el turno se habló por el teléfono, la respuesta
+  suena en el teléfono; si se habló delante del Mac, suena en el Mac. El Mac ya sabe de
+  qué micrófono está escuchando —hizo falta para arreglar la voz remota— así que la
+  regla no cuesta un dato nuevo: sale del que ya hay.
+
+  Esto **corrige una frase anterior de este documento**, que decía «el audio sube; la voz
+  no baja» y era más ancha que la decisión que citaba. `lo8` eligió que **el audio pasa
+  por el Mac**, y lo que de verdad separaba sus dos caminos era la segunda copia de la
+  llave de Gemini en el teléfono y que el guardia de `i5` acabara siendo un mensaje que
+  el cliente puede saltarse. Un teléfono que reproduce PCM que le manda el Mac no toca
+  nada de eso: no tiene llave, no habla con Google, y el Mac sigue siendo el único sitio
+  donde se decide qué sale de la máquina. **Sigue siendo un mando a distancia; un mando
+  con altavoz.** Y sin Mac despierto y alcanzable sigue sin haber voz.
+
+  El otro motivo que se dio para no bajarla —que el teléfono sería «una segunda boca»—
+  **se cae con la propia regla**: si suena donde se preguntó, nunca suenan los dos.
+
+- **Quien reproduce dice cuándo terminó**, así que el teléfono puede
+  **decir que la respuesta terminó de sonar**. El Mac no puede cerrar la sesión mientras
+  queda respuesta por sonar, o corta a media palabra, y sonando en el teléfono no lo sabe
+  por su cuenta. Así que lo dice el teléfono. Estimarlo por bytes y ritmo sería adivinar
+  el jitter de la red, y adivinar aquí se oye.
+
+- **Si el teléfono se va a media respuesta, la voz se corta y no sigue por ningún sitio.**
+  No se termina por los altavoces del Mac: la respuesta se estaba diciendo a quien no
+  está delante del Mac, y soltarla en una habitación vacía es peor que callarse. **El
+  texto sigue llegando**, que es lo que se puede leer al volver. Pasa de verdad y está
+  medido: con la pantalla apagada, Android suspende la app y el canal se cae.
+
+- **Mientras suena la respuesta el micrófono está cerrado, y no se puede abrir.** Si no,
+  el teléfono se oye a sí mismo y se lo manda de vuelta a Gemini — su cancelación de eco
+  no cubre lo que sale de su propio altavoz por esta ruta. Lo que sí hay es **un botón
+  para **callar la respuesta y seguir leyendo**: se deja de oír y el texto sigue, que es
+  lo que uno quiere cuando ya entendió por dónde va. Callar no cancela el turno, y se le
+  dice al Mac en vez de silenciarlo solo aquí para que deje de mandar audio que nadie va
+  a oír.
 
 ### Se queda en el Mac
 
