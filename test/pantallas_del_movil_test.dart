@@ -333,6 +333,48 @@ void main() {
       );
     });
 
+    testWidgets('ponerle nombre desde el movil', (tester) async {
+      await conUna(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('acciones-de-la-conversacion')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.enterText(find.byType(TextField).last, 'lo del login');
+      await tester.tap(find.byKey(const ValueKey('guardar-nombre')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(socket.pidio('renameConversation'), isTrue);
+      final peticion = socket.ultima('renameConversation');
+      expect(peticion.params['conversation'], 'a');
+      expect(peticion.params['name'], 'lo del login');
+    });
+
+    testWidgets('cerrarla se pide al Mac y se sale de la pantalla', (
+      tester,
+    ) async {
+      await conUna(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('acciones-de-la-conversacion')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Se dice **antes** de tocar que no borra nada: cerrar suena a borrar.
+      expect(find.textContaining('sigue en el archivo'), findsOne);
+
+      await tester.tap(find.byKey(const ValueKey('cerrar-la-conversacion')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(socket.pidio('closeConversation'), isTrue);
+      expect(socket.ultima('closeConversation').params['conversation'], 'a');
+    });
+
     testWidgets('la respuesta no se pinta dos veces', (tester) async {
       // Lo que se veia en el telefono: el mismo texto como respuesta en curso y otra
       // vez como turno del historial, con dos estilos distintos — se lee como si el

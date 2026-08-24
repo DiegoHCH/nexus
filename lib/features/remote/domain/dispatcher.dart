@@ -151,6 +151,19 @@ class Dispatcher {
         // minutos y lo que pasa dentro llega como eventos.
         return Result(id: call.id, data: {'started': true});
 
+      case RemoteMethod.renameConversation:
+        // El nombre **puede venir vacío**, y eso significa «quítaselo»: sin esa
+        // salida, un nombre puesto por error se quedaría para siempre.
+        await surface.renameConversation(
+          _id(call),
+          (call.params['name'] as String?) ?? '',
+        );
+        return Result(id: call.id, data: {'renamed': true});
+
+      case RemoteMethod.closeConversation:
+        await surface.closeConversation(_id(call));
+        return Result(id: call.id, data: {'closed': true});
+
       case RemoteMethod.stopErrand:
         await surface.stopErrand(_id(call));
         return Result(id: call.id, data: {'stopped': true});

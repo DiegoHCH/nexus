@@ -116,6 +116,23 @@ class ConversationsController extends Notifier<Conversations> {
     return id;
   }
 
+  /// Le pone nombre a una conversación, o se lo quita.
+  ///
+  /// Vacío quita el nombre y devuelve al derivado —el primer encargo—, que es lo que
+  /// hace falta para deshacer: sin eso, un nombre puesto por error se quedaría para
+  /// siempre y habría que cerrar la conversación para librarse de él.
+  Future<void> renombrar(String id, String nombre) async {
+    final limpio = nombre.trim();
+    final items = [
+      for (final item in state.items)
+        if (item.id == id)
+          item.conNombre(limpio.isEmpty ? null : limpio)
+        else
+          item,
+    ];
+    await _persist(Conversations(items: items, focusedId: state.focusedId));
+  }
+
   Future<void> close(String id) async {
     final items = state.items.where((item) => item.id != id).toList();
     await _persist(

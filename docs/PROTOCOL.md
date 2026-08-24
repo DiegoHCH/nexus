@@ -225,6 +225,12 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier
   ruta del disco**, y aquí el Mac ofrece la lista y el teléfono escoge de ella. Nadie
   elige una ruta que el Mac no tuviera ya. Emparejar una carpeta nueva sigue fuera.
+- **Ponerle nombre a una conversación** y **cerrar una conversación**. Las dos son
+  estado de Nexus sobre sus propias fichas, no los archivos del usuario, así que **no
+  piden la frase de escritura** — el mismo razonamiento que abrir una sobre una carpeta
+  ya emparejada. Cerrar no borra nada: lo dicho sigue en el archivo y de ahí se retoma,
+  que es lo que hace que no sea destructivo aunque lo parezca. Un nombre vacío quita el
+  puesto y devuelve al derivado, que es lo que hace falta para poder deshacer.
 
 ### Se queda en el Mac
 

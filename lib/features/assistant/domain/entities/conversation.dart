@@ -8,12 +8,28 @@ import 'package:flutter/foundation.dart';
 /// a la que tenga el foco y las demás avanzan de fondo.
 @immutable
 class Conversation {
-  const Conversation({required this.id, required this.folderPath});
+  const Conversation({required this.id, required this.folderPath, this.name});
 
   final String id;
   final String folderPath;
 
-  Map<String, dynamic> toJson() => {'id': id, 'folderPath': folderPath};
+  /// El nombre que le puso el usuario, si le puso uno.
+  ///
+  /// **Nulo es lo normal**, y entonces el nombre se deriva —el primer encargo, o la
+  /// cola de la carpeta—. Guardar un nombre derivado como si fuera elegido haría
+  /// imposible distinguir «no lo has llamado de ninguna forma» de «lo llamaste así»,
+  /// y con eso el título dejaría de seguir a la conversación cuando cambia el primer
+  /// encargo al retomarla.
+  final String? name;
+
+  Conversation conNombre(String? nuevo) =>
+      Conversation(id: id, folderPath: folderPath, name: nuevo);
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'folderPath': folderPath,
+    if (name != null) 'name': name,
+  };
 
   static Conversation? fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String?;
@@ -21,7 +37,11 @@ class Conversation {
     if (id == null || id.isEmpty || folderPath == null || folderPath.isEmpty) {
       return null;
     }
-    return Conversation(id: id, folderPath: folderPath);
+    return Conversation(
+      id: id,
+      folderPath: folderPath,
+      name: json['name'] as String?,
+    );
   }
 }
 

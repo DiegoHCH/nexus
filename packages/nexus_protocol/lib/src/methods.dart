@@ -67,6 +67,20 @@ enum RemoteMethod {
   /// editar en remoto es imposible justo cuando estás fuera. La frase de escritura
   /// —que el Mac verifica y el teléfono no guarda— es lo que permite abrirlo sin
   /// abrir la puerta a quien se lleve el teléfono.
+  /// Ponerle nombre a una conversación, o quitárselo.
+  ///
+  /// **No pide la frase de escritura**, y conviene decir por qué: la frase existe para
+  /// tocar los archivos del usuario, y un nombre es estado de Nexus sobre sus propias
+  /// fichas. Es el mismo razonamiento que abrir una conversación sobre una carpeta ya
+  /// emparejada — elegir entre lo que el Mac ya tiene no es lo que la frase protege.
+  renameConversation('ponerle nombre a una conversación'),
+
+  /// Cerrar una conversación.
+  ///
+  /// Cierra la ficha, no borra nada: lo dicho sigue en el archivo, y de ahí se retoma.
+  /// Por eso no es destructivo aunque lo parezca — y por eso tampoco pide la frase.
+  closeConversation('cerrar una conversación'),
+
   unlockWrites('subir el permiso');
 
   const RemoteMethod(this.enElDocumento);

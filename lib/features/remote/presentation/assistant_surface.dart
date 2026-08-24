@@ -206,6 +206,35 @@ class AssistantSurface implements RemoteSurface {
   }
 
   @override
+  Future<void> renameConversation(String conversationId, String name) async {
+    // **Solo una que exista.** Sin esto, un id viejo guardado en el teléfono crearía
+    // un nombre huérfano que nadie vería nunca y que se quedaría en las preferencias.
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      throw UnknownConversation(conversationId);
+    }
+    await _ref
+        .read(conversationsProvider.notifier)
+        .renombrar(conversationId, name);
+  }
+
+  @override
+  Future<void> closeConversation(String conversationId) async {
+    // Cerrar lo ya cerrado **no es un error**: es el estado que se pedía. Lanzar aquí
+    // convertiría un reintento —y estos se reintentan con el mismo id— en un fallo en
+    // pantalla por algo que ya está hecho.
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      return;
+    }
+    await _ref.read(conversationsProvider.notifier).close(conversationId);
+  }
+
+  @override
   Future<List<RemoteFolder>> folders() async {
     final espacio = _ref.read(workspaceControllerProvider);
     final vivas = _ref.read(conversationsProvider);

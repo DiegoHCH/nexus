@@ -353,7 +353,13 @@ class ChannelLink {
     RemoteMethod.stopErrand ||
     RemoteMethod.unlockWrites ||
     RemoteMethod.openConversation ||
-    RemoteMethod.resumeConversation => true,
+    RemoteMethod.resumeConversation ||
+    // Renombrar y cerrar también cambian algo. Los dos son **idempotentes** —el mismo
+    // nombre dos veces es el mismo nombre, y cerrar lo ya cerrado deja lo mismo— así
+    // que reintentar con el mismo id es seguro y además correcto: con id nuevo, un
+    // cierre perdido se quedaría sin hacer.
+    RemoteMethod.renameConversation ||
+    RemoteMethod.closeConversation => true,
     // Lo que solo **lee**: una consulta perdida se vuelve a pedir con id nuevo,
     // porque el deduplicador protege efectos y no respuestas.
     RemoteMethod.conversations ||

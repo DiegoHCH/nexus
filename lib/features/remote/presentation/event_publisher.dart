@@ -83,16 +83,19 @@ class EventPublisher {
     }
   }
 
-  String _titulo(String id, AssistantHudState hud) => tituloDeConversacion(
-    mensajes: hud.messages,
-    carpeta: ref
+  String _titulo(String id, AssistantHudState hud) {
+    final ficha = ref
         .read(conversationsProvider)
         .items
         .where((c) => c.id == id)
-        .firstOrNull
-        ?.folderPath,
-    id: id,
-  );
+        .firstOrNull;
+    return tituloDeConversacion(
+      mensajes: hud.messages,
+      carpeta: ficha?.folderPath,
+      id: id,
+      puesto: ficha?.name,
+    );
+  }
 
   /// Traduce el estado de la pantalla a lo que ve el teléfono.
   ConversationView _mirar(String id, AssistantHudState hud) {
@@ -150,7 +153,13 @@ String tituloDeConversacion({
   required List<ChatMessage> mensajes,
   required String? carpeta,
   required String id,
+  String? puesto,
 }) {
+  // **Lo que puso el usuario manda sobre todo lo demás.** Si se ha tomado la molestia
+  // de ponerle nombre, ningún derivado puede pisarlo — y menos el primer encargo, que
+  // cambia al retomarla del archivo.
+  if (puesto != null && puesto.trim().isNotEmpty) return puesto.trim();
+
   final primero = mensajes
       .where((m) => m.author == ChatAuthor.user && m.text.trim().isNotEmpty)
       .firstOrNull;
