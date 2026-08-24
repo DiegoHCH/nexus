@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:async';
 import 'dart:io';
 
@@ -17,6 +18,7 @@ import 'package:nexus/features/remote/presentation/event_publisher.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/remote/domain/remote_voice_source.dart';
 
 /// El puerto del canal.
 ///
@@ -180,6 +182,12 @@ class ChannelController extends Notifier<ChannelState> {
       // Se lee en cada saludo, no al encender: cambiar el acento en el Mac tiene que
       // llegar al teléfono en su siguiente conexión.
       acento: () => ref.read(accentControllerProvider).chosen.toARGB32(),
+      // El micrófono del teléfono entra por aquí. El base64 se deshace en este punto
+      // y no en la fuente, para que la fuente no sepa de transporte: recibe bytes,
+      // igual que el micrófono del Mac.
+      audio: (marco) => ref
+          .read(remoteVoiceSourceProvider)
+          .entra(base64Decode(marco.pcmBase64)),
       registro: (linea) => debugPrint('canal · $linea'),
     );
     enPie = servidor;
@@ -260,3 +268,14 @@ final tailscaleAddressProvider = Provider<Future<InternetAddress?> Function()>(
 
 final channelControllerProvider =
     NotifierProvider<ChannelController, ChannelState>(ChannelController.new);
+
+/// El micrófono del teléfono, mientras lo sostiene.
+///
+/// Vive en un proveedor porque **lo escriben dos sitios**: el servidor del canal, que
+/// mete los trozos que llegan, y la superficie remota, que lo abre y lo cierra. Uno
+/// solo para toda la app, como el micrófono del Mac: no hay dos teléfonos hablando.
+final remoteVoiceSourceProvider = Provider<RemoteVoiceSource>((ref) {
+  final fuente = RemoteVoiceSource();
+  ref.onDispose(fuente.cerrar);
+  return fuente;
+});

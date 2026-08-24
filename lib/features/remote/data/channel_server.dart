@@ -21,6 +21,7 @@ import 'package:nexus_protocol/nexus_protocol.dart';
 class ChannelServer {
   ChannelServer({
     required this.gatekeeper,
+    this.audio,
     required this.log,
     this.despacho,
     this.snapshot,
@@ -31,6 +32,12 @@ class ChannelServer {
   }) : protocolo = protocolo ?? ProtocolRange.mine;
 
   final Gatekeeper gatekeeper;
+
+  /// Dónde entra el micrófono del teléfono, si hay alguien escuchándolo.
+  ///
+  /// Un gancho y no una dependencia: el servidor mueve marcos y no tiene por qué
+  /// saber qué es el audio ni quién lo usa.
+  final void Function(Audio)? audio;
 
   /// Quien atiende los métodos.
   ///
@@ -250,6 +257,14 @@ class ChannelServer {
         }
         if (marco is Resume) {
           _reanudar(cliente, marco);
+          return;
+        }
+        if (marco is Audio) {
+          // **Sin anotar y sin contestar.** Un trozo cada 20 ms llenaría el registro
+          // del canal en un minuto y taparía todo lo demás, que es justo donde se
+          // diagnostican los problemas; y confirmarlo sería volver a ponerle el `ack`
+          // que este marco existe para no tener.
+          audio?.call(marco);
           return;
         }
         // Lo que no es ni petición ni resync se anota para que no desaparezca en

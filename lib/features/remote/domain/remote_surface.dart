@@ -69,6 +69,15 @@ abstract class RemoteSurface {
   /// ahí se retoma — que es lo que hace que no sea destructivo aunque lo parezca.
   Future<void> closeConversation(String conversationId);
 
+  /// Abre el micrófono del teléfono hacia esa conversación.
+  ///
+  /// **El audio pasa por el Mac** (`lo8`): el teléfono presta el micrófono y el Mac
+  /// hace lo que ya sabía hacer con él, así que la sesión de voz no se toca.
+  Future<void> startVoice(String conversationId);
+
+  /// Lo cierra.
+  Future<void> stopVoice(String conversationId);
+
   /// Las carpetas que el Mac **ya tiene emparejadas**.
   ///
   /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La

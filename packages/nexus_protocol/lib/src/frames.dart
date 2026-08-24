@@ -55,6 +55,7 @@ sealed class Frame {
       'event' => Event.fromJson(crudo),
       'snapshot' => Snapshot.fromJson(crudo),
       'resume' => Resume.fromJson(crudo),
+      'audio' => Audio.fromJson(crudo),
       _ => UnknownFrame(type: tipo, raw: crudo),
     };
   }
@@ -306,6 +307,42 @@ final class Event extends Frame {
     'seq': seq,
     'k': kind,
     if (data.isNotEmpty) 'd': data,
+  };
+}
+
+/// Un trozo de micrófono del teléfono, camino del Mac.
+///
+/// **Sin confirmación y sin reintento**, y es la decisión de fondo de la voz remota:
+/// el audio es tiempo real, así que un trozo que llega tarde es peor que un hueco —
+/// reenviarlo mete en la conversación medio segundo de hace un rato. Por eso no es un
+/// [Call]: un `ack` por trozo serían tres mensajes por cada 20 ms de voz, y lo que
+/// protege el deduplicador —efectos que no se repiten— aquí no aplica: un trozo de
+/// audio duplicado no borra un archivo, solo suena raro.
+///
+/// El PCM va en base64 porque el canal es de texto. Cuesta un tercio más de bytes, y a
+/// 16 kHz mono de 16 bits eso son unos 43 KB/s: nada por Tailscale, y menos que
+/// levantar un segundo transporte binario solo para esto.
+///
+/// [seq] es **por sesión de voz y no global**: sirve para saber si se perdió algo y en
+/// qué orden van los trozos, no para reclamarlos. Con el `seq` de los eventos no valía
+/// porque los eventos van del Mac al teléfono y esto va al revés.
+final class Audio extends Frame {
+  const Audio({required this.seq, required this.pcmBase64});
+
+  factory Audio.fromJson(Map<String, Object?> j) =>
+      Audio(seq: j['seq']! as int, pcmBase64: j['pcm']! as String);
+
+  final int seq;
+
+  /// PCM de 16 bits, 16 kHz, mono — el mismo formato que pide la Live API, para que
+  /// nadie tenga que convertir nada en medio.
+  final String pcmBase64;
+
+  @override
+  Map<String, Object?> toJson() => {
+    Frame.claveTipo: 'audio',
+    'seq': seq,
+    'pcm': pcmBase64,
   };
 }
 

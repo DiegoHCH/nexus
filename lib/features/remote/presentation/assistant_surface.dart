@@ -12,6 +12,7 @@ import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus/features/remote/domain/write_phrase.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 
 /// El único sitio que sabe **a la vez** del canal y de cómo está montada la app.
 ///
@@ -203,6 +204,46 @@ class AssistantSurface implements RemoteSurface {
         .open(registro.folderPath);
     if (id == null) throw UnknownConversation(archivedId);
     return id;
+  }
+
+  /// Que esa conversación exista. Un id viejo guardado en el teléfono no puede abrir
+  /// el micrófono de una conversación que ya se cerró.
+  void _existe(String conversationId) {
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      throw UnknownConversation(conversationId);
+    }
+  }
+
+  @override
+  Future<void> startVoice(String conversationId) async {
+    _existe(conversationId);
+    // La fuente se abre **antes** de la sesión: cuando la sesión pida audio, el puerto
+    // compartido tiene que ver ya el micrófono del teléfono activo, o le daría el del
+    // Mac y estaríamos escuchando la habitación equivocada.
+    _ref.read(remoteVoiceSourceProvider).abrir();
+    final hud = _ref.read(assistantControllerProvider(conversationId));
+    if (hud.voiceActive) return;
+    await _ref
+        .read(assistantControllerProvider(conversationId).notifier)
+        .toggleVoice();
+  }
+
+  @override
+  Future<void> stopVoice(String conversationId) async {
+    _existe(conversationId);
+    final hud = _ref.read(assistantControllerProvider(conversationId));
+    if (hud.voiceActive) {
+      await _ref
+          .read(assistantControllerProvider(conversationId).notifier)
+          .stopVoice();
+    }
+    // La fuente se cierra **después**: cerrarla antes dejaría a la sesión leyendo un
+    // stream ya terminado, y eso se ve como que la voz se corta sola en vez de
+    // terminar.
+    _ref.read(remoteVoiceSourceProvider).cerrar();
   }
 
   @override
