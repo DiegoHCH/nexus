@@ -88,14 +88,18 @@ class _MainAppState extends ConsumerState<MainApp> {
       navigator.context,
       forgetFolder: focused == null ? null : folder.split('/').last,
       onPick: (record) async {
-        // La decisión vive en el notifier, que es quien sabe qué hay abierto. Aquí
-        // solo queda contar el único desenlace que necesita palabras.
+        // El mensajero **se coge antes del `await`**, no después: buscar el
+        // `BuildContext` cuando la espera ya pasó es usar un contexto que puede no
+        // estar montado, y el analizador lo marca con razón. Cogerlo antes no
+        // cuesta nada cuando no hace falta.
+        final mensajero = ScaffoldMessenger.maybeOf(navigator.context);
+
+        // La decisión vive en su proveedor, que es quien sabe qué hay abierto.
+        // Aquí solo queda contar el único desenlace que necesita palabras.
         final resultado = await ref.read(retomarDelArchivoProvider)(record);
         if (resultado != RetomarResultado.noCabe) return;
 
-        final navegador = _navigatorKey.currentState;
-        if (navegador == null) return;
-        ScaffoldMessenger.of(navegador.context).showSnackBar(
+        mensajero?.showSnackBar(
           SnackBar(
             content: Text(
               'Ya hay ${Conversations.max} conversaciones abiertas. Cierra una '
