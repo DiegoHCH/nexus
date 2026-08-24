@@ -368,7 +368,23 @@ class ChannelLink {
 
   // ──────────────────────────── por dentro ────────────────────────────
 
+  /// Si ya hay un bucle de conexión corriendo.
+  ///
+  /// **Uno y solo uno.** Con dos, los dos escriben en `_socket`, en `_escucha` y en
+  /// `_saludo`, y el último gana: el `Welcome` del socket que sí saludó le llega a un
+  /// oyente que ya fue reemplazado, así que nadie pasa el estado a «conectado» y la
+  /// pantalla se queda en «reconectando» **con la conexión funcionando**. Medido en el
+  /// registro del Mac: una conexión pidiendo cosas y otra tirada a los 10 s por no
+  /// saludar.
+  ///
+  /// Pasa al volver del fondo: el sistema corta el socket, `_seCayo` arranca un bucle,
+  /// y lo que traiga a la app por delante —un reintento a mano, reabrirla— arranca
+  /// otro.
+  var _intentando = false;
+
   Future<void> _intentar({bool desdeCero = false}) async {
+    if (_intentando) return;
+    _intentando = true;
     var intento = 0;
     while (_quiereEstarConectado && !_cerrado) {
       _pasarA(
@@ -386,17 +402,22 @@ class ChannelLink {
           cancelOnError: true,
         );
         await _saludar(socket);
+        _intentando = false;
         return;
       } on _VersionIncompatible {
         // Terminal: no se reintenta. Reintentar aquí sería pedirle a la red que
         // arregle un problema de versiones.
         _pasarA(LinkState.hayQueActualizar);
         await _tirarSocket();
+        _intentando = false;
         return;
       } on Object catch (error) {
         debugPrint('el enlace no pudo conectar: $error');
         await _tirarSocket();
-        if (!_quiereEstarConectado || _cerrado) return;
+        if (!_quiereEstarConectado || _cerrado) {
+          _intentando = false;
+          return;
+        }
 
         // **Aquí está el arreglo.** Antes todo fallo era el mismo «reconectando», y
         // «no tengo Tailscale» y «el token no es» pedían cosas distintas: una es
@@ -409,16 +430,50 @@ class ChannelLink {
         });
         ultimoRechazo = error is ChannelRefused ? error.status : null;
 
+        // **Se puede acortar la espera desde fuera.** Volver del fondo a la app cae
+        // casi siempre en medio de una espera larga —la escalera acaba en 30 s— y
+        // quedarse mirando «reconectando» medio minuto se lee como colgado. Quien
+        // sabe que hemos vuelto es la app, no el enlace, así que despierta a este.
+        _despertar = Completer<void>();
+
         // Un rechazo se reintenta **por el final de la escalera**: el portero limita
         // intentos por IP, así que insistir rápido con un token malo es la forma de
         // gastarse el cupo y quedarse fuera también cuando el token se arregle.
         final espera = error is ChannelRefused
             ? esperas.last
             : esperas[intento.clamp(0, esperas.length - 1)];
-        await _dormir(espera);
+        // Lo que ocurra primero: que pase la espera o que alguien nos despierte.
+        await Future.any([_dormir(espera), _despertar!.future]);
+        _despertar = null;
         intento++;
       }
+      // Y al salir del `while` —ya no se quiere estar conectado, o se cerró— el
+      // guardia se suelta igual: si no, no habría forma de volver a intentarlo.
+      _intentando = false;
     }
+  }
+
+  /// Espera en curso entre reintentos, si hay alguna.
+  Completer<void>? _despertar;
+
+  /// **Reintenta ahora**, sin esperar a que acabe la escalera.
+  ///
+  /// Lo llama la app al volver del fondo: el sistema puede haber cortado el socket
+  /// mientras estaba en segundo plano y, al volver, el enlace estaba casi siempre
+  /// dormido en la espera de 30 segundos. Lo que se veía era «reconectando» clavado, y
+  /// la única salida a mano era cancelar — que hasta ahora además desemparejaba.
+  ///
+  /// No fuerza nada si ya está conectado: acortar una espera que no existe no hace
+  /// daño, pero tirar una conexión buena sí.
+  void reintentarYa() {
+    if (_cerrado || ahora == LinkState.conectado) return;
+    if (_despertar != null && !_despertar!.isCompleted) {
+      _despertar!.complete();
+      return;
+    }
+    // Sin espera en curso: o está conectando —y entonces no hay nada que acortar— o
+    // nadie lo intentó todavía.
+    if (!_quiereEstarConectado) unawaited(conectar());
   }
 
   Future<void> _saludar(ChannelSocket socket) async {
