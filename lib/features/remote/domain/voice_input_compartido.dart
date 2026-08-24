@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/remote/domain/remote_voice_source.dart';
@@ -35,5 +37,16 @@ class VoiceInputCompartido implements VoiceInput {
       remoto.activo ? Future.value(true) : local.hasPermission();
 
   @override
-  Stream<AudioFrame> listen() => remoto.flujo ?? local.listen();
+  Stream<AudioFrame> listen() {
+    final delTelefono = remoto.flujo;
+    // **Se dice de qué micrófono se va a escuchar.** El recuento de la sesión dice
+    // «trozos del micro» sin decir de cuál, y con eso un Mac escuchando su propia
+    // habitación mientras el teléfono sostenía el botón se leía igual que todo
+    // bien — hicieron falta 587 trozos y una ronda entera de diagnóstico para verlo.
+    // Se dice una vez por sesión, no por trozo: es una decisión, no un caudal.
+    debugPrint(
+      'voz · esta sesión escucha ${delTelefono == null ? 'el micrófono de este Mac' : 'el teléfono'}',
+    );
+    return delTelefono ?? local.listen();
+  }
 }

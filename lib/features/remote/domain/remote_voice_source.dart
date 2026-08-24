@@ -1,6 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:typed_data';
+import 'package:flutter/foundation.dart';
 
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 
@@ -57,6 +57,17 @@ class RemoteVoiceSource {
     final salida = _salida;
     if (salida == null || salida.isClosed) {
       descartados++;
+      // **Y se dice**, que es lo que este contador prometía y no cumplía: existía
+      // para distinguir «unos pocos en vuelo al soltar» de «el cierre no llegó», y
+      // sin imprimirlo nunca las dos cosas se veían igual — es decir, no se veían.
+      // El primero siempre, y luego de diez en diez: el primero es el que sitúa el
+      // momento, y el resto sobra si son los tres de la cola del botón.
+      if (descartados == 1 || descartados % 10 == 0) {
+        debugPrint(
+          'voz · trozo del teléfono descartado, el micrófono está cerrado '
+          '($descartados)',
+        );
+      }
       return;
     }
     salida.add(AudioFrame(pcm: pcm, amplitude: _volumen(pcm)));
