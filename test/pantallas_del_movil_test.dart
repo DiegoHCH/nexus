@@ -308,9 +308,12 @@ void main() {
       await tester.pump();
 
       final vacia = tester.getSize(find.byType(NexusOrb));
+      // Contra la pantalla y no contra un numero: un umbral absoluto se rompe cada vez
+      // que se ajusta la proporcion, sin que nada haya empeorado.
+      final pantalla = tester.getSize(find.byType(ConversationPage)).height;
       expect(
         vacia.height,
-        greaterThan(300),
+        greaterThan(pantalla * 0.4),
         reason: 'vacia, el orbe es el contenido',
       );
 
@@ -330,6 +333,53 @@ void main() {
         conTexto.height,
         lessThan(vacia.height),
         reason: 'con algo que leer, el orbe no puede estar detras del texto',
+      );
+    });
+
+    testWidgets('al desplazar los mensajes, el orbe se queda quieto', (
+      tester,
+    ) async {
+      // **Lo que se pidió, y lo que dos intentos anteriores no daban.** De fondo, el
+      // texto se le montaba encima —cualquier cosa por detras de una lista que se
+      // desplaza vuelve a quedar bajo los parrafos en cuanto se hace scroll, y un
+      // padding solo lo salva en la posicion cero—. Como cabecera de la lista se iba de
+      // la pantalla al leer. Fijo arriba no hace ninguna de las dos.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {
+                'id': 'a',
+                'folder': '/tmp/repo',
+                'history': [
+                  for (var i = 0; i < 30; i++)
+                    {
+                      'mine': i.isEven,
+                      'text': 'turno numero \$i con texto de sobra',
+                    },
+                ],
+              },
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final antes = tester.getRect(find.byType(NexusOrb));
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+
+      expect(
+        tester.getRect(find.byType(NexusOrb)),
+        antes,
+        reason:
+            'el orbe no es contenido: es quien te atiende, y no se va al leer',
       );
     });
 
