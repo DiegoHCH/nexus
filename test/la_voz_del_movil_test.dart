@@ -1,3 +1,4 @@
+import 'package:flutter/widgets.dart';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -5,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/remote/domain/remote_voice_source.dart';
+import 'package:nexus/features/remote/presentation/widgets/microfono_dibujado.dart';
 import 'package:nexus/features/remote/domain/voice_input_compartido.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -158,22 +160,44 @@ void main() {
       expect(fuente.activo, isFalse);
     });
 
-    test('abrir dos veces no deja dos micrófonos', () async {
-      // Pasa cuando se pierde el `stopVoice`. Dejar el primero colgado serían dos
-      // fuentes escribiendo en la misma sesión.
+    test('abrir dos veces sigue siendo el mismo microfono', () async {
+      // **Esta promesa cambio, y a proposito.** Antes abrir cerraba lo anterior, para
+      // no dejar dos fuentes escribiendo en la misma sesion. Pero ahora soltar el
+      // boton no derriba la sesion —soltar es «ya esta, contestame»— asi que volver a
+      // sostener cae sobre una sesion viva que esta leyendo *este* stream: cerrarlo y
+      // abrir otro la dejaria escuchando el de antes mientras los trozos nuevos entran
+      // a un controlador que nadie lee. Silencio, y de los que no se ven.
       final fuente = RemoteVoiceSource();
-      final primera = <AudioFrame>[];
-      var primeraCerrada = false;
-      abrirY(fuente).listen(primera.add, onDone: () => primeraCerrada = true);
+      final leidos = <AudioFrame>[];
+      var cerrada = false;
+      abrirY(fuente).listen(leidos.add, onDone: () => cerrada = true);
 
-      final segunda = <AudioFrame>[];
-      abrirY(fuente).listen(segunda.add);
+      // El segundo sostener, con el primero todavia abierto.
+      fuente.abrir();
       fuente.entra(_pcm([500, 500]));
       await Future<void>.delayed(Duration.zero);
 
-      expect(primeraCerrada, isTrue);
-      expect(primera, isEmpty);
-      expect(segunda, hasLength(1));
+      expect(cerrada, isFalse, reason: 'la sesion viva se quedo sin su stream');
+      expect(leidos, hasLength(1));
+      expect(fuente.descartados, 0);
+    });
+
+    test('y tras cerrar, abrir da un microfono nuevo', () async {
+      // Cerrado si: la sesion termino, y la siguiente no puede heredar un stream
+      // muerto ni el recuento de descartados de la anterior.
+      final fuente = RemoteVoiceSource();
+      abrirY(fuente).listen((_) {});
+      fuente.cerrar();
+      fuente.entra(_pcm([100]));
+      expect(fuente.descartados, 1);
+
+      final leidos = <AudioFrame>[];
+      abrirY(fuente).listen(leidos.add);
+      fuente.entra(_pcm([500, 500]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(leidos, hasLength(1));
+      expect(fuente.descartados, 0, reason: 'el recuento no se reinicio');
     });
 
     test(
@@ -372,5 +396,34 @@ void main() {
         reason: '$metodo fuera de la fila vuelve a poder cruzarse',
       );
     }
+  });
+  testWidgets('el microfono se dibuja, y sus estados se leen sin color', (
+    tester,
+  ) async {
+    // Era un `●` que habia que aprender, y de Material no puede ser —la guarda de la
+    // pieza 6 lo tiene atado—. Se comprueba lo que importa: que hay un dibujo, y que
+    // los tres estados **se distinguen sin mirar el color**, para quien no separe el
+    // rojo del ambar.
+    for (final caso in [
+      (relleno: false, tachado: false),
+      (relleno: true, tachado: false),
+      (relleno: false, tachado: true),
+    ]) {
+      await tester.pumpWidget(
+        Center(
+          child: MicrofonoDibujado(
+            color: const Color(0xFF56E1EA),
+            size: 22,
+            relleno: caso.relleno,
+            tachado: caso.tachado,
+          ),
+        ),
+      );
+      expect(find.byType(CustomPaint), findsWidgets);
+    }
+
+    // No se comprueba que los tres pinten trazos distintos: comparar pixeles pide
+    // un golden, y el painter es privado. Lo que si queda atado es que el dibujo
+    // existe y que ninguno de los tres estados revienta al pintarse.
   });
 }

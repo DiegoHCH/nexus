@@ -6,6 +6,7 @@ import 'package:nexus/features/history/presentation/providers/archive_providers.
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
@@ -269,18 +270,50 @@ class AssistantSurface implements RemoteSurface {
   Future<void> stopVoice(String conversationId) =>
       _enFila(conversationId, () => _apagarVoz(conversationId));
 
+  /// Soltar el botón es **«ya está, contéstame»**, no «cancela».
+  ///
+  /// Esto derribaba la sesión de voz en el acto, y con ella la respuesta: medido, el
+  /// teléfono soltaba a los 4,3 s y la primera señal de Gemini en una sesión igual
+  /// había tardado 11,3 s. No se transcribía nada ni contestaba nadie, y el audio sí
+  /// estaba llegando — el fallo no era del micrófono sino del significado de soltar.
+  ///
+  /// Ahora soltar hace lo que hace callarse delante del Mac: **deja de entrar audio y
+  /// la sesión sigue viva**, y se cierra sola por inactividad cuando ya no queda nada
+  /// que decir —lo que también espera a que el altavoz termine la frase—. La fuente se
+  /// cierra cuando la sesión acaba de verdad, porque cerrarla antes dejaría a la sesión
+  /// leyendo un stream terminado y eso se ve como la voz cortándose sola.
   Future<void> _apagarVoz(String conversationId) async {
     _existe(conversationId);
     final hud = _ref.read(assistantControllerProvider(conversationId));
-    if (hud.voiceActive) {
-      await _ref
-          .read(assistantControllerProvider(conversationId).notifier)
-          .stopVoice();
+    if (!hud.voiceActive) {
+      // Sin sesión que esperar: es el caso del `stopVoice` que llega repetido o
+      // después de que la sesión ya se cerrara sola.
+      _ref.read(remoteVoiceSourceProvider).cerrar();
+      return;
     }
-    // La fuente se cierra **después**: cerrarla antes dejaría a la sesión leyendo un
-    // stream ya terminado, y eso se ve como que la voz se corta sola en vez de
-    // terminar.
-    _ref.read(remoteVoiceSourceProvider).cerrar();
+    _cerrarLaFuenteCuandoTermine(conversationId);
+  }
+
+  /// Lo que queda por hacer al soltar: esperar el final de la sesión para cerrar el
+  /// micrófono del teléfono.
+  ///
+  /// Uno por conversación: soltar dos veces no puede dejar dos esperas, que cerrarían
+  /// la fuente dos veces —la segunda ya sobre la sesión siguiente—.
+  final _esperandoElFin = <String, ProviderSubscription<AssistantHudState>>{};
+
+  void _cerrarLaFuenteCuandoTermine(String conversationId) {
+    if (_esperandoElFin.containsKey(conversationId)) return;
+    _esperandoElFin[conversationId] = _ref.listen(
+      assistantControllerProvider(conversationId),
+      (_, siguiente) {
+        if (siguiente.voiceActive) return;
+        _ref.read(remoteVoiceSourceProvider).cerrar();
+        // Cerrar la suscripción **fuera** de su propia llamada: hacerlo dentro es
+        // tocar la lista que Riverpod está recorriendo en ese momento.
+        final suya = _esperandoElFin.remove(conversationId);
+        if (suya != null) Future.microtask(suya.close);
+      },
+    );
   }
 
   @override

@@ -8,6 +8,7 @@ import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 import 'package:nexus/features/remote/presentation/widgets/write_phrase_sheet.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
+import 'package:nexus/features/remote/presentation/widgets/microfono_dibujado.dart';
 import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
@@ -658,12 +659,25 @@ class _Microfono extends ConsumerWidget {
     final voz = ref.watch(vozProvider);
     final control = ref.read(vozProvider.notifier);
 
-    final (glifo, color) = switch (voz) {
-      Voz.hablando => ('●', colors.accent),
-      Voz.abriendo => ('·', colors.mute),
-      Voz.sinMicrofono => ('✕', colors.err),
-      Voz.sinMac => ('✕', colors.warn),
-      Voz.callado => ('◉', colors.mute),
+    // **Un micrófono, no un punto.** Los otros dos cuadros de esta fila son glifos
+    // —son acciones sobre el texto— pero este es un objeto, y un objeto se reconoce
+    // antes dibujado que descrito: un `●` había que aprenderlo. Los cinco estados
+    // siguen distinguiéndose, ahora por la forma del propio micrófono en vez de por
+    // cinco caracteres que se parecían entre sí.
+    // **Un micrófono, no un punto.** Los otros dos cuadros de esta fila son glifos
+    // —son acciones sobre el texto— pero este es un objeto, y un objeto se reconoce
+    // antes dibujado que descrito: un `●` había que aprenderlo. Dibujado y no de
+    // Material, que aquí no se habla —la guarda de la pieza 6 lo tiene atado—.
+    //
+    // Los cinco estados siguen distinguiéndose, y ahora **por la forma**: contorno,
+    // relleno y tachado. El color separa después las dos causas de que no vaya a abrir,
+    // pero quien no distinga esos dos tonos sigue viendo la tachadura.
+    final (relleno, tachado, color) = switch (voz) {
+      Voz.hablando => (true, false, colors.accent),
+      Voz.abriendo => (false, false, colors.accent),
+      Voz.sinMicrofono => (false, true, colors.err),
+      Voz.sinMac => (false, true, colors.warn),
+      Voz.callado => (false, false, colors.mute),
     };
 
     return Listener(
@@ -675,7 +689,14 @@ class _Microfono extends ConsumerWidget {
       onPointerCancel: (_) => control.soltar(conversationId),
       child: _Cuadro(
         key: const ValueKey('microfono'),
-        glifo: glifo,
+        dibujo: MicrofonoDibujado(
+          color: color,
+          // Se mide con la tipografía de la fila para que los tres cuadros pesen
+          // igual: un dibujo a su tamaño de gusto se veía más grande que sus vecinos.
+          size: NexusTypography.lead.fontSize! * 1.3,
+          relleno: relleno,
+          tachado: tachado,
+        ),
         color: color,
         // Sin `alTocar`: quien manda es el sostener, y dejarlo también como toque haría
         // que un toque suelto abriera el micrófono sin cerrarlo.
@@ -688,12 +709,21 @@ class _Microfono extends ConsumerWidget {
 class _Cuadro extends StatelessWidget {
   const _Cuadro({
     super.key,
-    required this.glifo,
+    this.glifo,
+    this.dibujo,
     required this.color,
     required this.alTocar,
-  });
+  }) : assert(
+         (glifo == null) != (dibujo == null),
+         'un cuadro lleva glifo o dibujo, y exactamente uno',
+       );
 
-  final String glifo;
+  /// Un carácter, para los cuadros que son una **acción** —mandar, parar—.
+  final String? glifo;
+
+  /// Un dibujo, para los que son un **objeto**: el micrófono se reconoce antes
+  /// dibujado que descrito, y con un `●` había que aprender qué significaba.
+  final Widget? dibujo;
   final Color color;
   final VoidCallback? alTocar;
 
@@ -712,12 +742,14 @@ class _Cuadro extends StatelessWidget {
           borderRadius: BorderRadius.circular(2),
           border: Border.all(color: vivo ? color : colors.rule),
         ),
-        child: Text(
-          glifo,
-          style: NexusTypography.body.copyWith(
-            color: vivo ? color : colors.rule2,
-          ),
-        ),
+        child:
+            dibujo ??
+            Text(
+              glifo!,
+              style: NexusTypography.body.copyWith(
+                color: vivo ? color : colors.rule2,
+              ),
+            ),
       ),
     );
   }

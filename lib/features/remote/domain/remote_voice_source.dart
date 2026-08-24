@@ -35,9 +35,13 @@ class RemoteVoiceSource {
   /// controlador que nadie escuchaba y **se perdían en silencio** — justo los del
   /// principio de la frase, que es lo que `startVoice` existe para no perder.
   void abrir() {
-    // Cerrar lo anterior antes de abrir: dos aperturas seguidas pasan cuando se pierde
-    // el `stopVoice`, y dejar el primero colgado tendría dos micrófonos escribiendo en
-    // la misma sesión.
+    // **Si ya está abierto, se deja.** Ahora que soltar el botón no derriba la sesión,
+    // volver a sostener cae sobre una sesión viva que está leyendo *este* stream:
+    // crear otro la dejaría escuchando el de antes —cerrado— mientras los trozos
+    // nuevos entran a un controlador que nadie lee. Silencio, y de los que no se ven.
+    if (activo) return;
+    // Y si no, se cierra lo que hubiera antes de abrir: un controlador viejo colgado
+    // sería un segundo micrófono escribiendo en la misma sesión.
     cerrar();
     descartados = 0;
     _salida = StreamController<AudioFrame>();
