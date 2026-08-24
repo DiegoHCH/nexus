@@ -140,13 +140,24 @@ class _HomePageState extends ConsumerState<HomePage> {
         // lo queda antes de que la tecla llegue a Flutter — así que el atajo no
         // fallaba, escondía la ventana. Es la misma trampa de ⌘, y no se pelea
         // con ella: ocultar con ⌘H lo espera cualquiera que use un Mac.
-        const SingleActivator(LogicalKeyboardKey.keyY, meta: true): () =>
-            ConversationHistorySheet.open(
-              context,
-              forgetFolder: focused.folderPath.split('/').last,
-              onPick: controller.resume,
-              onForget: controller.forgetConversation,
-            ),
+        const SingleActivator(
+          LogicalKeyboardKey.keyY,
+          meta: true,
+        ): () => ConversationHistorySheet.open(
+          context,
+          forgetFolder: focused.folderPath.split('/').last,
+          // **No `controller.resume`.** Eso pintaba el registro elegido dentro de
+          // la conversación que tenías delante: elegías una de otra carpeta y te
+          // cambiaba la que estabas mirando, con las dos escribiendo en el mismo
+          // sitio. Es el fallo que se reportó tres veces.
+          //
+          // El proveedor decide: si esa conversación ya está abierta va a su
+          // pestaña, y si no, abre una nueva sobre **su** carpeta. Había dos
+          // sitios que abren el historial —el menú y este atajo— y solo se arregló
+          // uno; de ahí que siguiera pasando.
+          onPick: (record) => ref.read(retomarDelArchivoProvider)(record),
+          onForget: controller.forgetConversation,
+        ),
       },
       child: Focus(
         autofocus: true,

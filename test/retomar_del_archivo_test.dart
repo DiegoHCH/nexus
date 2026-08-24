@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
@@ -132,5 +134,43 @@ void main() {
     // múltiplo deja una columna coja.
     expect(Conversations.max, 6);
     expect(Conversations.max % Conversations.porColumna, 0);
+  });
+  test('todos los sitios que abren el historial pasan por el proveedor', () {
+    // **El fallo que costó tres rondas.** Hay dos sitios que abren la hoja del
+    // historial —el menú de macOS y el atajo de la pantalla— y solo se arreglo uno. El
+    // otro seguia llamando a `controller.resume`, que pinta el registro elegido dentro
+    // de la conversacion que tienes delante: eliges una de otra carpeta y te cambia la
+    // que estabas mirando, con las dos escribiendo en el mismo registro.
+    //
+    // Se comprueba leyendo los archivos porque lo que hay que atar es que **no quede
+    // ninguno suelto**, y eso no lo ve una prueba de un camino concreto.
+    final sitios = Directory('lib')
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.dart'))
+        .where(
+          (f) => f.readAsStringSync().contains('ConversationHistorySheet.open'),
+        )
+        .toList();
+
+    expect(
+      sitios,
+      hasLength(2),
+      reason: 'si aparece un tercero, tiene que decidir igual',
+    );
+
+    for (final sitio in sitios) {
+      final fuente = sitio.readAsStringSync();
+      final desde = fuente.indexOf('ConversationHistorySheet.open');
+      final trozo = fuente.substring(desde, fuente.indexOf('onForget', desde));
+      expect(
+        trozo,
+        contains('retomarDelArchivoProvider'),
+        reason:
+            '${sitio.path.split('/').last} elige sin pasar por el proveedor: '
+            'volvera a escribir en la conversacion que este delante',
+      );
+      expect(trozo, isNot(contains('onPick: controller.resume')));
+    }
   });
 }
