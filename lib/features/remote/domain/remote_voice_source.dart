@@ -26,15 +26,25 @@ class RemoteVoiceSource {
   /// seguidos significan que el cierre no llegó, y eso sí es un fallo.
   int descartados = 0;
 
-  Stream<AudioFrame> abrir() {
+  /// Enciende el micrófono del teléfono. **Encender y tomar son dos cosas**: esto lo
+  /// enciende, y [flujo] es lo que lee la sesión.
+  ///
+  /// Estaban juntos —`abrir` devolvía el stream— y eso las hacía chocar: `startVoice`
+  /// abría, tiraba el stream a la basura, y cuando la sesión pedía audio volvía a
+  /// abrir, cerrando de paso el primero. Los trozos que llegaban en medio entraban al
+  /// controlador que nadie escuchaba y **se perdían en silencio** — justo los del
+  /// principio de la frase, que es lo que `startVoice` existe para no perder.
+  void abrir() {
     // Cerrar lo anterior antes de abrir: dos aperturas seguidas pasan cuando se pierde
     // el `stopVoice`, y dejar el primero colgado tendría dos micrófonos escribiendo en
     // la misma sesión.
     cerrar();
     descartados = 0;
-    final salida = _salida = StreamController<AudioFrame>();
-    return salida.stream;
+    _salida = StreamController<AudioFrame>();
   }
+
+  /// Lo que lee la sesión. **No reabre**: si nadie lo encendió, no hay nada que dar.
+  Stream<AudioFrame>? get flujo => _salida?.stream;
 
   void cerrar() {
     final salida = _salida;

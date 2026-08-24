@@ -226,7 +226,33 @@ class AssistantSurface implements RemoteSurface {
   }
 
   @override
-  Future<void> startVoice(String conversationId) async {
+  Future<void> startVoice(String conversationId) =>
+      _enFila(conversationId, () => _encenderVoz(conversationId));
+
+  /// Encender y apagar la voz, **en fila y por conversación**.
+  ///
+  /// De aquí salía el fallo entero: `stopVoice` llegaba mientras `startVoice` todavía
+  /// estaba arrancando la sesión, leía un `voiceActive` que aún era `false` —así que
+  /// no paraba nada— y **cerraba la fuente**. La sesión terminaba de arrancar, pedía
+  /// audio, encontraba la fuente cerrada y se quedaba con el micrófono del Mac para
+  /// toda la sesión. Se medió: `startVoice`, `stopVoice`, y el primer trozo del
+  /// teléfono descartado por llegar a una fuente ya cerrada.
+  ///
+  /// Un teléfono manda estas dos cosas en ráfaga —se toca el orbe y se suelta— y el
+  /// canal no promete orden entre dos peticiones en vuelo. La fila lo promete aquí, que
+  /// es el único sitio donde se sabe qué significa cada una.
+  final _filaDeVoz = <String, Future<void>>{};
+
+  Future<void> _enFila(String conversationId, Future<void> Function() tarea) {
+    final anterior = _filaDeVoz[conversationId] ?? Future<void>.value();
+    // El `catchError` es de la fila, no de la tarea: un fallo al encender no puede
+    // dejar la fila envenenada y con ella el apagado sin correr nunca.
+    final mio = anterior.then((_) => tarea());
+    _filaDeVoz[conversationId] = mio.catchError((Object _) {});
+    return mio;
+  }
+
+  Future<void> _encenderVoz(String conversationId) async {
     _existe(conversationId);
     // La fuente se abre **antes** de la sesión: cuando la sesión pida audio, el puerto
     // compartido tiene que ver ya el micrófono del teléfono activo, o le daría el del
@@ -240,7 +266,10 @@ class AssistantSurface implements RemoteSurface {
   }
 
   @override
-  Future<void> stopVoice(String conversationId) async {
+  Future<void> stopVoice(String conversationId) =>
+      _enFila(conversationId, () => _apagarVoz(conversationId));
+
+  Future<void> _apagarVoz(String conversationId) async {
     _existe(conversationId);
     final hud = _ref.read(assistantControllerProvider(conversationId));
     if (hud.voiceActive) {
