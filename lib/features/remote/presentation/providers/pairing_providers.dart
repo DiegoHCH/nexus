@@ -94,6 +94,33 @@ final linkStateProvider = StreamProvider<LinkState>((ref) {
   );
 });
 
+/// Acorta la espera del enlace cuando la app vuelve del fondo.
+///
+/// El sistema puede cortar el socket mientras el teléfono está en otra app —pasa cada
+/// vez que se manda una captura por otra parte y se vuelve— y al volver el enlace
+/// estaba casi siempre dormido en la espera larga de la escalera. Lo que se veía era
+/// «reconectando» sin avanzar, y la única salida a mano era cancelar.
+///
+/// Quien sabe que hemos vuelto es la app, no el enlace: de ahí este observador.
+final alVolverDelFondoProvider = Provider<void>((ref) {
+  final observador = _AlVolver(
+    () => ref.read(channelLinkProvider).reintentarYa(),
+  );
+  WidgetsBinding.instance.addObserver(observador);
+  ref.onDispose(() => WidgetsBinding.instance.removeObserver(observador));
+});
+
+class _AlVolver extends WidgetsBindingObserver {
+  _AlVolver(this.alVolver);
+
+  final VoidCallback alVolver;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState estado) {
+    if (estado == AppLifecycleState.resumed) alVolver();
+  }
+}
+
 /// Aplica en el teléfono el acento que eligió el Mac.
 ///
 /// El color es una preferencia del usuario y la app es **una**: que el móvil salga en

@@ -62,17 +62,24 @@ void main() {
 
   /// Monta el enlace con un socket falso. [nuevoCadaVez] hace que reconectar abra
   /// otro socket, que es lo que hace la vida real.
+  /// Si `abrir` tiene que fallar, para dejar al enlace dando vueltas en su escalera
+  /// de reintentos. Hace falta para probar lo que pasa **mientras** reintenta, que es
+  /// donde vive más de un fallo de este enlace.
+  var sinLlegar = false;
+
   ChannelLink montar({
     List<Duration>? esperas,
     Future<void> Function(Duration)? dormir,
     String Function()? idNuevo,
   }) {
     abiertos = [];
+    sinLlegar = false;
     socket = _SocketFalso();
     abiertos.add(socket);
     var primera = true;
     return ChannelLink(
       abrir: () async {
+        if (sinLlegar) throw const ChannelUnreachable();
         if (primera) {
           primera = false;
           return socket;
@@ -524,6 +531,78 @@ void main() {
           'artifact': false,
         },
       );
+    });
+  });
+
+  group('un solo intento a la vez', () {
+    test('dos llamadas a conectar no abren dos sockets', () async {
+      // **El fallo, medido en el registro del Mac:** una conexion pidiendo cosas y otra
+      // tirada a los 10 s por no saludar. Con dos bucles, los dos escriben en el mismo
+      // socket, el mismo oyente y el mismo saludo, y el ultimo gana: el `Welcome` del
+      // que si saludo le llega a un oyente reemplazado, nadie pasa el estado a
+      // «conectado» y la pantalla se queda en «reconectando» **con la conexion
+      // funcionando**. Es lo que pasa al volver del fondo.
+      enlace = montar();
+
+      unawaited(enlace.conectar());
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        abiertos,
+        hasLength(1),
+        reason: 'el segundo bucle abre un socket que nadie saluda',
+      );
+    });
+
+    test('desconectar mientras reintenta no deja el guardia puesto', () async {
+      // **La salida del bucle por arriba**, que es la unica que suelta el guardia en
+      // el `while` y no en un `return`. Si se quedara puesto, el siguiente `conectar`
+      // volveria en silencio sin abrir nada — y eso es peor que el fallo original: el
+      // telefono no tendria forma de volver.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      sinLlegar = true;
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      await enlace.desconectar();
+      sinLlegar = false;
+      final antes = abiertos.length;
+
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(abiertos.length, greaterThan(antes));
+    });
+
+    test('desconectar a mano no deja el enlace sin poder reintentar', () async {
+      // El guardia tiene que soltarse **tambien al salir del bucle**, que es por donde
+      // se sale al desconectar a mano. Si se quedara puesto, el siguiente `conectar`
+      // volveria en silencio sin abrir nada — y eso es peor que el fallo original: el
+      // telefono no tendria forma de volver, ni cancelando.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      await conectado(enlace);
+      final antes = abiertos.length;
+
+      await enlace.desconectar();
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(abiertos.length, greaterThan(antes));
+    });
+
+    test('despues de conectar se puede volver a intentar', () async {
+      // El guardia tiene que soltarse en **todas** las salidas del bucle, o el enlace
+      // se queda sin poder reintentar nunca — que es peor que el fallo original.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      await conectado(enlace);
+
+      // Se cae y el enlace lo reintenta por su cuenta: si el guardia se hubiera
+      // quedado puesto, esto no abriria nada.
+      socket.caer();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(abiertos.length, greaterThan(1));
     });
   });
 

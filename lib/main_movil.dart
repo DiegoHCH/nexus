@@ -128,6 +128,10 @@ class _Conectado extends ConsumerWidget {
     // aquí, encima de la lista, porque tiene que estar escuchando **antes** del primer
     // saludo: el acento llega con él.
     ref.watch(accentFromMacProvider);
+    // Y esto acorta la espera al volver del fondo: sin él, volver a la app caía
+    // casi siempre en medio de la escalera de reintentos —que acaba en 30 s— y se
+    // veía «reconectando» clavado.
+    ref.watch(alVolverDelFondoProvider);
 
     final estado = ref.watch(linkStateProvider).value;
     // Mientras no esté conectado se enseña «buscando tu Mac», y con un mínimo en
