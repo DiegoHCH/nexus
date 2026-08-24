@@ -12,6 +12,7 @@ import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
+import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -595,13 +596,19 @@ class _Compositor extends ConsumerWidget {
                   color: colors.err,
                   alTocar: alDetener,
                 )
-              else
+              else ...[
+                // **Sostener para hablar**, al lado de mandar y no en vez de: se
+                // escribe y se habla en la misma pantalla, que es lo que se pidió —
+                // «no quiero solo poder hablar si no también escribir».
+                _Microfono(conversationId: conversacion.id),
+                const SizedBox(width: NexusSpacing.s2),
                 _Cuadro(
                   key: const ValueKey('mandar'),
                   glifo: '↑',
                   color: colors.accent,
                   alTocar: mandando ? null : alMandar,
                 ),
+              ],
             ],
           ),
           if (conversacion.streaming) ...[
@@ -631,6 +638,53 @@ class _Compositor extends ConsumerWidget {
 /// Cuadrado de 44 —lo mismo que el campo de al lado, así que la fila queda a una sola
 /// altura— con un hairline del color de lo que hace y el glifo dentro. Apagado se ve
 /// igual pero en `rule`: quitarlo movería el campo justo cuando se está escribiendo.
+/// Sostener para hablar.
+///
+/// **Mientras se sostiene**, no un interruptor: el mockup lo dice en su propio pie
+/// —«mantén pulsado para hablar»— y la razón es que un micrófono que se queda abierto
+/// porque nadie volvió a tocar el botón es exactamente lo que no se quiere en un
+/// teléfono que se guarda en el bolsillo.
+///
+/// Los cuatro estados del contrato se ven aquí: sin permiso, abriendo, hablando y sin
+/// Mac. Ninguno es una excepción — todos son cosas que pasan y que hay que poder decir.
+class _Microfono extends ConsumerWidget {
+  const _Microfono({required this.conversationId});
+
+  final String conversationId;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final voz = ref.watch(vozProvider);
+    final control = ref.read(vozProvider.notifier);
+
+    final (glifo, color) = switch (voz) {
+      Voz.hablando => ('●', colors.accent),
+      Voz.abriendo => ('·', colors.mute),
+      Voz.sinMicrofono => ('✕', colors.err),
+      Voz.sinMac => ('✕', colors.warn),
+      Voz.callado => ('◉', colors.mute),
+    };
+
+    return Listener(
+      // `Listener` y no `GestureDetector`: hace falta saber cuándo **se levanta el
+      // dedo pase lo que pase** —incluido al salir del botón deslizando, que es el
+      // «desliza para cancelar» del mockup— y `onTapUp` no llega si el gesto se cancela.
+      onPointerDown: (_) => control.sostener(conversationId),
+      onPointerUp: (_) => control.soltar(conversationId),
+      onPointerCancel: (_) => control.soltar(conversationId),
+      child: _Cuadro(
+        key: const ValueKey('microfono'),
+        glifo: glifo,
+        color: color,
+        // Sin `alTocar`: quien manda es el sostener, y dejarlo también como toque haría
+        // que un toque suelto abriera el micrófono sin cerrarlo.
+        alTocar: () {},
+      ),
+    );
+  }
+}
+
 class _Cuadro extends StatelessWidget {
   const _Cuadro({
     super.key,
