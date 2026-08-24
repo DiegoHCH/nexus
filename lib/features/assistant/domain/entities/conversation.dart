@@ -30,9 +30,19 @@ class Conversation {
 class Conversations {
   const Conversations({this.items = const [], this.focusedId});
 
-  /// El tope no es técnico, es de atención: más de tres cosas a la vez no se
-  /// siguen, y un asistente que pierdes de vista deja de ser útil.
-  static const max = 3;
+  /// El tope no es técnico, es de atención. Estuvo en tres con ese argumento, y el
+  /// uso lo corrigió: seis caben porque **no se siguen todas a la vez** — se dejan
+  /// corriendo y se vuelve a ellas, que es justo para lo que sirve tener varias.
+  ///
+  /// Seis y no siete por la rejilla: se apilan en columnas de [porColumna], así que un
+  /// número que no sea múltiplo deja una columna coja.
+  static const max = 6;
+
+  /// Cuántas fichas caben en una columna del muelle antes de empezar otra al lado.
+  ///
+  /// Tres es lo que cabe sin que la columna llegue al orbe grande, que es el centro de
+  /// la pantalla y no se tapa.
+  static const porColumna = 3;
 
   final List<Conversation> items;
   final String? focusedId;

@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/conversations_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 
 final conversationsDataSourceProvider = Provider<ConversationsDataSource>(
   (ref) => const ConversationsDataSource(),
@@ -172,3 +174,53 @@ final conversationFolderProvider = Provider.family<String?, String>(
   (ref, conversationId) =>
       ref.watch(conversationsProvider).byId(conversationId)?.folderPath,
 );
+
+/// Retomar una conversación del archivo.
+///
+/// **Fuera del notifier, y no por gusto:** los controladores de cada conversación
+/// escuchan a `conversationsProvider`, así que si él los leyera habría dependencia
+/// circular — Riverpod lo detecta y lanza. Aquí las lecturas pasan al llamar, no al
+/// construir, así que no hay ciclo.
+///
+/// Tres desenlaces, y los tres importan:
+///
+/// - **Ya está abierta** → se va a su pestaña. Una conversación viva se guarda en el
+///   archivo desde su primer turno, así que la de la lista puede ser exactamente la que
+///   tienes delante; abrirla otra vez creaba una segunda pestaña escribiendo en el
+///   **mismo registro**, y lo que escribías en una aparecía en la otra.
+/// - **No está** → pestaña nueva, sobre su carpeta. Repetir carpeta está permitido a
+///   propósito: son sesiones independientes con su propia memoria.
+/// - **No cabe** → se dice. Antes no hacía nada, y no hacer nada en silencio se lee
+///   como que la app se colgó.
+final retomarDelArchivoProvider =
+    Provider<Future<RetomarResultado> Function(ConversationRecord)>((ref) {
+      return (registro) async {
+        for (final item in ref.read(conversationsProvider).items) {
+          final controlador = ref.read(
+            assistantControllerProvider(item.id).notifier,
+          );
+          if (!controlador.isShowing(registro.id)) continue;
+          ref.read(conversationsProvider.notifier).focus(item.id);
+          return RetomarResultado.yaEstaba;
+        }
+
+        final id = await ref
+            .read(conversationsProvider.notifier)
+            .open(registro.folderPath);
+        if (id == null) return RetomarResultado.noCabe;
+        ref.read(assistantControllerProvider(id).notifier).resume(registro);
+        return RetomarResultado.enPestanaNueva;
+      };
+    });
+
+/// Qué pasó al retomar una del archivo.
+enum RetomarResultado {
+  /// Estaba abierta ya: se fue a su pestaña, sin duplicarla.
+  yaEstaba,
+
+  /// Se abrió una pestaña nueva con ella.
+  enPestanaNueva,
+
+  /// El muelle está lleno. Quien llama tiene que **decirlo**.
+  noCabe,
+}
