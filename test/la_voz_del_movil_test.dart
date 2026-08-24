@@ -5,6 +5,13 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/remote/domain/remote_voice_source.dart';
 import 'package:nexus/features/remote/domain/voice_input_compartido.dart';
+import 'dart:async';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/remote/data/channel_link.dart';
+import 'package:nexus/features/remote/data/microfono_del_movil.dart';
+import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
+import 'package:nexus_protocol/nexus_protocol.dart';
 
 /// El micrófono del teléfono, visto desde el Mac.
 ///
@@ -37,6 +44,83 @@ class _MicroNegado implements VoiceInput {
 
   @override
   Stream<AudioFrame> listen() => const Stream<AudioFrame>.empty();
+}
+
+/// El micrófono, sin micrófono.
+class _MicroFalso implements Microfono {
+  _MicroFalso(this.orden, {this.permiso = true});
+
+  final List<String> orden;
+  final bool permiso;
+  final _salida = StreamController<Uint8List>.broadcast();
+
+  @override
+  Future<bool> tienePermiso() async => permiso;
+
+  @override
+  Future<Stream<Uint8List>> escuchar() async {
+    orden.add('micro:escuchar');
+    return _salida.stream;
+  }
+
+  @override
+  Future<void> cerrar() async => orden.add('micro:cerrar');
+
+  void emite(Uint8List pcm) => _salida.add(pcm);
+}
+
+/// El enlace, sin red: apunta lo que se le pide y lo que se le manda.
+class _EnlaceFalso implements ChannelLink {
+  _EnlaceFalso(this.orden);
+
+  final List<String> orden;
+
+  @override
+  Future<Map<String, Object?>> pedir(
+    RemoteMethod metodo, {
+    Map<String, Object?> params = const {},
+    String? clientMsgId,
+  }) async {
+    if (_macCaido) throw const LinkError(LinkFailure.desconectado);
+    if (metodo == RemoteMethod.startVoice && !_macContesta) {
+      throw const LinkError(LinkFailure.sinRespuesta);
+    }
+    orden.add('mac:${metodo.name}');
+    return const {};
+  }
+
+  @override
+  bool mandarAudio(Audio marco) {
+    _mandados.add(marco);
+    return true;
+  }
+
+  @override
+  noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+late _MicroFalso _micro;
+final _mandados = <Audio>[];
+var _macContesta = true;
+var _macCaido = false;
+
+ProviderContainer _conVoz({
+  required List<String> orden,
+  bool permiso = true,
+  bool macContesta = true,
+}) {
+  _micro = _MicroFalso(orden, permiso: permiso);
+  _mandados.clear();
+  _macContesta = macContesta;
+  _macCaido = false;
+  final c = ProviderContainer(
+    overrides: [
+      microfonoProvider.overrideWithValue(_micro),
+      channelLinkProvider.overrideWithValue(_EnlaceFalso(orden)),
+    ],
+  );
+  addTearDown(c.dispose);
+  return c;
 }
 
 void main() {
@@ -144,6 +228,86 @@ void main() {
       );
 
       expect(await puerto.hasPermission(), isFalse);
+    });
+  });
+  group('sostener para hablar, en el telefono', () {
+    test('el Mac primero y el microfono despues', () async {
+      // **El orden importa y no es un detalle.** Si se abriera el microfono antes, los
+      // primeros trozos llegarian a un Mac sin sesion y se perderian — y son justo los
+      // del principio de la frase, los que dicen que es lo que quieres.
+      final orden = <String>[];
+      final c = _conVoz(orden: orden);
+
+      await c.read(vozProvider.notifier).sostener('a');
+
+      expect(orden, ['mac:startVoice', 'micro:escuchar']);
+      expect(c.read(vozProvider), Voz.hablando);
+    });
+
+    test('sin permiso del sistema no se abre nada', () async {
+      // Y es un **estado**, no una excepcion: hay que poder enseñarlo, y quien lo nego
+      // fue el sistema.
+      final orden = <String>[];
+      final c = _conVoz(orden: orden, permiso: false);
+
+      await c.read(vozProvider.notifier).sostener('a');
+
+      expect(c.read(vozProvider), Voz.sinMicrofono);
+      expect(orden, isEmpty, reason: 'ni se le pide sesion al Mac');
+    });
+
+    test('si el Mac no contesta, no se enciende el microfono', () async {
+      final orden = <String>[];
+      final c = _conVoz(orden: orden, macContesta: false);
+
+      await c.read(vozProvider.notifier).sostener('a');
+
+      expect(c.read(vozProvider), Voz.sinMac);
+      expect(
+        orden.where((o) => o.startsWith('micro:')),
+        isEmpty,
+        reason: 'grabar sin sesion es grabar para nadie',
+      );
+    });
+
+    test('soltar cierra el microfono y avisa al Mac', () async {
+      final orden = <String>[];
+      final c = _conVoz(orden: orden);
+      await c.read(vozProvider.notifier).sostener('a');
+      orden.clear();
+
+      await c.read(vozProvider.notifier).soltar('a');
+
+      expect(orden, ['micro:cerrar', 'mac:stopVoice']);
+      expect(c.read(vozProvider), Voz.callado);
+    });
+
+    test('el microfono se cierra aunque el Mac no conteste', () async {
+      // **Dejar el microfono abierto es el peor final posible**, asi que el cierre local
+      // no depende de que el canal funcione.
+      final orden = <String>[];
+      final c = _conVoz(orden: orden);
+      await c.read(vozProvider.notifier).sostener('a');
+      orden.clear();
+      _macCaido = true;
+
+      await c.read(vozProvider.notifier).soltar('a');
+
+      expect(orden, contains('micro:cerrar'));
+      expect(c.read(vozProvider), Voz.callado);
+    });
+
+    test('lo que captura el microfono sale como marcos numerados', () async {
+      final orden = <String>[];
+      final c = _conVoz(orden: orden);
+      await c.read(vozProvider.notifier).sostener('a');
+
+      _micro.emite(_pcm([100, 200]));
+      _micro.emite(_pcm([300, 400]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(_mandados.map((a) => a.seq), [0, 1]);
+      expect(_mandados.first.pcmBase64.isNotEmpty, isTrue);
     });
   });
 }

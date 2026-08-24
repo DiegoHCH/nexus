@@ -339,6 +339,22 @@ class ChannelLink {
     return pendiente.futuro;
   }
 
+  /// Manda un trozo de micrófono. **Sin esperar nada.**
+  ///
+  /// No pasa por `pedir` a propósito: eso registra la petición, arma dos plazos y
+  /// espera confirmación, y aquí no hay nada que confirmar —el contrato del marco de
+  /// audio dice que un trozo tarde es peor que un hueco—. Si no hay socket, el trozo se
+  /// tira: es exactamente lo que hay que hacer con audio sin conexión.
+  ///
+  /// Devuelve si salió, para que quien captura pueda darse cuenta de que está hablando
+  /// contra una pared.
+  bool mandarAudio(Audio marco) {
+    final socket = _socket;
+    if (socket == null || ahora != LinkState.conectado) return false;
+    socket.enviar(marco.encode());
+    return true;
+  }
+
   /// Si reintentar con **el mismo** id es lo correcto.
   ///
   /// Solo para lo que muta. El deduplicador del Mac protege **efectos**, no
