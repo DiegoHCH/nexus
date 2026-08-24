@@ -76,9 +76,13 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     );
 
     ref.listen<NexusOrbState>(
-      assistantControllerProvider(widget.conversationId).select((s) => s.orbState),
-      (previous, next) =>
-          StatusItemChannel.show(next.name, accent: _acento(ref.read(accentControllerProvider))),
+      assistantControllerProvider(
+        widget.conversationId,
+      ).select((s) => s.orbState),
+      (previous, next) => StatusItemChannel.show(
+        next.name,
+        accent: _acento(ref.read(accentControllerProvider)),
+      ),
     );
 
     // El punto rojo del icono, que sobrevive a descartar el aviso. Se manda al
@@ -86,7 +90,10 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     ref.listen(
       updatesControllerProvider.select((s) => s.notice?.isNewer ?? false),
       (_, pendiente) => StatusItemChannel.show(
-        ref.read(assistantControllerProvider(widget.conversationId)).orbState.name,
+        ref
+            .read(assistantControllerProvider(widget.conversationId))
+            .orbState
+            .name,
         pending: pendiente,
       ),
     );
@@ -95,7 +102,10 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
     // interfaz que se queda cian cuando todo lo demás cambia de color.
     ref.listen(accentControllerProvider, (_, elegido) {
       StatusItemChannel.show(
-        ref.read(assistantControllerProvider(widget.conversationId)).orbState.name,
+        ref
+            .read(assistantControllerProvider(widget.conversationId))
+            .orbState
+            .name,
         accent: _acento(elegido),
       );
     });

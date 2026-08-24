@@ -64,6 +64,11 @@ class AssistantController extends Notifier<AssistantHudState> {
     // hablar, y dejarlo abierto en una que ya no miras sería exactamente el
     // estado que el proyecto lleva evitando desde 2.5.
     ref.listen(conversationsProvider, (previous, next) {
+      // **Solo si el foco está en otra**, no cuando no hay foco. Sin ese matiz,
+      // cualquier estado sin foco —la lista todavía sin leer, o vacía— cerraba el
+      // micrófono a mitad de un turno: se veía como que la voz se corta sola, y el
+      // encargo se quedaba sin terminar.
+      if (!next.cargado || next.focusedId == null) return;
       if (state.voiceActive && next.focusedId != conversationId) {
         unawaited(stopVoice());
       }

@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/updates/presentation/widgets/pending_dot.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+
 /// Los tres menús del compositor: adjuntar y ajustes, el modelo, y el esfuerzo.
 ///
 /// Juntos porque son la misma forma repetida tres veces —un `PopupMenuButton` con
@@ -25,8 +26,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 /// sitio —la tira de miniaturas—, porque son el mismo gesto dicho de dos
 /// formas.
 class MoreMenu extends ConsumerWidget {
-  const MoreMenu({
-    super.key,required this.onAttach});
+  const MoreMenu({super.key, required this.onAttach});
 
   final void Function(Iterable<String>) onAttach;
 
@@ -41,36 +41,38 @@ class MoreMenu extends ConsumerWidget {
       button: true,
       label: context.strings.attachFile,
       child: PopupMenuButton<String>(
-      color: colors.deep,
-      tooltip: '',
-      onSelected: (value) async {
-        switch (value) {
-          case 'file':
-            // Varios de una vez, como al arrastrar: elegir tres archivos de una
-            // carpeta y tener que abrir el diálogo tres veces es de las cosas
-            // que hacen que nadie use el botón.
-            final files = await openFiles();
-            if (files.isNotEmpty) onAttach(files.map((file) => file.path));
-          case 'folder':
-            await ref.read(workspaceControllerProvider.notifier).pairFolder();
-          case 'settings':
-            if (context.mounted) await SettingsPage.open(context);
-        }
-      },
-      itemBuilder: (context) => [
-        _item('file', Icons.attach_file, strings.attachFile, colors),
-        _item(
-          'folder',
-          Icons.create_new_folder_outlined,
-          strings.addFolderShort,
-          colors,
+        color: colors.deep,
+        tooltip: '',
+        onSelected: (value) async {
+          switch (value) {
+            case 'file':
+              // Varios de una vez, como al arrastrar: elegir tres archivos de una
+              // carpeta y tener que abrir el diálogo tres veces es de las cosas
+              // que hacen que nadie use el botón.
+              final files = await openFiles();
+              if (files.isNotEmpty) onAttach(files.map((file) => file.path));
+            case 'folder':
+              await ref.read(workspaceControllerProvider.notifier).pairFolder();
+            case 'settings':
+              if (context.mounted) await SettingsPage.open(context);
+          }
+        },
+        itemBuilder: (context) => [
+          _item('file', Icons.attach_file, strings.attachFile, colors),
+          _item(
+            'folder',
+            Icons.create_new_folder_outlined,
+            strings.addFolderShort,
+            colors,
+          ),
+          _item('settings', Icons.tune, strings.openSettings, colors),
+        ],
+        // Con punto rojo mientras quede una versión sin instalar: Ajustes vive
+        // dentro de este menú, así que el aviso va pegado al camino que lleva a
+        // la actualización.
+        child: PendingDot(
+          child: Icon(Icons.add, size: 16, color: colors.faint),
         ),
-        _item('settings', Icons.tune, strings.openSettings, colors),
-      ],
-      // Con punto rojo mientras quede una versión sin instalar: Ajustes vive
-      // dentro de este menú, así que el aviso va pegado al camino que lleva a
-      // la actualización.
-      child: PendingDot(child: Icon(Icons.add, size: 16, color: colors.faint)),
       ),
     );
   }
@@ -96,8 +98,7 @@ class MoreMenu extends ConsumerWidget {
 /// se usa también desde la terminal, y pisar su configuración desde aquí
 /// sorprendería allí.
 class ModelMenu extends ConsumerWidget {
-  const ModelMenu({
-    super.key,required this.folder, required this.meter});
+  const ModelMenu({super.key, required this.folder, required this.meter});
 
   final PairedFolder? folder;
   final SessionMeter meter;
@@ -169,8 +170,7 @@ class ModelMenu extends ConsumerWidget {
 
 /// Cuánto razona antes de contestar, de más rápido a más listo.
 class EffortMenu extends ConsumerWidget {
-  const EffortMenu({
-    super.key,required this.folder});
+  const EffortMenu({super.key, required this.folder});
 
   final PairedFolder? folder;
 

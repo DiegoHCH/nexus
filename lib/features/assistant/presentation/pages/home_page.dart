@@ -101,7 +101,15 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    final focused = ref.watch(conversationsProvider).focused;
+    final conversaciones = ref.watch(conversationsProvider);
+    // **Hasta que no se sabe, no se dice nada.** La lista nace vacía y el disco se lee
+    // después, así que enseñar aquí la pantalla de primera vez era decir «no tienes
+    // ninguna» durante la ventana de carga — y quien tocaba el orbe en ese momento se
+    // llevaba una conversación **nueva** en lugar de la que tenía abierta. Esa es la
+    // conversación vacía que aparecía tras cada arranque.
+    if (!conversaciones.cargado) return const _Esperando();
+
+    final focused = conversaciones.focused;
     // Sin conversación abierta no se planta una pantalla de por medio: se
     // entra al orbe, con el hueco «NUEVA» y la caja lista. Escribir crea la
     // conversación — preguntar antes de dejarte escribir era un peaje.
@@ -301,6 +309,24 @@ class _HomePageState extends ConsumerState<HomePage> {
 /// Elegir carpeta sigue estando a un clic —en «NUEVA»— pero no se exige antes
 /// de dejarte escribir: plantar una pantalla de «¿dónde quieres trabajar?»
 /// delante de cada arranque es un peaje para responder casi siempre lo mismo.
+/// Mientras se lee del disco qué había abierto.
+///
+/// El orbe dormido y nada más: **ninguna acción**, porque cualquiera de ellas crearía
+/// una conversación y el sentido de esta pantalla es no crear ninguna por no saber
+/// todavía. Dura lo que tarda una lectura de preferencias, así que no lleva texto: un
+/// cartel que aparece y desaparece en un parpadeo se lee como un fallo.
+class _Esperando extends StatelessWidget {
+  const _Esperando();
+
+  @override
+  Widget build(BuildContext context) => Scaffold(
+    backgroundColor: context.colors.void_,
+    body: const Center(
+      child: SizedBox(height: 220, child: NexusOrb(state: NexusOrbState.sleep)),
+    ),
+  );
+}
+
 class _FirstRun extends ConsumerStatefulWidget {
   const _FirstRun();
 

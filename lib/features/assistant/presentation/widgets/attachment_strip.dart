@@ -91,36 +91,36 @@ class _Attachment extends StatelessWidget {
         onTap: onOpen,
         borderRadius: BorderRadius.circular(NexusRadius.sm),
         child: Container(
-        padding: const EdgeInsets.fromLTRB(4, 4, NexusSpacing.s3, 4),
-        decoration: BoxDecoration(
-          color: colors.deep,
-          border: Border.all(color: colors.rule),
-          borderRadius: BorderRadius.circular(NexusRadius.sm),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            _Thumbnail(path: path),
-            const SizedBox(width: NexusSpacing.s3),
-            ConstrainedBox(
-              // Un límite, porque los hay larguísimos: se recorta por el final
-              // y la ruta entera sigue estando en el tooltip.
-              constraints: const BoxConstraints(maxWidth: 150),
-              child: Text(
-                AttachedFiles.name(path),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: NexusTypography.data.copyWith(color: colors.ink),
+          padding: const EdgeInsets.fromLTRB(4, 4, NexusSpacing.s3, 4),
+          decoration: BoxDecoration(
+            color: colors.deep,
+            border: Border.all(color: colors.rule),
+            borderRadius: BorderRadius.circular(NexusRadius.sm),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _Thumbnail(path: path),
+              const SizedBox(width: NexusSpacing.s3),
+              ConstrainedBox(
+                // Un límite, porque los hay larguísimos: se recorta por el final
+                // y la ruta entera sigue estando en el tooltip.
+                constraints: const BoxConstraints(maxWidth: 150),
+                child: Text(
+                  AttachedFiles.name(path),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
               ),
-            ),
-            if (onRemove case final quitar?) ...[
-              const SizedBox(width: NexusSpacing.s2),
-              InkWell(
-                onTap: quitar,
-                borderRadius: BorderRadius.circular(NexusRadius.sm),
-                child: Icon(Icons.close, size: 13, color: colors.faint),
-              ),
-            ],
+              if (onRemove case final quitar?) ...[
+                const SizedBox(width: NexusSpacing.s2),
+                InkWell(
+                  onTap: quitar,
+                  borderRadius: BorderRadius.circular(NexusRadius.sm),
+                  child: Icon(Icons.close, size: 13, color: colors.faint),
+                ),
+              ],
             ],
           ),
         ),

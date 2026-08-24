@@ -122,7 +122,10 @@ class _ActivityRowState extends State<_ActivityRow> {
         border: Border(
           bottom: BorderSide(color: colors.rule),
           left: isChild
-              ? BorderSide(color: colors.accent.withValues(alpha: 0.25), width: 2)
+              ? BorderSide(
+                  color: colors.accent.withValues(alpha: 0.25),
+                  width: 2,
+                )
               : BorderSide.none,
         ),
       ),

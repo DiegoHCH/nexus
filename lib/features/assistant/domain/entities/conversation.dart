@@ -48,7 +48,11 @@ class Conversation {
 /// Las conversaciones abiertas y cuál tiene el foco.
 @immutable
 class Conversations {
-  const Conversations({this.items = const [], this.focusedId});
+  const Conversations({
+    this.items = const [],
+    this.focusedId,
+    this.cargado = false,
+  });
 
   /// El tope no es técnico, es de atención. Estuvo en tres con ese argumento, y el
   /// uso lo corrigió: seis caben porque **no se siguen todas a la vez** — se dejan
@@ -66,6 +70,19 @@ class Conversations {
 
   final List<Conversation> items;
   final String? focusedId;
+
+  /// Si ya se leyó del disco lo que había abierto.
+  ///
+  /// **Vacío y «todavía no sé» no son lo mismo**, y confundirlos es lo que hacía que la
+  /// app enseñara la pantalla de primera vez justo después de arrancar: la lista nace
+  /// vacía y el disco se lee después, así que durante esa ventana parecía que no había
+  /// ninguna conversación. Quien tocaba el orbe ahí se llevaba una conversación nueva
+  /// en vez de la que tenía abierta.
+  final bool cargado;
+
+  /// La misma lista, ya marcada como leída del disco.
+  Conversations copyCargado() =>
+      Conversations(items: items, focusedId: focusedId, cargado: true);
 
   bool get isEmpty => items.isEmpty;
   bool get isFull => items.length >= max;
