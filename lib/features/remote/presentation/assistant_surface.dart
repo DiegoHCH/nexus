@@ -196,12 +196,20 @@ class AssistantSurface implements RemoteSurface {
     final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
     if (registro == null) throw UnknownConversation(archivedId);
 
-    // **Retomar es abrir su carpeta**, y `open` ya devuelve la que hubiera si esa
-    // carpeta tenía una viva. Eso es lo correcto: dos conversaciones sobre el mismo
-    // repo compartirían la sesión de Claude y se pisarían el contexto.
-    final id = await _ref
-        .read(conversationsProvider.notifier)
-        .open(registro.folderPath);
+    // **Por el mismo camino que el escritorio.** Esto abría la carpeta y no pintaba el
+    // registro, así que el teléfono retomaba una conversación y la recibía **vacía**.
+    // Es el mismo fallo que ya pasó tres veces hoy en el escritorio —dos caminos que
+    // hacen lo mismo y solo uno arreglado—, así que en vez de copiar aquí el `resume`
+    // se reusa el proveedor que ya decide: si esa conversación está abierta va a su
+    // pestaña, y si no, abre una nueva sobre su carpeta y la pinta entera.
+    final resultado = await _ref.read(retomarDelArchivoProvider)(registro);
+    if (resultado == RetomarResultado.noCabe) {
+      throw DemasiadasConversaciones();
+    }
+
+    // La que quedó con el foco es la que se retomó: el proveedor enfoca en los dos
+    // caminos, así que el teléfono no tiene que adivinar cuál es.
+    final id = _ref.read(conversationsProvider).focusedId;
     if (id == null) throw UnknownConversation(archivedId);
     return id;
   }

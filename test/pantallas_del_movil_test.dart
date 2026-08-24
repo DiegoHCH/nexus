@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -724,5 +725,25 @@ void main() {
       expect(conLaFrase, hasLength(1));
       expect((conLaFrase.single as Call).method, 'unlockWrites');
     });
+  });
+  test('retomar y abrir refrescan el espejo antes de navegar', () {
+    // El telefono navegaba a una conversacion que su espejo no conocia, y
+    // `masHistorial` devuelve `false` en su primera linea cuando no la encuentra: la
+    // pantalla llegaba vacia. La lista solo se pedia al conectar o con el tiron, y
+    // estos son los dos unicos sitios donde el telefono estrena una conversacion.
+    final fuente = File(
+      'lib/features/remote/presentation/providers/utility_providers.dart',
+    ).readAsStringSync();
+
+    for (final metodo in ['retomar', 'abrir']) {
+      final desde = fuente.indexOf('> $metodo(');
+      expect(desde, greaterThan(0), reason: 'no encontre $metodo');
+      final cuerpo = fuente.substring(desde, fuente.indexOf('\n  }\n', desde));
+      expect(
+        cuerpo,
+        contains('mirrorProvider.notifier).refrescar()'),
+        reason: 'sin refrescar, $metodo abre una pantalla vacia',
+      );
+    }
   });
 }

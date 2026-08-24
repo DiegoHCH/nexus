@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 
 /// Lo que el teléfono lee del Mac sin que sea una conversación: el archivo, los
@@ -145,7 +146,14 @@ class ArchiveController extends AsyncNotifier<List<ArchiveEntry>> {
             RemoteMethod.resumeConversation,
             params: {'archived': archivedId},
           );
-      return datos['conversation'] as String?;
+      final id = datos['conversation'] as String?;
+      // **El espejo tiene que conocerla antes de que se abra su pantalla.** Sin esto
+      // el telefono navegaba a una conversacion que su espejo no tenia, y
+      // `masHistorial` se rinde en su primera linea cuando no la encuentra: la
+      // pantalla llegaba **vacia**. La lista solo se refrescaba al conectar o con el
+      // tiron hacia abajo, y retomar crea una que no estaba en ninguna de las dos.
+      if (id != null) await ref.read(mirrorProvider.notifier).refrescar();
+      return id;
     } on LinkError {
       return null;
     }
@@ -180,7 +188,12 @@ class FoldersController extends AsyncNotifier<List<FolderEntry>> {
       final datos = await ref
           .read(channelLinkProvider)
           .pedir(RemoteMethod.openConversation, params: {'folder': path});
-      return datos['conversation'] as String?;
+      final id = datos['conversation'] as String?;
+      // Igual que al retomar: esta tambien es nueva para el espejo. Va aqui y no en la
+      // pantalla porque son los dos unicos sitios donde el telefono estrena una
+      // conversacion, y con la decision repartida solo se arreglaria uno.
+      if (id != null) await ref.read(mirrorProvider.notifier).refrescar();
+      return id;
     } on LinkError {
       return null;
     }
