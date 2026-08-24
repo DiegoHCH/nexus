@@ -20,6 +20,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// creaba una segunda pestaña escribiendo en el mismo registro.
 
 const _carpeta = '/Users/alguien/General';
+const _otra = '/Users/alguien/personal/nexus';
 
 class _SinMemoria implements ConversationMemory {
   const _SinMemoria();
@@ -41,8 +42,11 @@ class _SinMemoria implements ConversationMemory {
 class _Espacio extends WorkspaceController {
   @override
   Workspace build() => Workspace(
-    folders: [PairedFolder(path: _carpeta, modality: FolderModality.voice)],
-    activePath: _carpeta,
+    folders: [
+      PairedFolder(path: _carpeta, modality: FolderModality.voice),
+      PairedFolder(path: _otra, modality: FolderModality.voice),
+    ],
+    activePath: _otra,
   );
 }
 
@@ -109,6 +113,66 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'el caso reportado: abierta en una carpeta, se retoma una de otra',
+    () async {
+      // Tal cual lo describio: una sola conversacion abierta sobre `nexus`, se abre el
+      // historial y se elige una de `General`. Tiene que salir en **pestaña nueva** y
+      // sobre su propia carpeta — no cambiar la que estaba delante.
+      final c = _contenedor();
+      final abierta = await c.read(conversationsProvider.notifier).open(_otra);
+      c
+          .read(assistantControllerProvider(abierta!).notifier)
+          .resume(
+            ConversationRecord(
+              id: 'la-de-nexus',
+              folderPath: _otra,
+              startedAt: DateTime(2026, 8, 24, 7),
+              messages: const [
+                ChatMessage(
+                  author: ChatAuthor.user,
+                  text: 'de que trata el proyecto',
+                ),
+              ],
+            ),
+          );
+
+      final resultado = await c.read(retomarDelArchivoProvider)(
+        ConversationRecord(
+          id: 'la-de-general',
+          folderPath: _carpeta,
+          startedAt: DateTime(2026, 8, 24, 8),
+          messages: const [
+            ChatMessage(
+              author: ChatAuthor.user,
+              text: 'que reuniones tengo hoy',
+            ),
+          ],
+        ),
+      );
+
+      expect(resultado, RetomarResultado.enPestanaNueva);
+      final items = c.read(conversationsProvider).items;
+      expect(
+        items,
+        hasLength(2),
+        reason: 'la de otra carpeta abre pestaña propia',
+      );
+      expect(
+        items.map((i) => i.folderPath),
+        containsAll([_otra, _carpeta]),
+        reason: 'y sobre SU carpeta, no sobre la que estaba abierta',
+      );
+      // Y la que estaba delante **no se toca**: es el fallo reportado.
+      expect(
+        c
+            .read(assistantControllerProvider(abierta).notifier)
+            .isShowing('la-de-nexus'),
+        isTrue,
+      );
+    },
+  );
 
   test('con el muelle lleno se dice, no se calla', () async {
     final c = _contenedor();
