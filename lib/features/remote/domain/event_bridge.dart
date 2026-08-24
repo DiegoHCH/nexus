@@ -90,6 +90,20 @@ class EventBridge {
     publicar(log.emitir('closed', {'conversation': conversationId}));
   }
 
+  /// Avisa de que el acento del Mac cambió.
+  ///
+  /// **No es de ninguna conversación**, y de ahí que vaya por su cuenta: es del Mac
+  /// entero. Existe porque el acento se leía solo en el saludo, así que cambiarlo con
+  /// el teléfono ya conectado no llegaba hasta la siguiente reconexión — y lo que se
+  /// prometió es que se hereda sin volver a emparejar, no que haya que reconectar.
+  ///
+  /// Va por el mismo registro numerado que lo demás para que un teléfono que se
+  /// reincorpora lo reciba en su resync sin un camino aparte.
+  void acento(int argb) {
+    if (_cerrado) return;
+    publicar(log.emitir('accent', {'argb': argb}));
+  }
+
   /// El estado entero, para quien pide desde un `seq` que ya se tiró.
   ///
   /// Sale de lo mismo que se fue mandando, así que no hay una segunda forma de
@@ -177,6 +191,13 @@ class EventBridge {
       );
     }
 
+    // ── el nombre ───────────────────────────────────────────────────────────
+    if (antes?.title != ahora.title) {
+      salida.add(
+        log.emitir('title', {'conversation': id, 'title': ahora.title}),
+      );
+    }
+
     // ── los pasos ───────────────────────────────────────────────────────────
     //
     // La lista entera y no un diff. Son un puñado de pasos, y un diff obligaría al
@@ -238,6 +259,7 @@ class ConversationView {
     required this.steps,
     required this.meter,
     required this.orb,
+    required this.title,
     this.error,
   });
 
@@ -259,6 +281,15 @@ class ConversationView {
   /// imitación que se desincroniza en el primer estado que se añada.
   final NexusOrbState orb;
 
+  /// Con qué se reconoce esta conversación.
+  ///
+  /// **El primer encargo**, que es el mejor título que nadie ha escrito — es lo que ya
+  /// usa el archivo del escritorio—. Y viaja en la vista y no solo en la lista porque
+  /// una conversación **nace de un evento**: se abre desde el teléfono, llega por el
+  /// puente, y hasta la siguiente lista no tenía ni carpeta ni nombre. Lo que se veía
+  /// entonces era su identificador, que no dice nada.
+  final String title;
+
   /// La respuesta en curso, **completa**. El puente ya se encarga de mandar solo lo
   /// que falta; guardarla entera aquí es lo que permite calcularlo.
   final String reply;
@@ -271,6 +302,7 @@ class ConversationView {
     'id': conversationId,
     'streaming': streaming,
     'orb': orb.name,
+    'title': title,
     'reply': reply,
     'steps': [for (final p in steps) p.toJson()],
     'meter': meter.toJson(),

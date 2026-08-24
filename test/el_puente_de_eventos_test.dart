@@ -6,6 +6,8 @@ import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/remote/presentation/event_publisher.dart';
 
 // El puente: de lo que pasa en la app a eventos numerados.
 //
@@ -48,6 +50,7 @@ void main() {
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
     NexusOrbState orbe = NexusOrbState.sleep,
+    String titulo = 'un encargo',
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
@@ -56,6 +59,7 @@ void main() {
     meter: medidor,
     error: error,
     orb: orbe,
+    title: titulo,
   );
 
   List<Event> deTipo(String kind) =>
@@ -346,6 +350,94 @@ void main() {
 
       expect(puente.ventanasAbiertas, 0);
       expect(ventanas, isEmpty);
+    });
+  });
+
+  group('con qué se reconoce una conversación', () {
+    test('el primer encargo, no el identificador', () {
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(
+              author: ChatAuthor.user,
+              text: 'de que trata el proyecto',
+            ),
+            ChatMessage(
+              author: ChatAuthor.nexus,
+              text: 'Nexus es un asistente…',
+            ),
+          ],
+          carpeta: '/Users/alguien/personal/nexus',
+          id: '1787575393339519-88753',
+        ),
+        'de que trata el proyecto',
+      );
+    });
+
+    test('aplanado a una linea y recortado', () {
+      // Un encargo puede tener tres parrafos y esto va en una barra de titulo.
+      final largo = tituloDeConversacion(
+        mensajes: [
+          ChatMessage(
+            author: ChatAuthor.user,
+            text: 'revisa\n\n  el diff   y ${'x' * 80}',
+          ),
+        ],
+        carpeta: null,
+        id: 'a',
+      );
+
+      expect(largo, startsWith('revisa el diff y x'));
+      expect(largo.contains('\n'), isFalse);
+      expect(largo.length, lessThanOrEqualTo(60));
+    });
+
+    test('sin encargos todavia, la cola de la carpeta', () {
+      expect(
+        tituloDeConversacion(
+          mensajes: const [],
+          carpeta: '/Users/alguien/proyectos/api',
+          id: 'a',
+        ),
+        'api',
+      );
+    });
+
+    test('el id solo como ultimo recurso', () {
+      // Es lo que se veia antes en el telefono, y no dice nada de nada.
+      expect(
+        tituloDeConversacion(mensajes: const [], carpeta: null, id: 'a-b-c'),
+        'a-b-c',
+      );
+    });
+  });
+
+  group('el acento', () {
+    test('sale al cambiar, y no es de ninguna conversacion', () {
+      // Lo que se prometio fue heredarlo **sin volver a emparejar**, y eso ya estaba:
+      // viaja en el saludo. Lo que faltaba era en vivo — cambiarlo con el telefono
+      // conectado no llegaba hasta la siguiente reconexion.
+      puente.acento(0xFF56E1EA);
+
+      final evento = deTipo('accent').single;
+      expect(evento.data['argb'], 0xFF56E1EA);
+      expect(
+        evento.data.containsKey('conversation'),
+        isFalse,
+        reason: 'el acento es del Mac entero, no de una conversacion',
+      );
+    });
+
+    test('va numerado como todo lo demas', () {
+      // Asi un telefono que se reincorpora lo recibe en su resync, sin un camino
+      // aparte que mantener.
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      final antes = publicados.last.seq;
+
+      puente.acento(0xFF00FF00);
+
+      expect(publicados.last.seq, antes + 1);
     });
   });
 

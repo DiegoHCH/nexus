@@ -57,6 +57,10 @@ class RemoteMirror {
       // El estado del orbe **como lo mandó el Mac**, sin traducir. Un nombre que esta
       // versión no conozca deja el que había: un móvil viejo frente a un Mac nuevo
       // tiene que seguir dibujando algo, no quedarse sin orbe.
+      // El nombre que manda el Mac. Llega por evento porque una conversación abierta
+      // desde el teléfono nace así: sin esto se quedaba con su identificador hasta la
+      // siguiente vez que se pidiera la lista.
+      'title' => antes.copyWith(title: evento.data['title'] as String?),
       'orb' => antes.copyWith(
         orb:
             NexusOrbState.values
@@ -172,6 +176,7 @@ class MirroredConversation {
     this.focused = false,
     this.streaming = false,
     this.orb = NexusOrbState.sleep,
+    this.title,
     this.reply = '',
     this.steps = const [],
     this.model,
@@ -188,6 +193,7 @@ class MirroredConversation {
       id: j['id']! as String,
       folder: j['folder'] as String?,
       streaming: j['streaming'] == true,
+      title: j['title'] as String?,
       orb:
           NexusOrbState.values.where((e) => e.name == j['orb']).firstOrNull ??
           NexusOrbState.sleep,
@@ -220,6 +226,9 @@ class MirroredConversation {
   /// conversación de la que todavía no ha llegado nada.
   final NexusOrbState orb;
 
+  /// El nombre que manda el Mac: el primer encargo, o la cola de la carpeta.
+  final String? title;
+
   /// La respuesta en curso, completa. Se construye pegando lo que llega.
   final String reply;
   final List<MirroredStep> steps;
@@ -245,8 +254,30 @@ class MirroredConversation {
   /// Por dónde seguir pidiendo, o `null` si ya se llegó al principio.
   final int? masHistorial;
 
-  /// Lo que se enseña como nombre. La ruta si se sabe; el id si todavía no.
-  String get nombre => folder ?? id;
+  /// Si la respuesta en curso **ya está** en el historial.
+  ///
+  /// Existe porque se veía dos veces: el texto llega como respuesta en curso y, al
+  /// terminar el turno, otra vez como turno del historial. Se compara por contenido y
+  /// no por «si está corriendo»: el historial puede llegar antes de que el turno pare
+  /// —una página de historial pedida a mano, por ejemplo— y con la regla del estado se
+  /// perdería el texto en pantalla justo mientras se está leyendo.
+  bool get respuestaYaEnHistorial {
+    if (reply.isEmpty) return false;
+    final ultimoDeNexus = history.where((m) => !m.mine).lastOrNull;
+    if (ultimoDeNexus == null) return false;
+    // `trim` porque el streaming deja un espacio al final que el historial no trae, y
+    // un espacio no es una respuesta distinta.
+    return ultimoDeNexus.text.trim() == reply.trim();
+  }
+
+  /// Lo que se enseña como nombre.
+  ///
+  /// **El título que manda el Mac primero**: es el primer encargo, y reconocer una
+  /// conversación por lo que le pediste funciona mejor que por dónde vive. Luego la
+  /// ruta, y el id solo si no ha llegado nada — que es lo que se veía en una
+  /// conversación recién abierta desde el teléfono, porque nacía de un evento y los
+  /// eventos no llevaban ni carpeta ni nombre.
+  String get nombre => title ?? folder ?? id;
 
   /// Para la caché.
   ///
@@ -281,6 +312,7 @@ class MirroredConversation {
     bool? focused,
     bool? streaming,
     NexusOrbState? orb,
+    String? title,
     String? reply,
     List<MirroredStep>? steps,
     String? model,
@@ -297,6 +329,7 @@ class MirroredConversation {
     focused: focused ?? this.focused,
     streaming: streaming ?? this.streaming,
     orb: orb ?? this.orb,
+    title: title ?? this.title,
     reply: reply ?? this.reply,
     steps: steps ?? this.steps,
     model: model ?? this.model,

@@ -206,6 +206,15 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   añada un estado.
 - Va en un evento propio, `orb`, y **no dentro de `turn`**: `streaming` y el orbe
   cambian en momentos distintos, y juntarlos haría que uno arrastrara al otro.
+- Con cada conversación viaja también **su nombre**: el primer encargo, aplanado a una
+  línea. Va en la vista y no solo en la lista porque una conversación **nace de un
+  evento** —se abre desde el teléfono— y hasta la siguiente lista no tenía carpeta ni
+  nombre: lo que se veía era su identificador, que no dice nada.
+- Y el **acento** tiene su propio evento, sin `conversation`: es del Mac entero. Se
+  leía solo en el saludo, así que cambiarlo con el teléfono conectado no llegaba hasta
+  la siguiente reconexión — y lo prometido era heredarlo sin volver a emparejar, no
+  reconectar. Va numerado como todo lo demás para que un teléfono que se reincorpora lo
+  reciba en su resync, sin un camino aparte que mantener.
 - **Y el teléfono lo apaga si no hay enlace.** El espejo se queda con lo último que
   supo, así que un Mac que estaba trabajando cuando se perdió la cobertura dejaría el
   orbe girando sobre una pantalla que dice «se perdió el enlace». Un orbe girando

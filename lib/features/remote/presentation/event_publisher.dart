@@ -6,6 +6,7 @@ import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/remote/domain/event_bridge.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
+import 'package:nexus/core/design_system/accent_preference.dart';
 
 /// Engancha el estado de la app al puente de eventos.
 ///
@@ -26,6 +27,7 @@ class EventPublisher {
 
   final _escuchas = <String, ProviderSubscription<AssistantHudState>>{};
   ProviderSubscription<Conversations>? _deLaLista;
+  ProviderSubscription<Accent>? _delAcento;
 
   void arrancar() {
     // Con `fireImmediately`: quien acaba de conectar necesita el estado de ahora, no
@@ -36,6 +38,14 @@ class EventPublisher {
       (_, estado) => _sincronizar(estado),
       fireImmediately: true,
     );
+
+    // El acento, en vivo. **Sin `fireImmediately`**: el valor de ahora ya viaja en
+    // el saludo, así que dispararlo aquí mandaría el mismo dato dos veces a quien
+    // acaba de conectar. Lo que faltaba era solo el cambio.
+    _delAcento = ref.listen(accentControllerProvider, (antes, ahora) {
+      if (antes?.chosen == ahora.chosen) return;
+      bridge.acento(ahora.chosen.toARGB32());
+    });
   }
 
   void parar() {
@@ -45,6 +55,8 @@ class EventPublisher {
     _escuchas.clear();
     _deLaLista?.close();
     _deLaLista = null;
+    _delAcento?.close();
+    _delAcento = null;
     bridge.cerrar();
   }
 
@@ -71,6 +83,17 @@ class EventPublisher {
     }
   }
 
+  String _titulo(String id, AssistantHudState hud) => tituloDeConversacion(
+    mensajes: hud.messages,
+    carpeta: ref
+        .read(conversationsProvider)
+        .items
+        .where((c) => c.id == id)
+        .firstOrNull
+        ?.folderPath,
+    id: id,
+  );
+
   /// Traduce el estado de la pantalla a lo que ve el teléfono.
   ConversationView _mirar(String id, AssistantHudState hud) {
     // La última respuesta de Nexus, terminada o en curso. El puente ya se encarga de
@@ -88,6 +111,7 @@ class EventPublisher {
       // que el orbe del teléfono sea **el mismo** y no una imitación que se
       // desincroniza en el primer estado que se añada.
       orb: hud.orbState,
+      title: _titulo(id, hud),
       reply: ultima.text,
       steps: [
         for (final paso in hud.activity)
@@ -108,4 +132,33 @@ class EventPublisher {
       error: hud.errorMessage,
     );
   }
+}
+
+/// Con qué se reconoce una conversación.
+///
+/// **El primer encargo**, que es lo que ya usa el archivo del escritorio y resulta ser
+/// el mejor título que nadie ha escrito. Se aplana a una línea porque un encargo puede
+/// tener tres párrafos y esto va en una barra de título.
+///
+/// Si todavía no se ha pedido nada, la cola de la carpeta. Y el id solo como último
+/// recurso — que es justo lo que se veía en el teléfono al abrir una conversación
+/// nueva, y no dice nada de nada.
+///
+/// Función aparte y pura porque lo otro no se podía probar: dejar que el publicador
+/// mandara el id se colaba entero, con todas las pruebas en verde.
+String tituloDeConversacion({
+  required List<ChatMessage> mensajes,
+  required String? carpeta,
+  required String id,
+}) {
+  final primero = mensajes
+      .where((m) => m.author == ChatAuthor.user && m.text.trim().isNotEmpty)
+      .firstOrNull;
+  if (primero != null) {
+    final plano = primero.text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return plano.length <= 60 ? plano : '${plano.substring(0, 59)}…';
+  }
+
+  if (carpeta == null || carpeta.isEmpty) return id;
+  return carpeta.split('/').where((p) => p.isNotEmpty).lastOrNull ?? id;
 }

@@ -129,11 +129,19 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // turnos crecen hacia abajo y el compositor vive pegado al fondo.
       body: Stack(
         children: [
+          // **Pequeño y arriba, no media pantalla.** La primera versión le daba el 42 %
+          // del alto y el resultado era el orbe **detrás de los párrafos**: sus puntos
+          // se leían como suciedad sobre el texto, no como presencia. El mockup de
+          // esta pantalla lo dibuja con `r .075` y el centro al 12 % del alto — o sea
+          // arriba, en la banda de la cabecera, donde no hay nada que leer.
+          //
+          // El pintor saca el radio de `min(ancho, alto) × 0.30`, así que una caja de
+          // 190 de alto da unos 57 px de diámetro, que es lo que mide en el mockup.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: MediaQuery.of(context).size.height * 0.42,
+            height: 190,
             child: IgnorePointer(
               child: NexusOrb(
                 // Con la regla puesta: sin enlace no gira, diga lo que diga el último
@@ -168,13 +176,17 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                         _Mensaje(mensaje: mensaje),
                       if (conv.history.isNotEmpty) const SizedBox(height: 8),
                       if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
-                      if (conv.reply.isNotEmpty)
+                      // La respuesta en curso, **y solo si no está ya abajo en el
+                      // historial**: al terminar el turno el mismo texto salía por los
+                      // dos sitios y con dos estilos distintos, que se lee como si el
+                      // asistente hubiera contestado dos veces.
+                      if (conv.reply.isNotEmpty && !conv.respuestaYaEnHistorial)
                         Padding(
                           padding: const EdgeInsets.only(top: 16),
-                          child: SelectableText(
-                            conv.reply,
+                          child: TurnBlock(
                             key: const ValueKey('respuesta'),
-                            style: TextStyle(color: colors.ink, height: 1.5),
+                            mine: false,
+                            text: conv.reply,
                           ),
                         ),
                       if (conv.error != null)

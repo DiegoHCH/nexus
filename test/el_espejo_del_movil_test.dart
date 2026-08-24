@@ -63,6 +63,7 @@ void main() {
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
     NexusOrbState orbe = NexusOrbState.sleep,
+    String titulo = 'un encargo',
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
@@ -71,6 +72,7 @@ void main() {
     meter: medidor,
     error: error,
     orb: orbe,
+    title: titulo,
   );
 
   group('ida y vuelta: lo que el puente manda, el espejo lo entiende', () {
@@ -323,6 +325,65 @@ void main() {
       expect(espejo.vacio, isTrue);
     });
   });
+  group('el nombre y la respuesta', () {
+    test('el nombre llega por evento, no solo con la lista', () {
+      // El fallo que esto ata: una conversacion abierta **desde el telefono** nace de
+      // un evento, y los eventos no llevaban carpeta ni nombre. Lo que se veia en la
+      // barra de titulo era su identificador — `1787575393339519-88753…`.
+      final espejo = const RemoteMirror().aplicar(
+        const Event(
+          seq: 1,
+          kind: 'title',
+          data: {'conversation': 'a', 'title': 'de que trata el proyecto'},
+        ),
+      );
+
+      expect(espejo.conversations['a']!.nombre, 'de que trata el proyecto');
+    });
+
+    test('el titulo manda sobre la carpeta', () {
+      // Reconocer una conversacion por lo que le pediste funciona mejor que por donde
+      // vive: dos conversaciones sobre el mismo repo se llaman igual.
+      final espejo = const RemoteMirror()
+          .conLista([
+            {'id': 'a', 'folder': '/Users/alguien/proyectos/api'},
+          ])
+          .aplicar(
+            const Event(
+              seq: 1,
+              kind: 'title',
+              data: {'conversation': 'a', 'title': 'arregla el login'},
+            ),
+          );
+
+      expect(espejo.conversations['a']!.nombre, 'arregla el login');
+    });
+
+    test('la respuesta en curso se reconoce cuando ya esta en el historial', () {
+      // Se veia dos veces: como respuesta en curso y otra vez como turno del
+      // historial, con dos estilos distintos — se lee como si hubiera contestado dos
+      // veces.
+      final conv = MirroredConversation(
+        id: 'a',
+        reply: 'la casa esta ordenada ',
+        history: const [
+          MirroredMessage(mine: true, text: 'ordena la casa'),
+          MirroredMessage(mine: false, text: 'la casa esta ordenada'),
+        ],
+      );
+
+      // Con el espacio del streaming al final: un espacio no es otra respuesta.
+      expect(conv.respuestaYaEnHistorial, isTrue);
+
+      final otra = conv.copyWith(reply: 'y el test pasa');
+      expect(
+        otra.respuestaYaEnHistorial,
+        isFalse,
+        reason: 'si es otra respuesta hay que verla, o desaparece del todo',
+      );
+    });
+  });
+
   group('el léxico del orbe', () {
     test('el estado llega del Mac y el espejo lo guarda', () {
       // No se deduce de `streaming`: el micro abierto no es trabajo corriendo, y la voz
