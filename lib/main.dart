@@ -18,6 +18,7 @@ import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
+import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -87,13 +88,25 @@ class _MainAppState extends ConsumerState<MainApp> {
       navigator.context,
       forgetFolder: focused == null ? null : folder.split('/').last,
       onPick: (record) async {
-        // La conversación elegida puede ser de otra carpeta —las pestañas son
-        // por cuenta, no por proyecto—, así que se abre sobre **la suya**.
-        final id = await ref
-            .read(conversationsProvider.notifier)
-            .open(record.folderPath);
-        if (id == null) return;
-        ref.read(assistantControllerProvider(id).notifier).resume(record);
+        // El mensajero **se coge antes del `await`**, no después: buscar el
+        // `BuildContext` cuando la espera ya pasó es usar un contexto que puede no
+        // estar montado, y el analizador lo marca con razón. Cogerlo antes no
+        // cuesta nada cuando no hace falta.
+        final mensajero = ScaffoldMessenger.maybeOf(navigator.context);
+
+        // La decisión vive en su proveedor, que es quien sabe qué hay abierto.
+        // Aquí solo queda contar el único desenlace que necesita palabras.
+        final resultado = await ref.read(retomarDelArchivoProvider)(record);
+        if (resultado != RetomarResultado.noCabe) return;
+
+        mensajero?.showSnackBar(
+          SnackBar(
+            content: Text(
+              'Ya hay ${Conversations.max} conversaciones abiertas. Cierra una '
+              'para retomar esta.',
+            ),
+          ),
+        );
       },
       onForget: () {
         final id = focused?.id;
