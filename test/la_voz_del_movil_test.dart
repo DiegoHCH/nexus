@@ -1,9 +1,12 @@
+import 'package:flutter/widgets.dart';
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/remote/domain/remote_voice_source.dart';
+import 'package:nexus/features/remote/presentation/widgets/microfono_dibujado.dart';
 import 'package:nexus/features/remote/domain/voice_input_compartido.dart';
 import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -123,12 +126,20 @@ ProviderContainer _conVoz({
   return c;
 }
 
+/// Encender y tomar el flujo, que ahora son dos pasos: `abrir` enciende y `flujo` es
+/// lo que lee la sesion. Estaban juntos y por eso chocaban — `startVoice` abria, tiraba
+/// el stream, y la sesion volvia a abrir cerrando el primero.
+Stream<AudioFrame> abrirY(RemoteVoiceSource fuente) {
+  fuente.abrir();
+  return fuente.flujo!;
+}
+
 void main() {
   group('la fuente remota', () {
     test('lo que llega mientras está abierta sale como frames', () async {
       final fuente = RemoteVoiceSource();
       final frames = <AudioFrame>[];
-      fuente.abrir().listen(frames.add);
+      abrirY(fuente).listen(frames.add);
 
       fuente.entra(_pcm([0, 1000, -1000, 0]));
       await Future<void>.delayed(Duration.zero);
@@ -149,22 +160,44 @@ void main() {
       expect(fuente.activo, isFalse);
     });
 
-    test('abrir dos veces no deja dos micrófonos', () async {
-      // Pasa cuando se pierde el `stopVoice`. Dejar el primero colgado serían dos
-      // fuentes escribiendo en la misma sesión.
+    test('abrir dos veces sigue siendo el mismo microfono', () async {
+      // **Esta promesa cambio, y a proposito.** Antes abrir cerraba lo anterior, para
+      // no dejar dos fuentes escribiendo en la misma sesion. Pero ahora soltar el
+      // boton no derriba la sesion —soltar es «ya esta, contestame»— asi que volver a
+      // sostener cae sobre una sesion viva que esta leyendo *este* stream: cerrarlo y
+      // abrir otro la dejaria escuchando el de antes mientras los trozos nuevos entran
+      // a un controlador que nadie lee. Silencio, y de los que no se ven.
       final fuente = RemoteVoiceSource();
-      final primera = <AudioFrame>[];
-      var primeraCerrada = false;
-      fuente.abrir().listen(primera.add, onDone: () => primeraCerrada = true);
+      final leidos = <AudioFrame>[];
+      var cerrada = false;
+      abrirY(fuente).listen(leidos.add, onDone: () => cerrada = true);
 
-      final segunda = <AudioFrame>[];
-      fuente.abrir().listen(segunda.add);
+      // El segundo sostener, con el primero todavia abierto.
+      fuente.abrir();
       fuente.entra(_pcm([500, 500]));
       await Future<void>.delayed(Duration.zero);
 
-      expect(primeraCerrada, isTrue);
-      expect(primera, isEmpty);
-      expect(segunda, hasLength(1));
+      expect(cerrada, isFalse, reason: 'la sesion viva se quedo sin su stream');
+      expect(leidos, hasLength(1));
+      expect(fuente.descartados, 0);
+    });
+
+    test('y tras cerrar, abrir da un microfono nuevo', () async {
+      // Cerrado si: la sesion termino, y la siguiente no puede heredar un stream
+      // muerto ni el recuento de descartados de la anterior.
+      final fuente = RemoteVoiceSource();
+      abrirY(fuente).listen((_) {});
+      fuente.cerrar();
+      fuente.entra(_pcm([100]));
+      expect(fuente.descartados, 1);
+
+      final leidos = <AudioFrame>[];
+      abrirY(fuente).listen(leidos.add);
+      fuente.entra(_pcm([500, 500]));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(leidos, hasLength(1));
+      expect(fuente.descartados, 0, reason: 'el recuento no se reinicio');
     });
 
     test(
@@ -172,7 +205,7 @@ void main() {
       () async {
         final fuente = RemoteVoiceSource();
         final frames = <AudioFrame>[];
-        fuente.abrir().listen(frames.add);
+        abrirY(fuente).listen(frames.add);
 
         fuente.entra(_pcm(List.filled(64, 0)));
         fuente.entra(_pcm(List.filled(64, 32000)));
@@ -309,5 +342,155 @@ void main() {
       expect(_mandados.map((a) => a.seq), [0, 1]);
       expect(_mandados.first.pcmBase64.isNotEmpty, isTrue);
     });
+  });
+  group('el puerto no reabre', () {
+    test('un trozo que llega antes de que la sesion escuche no se pierde', () async {
+      // Este era el fallo: `startVoice` abria y tiraba el stream, y cuando la sesion
+      // pedia audio se volvia a abrir **cerrando el primero**. Los trozos que llegaban
+      // en medio entraban al controlador que nadie escuchaba y desaparecian en
+      // silencio — justo los del principio de la frase.
+      final fuente = RemoteVoiceSource();
+      final puerto = VoiceInputCompartido(
+        local: _MicroDelMac(),
+        remoto: fuente,
+      );
+
+      fuente.abrir();
+      fuente.entra(Uint8List.fromList([1, 0, 2, 0]));
+
+      final leidos = <AudioFrame>[];
+      puerto.listen().listen(leidos.add);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(leidos, hasLength(1), reason: 'el trozo de antes se perdio');
+      expect(fuente.descartados, 0);
+    });
+
+    test('sin encender, el puerto da el microfono del Mac', () {
+      final fuente = RemoteVoiceSource();
+      final mac = _MicroDelMac();
+      VoiceInputCompartido(local: mac, remoto: fuente).listen();
+
+      // Y esto es lo correcto: nadie sostiene el telefono, asi que la voz es la del
+      // Mac. Lo que no valia era caer aqui **con el telefono sosteniendo**.
+      expect(mac.vecesQueSeAbrio, 1);
+    });
+  });
+
+  test('encender y apagar la voz se atienden en fila', () {
+    // `stopVoice` llegaba mientras `startVoice` arrancaba la sesion, leia un
+    // `voiceActive` que aun era `false` —no paraba nada— y cerraba la fuente. La
+    // sesion terminaba de arrancar, pedia audio y se quedaba con el microfono del Mac
+    // para toda la sesion: el orbe se encendia en los dos lados y no llegaba nada.
+    final fuente = File(
+      'lib/features/remote/presentation/assistant_surface.dart',
+    ).readAsStringSync();
+
+    for (final metodo in ['startVoice', 'stopVoice']) {
+      final desde = fuente.indexOf('Future<void> $metodo(');
+      expect(desde, greaterThan(0), reason: 'no encontre $metodo');
+      final cuerpo = fuente.substring(desde, fuente.indexOf(';', desde));
+      expect(
+        cuerpo,
+        contains('_enFila('),
+        reason: '$metodo fuera de la fila vuelve a poder cruzarse',
+      );
+    }
+  });
+  testWidgets('el microfono se dibuja, y sus estados se leen sin color', (
+    tester,
+  ) async {
+    // Era un `●` que habia que aprender, y de Material no puede ser —la guarda de la
+    // pieza 6 lo tiene atado—. Se comprueba lo que importa: que hay un dibujo, y que
+    // los tres estados **se distinguen sin mirar el color**, para quien no separe el
+    // rojo del ambar.
+    for (final caso in [
+      (relleno: false, tachado: false),
+      (relleno: true, tachado: false),
+      (relleno: false, tachado: true),
+    ]) {
+      await tester.pumpWidget(
+        Center(
+          child: MicrofonoDibujado(
+            color: const Color(0xFF56E1EA),
+            size: 22,
+            relleno: caso.relleno,
+            tachado: caso.tachado,
+          ),
+        ),
+      );
+      expect(find.byType(CustomPaint), findsWidgets);
+    }
+
+    // No se comprueba que los tres pinten trazos distintos: comparar pixeles pide
+    // un golden, y el painter es privado. Lo que si queda atado es que el dibujo
+    // existe y que ninguno de los tres estados revienta al pintarse.
+  });
+  test('el microfono es un interruptor: un toque abre y otro cierra', () async {
+    // Era «manten pulsado», que obliga a tener el dedo en el cristal mientras se
+    // habla. Hablando con el Mac se hace lo contrario: se deja el telefono en la mesa
+    // y se habla, asi que el gesto pasa a ser un interruptor.
+    final orden = <String>[];
+    final c = _conVoz(orden: orden);
+
+    await c.read(vozProvider.notifier).sostener('a');
+    expect(c.read(vozProvider), Voz.hablando);
+
+    // Y el segundo toque lo cierra. Lo que preocupaba del interruptor —un microfono
+    // olvidado abierto— lo cubre la sesion del Mac, que se cierra sola por
+    // inactividad: es mejor sitio para esa garantia que el dedo del usuario.
+    await c.read(vozProvider.notifier).soltar('a');
+    expect(c.read(vozProvider), Voz.callado);
+    expect(orden, contains('micro:cerrar'));
+    expect(orden, contains('mac:stopVoice'));
+  });
+
+  test('y el boton del microfono es un toque, no un sostener', () {
+    // La prueba de arriba cubre el controlador; esto cubre el gesto, que es donde
+    // vivia el «manten pulsado»: un `Listener` con `onPointerUp` cerrando al levantar
+    // el dedo. Si vuelve, el controlador seguiria bien y la app volveria a obligar a
+    // tener el dedo en el cristal.
+    final fuente = File(
+      'lib/features/remote/presentation/pages/conversation_page.dart',
+    ).readAsStringSync();
+    final desde = fuente.indexOf('class _Microfono');
+    final cuerpo = fuente.substring(desde, fuente.indexOf('\n}\n', desde));
+
+    expect(cuerpo, contains('alTocar:'));
+    expect(
+      cuerpo,
+      isNot(contains('onPointerUp')),
+      reason: 'volvio el sostener',
+    );
+  });
+
+  test('cerrar el microfono corta el audio en el acto, sin matar el flujo', () async {
+    // Lo que se pidio: tocar cerrar en el telefono cierra el microfono **ya**, no
+    // cuando la sesion del Mac se canse. Y lo que no puede pasar a la vez: cerrar el
+    // flujo, porque a la sesion le queda lo importante —contestar—.
+    final fuente = RemoteVoiceSource();
+    final leidos = <AudioFrame>[];
+    var cerrado = false;
+    fuente.abrir();
+    fuente.flujo!.listen(leidos.add, onDone: () => cerrado = true);
+
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+    expect(leidos, hasLength(1));
+
+    fuente.silenciar();
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+
+    expect(leidos, hasLength(1), reason: 'siguio entrando audio tras cerrar');
+    expect(cerrado, isFalse, reason: 'la sesion se quedo sin poder contestar');
+    expect(fuente.activo, isTrue);
+
+    // Y volver a abrir entra por el mismo flujo, que es el que la sesion viva lee.
+    fuente.abrir();
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+    expect(leidos, hasLength(2));
+    expect(cerrado, isFalse);
   });
 }

@@ -116,6 +116,19 @@ class EventPublisher {
       orb: hud.orbState,
       title: _titulo(id, hud),
       reply: ultima.text,
+      // Quien decide cuándo acaba la voz es el Mac —su sesión se cierra sola por
+      // inactividad— así que se dice, y el teléfono cierra su micrófono al oírlo.
+      voice: hud.voiceActive,
+      // Y lo último que dijo quien pregunta. Hablando, el teléfono no lo sabe: la voz
+      // se transcribe aquí, así que sin esto le llegaba la respuesta a una pregunta
+      // que nunca se pintó.
+      ask:
+          hud.messages
+              .where((m) => m.author == ChatAuthor.user)
+              .lastOrNull
+              ?.text
+              .trim() ??
+          '',
       steps: [
         for (final paso in hud.activity)
           RemoteStep(

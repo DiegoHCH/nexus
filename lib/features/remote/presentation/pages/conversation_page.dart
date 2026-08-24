@@ -8,6 +8,7 @@ import 'package:nexus/features/remote/presentation/widgets/link_badge.dart';
 import 'package:nexus/features/remote/presentation/widgets/write_phrase_sheet.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
+import 'package:nexus/features/remote/presentation/widgets/microfono_dibujado.dart';
 import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
@@ -29,6 +30,9 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   final _scroll = ScrollController();
   var _mandando = false;
 
+  /// La escucha de «el Mac ya terminó la voz».
+  ProviderSubscription<MirroredConversation?>? _delMac;
+
   @override
   void initState() {
     super.initState();
@@ -45,10 +49,25 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // conversaciones para leer el de una.
       await notifier.masHistorial(widget.conversationId);
     });
+
+    // **Cuando el Mac da por terminada la voz, aquí se cierra el micrófono.**
+    //
+    // El teléfono presta el micrófono pero quien decide cuándo acaba es el Mac: su
+    // sesión se cierra sola por inactividad. Sin esto el teléfono se quedaba con el
+    // micrófono abierto —diciendo en pantalla que escuchaba— mandando trozos a una
+    // sesión que ya no existía.
+    _delMac = ref.listenManual(conversationProvider(widget.conversationId), (
+      antes,
+      ahora,
+    ) {
+      if (antes?.voiceOnMac != true || ahora?.voiceOnMac != false) return;
+      ref.read(vozProvider.notifier).soltar(widget.conversationId);
+    });
   }
 
   @override
   void dispose() {
+    _delMac?.close();
     _campo.dispose();
     _scroll.dispose();
     super.dispose();
@@ -88,7 +107,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// `reply` antes de aterrizar en el historial—, y con solo mirar `history` el orbe
   /// grande se quedaría encima del texto que empieza a llegar.
   bool _vacia(MirroredConversation conv) =>
-      conv.history.isEmpty && conv.reply.isEmpty && conv.steps.isEmpty;
+      conv.history.isEmpty &&
+      conv.reply.isEmpty &&
+      conv.ask.isEmpty &&
+      conv.steps.isEmpty;
 
   /// Ponerle nombre o cerrarla.
   ///
@@ -233,6 +255,23 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                   for (final mensaje in conv.history)
                     _Mensaje(mensaje: mensaje),
                   if (conv.history.isNotEmpty) const SizedBox(height: 8),
+                  // **Lo que dijo el usuario, cuando lo dijo hablando.** Escribiendo
+                  // el teléfono ya lo tiene; hablando, la voz se transcribe en el Mac
+                  // y sin esto llegaba la respuesta a una pregunta que nunca se pintó
+                  // — una conversación contestando sola.
+                  //
+                  // Va **antes** de los pasos y de la respuesta porque es lo que las
+                  // provoca, y con la misma cautela que la respuesta: solo si no está
+                  // ya abajo en el historial, o se vería dos veces al cerrarse el turno.
+                  if (conv.ask.isNotEmpty && !conv.preguntaYaEnHistorial)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: TurnBlock(
+                        key: const ValueKey('pregunta'),
+                        mine: true,
+                        text: conv.ask,
+                      ),
+                    ),
                   if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
                   // La respuesta en curso, **y solo si no está ya abajo en el
                   // historial**: al terminar el turno el mismo texto salía por los
@@ -638,12 +677,17 @@ class _Compositor extends ConsumerWidget {
 /// Cuadrado de 44 —lo mismo que el campo de al lado, así que la fila queda a una sola
 /// altura— con un hairline del color de lo que hace y el glifo dentro. Apagado se ve
 /// igual pero en `rule`: quitarlo movería el campo justo cuando se está escribiendo.
-/// Sostener para hablar.
+/// Un toque abre el micrófono y otro lo cierra.
 ///
-/// **Mientras se sostiene**, no un interruptor: el mockup lo dice en su propio pie
-/// —«mantén pulsado para hablar»— y la razón es que un micrófono que se queda abierto
-/// porque nadie volvió a tocar el botón es exactamente lo que no se quiere en un
-/// teléfono que se guarda en el bolsillo.
+/// **Interruptor, y no mientras se sostiene.** El mockup pedía «mantén pulsado» y se
+/// construyó así, con el argumento de que un micrófono olvidado abierto es lo peor que
+/// le puede pasar a un teléfono que se guarda en el bolsillo. Pero sostener obliga a
+/// tener el dedo en el cristal mientras se habla, y hablando con el Mac se hace lo
+/// contrario: se deja el teléfono en la mesa y se habla.
+///
+/// El riesgo que preocupaba sigue cubierto, y no por el gesto: la sesión de voz del Mac
+/// **se cierra sola por inactividad**, así que un micrófono que nadie vuelve a tocar se
+/// apaga igual. Es mejor sitio para esa garantía que el dedo del usuario.
 ///
 /// Los cuatro estados del contrato se ven aquí: sin permiso, abriendo, hablando y sin
 /// Mac. Ninguno es una excepción — todos son cosas que pasan y que hay que poder decir.
@@ -658,29 +702,47 @@ class _Microfono extends ConsumerWidget {
     final voz = ref.watch(vozProvider);
     final control = ref.read(vozProvider.notifier);
 
-    final (glifo, color) = switch (voz) {
-      Voz.hablando => ('●', colors.accent),
-      Voz.abriendo => ('·', colors.mute),
-      Voz.sinMicrofono => ('✕', colors.err),
-      Voz.sinMac => ('✕', colors.warn),
-      Voz.callado => ('◉', colors.mute),
+    // **Un micrófono, no un punto.** Los otros dos cuadros de esta fila son glifos
+    // —son acciones sobre el texto— pero este es un objeto, y un objeto se reconoce
+    // antes dibujado que descrito: un `●` había que aprenderlo. Los cinco estados
+    // siguen distinguiéndose, ahora por la forma del propio micrófono en vez de por
+    // cinco caracteres que se parecían entre sí.
+    // **Un micrófono, no un punto.** Los otros dos cuadros de esta fila son glifos
+    // —son acciones sobre el texto— pero este es un objeto, y un objeto se reconoce
+    // antes dibujado que descrito: un `●` había que aprenderlo. Dibujado y no de
+    // Material, que aquí no se habla —la guarda de la pieza 6 lo tiene atado—.
+    //
+    // Los cinco estados siguen distinguiéndose, y ahora **por la forma**: contorno,
+    // relleno y tachado. El color separa después las dos causas de que no vaya a abrir,
+    // pero quien no distinga esos dos tonos sigue viendo la tachadura.
+    final (relleno, tachado, color) = switch (voz) {
+      Voz.hablando => (true, false, colors.accent),
+      Voz.abriendo => (false, false, colors.accent),
+      Voz.sinMicrofono => (false, true, colors.err),
+      Voz.sinMac => (false, true, colors.warn),
+      Voz.callado => (false, false, colors.mute),
     };
 
-    return Listener(
-      // `Listener` y no `GestureDetector`: hace falta saber cuándo **se levanta el
-      // dedo pase lo que pase** —incluido al salir del botón deslizando, que es el
-      // «desliza para cancelar» del mockup— y `onTapUp` no llega si el gesto se cancela.
-      onPointerDown: (_) => control.sostener(conversationId),
-      onPointerUp: (_) => control.soltar(conversationId),
-      onPointerCancel: (_) => control.soltar(conversationId),
-      child: _Cuadro(
-        key: const ValueKey('microfono'),
-        glifo: glifo,
+    // Abierto o abriéndose, el toque cierra; si no, abre. Se mira el estado y no un
+    // booleano propio del widget: el micrófono puede cerrarse **sin que nadie lo
+    // toque** —la sesión se cae, o el sistema quita el permiso— y un interruptor con
+    // memoria propia se quedaría diciendo «abierto» sobre un micrófono cerrado.
+    final abierto = voz == Voz.hablando || voz == Voz.abriendo;
+
+    return _Cuadro(
+      key: const ValueKey('microfono'),
+      dibujo: MicrofonoDibujado(
         color: color,
-        // Sin `alTocar`: quien manda es el sostener, y dejarlo también como toque haría
-        // que un toque suelto abriera el micrófono sin cerrarlo.
-        alTocar: () {},
+        // Se mide con la tipografía de la fila para que los tres cuadros pesen
+        // igual: un dibujo a su tamaño de gusto se veía más grande que sus vecinos.
+        size: NexusTypography.lead.fontSize! * 1.3,
+        relleno: relleno,
+        tachado: tachado,
       ),
+      color: color,
+      alTocar: () => abierto
+          ? control.soltar(conversationId)
+          : control.sostener(conversationId),
     );
   }
 }
@@ -688,12 +750,21 @@ class _Microfono extends ConsumerWidget {
 class _Cuadro extends StatelessWidget {
   const _Cuadro({
     super.key,
-    required this.glifo,
+    this.glifo,
+    this.dibujo,
     required this.color,
     required this.alTocar,
-  });
+  }) : assert(
+         (glifo == null) != (dibujo == null),
+         'un cuadro lleva glifo o dibujo, y exactamente uno',
+       );
 
-  final String glifo;
+  /// Un carácter, para los cuadros que son una **acción** —mandar, parar—.
+  final String? glifo;
+
+  /// Un dibujo, para los que son un **objeto**: el micrófono se reconoce antes
+  /// dibujado que descrito, y con un `●` había que aprender qué significaba.
+  final Widget? dibujo;
   final Color color;
   final VoidCallback? alTocar;
 
@@ -712,12 +783,14 @@ class _Cuadro extends StatelessWidget {
           borderRadius: BorderRadius.circular(2),
           border: Border.all(color: vivo ? color : colors.rule),
         ),
-        child: Text(
-          glifo,
-          style: NexusTypography.body.copyWith(
-            color: vivo ? color : colors.rule2,
-          ),
-        ),
+        child:
+            dibujo ??
+            Text(
+              glifo!,
+              style: NexusTypography.body.copyWith(
+                color: vivo ? color : colors.rule2,
+              ),
+            ),
       ),
     );
   }

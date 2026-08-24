@@ -237,4 +237,29 @@ void main() {
       expect(trozo, isNot(contains('onPick: controller.resume')));
     }
   });
+  test('el telefono retoma por el mismo camino que el escritorio', () {
+    // **El tercer camino**, y el que faltaba: la superficie remota abria la carpeta y
+    // nunca pintaba el registro, asi que el telefono retomaba una conversacion del
+    // historial y la recibia vacia. Mismo patron que ya paso tres veces hoy — varios
+    // sitios haciendo lo mismo y solo uno arreglado.
+    final superficie = File(
+      'lib/features/remote/presentation/assistant_surface.dart',
+    ).readAsStringSync();
+    final desde = superficie.indexOf('Future<String> resumeConversation');
+    final cuerpo = superficie.substring(
+      desde,
+      superficie.indexOf('\n  }\n', desde),
+    );
+
+    expect(
+      cuerpo,
+      contains('retomarDelArchivoProvider'),
+      reason: 'sin el proveedor, el telefono abre la carpeta y no pinta nada',
+    );
+    expect(
+      cuerpo,
+      isNot(contains('conversationsProvider.notifier)\n          .open(')),
+      reason: 'abrir la carpeta a mano es lo que dejaba la conversacion vacia',
+    );
+  });
 }

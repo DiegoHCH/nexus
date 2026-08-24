@@ -234,6 +234,16 @@ class UnknownConversation implements Exception {
   String toString() => 'UnknownConversation($id)';
 }
 
+/// No cabe otra conversación abierta en el Mac.
+///
+/// Tiene su tipo porque **es una respuesta y no una avería**: el teléfono puede decirlo
+/// —«cierra una para retomar esta»— y con un fallo genérico solo podía decir «no se pudo
+/// atender», que manda a mirar al sitio equivocado.
+class DemasiadasConversaciones implements Exception {
+  @override
+  String toString() => 'DemasiadasConversaciones()';
+}
+
 /// Se pidió el contenido de un documento que no es texto.
 ///
 /// Tiene su propio tipo y no cae en el error genérico porque **es una respuesta, no

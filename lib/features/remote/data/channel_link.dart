@@ -534,10 +534,19 @@ class ChannelLink {
         if (accent != null && !_acento.isClosed) _acento.add(accent);
         // **El `seq` de la bienvenida dice si vamos al día sin pedir nada.** Si
         // coincide con lo último visto, no hay resync que hacer; si no, se pide.
-        _pasarA(LinkState.conectado);
+        //
+        // Y `conectado` **solo se anuncia si no hay resync**. Antes se anunciaba
+        // siempre y en la línea siguiente se pasaba a `resincronizando`: el aviso
+        // duraba cero fotogramas, pero quien lo escucha —el espejo pide la lista al
+        // conectar— actuaba justo cuando `pedir` ya rechazaba por no estar conectado.
+        // Lo que se veía era «no pude preguntarle al Mac» con el Mac contestando
+        // perfectamente. Un estado que se anuncia y se desmiente en el mismo bloque
+        // no es un estado: es ruido con nombre.
+        final alDia = seq == _ultimoSeq;
+        if (alDia) _pasarA(LinkState.conectado);
         _saludo?.complete();
         _saludo = null;
-        if (seq != _ultimoSeq) _pedirLoQueFalta();
+        if (!alDia) _pedirLoQueFalta();
 
       case UpgradeRequired():
         _saludo?.completeError(const _VersionIncompatible());
@@ -611,6 +620,19 @@ class ChannelLink {
       return;
     }
     _ultimoSeq = evento.seq;
+
+    // **El resync servido con eventos también termina aquí.** `_pedirLoQueFalta` deja
+    // el estado en `resincronizando`, y el Mac puede contestar de dos maneras: con un
+    // `Snapshot` —que sí volvía a `conectado`— o con los eventos que faltan, que no
+    // volvían de ninguna. El teléfono se quedaba en `resincronizando` para siempre:
+    // la pantalla decía «buscando tu Mac» con el socket vivo y el saludo hecho, y
+    // `pedir` y `mandarAudio` —que exigen `conectado`— rechazaban todo en silencio.
+    //
+    // Solo se veía con atraso: un teléfono al día no pide resync y se quedaba
+    // conectado, así que el fallo esperaba a la primera reconexión con eventos
+    // pendientes. Recibir un evento en orden **es** la prueba de que el canal
+    // funciona, así que es aquí donde se dice.
+    if (_ahora == LinkState.resincronizando) _pasarA(LinkState.conectado);
 
     // **El acento no es de ninguna conversación**, así que no va al espejo: el espejo
     // descarta lo que no lleva `conversation` y el cambio se perdería en silencio. Va

@@ -52,7 +52,9 @@ void main() {
     test('dos tokens no se parecen', () {
       // No demuestra que sea seguro —eso lo da `Random.secure()`— pero sí caza el
       // error de generar una constante, o de sembrar el generador con algo fijo.
-      final muchos = {for (var i = 0; i < 200; i++) ChannelToken.generar().value};
+      final muchos = {
+        for (var i = 0; i < 200; i++) ChannelToken.generar().value,
+      };
       expect(muchos.length, 200, reason: 'hubo repetición en 200 intentos');
     });
 
@@ -62,7 +64,11 @@ void main() {
       // token *parece* aleatorio.
       final a = ChannelToken.generar(Random(1));
       final b = ChannelToken.generar(Random(1));
-      expect(a, b, reason: 'sembrado es predecible: de ahí que se use Random.secure');
+      expect(
+        a,
+        b,
+        reason: 'sembrado es predecible: de ahí que se use Random.secure',
+      );
       expect(ChannelToken.generar(), isNot(a));
     });
   });
@@ -78,7 +84,8 @@ void main() {
       expect(
         impreso.contains(t.value),
         isFalse,
-        reason: 'el valor entero apareció en toString: eso acaba en un registro',
+        reason:
+            'el valor entero apareció en toString: eso acaba en un registro',
       );
       expect(impreso, contains(t.fingerprint));
       expect(impreso, startsWith('ChannelToken('));
@@ -120,8 +127,12 @@ void main() {
       await store.write(nuevo);
 
       expect(await store.read(), nuevo);
-      expect(await store.read(), isNot(viejo),
-          reason: 'rotar invalida todos los teléfonos de golpe, que es lo decidido');
+      expect(
+        await store.read(),
+        isNot(viejo),
+        reason:
+            'rotar invalida todos los teléfonos de golpe, que es lo decidido',
+      );
     });
 
     test('borrar deja el canal sin token, y eso es lo correcto', () async {
@@ -147,7 +158,9 @@ void main() {
     test('asegurar genera uno si no hay', () async {
       final store = _Memoria();
       final c = montar(store);
-      final t = await c.read(channelTokenControllerProvider.notifier).asegurar();
+      final t = await c
+          .read(channelTokenControllerProvider.notifier)
+          .asegurar();
       expect(t.value.length, 43);
       expect(await store.read(), t);
     });
@@ -161,7 +174,10 @@ void main() {
       await store.write(viejo);
       final c = montar(store);
 
-      expect(await c.read(channelTokenControllerProvider.notifier).asegurar(), viejo);
+      expect(
+        await c.read(channelTokenControllerProvider.notifier).asegurar(),
+        viejo,
+      );
       expect(store.escrituras, 1, reason: 'no debería haber escrito otra vez');
     });
 
@@ -171,7 +187,9 @@ void main() {
       await store.write(viejo);
       final c = montar(store);
 
-      final nuevo = await c.read(channelTokenControllerProvider.notifier).rotar();
+      final nuevo = await c
+          .read(channelTokenControllerProvider.notifier)
+          .rotar();
       expect(nuevo, isNot(viejo));
       expect(await store.read(), nuevo);
     });

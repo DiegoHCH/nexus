@@ -134,7 +134,10 @@ void main() {
     // Se toca a la derecha del centro del disco: ahí el matiz es otro, y el radio
     // da saturación alta.
     final disco = tester.getRect(find.byType(AccentWheel));
-    final centro = Offset(disco.left + disco.width / 2, disco.top + disco.width / 2);
+    final centro = Offset(
+      disco.left + disco.width / 2,
+      disco.top + disco.width / 2,
+    );
     await tester.dragFrom(centro, const Offset(70, 0));
     await tester.pumpAndSettle();
 
@@ -186,9 +189,9 @@ void main() {
     );
 
     // Se elige otro y entonces sí aparece.
-    container.read(accentControllerProvider.notifier).select(
-      const Color(0xFFB79BFF),
-    );
+    container
+        .read(accentControllerProvider.notifier)
+        .select(const Color(0xFFB79BFF));
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('volver-al-color-original')), findsOne);
 
@@ -236,7 +239,9 @@ void main() {
           find.byKey(const ValueKey('orbe')),
         );
         final imagen = await limite.toImage();
-        final datos = await imagen.toByteData(format: ui.ImageByteFormat.rawRgba);
+        final datos = await imagen.toByteData(
+          format: ui.ImageByteFormat.rawRgba,
+        );
         pixeles = [
           for (var i = 0; i < datos!.lengthInBytes; i += 4)
             (datos.getUint8(i), datos.getUint8(i + 1), datos.getUint8(i + 2)),

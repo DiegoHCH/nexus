@@ -59,6 +59,8 @@ void main() {
     String id, {
     bool streaming = false,
     String reply = '',
+    String pregunta = '',
+    bool vozAbierta = false,
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
@@ -68,6 +70,8 @@ void main() {
     conversationId: id,
     streaming: streaming,
     reply: reply,
+    ask: pregunta,
+    voice: vozAbierta,
     steps: pasos,
     meter: medidor,
     error: error,
@@ -449,6 +453,27 @@ void main() {
         );
       }
     });
+  });
+
+  test('la pregunta se pinta una vez, no dos', () {
+    // Llega por evento en cuanto se transcribe, y **tambien** aterriza en el historial
+    // cuando se pide una pagina. Sin la comprobacion se veria dos veces seguidas, que
+    // es el mismo fallo que ya tuvo la respuesta.
+    const conv = MirroredConversation(id: 'a', ask: 'que reuniones tengo hoy');
+    expect(conv.preguntaYaEnHistorial, isFalse);
+
+    final conHistorial = conv.copyWith(
+      history: const [
+        MirroredMessage(mine: true, text: 'que reuniones tengo hoy'),
+      ],
+    );
+    expect(conHistorial.preguntaYaEnHistorial, isTrue);
+
+    // Y una pregunta distinta en el historial no la tapa.
+    final otra = conv.copyWith(
+      history: const [MirroredMessage(mine: true, text: 'otra cosa')],
+    );
+    expect(otra.preguntaYaEnHistorial, isFalse);
   });
 }
 

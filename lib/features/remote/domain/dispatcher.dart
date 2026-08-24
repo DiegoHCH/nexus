@@ -73,6 +73,12 @@ class Dispatcher {
         code: 'unknownConversation',
         message: 'la conversación ${error.id} ya no está abierta',
       );
+    } on DemasiadasConversaciones {
+      yield Failure(
+        id: call.id,
+        code: 'tooManyConversations',
+        message: 'el Mac ya tiene todas sus conversaciones abiertas',
+      );
     } on BinaryArtifact catch (error) {
       yield Failure(
         id: call.id,

@@ -38,7 +38,8 @@ void main() {
       const HomePage(),
       overrides: [
         workspaceControllerProvider.overrideWith(
-          () => FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
+          () =>
+              FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
         ),
       ],
     );

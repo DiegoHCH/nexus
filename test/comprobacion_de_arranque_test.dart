@@ -150,10 +150,7 @@ void main() {
     });
 
     test('con todo listo y llave, directo a Reposo', () async {
-      expect(
-        await arranque(cli: true, session: true),
-        isA<AppRouteReady>(),
-      );
+      expect(await arranque(cli: true, session: true), isA<AppRouteReady>());
     });
 
     // El orden importa: lo del sistema va delante de lo de la app. Sin las manos,
@@ -191,7 +188,10 @@ void main() {
     test('«entrar de todas formas» no deja a nadie encerrado fuera', () async {
       final container = contenedor();
       await Future<void>.delayed(const Duration(milliseconds: 1100));
-      expect(container.read(appRouteControllerProvider), isA<AppRouteNotReady>());
+      expect(
+        container.read(appRouteControllerProvider),
+        isA<AppRouteNotReady>(),
+      );
 
       container.read(appRouteControllerProvider.notifier).continueAnyway();
       expect(container.read(appRouteControllerProvider), isA<AppRouteReady>());
@@ -234,8 +234,7 @@ class _Sonda implements ReadinessProbe {
   final Duration tarda;
 
   @override
-  Future<bool> cliInstalled() =>
-      Future<bool>.delayed(tarda, () => cli);
+  Future<bool> cliInstalled() => Future<bool>.delayed(tarda, () => cli);
 
   @override
   Future<bool> anySession() async => session;

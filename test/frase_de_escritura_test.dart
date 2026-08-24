@@ -45,7 +45,10 @@ void main() {
   group('abrir la escritura', () {
     test('con la frase correcta se concede', () {
       final unlock = WriteUnlock();
-      expect(unlock.intentar(guardada: frase, recibida: 'la-frase-de-verdad'), isNull);
+      expect(
+        unlock.intentar(guardada: frase, recibida: 'la-frase-de-verdad'),
+        isNull,
+      );
       expect(unlock.puedeEscribir, isTrue);
     });
 
@@ -91,14 +94,18 @@ void main() {
       expect(
         unlock.intentar(guardada: const WritePhrase(''), recibida: ''),
         isNull,
-        reason: 'esto es lo que pasaría, y por eso el almacén no devuelve vacías',
+        reason:
+            'esto es lo que pasaría, y por eso el almacén no devuelve vacías',
       );
     });
 
     test('cinco fallos y se cierra', () {
       final unlock = WriteUnlock();
       for (var i = 0; i < 5; i++) {
-        expect(unlock.intentar(guardada: frase, recibida: 'mal-$i'), WriteDenial.frase);
+        expect(
+          unlock.intentar(guardada: frase, recibida: 'mal-$i'),
+          WriteDenial.frase,
+        );
       }
       expect(
         unlock.intentar(guardada: frase, recibida: 'la-frase-de-verdad'),
@@ -114,7 +121,10 @@ void main() {
         unlock.intentar(guardada: frase, recibida: 'mal');
       }
       ahora = ahora.add(const Duration(minutes: 11));
-      expect(unlock.intentar(guardada: frase, recibida: 'la-frase-de-verdad'), isNull);
+      expect(
+        unlock.intentar(guardada: frase, recibida: 'la-frase-de-verdad'),
+        isNull,
+      );
     });
 
     test('acertar limpia los fallos', () {
@@ -153,7 +163,11 @@ void main() {
         // Consultar es la actividad: si esto renovara, nunca caducaría.
         unlock.puedeEscribir;
       }
-      expect(unlock.puedeEscribir, isFalse, reason: 'han pasado cuarenta minutos');
+      expect(
+        unlock.puedeEscribir,
+        isFalse,
+        reason: 'han pasado cuarenta minutos',
+      );
     });
 
     test('se puede revocar antes de que caduque', () {

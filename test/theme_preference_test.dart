@@ -31,9 +31,9 @@ void main() {
     final container = ProviderContainer();
     addTearDown(container.dispose);
 
-    await container.read(themeControllerProvider.notifier).select(
-      ThemeChoice.light,
-    );
+    await container
+        .read(themeControllerProvider.notifier)
+        .select(ThemeChoice.light);
     expect(container.read(themeControllerProvider), ThemeChoice.light);
 
     // Otro arranque: se lee lo guardado en vez de volver al del sistema.

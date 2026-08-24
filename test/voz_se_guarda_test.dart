@@ -59,8 +59,8 @@ class _Guionizada extends HoldVoiceConversation {
 
 /// Nada de esto se llama: si algo lo llamara, la prueba lo diría a gritos en
 /// vez de pasar por un camino que no quería probar.
-class _Nada implements VoiceInput, VoiceGateway, AudioOutput, ClaudeBridge,
-    StaysAwake {
+class _Nada
+    implements VoiceInput, VoiceGateway, AudioOutput, ClaudeBridge, StaysAwake {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName} no debía llamarse');
@@ -79,9 +79,14 @@ class _Store implements LocalConversationStore {
 class _NoMemory implements ConversationMemory {
   const _NoMemory();
   @override
-  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async => const FolderMemory();
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
+      const FolderMemory();
   @override
-  Future<void> rememberSession(String folderPath, String sessionId, {String? claudeProfile}) async {}
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override
@@ -91,9 +96,7 @@ class _NoMemory implements ConversationMemory {
 class _Workspace extends WorkspaceController {
   @override
   Workspace build() => Workspace(
-    folders: [
-      PairedFolder(path: folderPath, modality: FolderModality.voice),
-    ],
+    folders: [PairedFolder(path: folderPath, modality: FolderModality.voice)],
     activePath: folderPath,
   );
 }
@@ -112,7 +115,9 @@ void main() {
     final store = _Store();
     final container = ProviderContainer(
       overrides: [
-        conversationFolderProvider(conversationId).overrideWithValue(folderPath),
+        conversationFolderProvider(
+          conversationId,
+        ).overrideWithValue(folderPath),
         conversationMemoryProvider.overrideWithValue(const _NoMemory()),
         workspaceControllerProvider.overrideWith(_Workspace.new),
         conMicrofono,
@@ -166,7 +171,9 @@ void main() {
       ..emit(const VoiceTurnCompleted());
     await Future<void>.delayed(const Duration(milliseconds: 30));
 
-    final estado = m.container.read(assistantControllerProvider(conversationId));
+    final estado = m.container.read(
+      assistantControllerProvider(conversationId),
+    );
     expect(m.store.guardadas, isNotEmpty, reason: 'guardarse, sí');
     expect(
       estado.meter.contextTokens,
@@ -178,29 +185,38 @@ void main() {
     expect(estado.meter.turnTokens, isNull);
   });
 
-  test('y el medidor de contexto recoge las cifras del turno de Claude', () async {
-    final m = montar();
-    final controller = m.container.read(
-      assistantControllerProvider(conversationId).notifier,
-    );
+  test(
+    'y el medidor de contexto recoge las cifras del turno de Claude',
+    () async {
+      final m = montar();
+      final controller = m.container.read(
+        assistantControllerProvider(conversationId).notifier,
+      );
 
-    await controller.toggleVoice();
-    await Future<void>.delayed(Duration.zero);
+      await controller.toggleVoice();
+      await Future<void>.delayed(Duration.zero);
 
-    m.voz.emit(
-      const VoiceToolFinished(ok: true, turnTokens: 1200, contextTokens: 63300),
-    );
-    await Future<void>.delayed(const Duration(milliseconds: 30));
+      m.voz.emit(
+        const VoiceToolFinished(
+          ok: true,
+          turnTokens: 1200,
+          contextTokens: 63300,
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 30));
 
-    final estado = m.container.read(assistantControllerProvider(conversationId));
-    expect(
-      estado.meter.contextTokens,
-      63300,
-      reason:
-          'hablando, el turno de Claude lo consume el caso de uso de voz: si '
-          'las cifras no viajan en el evento, la ventana de contexto se queda '
-          'en «Sin dato» toda la conversación',
-    );
-    expect(estado.meter.turnTokens, 1200);
-  });
+      final estado = m.container.read(
+        assistantControllerProvider(conversationId),
+      );
+      expect(
+        estado.meter.contextTokens,
+        63300,
+        reason:
+            'hablando, el turno de Claude lo consume el caso de uso de voz: si '
+            'las cifras no viajan en el evento, la ventana de contexto se queda '
+            'en «Sin dato» toda la conversación',
+      );
+      expect(estado.meter.turnTokens, 1200);
+    },
+  );
 }

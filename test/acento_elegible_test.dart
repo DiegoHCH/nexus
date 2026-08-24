@@ -15,9 +15,7 @@ import 'package:nexus/core/design_system/nexus_colors.dart';
 // Se barre en malla y no con casos elegidos a mano: elegir los casos yo mismo es
 // elegir los que sé que pasan.
 void main() {
-  const fondosOscuros = [
-    NexusColors.dark,
-  ];
+  const fondosOscuros = [NexusColors.dark];
 
   test('la medida de contraste es la de WCAG, comprobada con los extremos', () {
     // Sin esto, un error en la fórmula haría que todo lo de abajo pasara midiendo
@@ -49,16 +47,19 @@ void main() {
         for (var h = 0; h < 360; h += 15) {
           for (final s in [0.15, 0.45, 0.75, 1.0]) {
             for (final v in [0.25, 0.55, 0.85, 1.0]) {
-              final elegido = HSVColor.fromAHSV(1, h.toDouble(), s, v).toColor();
+              final elegido = HSVColor.fromAHSV(
+                1,
+                h.toDouble(),
+                s,
+                v,
+              ).toColor();
               final pintado = Accent(elegido).forBrightness(brillo);
               probados++;
 
               for (final fondo in fondos(brillo)) {
                 final medida = Accent.contrast(pintado, fondo);
                 if (medida < Accent.minimoAA) {
-                  fallos.add(
-                    'h$h s$s v$v → ${medida.toStringAsFixed(2)}:1',
-                  );
+                  fallos.add('h$h s$s v$v → ${medida.toStringAsFixed(2)}:1');
                 }
               }
             }

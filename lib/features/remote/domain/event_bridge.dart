@@ -173,6 +173,23 @@ class EventBridge {
       }
     }
 
+    // ── lo que dijo el usuario ──────────────────────────────────────────────
+    //
+    // Entero y no por trozos, al revés que la respuesta: una pregunta aparece de
+    // golpe cuando se termina de transcribir, así que no hay nada que ir sumando. Y
+    // solo cuando cambia a algo con contenido: el vacío del arranque no es una
+    // pregunta, y mandarlo pintaría un turno en blanco.
+    if (ahora.ask.isNotEmpty && ahora.ask != (antes?.ask ?? '')) {
+      salida.add(log.emitir('ask', {'conversation': id, 'text': ahora.ask}));
+    }
+
+    // ── la sesión de voz ────────────────────────────────────────────────────
+    if (antes?.voice != ahora.voice) {
+      salida.add(
+        log.emitir('voice', {'conversation': id, 'active': ahora.voice}),
+      );
+    }
+
     // ── el turno ────────────────────────────────────────────────────────────
     if (antes?.streaming != ahora.streaming) {
       salida.add(
@@ -256,6 +273,8 @@ class ConversationView {
     required this.conversationId,
     required this.streaming,
     required this.reply,
+    required this.ask,
+    required this.voice,
     required this.steps,
     required this.meter,
     required this.orb,
@@ -265,8 +284,28 @@ class ConversationView {
 
   final String conversationId;
 
+  /// **Lo último que dijo el usuario.**
+  ///
+  /// Viaja porque el teléfono no siempre lo sabe: cuando el encargo se escribe allí,
+  /// sí —lo acaba de teclear—, pero **hablando no**. La voz se transcribe en el Mac, y
+  /// sin esto el teléfono veía llegar la respuesta a una pregunta que nunca se pintó.
+  /// Lo que se veía era una conversación contestando sola.
+  ///
+  /// Es el gemelo de [reply]: aquel es lo último que dijo Nexus y este lo último que
+  /// dijo quien pregunta.
+  final String ask;
+
   /// Si hay algo corriendo.
   final bool streaming;
+
+  /// **Si el Mac tiene la sesión de voz abierta.**
+  ///
+  /// El teléfono presta su micrófono, pero quien decide cuándo termina es el Mac: la
+  /// sesión se cierra sola por inactividad. Sin esta señal, el teléfono se quedaba con
+  /// el micrófono abierto mandando trozos a una sesión que ya no existía, y en pantalla
+  /// seguía diciendo que estaba escuchando. Se dice y no se deduce del orbe: `sleep`
+  /// también sale al terminar un encargo escrito.
+  final bool voice;
 
   /// **El estado del orbe, tal cual lo tiene el Mac.**
   ///

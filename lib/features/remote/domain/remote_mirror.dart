@@ -53,6 +53,10 @@ class RemoteMirror {
         (evento.data['append'] as String?) ?? '',
         reemplazar: evento.data['replace'] == true,
       ),
+      // Entera y no por trozos, al revés que la respuesta: una pregunta aparece de
+      // golpe al terminar de transcribirse, así que no hay nada que ir sumando.
+      'ask' => antes.copyWith(ask: (evento.data['text'] as String?) ?? ''),
+      'voice' => antes.copyWith(voiceOnMac: evento.data['active'] == true),
       'turn' => antes.copyWith(streaming: evento.data['streaming'] == true),
       // El estado del orbe **como lo mandó el Mac**, sin traducir. Un nombre que esta
       // versión no conozca deja el que había: un móvil viejo frente a un Mac nuevo
@@ -178,6 +182,8 @@ class MirroredConversation {
     this.orb = NexusOrbState.sleep,
     this.title,
     this.reply = '',
+    this.ask = '',
+    this.voiceOnMac = false,
     this.steps = const [],
     this.model,
     this.contextTokens,
@@ -231,6 +237,18 @@ class MirroredConversation {
 
   /// La respuesta en curso, completa. Se construye pegando lo que llega.
   final String reply;
+
+  /// **Lo último que dijo el usuario**, cuando llegó por el canal.
+  ///
+  /// Existe porque hablando el teléfono no sabe lo que dijo: la voz se transcribe en
+  /// el Mac, y sin esto llegaba la respuesta a una pregunta que nunca se pintó — una
+  /// conversación contestando sola. Escribiendo no hace falta, pero tenerlo siempre es
+  /// más barato que tener dos caminos según de dónde vino el turno.
+  final String ask;
+
+  /// Si el Mac tiene la sesión de voz abierta. El teléfono presta el micrófono, pero
+  /// quien decide cuándo termina es el Mac.
+  final bool voiceOnMac;
   final List<MirroredStep> steps;
 
   final String? model;
@@ -261,6 +279,18 @@ class MirroredConversation {
   /// no por «si está corriendo»: el historial puede llegar antes de que el turno pare
   /// —una página de historial pedida a mano, por ejemplo— y con la regla del estado se
   /// perdería el texto en pantalla justo mientras se está leyendo.
+  /// Si lo que dijo el usuario ya está en el historial.
+  ///
+  /// El gemelo de [respuestaYaEnHistorial], y por lo mismo: la pregunta llega por
+  /// evento en cuanto se transcribe y **también** aterriza en el historial cuando se
+  /// pide una página, así que sin esto se vería dos veces seguidas.
+  bool get preguntaYaEnHistorial {
+    if (ask.isEmpty) return false;
+    final ultimoMio = history.where((m) => m.mine).lastOrNull;
+    if (ultimoMio == null) return false;
+    return ultimoMio.text.trim() == ask.trim();
+  }
+
   bool get respuestaYaEnHistorial {
     if (reply.isEmpty) return false;
     final ultimoDeNexus = history.where((m) => !m.mine).lastOrNull;
@@ -314,6 +344,8 @@ class MirroredConversation {
     NexusOrbState? orb,
     String? title,
     String? reply,
+    String? ask,
+    bool? voiceOnMac,
     List<MirroredStep>? steps,
     String? model,
     int? contextTokens,
@@ -330,6 +362,8 @@ class MirroredConversation {
     streaming: streaming ?? this.streaming,
     orb: orb ?? this.orb,
     title: title ?? this.title,
+    ask: ask ?? this.ask,
+    voiceOnMac: voiceOnMac ?? this.voiceOnMac,
     reply: reply ?? this.reply,
     steps: steps ?? this.steps,
     model: model ?? this.model,
