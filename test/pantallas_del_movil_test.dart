@@ -15,6 +15,7 @@ import 'package:nexus/features/remote/domain/outbox.dart';
 import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 
 // Las pantallas del teléfono, contra un socket falso.
 //
@@ -334,9 +335,14 @@ void main() {
 
       // Sin frase abierta no se puede escribir, y **se dice antes de teclear el
       // encargo**: enterarse después de redactarlo es hacer trabajo para tirarlo.
+      // Se comprueba el estado del interruptor y no un texto: ahora se ven los dos
+      // lados a la vez —«Solo leer» y «Puede editar» están siempre en pantalla— asi
+      // que buscar una de las dos etiquetas no distingue en cual esta.
       expect(
-        find.text('solo lectura · toca para abrir con tu frase'),
-        findsOneWidget,
+        tester
+            .widget<PermissionToggle>(find.byKey(const ValueKey('permiso')))
+            .puedeEditar,
+        isFalse,
       );
     });
 
@@ -362,9 +368,14 @@ void main() {
       await tester.pump();
 
       expect(c.read(writePermissionProvider).value, isNull);
+      // Se comprueba el estado del interruptor y no un texto: ahora se ven los dos
+      // lados a la vez —«Solo leer» y «Puede editar» están siempre en pantalla— asi
+      // que buscar una de las dos etiquetas no distingue en cual esta.
       expect(
-        find.text('solo lectura · toca para abrir con tu frase'),
-        findsOneWidget,
+        tester
+            .widget<PermissionToggle>(find.byKey(const ValueKey('permiso')))
+            .puedeEditar,
+        isFalse,
       );
     });
 

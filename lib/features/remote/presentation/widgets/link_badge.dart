@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
 
 /// En qué anda la conexión, dicho en pantalla.
 ///
@@ -34,9 +35,9 @@ class LinkBadge extends ConsumerWidget {
         const SizedBox(width: 8),
         Text(
           texto,
-          style: Theme.of(
-            context,
-          ).textTheme.labelSmall?.copyWith(color: color, letterSpacing: 0.8),
+          // La etiqueta del sistema, que ya trae su interletraje: el `letterSpacing`
+          // suelto de aquí era una copia a ojo del que `label` define.
+          style: NexusTypography.label.copyWith(color: color),
         ),
       ],
     );
