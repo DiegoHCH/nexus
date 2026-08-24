@@ -3,6 +3,7 @@ import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 
 /// Un turno de la conversación: quién habló y qué dijo.
 ///
@@ -55,14 +56,55 @@ class TurnBlock extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 6),
-          SelectableText(
-            text,
-            style: NexusTypography.subtitleMobile.copyWith(
-              // Lo tuyo en tinta y lo de Nexus más apagado: lo que pediste es el
-              // ancla de la lectura y su respuesta es lo que se recorre.
-              color: mine ? colors.ink : colors.mute,
+          // **Lo tuyo tal cual; lo de Nexus, interpretado.**
+          //
+          // Es la misma regla que el escritorio, y aquí faltaba: la respuesta llegaba
+          // en markdown y se pintaba en crudo, así que se leían los `**`, las `##` y
+          // una tabla salía como una parrilla de tuberías. Un asterisco que escribiste
+          // tú sigue siendo un asterisco — interpretar lo tuyo cambiaría lo que
+          // pediste.
+          //
+          // Con el mismo pintor que el chat del Mac, para que no haya dos ideas de qué
+          // es una tabla.
+          if (mine)
+            SelectableText(
+              text,
+              // En tinta: lo que pediste es el ancla de la lectura.
+              style: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
+            )
+          else
+            MarkdownBody(
+              data: text,
+              selectable: true,
+              styleSheet: MarkdownStyleSheet(
+                p: NexusTypography.body.copyWith(color: colors.mute),
+                h1: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
+                h2: NexusTypography.lead.copyWith(color: colors.ink),
+                h3: NexusTypography.body.copyWith(color: colors.ink),
+                strong: NexusTypography.body.copyWith(color: colors.ink),
+                em: NexusTypography.body.copyWith(
+                  color: colors.mute,
+                  fontStyle: FontStyle.italic,
+                ),
+                code: NexusTypography.mono.copyWith(color: colors.accent),
+                codeblockDecoration: BoxDecoration(
+                  color: colors.rise,
+                  border: Border.all(color: colors.rule),
+                ),
+                blockquoteDecoration: BoxDecoration(
+                  border: Border(
+                    left: BorderSide(color: colors.rule2, width: 2),
+                  ),
+                ),
+                tableBorder: TableBorder.all(color: colors.rule),
+                tableHead: NexusTypography.label.copyWith(color: colors.ink),
+                tableBody: NexusTypography.mono.copyWith(color: colors.mute),
+                listBullet: NexusTypography.body.copyWith(color: colors.faint),
+                horizontalRuleDecoration: BoxDecoration(
+                  border: Border(top: BorderSide(color: colors.rule)),
+                ),
+              ),
             ),
-          ),
           if (chip != null) ...[
             const SizedBox(height: NexusSpacing.s3),
             StateChip(texto: chip!),

@@ -526,4 +526,32 @@ void main() {
       );
     });
   });
+
+  group('el acento en vivo', () {
+    test('un evento de acento llega al acento, no al espejo', () async {
+      // El evento no lleva `conversation`, y el espejo descarta lo que no lo lleva —
+      // asi que sin este desvio el cambio se perderia en silencio, que es la peor
+      // forma de perderse.
+      enlace = montar();
+      await conectado(enlace);
+      final acentos = <int>[];
+      final delEspejo = <Event>[];
+      final s1 = enlace.acento.listen(acentos.add);
+      final s2 = enlace.eventos.listen(delEspejo.add);
+      addTearDown(s1.cancel);
+      addTearDown(s2.cancel);
+
+      socket.recibe(
+        const Event(seq: 1, kind: 'accent', data: {'argb': 0xFF56E1EA}),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(acentos, [0xFF56E1EA]);
+      expect(
+        delEspejo,
+        isEmpty,
+        reason: 'al espejo no le sirve: no es de ninguna conversacion',
+      );
+    });
+  });
 }

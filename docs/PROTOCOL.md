@@ -198,6 +198,28 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.
+- El **estado del orbe** viaja con cada conversación, y es el del Mac tal cual: el
+  teléfono no lo deduce. Sólo recibía `streaming`, así que de los cuatro estados
+  —reposo, escuchando, trabajando, hablando— podía dibujar dos: el micro abierto no
+  es trabajo corriendo, y la voz saliendo tampoco. Reenviarlo hace que el orbe del
+  teléfono **sea** el del Mac y no una imitación que se desincroniza en cuanto se
+  añada un estado.
+- Va en un evento propio, `orb`, y **no dentro de `turn`**: `streaming` y el orbe
+  cambian en momentos distintos, y juntarlos haría que uno arrastrara al otro.
+- Con cada conversación viaja también **su nombre**: el primer encargo, aplanado a una
+  línea. Va en la vista y no solo en la lista porque una conversación **nace de un
+  evento** —se abre desde el teléfono— y hasta la siguiente lista no tenía carpeta ni
+  nombre: lo que se veía era su identificador, que no dice nada.
+- Y el **acento** tiene su propio evento, sin `conversation`: es del Mac entero. Se
+  leía solo en el saludo, así que cambiarlo con el teléfono conectado no llegaba hasta
+  la siguiente reconexión — y lo prometido era heredarlo sin volver a emparejar, no
+  reconectar. Va numerado como todo lo demás para que un teléfono que se reincorpora lo
+  reciba en su resync, sin un camino aparte que mantener.
+- **Y el teléfono lo apaga si no hay enlace.** El espejo se queda con lo último que
+  supo, así que un Mac que estaba trabajando cuando se perdió la cobertura dejaría el
+  orbe girando sobre una pantalla que dice «se perdió el enlace». Un orbe girando
+  promete trabajo que está pasando; sin enlace no se sabe si el Mac terminó, falló o
+  se durmió, y dormido es la única forma honesta de decir «no sé nada».
 - **Abrir una conversación sobre una carpeta ya emparejada**, y también
   **las carpetas emparejadas**, para poder elegir. Esto es lo que parece chocar con «emparejar carpetas se queda en el Mac»
   y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier

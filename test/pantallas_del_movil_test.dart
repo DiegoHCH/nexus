@@ -283,6 +283,41 @@ void main() {
       return c;
     }
 
+    testWidgets('la respuesta no se pinta dos veces', (tester) async {
+      // Lo que se veia en el telefono: el mismo texto como respuesta en curso y otra
+      // vez como turno del historial, con dos estilos distintos — se lee como si el
+      // asistente hubiera contestado dos veces.
+      //
+      // La regla vive en el espejo y esta probada alli; esto comprueba que **la
+      // pantalla la usa**, que es lo que faltaba: quitarla del `if` pasaba todo.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        const Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {
+                'id': 'a',
+                'folder': '/tmp/repo',
+                'reply': 'ya está ordenado',
+                'history': [
+                  {'mine': true, 'text': 'ordena la casa'},
+                  {'mine': false, 'text': 'ya está ordenado'},
+                ],
+              },
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('ya está ordenado'), findsOne);
+    });
+
     Future<ProviderContainer> conUnaSinContestar(
       WidgetTester tester,
       Set<String> callados,
@@ -482,7 +517,9 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Esta conversación ya no está abierta en el Mac'),
+        // El molde de estados lo dice en dos partes —titulo y cuerpo— en vez de en
+        // una linea gris centrada, asi que se busca el titulo.
+        find.text('Esta conversación ya no está abierta'),
         findsOneWidget,
       );
       expect(c.read(mirrorProvider).vacio, isTrue);

@@ -522,6 +522,20 @@ class ChannelLink {
       return;
     }
     _ultimoSeq = evento.seq;
+
+    // **El acento no es de ninguna conversación**, así que no va al espejo: el espejo
+    // descarta lo que no lleva `conversation` y el cambio se perdería en silencio. Va
+    // al mismo sitio que el del saludo, que es quien ya sabe pintarlo.
+    //
+    // Se cuenta en el `seq` igual que los demás —de ahí que esto vaya después de
+    // apuntarlo— para que un teléfono que se reincorpora lo reciba en su resync en vez
+    // de necesitar un camino aparte.
+    if (evento.kind == 'accent') {
+      final argb = evento.data['argb'];
+      if (argb is int && !_acento.isClosed) _acento.add(argb);
+      return;
+    }
+
     _eventos.add(evento);
   }
 

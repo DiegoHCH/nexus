@@ -10,6 +10,8 @@ import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
 import 'package:nexus/features/remote/presentation/widgets/turn_block.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -87,16 +89,22 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     // y el Mac vive su vida. Se dice y se sale, en vez de dejar una pantalla que ya
     // no refleja nada.
     if (conv == null) {
-      return Scaffold(
-        backgroundColor: colors.void_,
-        appBar: AppBar(backgroundColor: colors.void_),
-        body: Center(
-          child: Text(
-            'Esta conversación ya no está abierta en el Mac',
-            textAlign: TextAlign.center,
-            style: TextStyle(color: colors.mute),
+      // Un estado, con el molde de la pieza 7 —que estaba construido y sin estrenar—.
+      // Antes era un texto gris centrado, que es justo lo que ese molde existe para no
+      // volver a tener: decía qué pasó y no por qué ni qué hacer.
+      return MobileStatePage(
+        titulo: 'Esta conversación ya no está abierta',
+        cuerpo:
+            'El teléfono guarda los identificadores y el Mac sigue su vida: alguien '
+            'la cerró allí mientras la tenías en pantalla.',
+        pieDeAyuda: 'Lo que se dijo sigue en el archivo.',
+        acciones: [
+          WideAction(
+            texto: 'Volver',
+            principal: true,
+            alTocar: () => Navigator.of(context).pop(),
           ),
-        ),
+        ],
       );
     }
 
@@ -106,72 +114,109 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
         backgroundColor: colors.void_,
         title: Text(
           conv.nombre.split('/').last,
-          style: TextStyle(color: colors.ink, fontSize: 16),
+          style: NexusTypography.lead.copyWith(color: colors.ink),
         ),
         actions: const [
           Padding(padding: EdgeInsets.only(right: 16), child: LinkBadge()),
         ],
       ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            if (conv.percent != null) _Medidor(conversacion: conv),
-            Expanded(
-              child: ListView(
-                controller: _scroll,
-                padding: const EdgeInsets.all(20),
-                children: [
-                  // Más arriba lo más viejo: se lee hacia abajo, como una
-                  // conversación.
-                  if (conv.masHistorial != null)
-                    Center(
-                      child: TextButton(
-                        key: const ValueKey('mas-historial'),
-                        onPressed: () => ref
-                            .read(mirrorProvider.notifier)
-                            .masHistorial(widget.conversationId),
-                        child: const Text('Ver lo anterior'),
-                      ),
-                    ),
-                  for (final mensaje in conv.history)
-                    _Mensaje(mensaje: mensaje),
-                  if (conv.history.isNotEmpty) const SizedBox(height: 8),
-                  if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
-                  if (conv.reply.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: SelectableText(
-                        conv.reply,
-                        key: const ValueKey('respuesta'),
-                        style: TextStyle(color: colors.ink, height: 1.5),
-                      ),
-                    ),
-                  if (conv.error != null)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 16),
-                      child: Text(
-                        conv.error!,
-                        style: TextStyle(color: colors.err),
-                      ),
-                    ),
-                  // Lo que está esperando salir. Se enseña **aquí y no en un cajón
-                  // aparte**: un encargo escrito sin cobertura que no se ve por
-                  // ninguna parte se da por perdido y se vuelve a escribir.
-                  _Esperando(conversationId: widget.conversationId),
-                ],
+      // **El orbe va detrás, no dentro.** Es la otra mitad de esta pieza: puesto entre
+      // el contenido sería una ilustración —una cosa más que mirar en una lista— y lo
+      // que es es la presencia del asistente. Detrás y a media pantalla, cuenta en qué
+      // anda el Mac sin robarle sitio a lo que se lee.
+      //
+      // `IgnorePointer` porque no se toca, y arriba porque es donde queda libre: los
+      // turnos crecen hacia abajo y el compositor vive pegado al fondo.
+      body: Stack(
+        children: [
+          // **Pequeño y arriba, no media pantalla.** La primera versión le daba el 42 %
+          // del alto y el resultado era el orbe **detrás de los párrafos**: sus puntos
+          // se leían como suciedad sobre el texto, no como presencia. El mockup de
+          // esta pantalla lo dibuja con `r .075` y el centro al 12 % del alto — o sea
+          // arriba, en la banda de la cabecera, donde no hay nada que leer.
+          //
+          // El pintor saca el radio de `min(ancho, alto) × 0.30`, así que una caja de
+          // 190 de alto da unos 57 px de diámetro, que es lo que mide en el mockup.
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            height: 190,
+            child: IgnorePointer(
+              child: NexusOrb(
+                // Con la regla puesta: sin enlace no gira, diga lo que diga el último
+                // estado que llegó del Mac.
+                state: ref.watch(orbeProvider(widget.conversationId)),
+                showHorizon: false,
               ),
             ),
-            _Compositor(
-              campo: _campo,
-              conversacion: conv,
-              mandando: _mandando,
-              alMandar: _mandar,
-              alDetener: () => ref
-                  .read(mirrorProvider.notifier)
-                  .detener(widget.conversationId),
+          ),
+          SafeArea(
+            child: Column(
+              children: [
+                if (conv.percent != null) _Medidor(conversacion: conv),
+                Expanded(
+                  child: ListView(
+                    controller: _scroll,
+                    padding: const EdgeInsets.all(20),
+                    children: [
+                      // Más arriba lo más viejo: se lee hacia abajo, como una
+                      // conversación.
+                      if (conv.masHistorial != null)
+                        Center(
+                          child: TextButton(
+                            key: const ValueKey('mas-historial'),
+                            onPressed: () => ref
+                                .read(mirrorProvider.notifier)
+                                .masHistorial(widget.conversationId),
+                            child: const Text('Ver lo anterior'),
+                          ),
+                        ),
+                      for (final mensaje in conv.history)
+                        _Mensaje(mensaje: mensaje),
+                      if (conv.history.isNotEmpty) const SizedBox(height: 8),
+                      if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
+                      // La respuesta en curso, **y solo si no está ya abajo en el
+                      // historial**: al terminar el turno el mismo texto salía por los
+                      // dos sitios y con dos estilos distintos, que se lee como si el
+                      // asistente hubiera contestado dos veces.
+                      if (conv.reply.isNotEmpty && !conv.respuestaYaEnHistorial)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: TurnBlock(
+                            key: const ValueKey('respuesta'),
+                            mine: false,
+                            text: conv.reply,
+                          ),
+                        ),
+                      if (conv.error != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 16),
+                          child: Text(
+                            conv.error!,
+                            style: TextStyle(color: colors.err),
+                          ),
+                        ),
+                      // Lo que está esperando salir. Se enseña **aquí y no en un cajón
+                      // aparte**: un encargo escrito sin cobertura que no se ve por
+                      // ninguna parte se da por perdido y se vuelve a escribir.
+                      _Esperando(conversationId: widget.conversationId),
+                    ],
+                  ),
+                ),
+                _Compositor(
+                  campo: _campo,
+                  conversacion: conv,
+                  mandando: _mandando,
+                  alMandar: _mandar,
+                  alDetener: () => ref
+                      .read(mirrorProvider.notifier)
+                      .detener(widget.conversationId),
+                ),
+              ],
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

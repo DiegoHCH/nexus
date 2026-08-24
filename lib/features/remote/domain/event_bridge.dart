@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 /// Convierte lo que pasa en la app en eventos numerados para el teléfono.
 ///
@@ -89,6 +90,20 @@ class EventBridge {
     publicar(log.emitir('closed', {'conversation': conversationId}));
   }
 
+  /// Avisa de que el acento del Mac cambió.
+  ///
+  /// **No es de ninguna conversación**, y de ahí que vaya por su cuenta: es del Mac
+  /// entero. Existe porque el acento se leía solo en el saludo, así que cambiarlo con
+  /// el teléfono ya conectado no llegaba hasta la siguiente reconexión — y lo que se
+  /// prometió es que se hereda sin volver a emparejar, no que haya que reconectar.
+  ///
+  /// Va por el mismo registro numerado que lo demás para que un teléfono que se
+  /// reincorpora lo reciba en su resync sin un camino aparte.
+  void acento(int argb) {
+    if (_cerrado) return;
+    publicar(log.emitir('accent', {'argb': argb}));
+  }
+
   /// El estado entero, para quien pide desde un `seq` que ya se tiró.
   ///
   /// Sale de lo mismo que se fue mandando, así que no hay una segunda forma de
@@ -165,6 +180,24 @@ class EventBridge {
       );
     }
 
+    // ── el orbe ─────────────────────────────────────────────────────────────
+    //
+    // Aparte del turno y no dentro: `streaming` y el orbe cambian en momentos
+    // distintos —el micro se abre sin que haya nada corriendo— y meterlos en el
+    // mismo evento haría que uno arrastrara al otro.
+    if (antes?.orb != ahora.orb) {
+      salida.add(
+        log.emitir('orb', {'conversation': id, 'state': ahora.orb.name}),
+      );
+    }
+
+    // ── el nombre ───────────────────────────────────────────────────────────
+    if (antes?.title != ahora.title) {
+      salida.add(
+        log.emitir('title', {'conversation': id, 'title': ahora.title}),
+      );
+    }
+
     // ── los pasos ───────────────────────────────────────────────────────────
     //
     // La lista entera y no un diff. Son un puñado de pasos, y un diff obligaría al
@@ -225,13 +258,37 @@ class ConversationView {
     required this.reply,
     required this.steps,
     required this.meter,
+    required this.orb,
+    required this.title,
     this.error,
   });
 
   final String conversationId;
 
-  /// Si hay algo corriendo. Es lo que el teléfono convierte en el orbe pensando.
+  /// Si hay algo corriendo.
   final bool streaming;
+
+  /// **El estado del orbe, tal cual lo tiene el Mac.**
+  ///
+  /// Va por el canal en vez de deducirse en el teléfono, y ese es el punto de la
+  /// pieza: el móvil solo sabía si algo estaba corriendo, así que de sus cuatro
+  /// estados podía dibujar dos. `escuchando` y `hablando` no se pueden inferir de
+  /// `streaming` —el micro abierto no es trabajo corriendo, y la voz saliendo tampoco—
+  /// y adivinarlos sería justo la clase de mentira que esta pieza existe para evitar.
+  ///
+  /// El Mac ya lo calcula para su propia pantalla, así que aquí no se computa nada
+  /// nuevo: se reenvía. Con eso el orbe del teléfono **es** el del Mac y no una
+  /// imitación que se desincroniza en el primer estado que se añada.
+  final NexusOrbState orb;
+
+  /// Con qué se reconoce esta conversación.
+  ///
+  /// **El primer encargo**, que es el mejor título que nadie ha escrito — es lo que ya
+  /// usa el archivo del escritorio—. Y viaja en la vista y no solo en la lista porque
+  /// una conversación **nace de un evento**: se abre desde el teléfono, llega por el
+  /// puente, y hasta la siguiente lista no tenía ni carpeta ni nombre. Lo que se veía
+  /// entonces era su identificador, que no dice nada.
+  final String title;
 
   /// La respuesta en curso, **completa**. El puente ya se encarga de mandar solo lo
   /// que falta; guardarla entera aquí es lo que permite calcularlo.
@@ -244,6 +301,8 @@ class ConversationView {
   Map<String, Object?> toJson() => {
     'id': conversationId,
     'streaming': streaming,
+    'orb': orb.name,
+    'title': title,
     'reply': reply,
     'steps': [for (final p in steps) p.toJson()],
     'meter': meter.toJson(),
