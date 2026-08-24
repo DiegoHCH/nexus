@@ -16,6 +16,7 @@ import 'package:nexus/features/remote/presentation/providers/outbox_providers.da
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 
 // Las pantallas del teléfono, contra un socket falso.
 //
@@ -282,6 +283,55 @@ void main() {
       await tester.pump();
       return c;
     }
+
+    testWidgets('vacía, el orbe es el contenido; con turnos, se aparta', (
+      tester,
+    ) async {
+      // Vacía no hay nada que tapar y lo unico que hay que decir es «aqui esta el
+      // asistente, esperando». Con texto en pantalla, un orbe grande detras de los
+      // parrafos se lee como suciedad sobre el texto.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        const Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {'id': 'a', 'folder': '/tmp/repo'},
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final vacia = tester.getSize(find.byType(NexusOrb));
+      expect(
+        vacia.height,
+        greaterThan(300),
+        reason: 'vacia, el orbe es el contenido',
+      );
+
+      // Llega un turno: el orbe se aparta a la banda de arriba.
+      socket.recibe(
+        const Event(
+          seq: 6,
+          kind: 'text',
+          data: {'conversation': 'a', 'append': 'ya está ordenado'},
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final conTexto = tester.getSize(find.byType(NexusOrb));
+      expect(
+        conTexto.height,
+        lessThan(vacia.height),
+        reason: 'con algo que leer, el orbe no puede estar detras del texto',
+      );
+    });
 
     testWidgets('la respuesta no se pinta dos veces', (tester) async {
       // Lo que se veia en el telefono: el mismo texto como respuesta en curso y otra
