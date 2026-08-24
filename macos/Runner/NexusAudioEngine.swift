@@ -439,6 +439,16 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       \(voiceFormat.channelCount, privacy: .public) ch
       """)
 
+    // **Se quita cualquier tap antes de poner el nuevo.** AVFAudio exige que no haya
+    // ninguno —`required condition is false: nullptr == Tap()`— y **mata la app** si lo
+    // hay: no lanza un error que se pueda atrapar en Swift, tira una NSException que
+    // termina el proceso. Quitarlo cuando no hay ninguno es inofensivo, así que esta
+    // línea convierte un cierre de la app en nada.
+    //
+    // Pasó de verdad: hablando desde el teléfono, los ciclos de abrir y cerrar el
+    // micrófono provocan avisos de cambio de configuración, y dos solapados dejaban un
+    // tap puesto y otro instalándose.
+    engine.inputNode.removeTap(onBus: 0)
     engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
       self?.deliver(buffer)
     }
@@ -496,6 +506,12 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
 
   /// Desmontar de verdad. Ocurre al cumplirse el minuto sin que vuelvas a
   /// hablar, no al colgar.
+  /// Si ya se está reiniciando por un cambio de configuración.
+  ///
+  /// Dos reinicios solapados terminaban el proceso, y el aviso llega por una cola de
+  /// despacho: puede repetirse antes de que el primero acabe.
+  private var restarting = false
+
   private func teardown() {
     guard running else { return }
     running = false
@@ -534,7 +550,24 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// enmudece para siempre sin lanzar un solo error: es el fallo que en Dart
   /// había que adivinar por ausencia de audio.
   @objc private func configurationChanged(_ notification: Notification) {
+    // **Uno a la vez, y en el hilo principal.** El aviso llega desde una cola de
+    // despacho, así que dos pueden solaparse: los dos pasan el `guard running`, el
+    // primero desmonta —y con eso `running` ya es falso— así que el segundo no
+    // desmonta nada, y los dos llaman a `start()`. El segundo se encontraba el tap del
+    // primero y AVFAudio terminaba el proceso.
+    if !Thread.isMainThread {
+      DispatchQueue.main.async { [weak self] in
+        self?.configurationChanged(notification)
+      }
+      return
+    }
+    guard !restarting else {
+      Self.log.info("cambio de configuración mientras ya se reiniciaba: se ignora")
+      return
+    }
     guard running else { return }
+    restarting = true
+    defer { restarting = false }
     // Se desmonta de verdad, no se deja caliente: cambió el aparato, así que
     // el grafo entero —formatos, canal de voz, cancelador— hay que rehacerlo.
     // Reutilizarlo sería quedarse hablándole al dispositivo que ya no está.

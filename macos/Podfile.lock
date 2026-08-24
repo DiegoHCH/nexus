@@ -16,6 +16,8 @@ PODS:
     - FlutterMacOS
   - package_info_plus (0.0.1):
     - FlutterMacOS
+  - record_macos (2.0.0):
+    - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
     - Flutter
     - FlutterMacOS
@@ -34,6 +36,7 @@ DEPENDENCIES:
   - hotkey_manager_macos (from `Flutter/ephemeral/.symlinks/plugins/hotkey_manager_macos/macos`)
   - mobile_scanner (from `Flutter/ephemeral/.symlinks/plugins/mobile_scanner/darwin`)
   - package_info_plus (from `Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos`)
+  - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - Sparkle (~> 2.6)
   - url_launcher_macos (from `Flutter/ephemeral/.symlinks/plugins/url_launcher_macos/macos`)
@@ -59,6 +62,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/mobile_scanner/darwin
   package_info_plus:
     :path: Flutter/ephemeral/.symlinks/plugins/package_info_plus/macos
+  record_macos:
+    :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
   shared_preferences_foundation:
     :path: Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin
   url_launcher_macos:
@@ -75,6 +80,7 @@ SPEC CHECKSUMS:
   hotkey_manager_macos: a4317849af96d2430fa89944d3c58977ca089fbe
   mobile_scanner: 9157936403f5a0644ca3779a38ff8404c5434a93
   package_info_plus: f0052d280d17aa382b932f399edf32507174e870
+  record_macos: 2e43c16b84ce188b8137754ee648322a2dcdf7fa
   shared_preferences_foundation: 7036424c3d8ec98dfe75ff1667cb0cd531ec82bb
   Sparkle: b8c9cf4ced217ffc708a1ca5f988a7ba877658db
   url_launcher_macos: f87a979182d112f911de6820aefddaf56ee9fbfd
