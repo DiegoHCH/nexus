@@ -80,6 +80,15 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
     );
   }
 
+  /// Si no hay **nada** que leer todavía.
+  ///
+  /// Las tres cosas, no solo el historial: una conversación recién abierta desde el
+  /// teléfono no tiene turnos pero puede estar ya contestando —el primer encargo va por
+  /// `reply` antes de aterrizar en el historial—, y con solo mirar `history` el orbe
+  /// grande se quedaría encima del texto que empieza a llegar.
+  bool _vacia(MirroredConversation conv) =>
+      conv.history.isEmpty && conv.reply.isEmpty && conv.steps.isEmpty;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -129,19 +138,26 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // turnos crecen hacia abajo y el compositor vive pegado al fondo.
       body: Stack(
         children: [
-          // **Pequeño y arriba, no media pantalla.** La primera versión le daba el 42 %
-          // del alto y el resultado era el orbe **detrás de los párrafos**: sus puntos
-          // se leían como suciedad sobre el texto, no como presencia. El mockup de
-          // esta pantalla lo dibuja con `r .075` y el centro al 12 % del alto — o sea
-          // arriba, en la banda de la cabecera, donde no hay nada que leer.
+          // **Dos tamaños, según haya algo que leer o no.**
           //
-          // El pintor saca el radio de `min(ancho, alto) × 0.30`, así que una caja de
-          // 190 de alto da unos 57 px de diámetro, que es lo que mide en el mockup.
+          // Con turnos en pantalla va pequeño y arriba, en la banda de la cabecera: el
+          // mockup lo dibuja con `r .075` y el centro al 12 % del alto, y con más
+          // tamaño sus puntos quedaban **detrás de los párrafos**, leyéndose como
+          // suciedad sobre el texto en vez de como presencia.
+          //
+          // Vacía es otra pantalla: no hay nada que tapar, y lo único que hay que decir
+          // es «aquí está el asistente, esperando». Ahí el orbe es el contenido, así que
+          // ocupa lo que ocuparía en la pantalla sin conversación.
+          //
+          // El pintor saca el radio de `min(ancho, alto) × 0.30`: 190 de alto dan unos
+          // 57 px de diámetro, y media pantalla da los ~170 del mockup vacío.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            height: 190,
+            height: _vacia(conv)
+                ? MediaQuery.of(context).size.height * 0.62
+                : 190,
             child: IgnorePointer(
               child: NexusOrb(
                 // Con la regla puesta: sin enlace no gira, diga lo que diga el último
