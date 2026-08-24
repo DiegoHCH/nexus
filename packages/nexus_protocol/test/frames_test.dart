@@ -41,7 +41,11 @@ void main() {
 
     test('una petición con su clientMsgId', () {
       final vuelta = ida<Call>(
-        const Call(id: 'abc-123', method: 'sendErrand', params: {'texto': 'hola'}),
+        const Call(
+          id: 'abc-123',
+          method: 'sendErrand',
+          params: {'texto': 'hola'},
+        ),
       );
       expect(vuelta.id, 'abc-123');
       expect(vuelta.known, RemoteMethod.sendErrand);
@@ -67,7 +71,10 @@ void main() {
     });
 
     test('un fallo, con y sin petición detrás', () {
-      expect(ida<Failure>(const Failure(code: 'nope', message: 'no')).id, isNull);
+      expect(
+        ida<Failure>(const Failure(code: 'nope', message: 'no')).id,
+        isNull,
+      );
       expect(
         ida<Failure>(const Failure(code: 'nope', message: 'no', id: 'q')).id,
         'q',
@@ -137,8 +144,40 @@ void main() {
       expect(
         texto.contains(palabra),
         isFalse,
-        reason: 'el saludo lleva «$palabra»: el token no puede ir en un mensaje',
+        reason:
+            'el saludo lleva «$palabra»: el token no puede ir en un mensaje',
       );
     }
+  });
+
+  group('el audio del teléfono', () {
+    test('va y vuelve entero', () {
+      const marco = Audio(seq: 7, pcmBase64: 'AAECAwQ=');
+      final vuelta = Frame.decode(marco.encode());
+
+      expect(vuelta, isA<Audio>());
+      final audio = vuelta as Audio;
+      expect(audio.seq, 7);
+      expect(audio.pcmBase64, 'AAECAwQ=');
+    });
+
+    test('no es un Call: no hay id que confirmar', () {
+      // La decisión de fondo: el audio es tiempo real, así que un trozo que llega
+      // tarde es peor que un hueco. Sin `id` no hay nada que reclamar, y eso es lo
+      // que evita que alguien le añada un `ack` sin querer.
+      const marco = Audio(seq: 1, pcmBase64: 'AA==');
+      final json = marco.toJson();
+
+      expect(json.containsKey('id'), isFalse);
+      expect(json['t'], 'audio');
+    });
+
+    test('un Mac viejo no se cae con él', () {
+      // Un teléfono nuevo contra un Mac que no conoce el marco: tiene que llegar como
+      // desconocido y **no** lanzar, que es lo que permite actualizar un lado antes que
+      // el otro.
+      final crudo = Frame.decode('{"t":"audio-2","seq":1,"pcm":"AA=="}');
+      expect(crudo, isA<UnknownFrame>());
+    });
   });
 }

@@ -63,6 +63,9 @@ class EventLog {
     }
     if (_buffer.isEmpty) return null;
     if (lastSeqVisto < _buffer.first.seq - 1) return null;
-    return [for (final e in _buffer) if (e.seq > lastSeqVisto) e];
+    return [
+      for (final e in _buffer)
+        if (e.seq > lastSeqVisto) e,
+    ];
   }
 }

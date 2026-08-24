@@ -231,6 +231,23 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   ya emparejada. Cerrar no borra nada: lo dicho sigue en el archivo y de ahí se retoma,
   que es lo que hace que no sea destructivo aunque lo parezca. Un nombre vacío quita el
   puesto y devuelve al derivado, que es lo que hace falta para poder deshacer.
+- **Abrir el micrófono del teléfono** y **cerrar el micrófono del teléfono**. Son dos
+  métodos y no un interruptor con parámetro: **cerrar tiene que poder llegar aunque se
+  haya perdido el que abrió**, y con uno solo habría que llevar la cuenta de quién
+  manda. Tampoco piden la frase, por lo mismo que abrir una conversación: hablar no
+  escribe archivos. Lo que se diga sí pasa por el permiso, porque acaba en un encargo y
+  el encargo ya lo comprueba.
+- Y el audio va en un **marco propio, sin confirmación y sin reintento**. Es la decisión
+  de fondo de la voz remota: un trozo que llega tarde es peor que un hueco, porque
+  reenviarlo mete en la conversación medio segundo de hace un rato. Un `ack` por trozo
+  serían tres mensajes por cada 20 ms de voz, y lo que protege el deduplicador —efectos
+  que no se repiten— aquí no aplica: un trozo duplicado no borra un archivo, solo suena
+  raro. Va en base64 porque el canal es de texto: cuesta un tercio más, unos 43 KB/s a
+  16 kHz mono de 16 bits, que es nada por Tailscale y bastante menos que mantener un
+  segundo transporte solo para esto.
+- **El audio sube; la voz no baja.** Lo que Nexus responde en voz alta sale por los
+  altavoces del Mac, que es lo que decidió `lo8` y lo que hace que el teléfono sea un
+  mando a distancia y no un cliente autónomo. Sin Mac despierto y alcanzable no hay voz.
 
 ### Se queda en el Mac
 

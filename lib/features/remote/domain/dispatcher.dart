@@ -160,6 +160,14 @@ class Dispatcher {
         );
         return Result(id: call.id, data: {'renamed': true});
 
+      case RemoteMethod.startVoice:
+        await surface.startVoice(_id(call));
+        return Result(id: call.id, data: {'listening': true});
+
+      case RemoteMethod.stopVoice:
+        await surface.stopVoice(_id(call));
+        return Result(id: call.id, data: {'listening': false});
+
       case RemoteMethod.closeConversation:
         await surface.closeConversation(_id(call));
         return Result(id: call.id, data: {'closed': true});

@@ -43,7 +43,8 @@ class ChannelToken {
   ///
   /// Seis caracteres bastan para distinguir dos tokens en una traza y no acercan a
   /// nadie a adivinar los 43.
-  String get fingerprint => value.length <= 6 ? '……' : '${value.substring(0, 6)}…';
+  String get fingerprint =>
+      value.length <= 6 ? '……' : '${value.substring(0, 6)}…';
 
   /// Y aquí está el motivo de que esto sea una clase.
   ///

@@ -359,7 +359,12 @@ class ChannelLink {
     // que reintentar con el mismo id es seguro y además correcto: con id nuevo, un
     // cierre perdido se quedaría sin hacer.
     RemoteMethod.renameConversation ||
-    RemoteMethod.closeConversation => true,
+    RemoteMethod.closeConversation ||
+    // Abrir y cerrar el micrófono cambian algo en el Mac, y los dos son idempotentes:
+    // abrir dos veces es una sesión, cerrar lo cerrado es lo mismo. Con id nuevo, **un
+    // cierre perdido dejaría el micrófono abierto**, que es el peor final de esta lista.
+    RemoteMethod.startVoice ||
+    RemoteMethod.stopVoice => true,
     // Lo que solo **lee**: una consulta perdida se vuelve a pedir con id nuevo,
     // porque el deduplicador protege efectos y no respuestas.
     RemoteMethod.conversations ||
@@ -556,6 +561,13 @@ class ChannelLink {
         _ultimoSeq = seq;
         _fotos.add(marco);
         _pasarA(LinkState.conectado);
+
+      case Audio():
+        // El audio **solo sube**. Que baje significa un Mac mal escrito o alguien
+        // probando el canal: se ignora en vez de reproducirlo, porque lo que Nexus
+        // dice en voz alta sale por los altavoces del Mac —`lo8`— y un teléfono que
+        // empezara a reproducir audio sería una segunda boca.
+        debugPrint('el Mac mandó audio, que solo va en la otra dirección');
 
       case Hello() || Call() || Resume():
         // Cosas que manda el teléfono, no el Mac. Si llegan, es un Mac mal escrito.

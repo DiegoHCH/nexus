@@ -81,6 +81,21 @@ enum RemoteMethod {
   /// Por eso no es destructivo aunque lo parezca — y por eso tampoco pide la frase.
   closeConversation('cerrar una conversación'),
 
+  /// Abrir el micrófono del teléfono hacia el Mac, y cerrarlo.
+  ///
+  /// Dos métodos y no un interruptor con parámetro: **cerrar tiene que poder llegar
+  /// aunque se haya perdido el que abrió**, y con un solo método idempotente eso
+  /// obligaba a llevar la cuenta de quién manda. Los dos se reintentan con el mismo
+  /// id: abrir dos veces es una sesión abierta, y cerrar lo cerrado es lo mismo.
+  ///
+  /// No piden la frase de escritura, y por el mismo motivo que abrir una conversación:
+  /// hablar no escribe archivos. **Lo que se diga sí pasa por el permiso**, porque
+  /// acaba en un encargo, y el encargo ya lo comprueba.
+  startVoice('abrir el micrófono del teléfono'),
+
+  /// Cerrarlo.
+  stopVoice('cerrar el micrófono del teléfono'),
+
   unlockWrites('subir el permiso');
 
   const RemoteMethod(this.enElDocumento);

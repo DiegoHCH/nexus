@@ -524,6 +524,10 @@ void main() {
           // perdido se quedaria sin hacer.
           'renameConversation': true,
           'closeConversation': true,
+          // Abrir y cerrar el microfono: idempotentes, y con id nuevo **un cierre
+          // perdido dejaria el microfono abierto**, que es el peor final de la lista.
+          'startVoice': true,
+          'stopVoice': true,
           // Solo leen: una consulta perdida se vuelve a pedir con id nuevo, porque el
           // deduplicador protege efectos y no respuestas.
           'conversations': false,
