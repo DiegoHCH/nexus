@@ -58,6 +58,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     });
 
     unawaited(_loadMemory());
+    unawaited(_recuperarLoDicho());
 
     // Perder el foco cierra el micrófono: solo la conversación en foco puede
     // hablar, y dejarlo abierto en una que ya no miras sería exactamente el
@@ -89,6 +90,41 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (folder == null) return;
     final memory = await ref.read(conversationMemoryProvider).read(folder);
     state = state.copyWith(history: memory.prompts);
+  }
+
+  /// Vuelve a pintar lo que ya se había dicho en esta conversación.
+  ///
+  /// Al reabrir la app, las conversaciones abiertas volvían **vacías**: la lista se
+  /// guardaba —ids y carpetas— y los turnos no se recuperaban, aunque estuvieran en
+  /// disco desde el primer encargo. El efecto es peor que perderlos: la ficha sigue
+  /// ahí, con su nombre, invitando a seguir una conversación de la que no se ve nada.
+  ///
+  /// Lo guardado se busca **por el id de esta conversación**, que es con el que se
+  /// guarda —el archivo se llama así—. Se reusa `resume`, que es exactamente esto:
+  /// pintar un registro entero y seguir escribiendo en él.
+  ///
+  /// **Solo si no ha llegado nada todavía.** Esto es asíncrono y el usuario puede
+  /// haber empezado a hablar mientras se leía el disco; sobrescribir entonces sería
+  /// borrarle lo que acaba de decir.
+  Future<void> _recuperarLoDicho() async {
+    final folder = _folder;
+    if (folder == null) return;
+
+    final List<ConversationRecord> guardadas;
+    try {
+      guardadas = await ref.read(localConversationStoreProvider).list(folder);
+    } catch (error) {
+      // Un historial ilegible no puede impedir abrir la conversación: se sigue en
+      // blanco, que es lo que había antes de esto.
+      debugPrint('archivo · no se pudo leer lo dicho: $error');
+      return;
+    }
+
+    final mia = guardadas.where((r) => r.id == conversationId).firstOrNull;
+    if (mia == null || mia.messages.isEmpty) return;
+    if (state.messages.isNotEmpty) return;
+
+    resume(mia);
   }
 
   /// Empezar de cero **en esta carpeta**: Claude deja de reanudar la sesión
