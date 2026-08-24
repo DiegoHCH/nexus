@@ -204,6 +204,12 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   es trabajo corriendo, y la voz saliendo tampoco. Reenviarlo hace que el orbe del
   teléfono **sea** el del Mac y no una imitación que se desincroniza en cuanto se
   añada un estado.
+- **Lo que dijo el usuario** viaja también, en su evento `ask`. Escribiendo no haría
+  falta —el teléfono acaba de teclearlo— pero **hablando sí**: la voz se transcribe en
+  el Mac, y sin esto al teléfono le llegaba la respuesta a una pregunta que nunca se
+  pintó, que se lee como una conversación contestando sola. Va entero y no por trozos,
+  al revés que la respuesta: una pregunta aparece de golpe cuando termina de
+  transcribirse, así que no hay nada que ir sumando.
 - Va en un evento propio, `orb`, y **no dentro de `turn`**: `streaming` y el orbe
   cambian en momentos distintos, y juntarlos haría que uno arrastrara al otro.
 - Con cada conversación viaja también **su nombre**: el primer encargo, aplanado a una

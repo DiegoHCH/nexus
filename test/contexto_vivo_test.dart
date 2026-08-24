@@ -68,11 +68,7 @@ class _TurnoConHerramientas extends ClaudeCliDataSource {
 void main() {
   test('el contexto es el de la última petición, no el del turno', () async {
     final events = await const ClaudeBridgeImpl(_TurnoConHerramientas())
-        .ask(
-          'algo con herramientas',
-          workingDirectory: '/repo',
-          canEdit: false,
-        )
+        .ask('algo con herramientas', workingDirectory: '/repo', canEdit: false)
         .toList();
 
     final fin = events.whereType<ClaudeTurnCompleted>().single;
@@ -86,9 +82,9 @@ void main() {
   });
 
   test('y el gasto del turno sí es el acumulado, que es otra cosa', () async {
-    final events = await const ClaudeBridgeImpl(_TurnoConHerramientas())
-        .ask('algo', workingDirectory: '/repo', canEdit: false)
-        .toList();
+    final events = await const ClaudeBridgeImpl(
+      _TurnoConHerramientas(),
+    ).ask('algo', workingDirectory: '/repo', canEdit: false).toList();
 
     // `turnTokens` mide lo que costó el turno; `contextTokens`, cuánta ventana
     // queda ocupada. Son dos preguntas distintas y por eso no comparten cifra.
@@ -99,9 +95,9 @@ void main() {
   test('sin peticiones intermedias se queda con lo que haya', () async {
     // Un turno sin herramientas: el `result` es la única fuente y sigue siendo
     // correcta, porque ahí hubo una sola petición.
-    final events = await const ClaudeBridgeImpl(_TurnoDirecto())
-        .ask('hola', workingDirectory: '/repo', canEdit: false)
-        .toList();
+    final events = await const ClaudeBridgeImpl(
+      _TurnoDirecto(),
+    ).ask('hola', workingDirectory: '/repo', canEdit: false).toList();
 
     expect(events.whereType<ClaudeTurnCompleted>().single.contextTokens, 5000);
   });

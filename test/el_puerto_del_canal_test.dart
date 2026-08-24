@@ -41,36 +41,43 @@ void main() {
   group('el permiso es un AND', () {
     final ahora = DateTime(2026, 8, 20, 12);
 
-    test('hace falta que la carpeta lo permita **y** que la ventana esté abierta', () {
-      // Las cuatro combinaciones otra vez, por lo mismo: un AND mal escrito
-      // acierta en tres.
-      expect(
-        RemotePermission(
-          folderCanWrite: true,
-          remoteWriteUntil: ahora.add(const Duration(minutes: 5)),
-        ).canWriteAt(ahora),
-        isTrue,
-      );
-      expect(
-        const RemotePermission(folderCanWrite: true, remoteWriteUntil: null)
-            .canWriteAt(ahora),
-        isFalse,
-        reason: 'sin ventana no escribe, aunque la carpeta lo permita',
-      );
-      expect(
-        RemotePermission(
-          folderCanWrite: false,
-          remoteWriteUntil: ahora.add(const Duration(minutes: 5)),
-        ).canWriteAt(ahora),
-        isFalse,
-        reason: 'la ventana no sube lo que la carpeta niega',
-      );
-      expect(
-        const RemotePermission(folderCanWrite: false, remoteWriteUntil: null)
-            .canWriteAt(ahora),
-        isFalse,
-      );
-    });
+    test(
+      'hace falta que la carpeta lo permita **y** que la ventana esté abierta',
+      () {
+        // Las cuatro combinaciones otra vez, por lo mismo: un AND mal escrito
+        // acierta en tres.
+        expect(
+          RemotePermission(
+            folderCanWrite: true,
+            remoteWriteUntil: ahora.add(const Duration(minutes: 5)),
+          ).canWriteAt(ahora),
+          isTrue,
+        );
+        expect(
+          const RemotePermission(
+            folderCanWrite: true,
+            remoteWriteUntil: null,
+          ).canWriteAt(ahora),
+          isFalse,
+          reason: 'sin ventana no escribe, aunque la carpeta lo permita',
+        );
+        expect(
+          RemotePermission(
+            folderCanWrite: false,
+            remoteWriteUntil: ahora.add(const Duration(minutes: 5)),
+          ).canWriteAt(ahora),
+          isFalse,
+          reason: 'la ventana no sube lo que la carpeta niega',
+        );
+        expect(
+          const RemotePermission(
+            folderCanWrite: false,
+            remoteWriteUntil: null,
+          ).canWriteAt(ahora),
+          isFalse,
+        );
+      },
+    );
 
     test('una ventana caducada no vale', () {
       expect(
@@ -94,8 +101,16 @@ void main() {
   test('la conversación viaja con lo que el móvil manda y lo que muestra', () {
     // El `id` es lo que se manda —persiste entre arranques— y la carpeta es lo que
     // se muestra, porque un identificador no le dice nada a nadie.
-    const c = RemoteConversation(id: 'abc', folder: '/Users/x/repo', focused: true);
-    expect(c.toJson(), {'id': 'abc', 'folder': '/Users/x/repo', 'focused': true});
+    const c = RemoteConversation(
+      id: 'abc',
+      folder: '/Users/x/repo',
+      focused: true,
+    );
+    expect(c.toJson(), {
+      'id': 'abc',
+      'folder': '/Users/x/repo',
+      'focused': true,
+    });
     // Y lo que no tiene foco no gasta un campo en decirlo.
     const otra = RemoteConversation(id: 'd', folder: '/y', focused: false);
     expect(otra.toJson().containsKey('focused'), isFalse);

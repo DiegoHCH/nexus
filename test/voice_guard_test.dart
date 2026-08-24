@@ -35,10 +35,15 @@ class _NoMemory implements ConversationMemory {
   const _NoMemory();
 
   @override
-  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async => const FolderMemory();
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
+      const FolderMemory();
 
   @override
-  Future<void> rememberSession(String folderPath, String sessionId, {String? claudeProfile}) async {}
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  }) async {}
 
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
@@ -136,13 +141,20 @@ void main() {
   // antes sí y se vio un encargo listando los archivos del otro repo—, pero la
   // carpeta de artefactos sí viaja en todos los encargos como `--add-dir`.
   group('la carpeta de artefactos no puede ser una puerta', () {
-    ProviderContainer conCajon(String artifacts, FolderModality modalidadCajon) {
+    ProviderContainer conCajon(
+      String artifacts,
+      FolderModality modalidadCajon,
+    ) {
       const cajonPath = '/Users/alguien/salida';
       final container = ProviderContainer(
         overrides: [
-          conversationFolderProvider(conversationId).overrideWithValue(folderPath),
+          conversationFolderProvider(
+            conversationId,
+          ).overrideWithValue(folderPath),
           conversationMemoryProvider.overrideWithValue(const _NoMemory()),
-          artifactsFolderProvider.overrideWith(() => _FixedArtifacts(artifacts)),
+          artifactsFolderProvider.overrideWith(
+            () => _FixedArtifacts(artifacts),
+          ),
           // Este grupo usa una carpeta con voz, así que llega al guardia del
           // micrófono; los de i5 cortan antes y por eso no lo necesitan.
           conMicrofono,
@@ -201,7 +213,9 @@ void main() {
       await controller.toggleVoice();
 
       expect(
-        container.read(assistantControllerProvider(conversationId)).errorMessage,
+        container
+            .read(assistantControllerProvider(conversationId))
+            .errorMessage,
         container.read(stringsProvider).textOnlyArtifactsFolder('salida'),
       );
     });

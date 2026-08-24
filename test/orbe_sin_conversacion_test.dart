@@ -32,7 +32,8 @@ void main() {
           // En solo texto a propósito: así el guardia de voz corta **después**
           // de crear la conversación, y la prueba comprueba lo suyo —que el
           // orbe actúa— sin necesitar un micrófono de verdad.
-          () => FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
+          () =>
+              FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
         ),
       ],
     );

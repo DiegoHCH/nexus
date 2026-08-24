@@ -43,7 +43,11 @@ class _Memory implements ConversationMemory {
   Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
       const FolderMemory(sessionId: null, prompts: []);
   @override
-  Future<void> rememberSession(String f, String id, {String? claudeProfile}) async {}
+  Future<void> rememberSession(
+    String f,
+    String id, {
+    String? claudeProfile,
+  }) async {}
   @override
   Future<void> rememberPrompt(String f, String p) async {}
   @override
@@ -86,8 +90,10 @@ void main() {
     // El caso del teléfono en solo lectura sobre una carpeta que sí permite
     // escribir. Es el que justifica que el tope exista.
     final bridge = _Bridge();
-    await armar(bridge, carpetaEscribe: true)('haz algo', allowWrites: false)
-        .drain<void>();
+    await armar(bridge, carpetaEscribe: true)(
+      'haz algo',
+      allowWrites: false,
+    ).drain<void>();
     expect(bridge.permisos.single, isFalse);
   });
 
@@ -101,8 +107,10 @@ void main() {
 
   test('carpeta en solo lectura + tope cerrado = NO escribe', () async {
     final bridge = _Bridge();
-    await armar(bridge, carpetaEscribe: false)('haz algo', allowWrites: false)
-        .drain<void>();
+    await armar(bridge, carpetaEscribe: false)(
+      'haz algo',
+      allowWrites: false,
+    ).drain<void>();
     expect(bridge.permisos.single, isFalse);
   });
 

@@ -46,6 +46,7 @@ void main() {
     String id, {
     bool streaming = false,
     String reply = '',
+    String pregunta = '',
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
@@ -55,6 +56,7 @@ void main() {
     conversationId: id,
     streaming: streaming,
     reply: reply,
+    ask: pregunta,
     steps: pasos,
     meter: medidor,
     error: error,
@@ -535,6 +537,30 @@ void main() {
         isEmpty,
         reason: 'escuchar no es un turno: nada empezo a correr',
       );
+    });
+  });
+  group('lo que dijo el usuario', () {
+    test('viaja entero y solo cuando cambia a algo', () {
+      // Hablando, el telefono no sabe lo que dijo: la voz se transcribe en el Mac. Sin
+      // esto le llegaba la respuesta a una pregunta que nunca se pinto — una
+      // conversacion contestando sola.
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      // El vacio del arranque no es una pregunta: mandarlo pintaria un turno en blanco.
+      expect(publicados.where((e) => e.kind == 'ask'), isEmpty);
+
+      puente.observar(vista('a', pregunta: 'que reuniones tengo hoy'));
+      pasarElTiempo();
+      final ask = publicados.where((e) => e.kind == 'ask').toList();
+      expect(ask, hasLength(1));
+      // Entera y no por trozos, al reves que la respuesta: una pregunta aparece de
+      // golpe al terminar de transcribirse, asi que no hay nada que ir sumando.
+      expect(ask.single.data['text'], 'que reuniones tengo hoy');
+
+      // Y no se repite si no cambia.
+      puente.observar(vista('a', pregunta: 'que reuniones tengo hoy'));
+      pasarElTiempo();
+      expect(publicados.where((e) => e.kind == 'ask'), hasLength(1));
     });
   });
 }

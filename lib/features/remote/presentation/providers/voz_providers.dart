@@ -30,7 +30,7 @@ enum Voz {
   sinMac,
 }
 
-/// Sostener para hablar.
+/// Abrir el micrófono y cerrarlo.
 ///
 /// **El teléfono no habla con Gemini**: manda trozos al Mac y el Mac hace el resto
 /// (`lo8`). Así que aquí solo hay tres cosas: pedir que abra la sesión, ir mandando lo

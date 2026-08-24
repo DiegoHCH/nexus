@@ -40,7 +40,8 @@ void main() {
     // diccionario y cambiar una palabra no debería romper esta prueba, que es de
     // montaje.
     final pestanas = find.byWidgetPredicate(
-      (w) => w.key is ValueKey<String> &&
+      (w) =>
+          w.key is ValueKey<String> &&
           (w.key! as ValueKey<String>).value.startsWith('seccion-'),
     );
 
@@ -59,7 +60,8 @@ void main() {
 
     for (var i = 0; i < cuantas; i++) {
       final llave =
-          (tester.widgetList(pestanas).elementAt(i).key! as ValueKey<String>).value;
+          (tester.widgetList(pestanas).elementAt(i).key! as ValueKey<String>)
+              .value;
       await tester.tap(find.byKey(ValueKey(llave)));
       // Dos bombeos y no `pumpAndSettle`: hay secciones con animaciones que no
       // paran —el orbe de la prueba de sonido— y asentarlas sería esperar para

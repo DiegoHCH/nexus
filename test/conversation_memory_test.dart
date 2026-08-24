@@ -165,10 +165,9 @@ void main() {
       await memory.rememberPrompt(repoA, 'mira el historial');
 
       // La lista sirve para repetir una petición: quién la ejecutó da igual.
-      expect(
-        (await memory.read(repoA, claudeProfile: private)).prompts,
-        ['mira el historial'],
-      );
+      expect((await memory.read(repoA, claudeProfile: private)).prompts, [
+        'mira el historial',
+      ]);
     });
 
     test('olvidar limpia las de todas las cuentas', () async {
@@ -210,5 +209,4 @@ void main() {
       );
     });
   });
-
 }

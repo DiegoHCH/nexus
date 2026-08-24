@@ -179,7 +179,9 @@ void main() {
   group('traducir lo que cuenta el actualizador', () {
     UpdatesController montar() {
       final container = ProviderContainer(
-        overrides: [currentVersionProvider.overrideWith((ref) async => '0.0.1')],
+        overrides: [
+          currentVersionProvider.overrideWith((ref) async => '0.0.1'),
+        ],
       );
       addTearDown(container.dispose);
       container.listen(updatesControllerProvider, (_, _) {});
@@ -288,16 +290,19 @@ void main() {
       expect((control.state.stage as UpdateFailed).message, 'sin red');
     });
 
-    test('al cerrarse vuelve a reposo, que es lo que cierra la modal', () async {
-      final control = montar();
-      await Future<void>.delayed(Duration.zero);
+    test(
+      'al cerrarse vuelve a reposo, que es lo que cierra la modal',
+      () async {
+        final control = montar();
+        await Future<void>.delayed(Duration.zero);
 
-      control.aplicar(
-        const UpdateEvent(name: 'found', data: {'version': '0.0.3'}),
-      );
-      control.aplicar(const UpdateEvent(name: 'closed', data: {}));
+        control.aplicar(
+          const UpdateEvent(name: 'found', data: {'version': '0.0.3'}),
+        );
+        control.aplicar(const UpdateEvent(name: 'closed', data: {}));
 
-      expect(control.state.stage, isA<UpdateIdle>());
-    });
+        expect(control.state.stage, isA<UpdateIdle>());
+      },
+    );
   });
 }

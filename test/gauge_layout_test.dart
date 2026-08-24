@@ -43,10 +43,7 @@ void main() {
     // 31,1k / 200,0k (…». Compartiendo línea no cabían ninguno de los dos.
     const nombre = 'Ventana de contexto';
     const cifra = '31,1k / 200,0k (16 %)';
-    await _pump(
-      tester,
-      const Gauge(label: nombre, percent: 16, value: cifra),
-    );
+    await _pump(tester, const Gauge(label: nombre, percent: 16, value: cifra));
 
     // Entero quiere decir que lo dibujado mide **lo que el texto pide**. Con
     // el ancho recortado —compartiendo fila— lo dibujado es menor que lo
@@ -79,7 +76,8 @@ void main() {
       const Gauge(
         label: 'Ventana de contexto',
         percent: 0,
-        value: 'Sin dato: esa cuenta no tiene sesión abierta o el acceso caducó.',
+        value:
+            'Sin dato: esa cuenta no tiene sesión abierta o el acceso caducó.',
       ),
     );
     expect(tester.takeException(), isNull);

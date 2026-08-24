@@ -70,7 +70,9 @@ void main() {
 
   test('en .git no se busca, ni si alguien deja un SKILL.md ahí', () async {
     Directory('${raiz.path}/.git/skills/fantasma').createSync(recursive: true);
-    File('${raiz.path}/.git/skills/fantasma/SKILL.md').writeAsStringSync('---\n');
+    File(
+      '${raiz.path}/.git/skills/fantasma/SKILL.md',
+    ).writeAsStringSync('---\n');
     crearSkill('skills/de-verdad');
     expect(await escanear(), ['de-verdad']);
   });

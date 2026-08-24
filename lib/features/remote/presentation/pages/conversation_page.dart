@@ -89,7 +89,10 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   /// `reply` antes de aterrizar en el historial—, y con solo mirar `history` el orbe
   /// grande se quedaría encima del texto que empieza a llegar.
   bool _vacia(MirroredConversation conv) =>
-      conv.history.isEmpty && conv.reply.isEmpty && conv.steps.isEmpty;
+      conv.history.isEmpty &&
+      conv.reply.isEmpty &&
+      conv.ask.isEmpty &&
+      conv.steps.isEmpty;
 
   /// Ponerle nombre o cerrarla.
   ///
@@ -234,6 +237,23 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                   for (final mensaje in conv.history)
                     _Mensaje(mensaje: mensaje),
                   if (conv.history.isNotEmpty) const SizedBox(height: 8),
+                  // **Lo que dijo el usuario, cuando lo dijo hablando.** Escribiendo
+                  // el teléfono ya lo tiene; hablando, la voz se transcribe en el Mac
+                  // y sin esto llegaba la respuesta a una pregunta que nunca se pintó
+                  // — una conversación contestando sola.
+                  //
+                  // Va **antes** de los pasos y de la respuesta porque es lo que las
+                  // provoca, y con la misma cautela que la respuesta: solo si no está
+                  // ya abajo en el historial, o se vería dos veces al cerrarse el turno.
+                  if (conv.ask.isNotEmpty && !conv.preguntaYaEnHistorial)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: TurnBlock(
+                        key: const ValueKey('pregunta'),
+                        mine: true,
+                        text: conv.ask,
+                      ),
+                    ),
                   if (conv.steps.isNotEmpty) _Pasos(pasos: conv.steps),
                   // La respuesta en curso, **y solo si no está ya abajo en el
                   // historial**: al terminar el turno el mismo texto salía por los
@@ -639,12 +659,17 @@ class _Compositor extends ConsumerWidget {
 /// Cuadrado de 44 —lo mismo que el campo de al lado, así que la fila queda a una sola
 /// altura— con un hairline del color de lo que hace y el glifo dentro. Apagado se ve
 /// igual pero en `rule`: quitarlo movería el campo justo cuando se está escribiendo.
-/// Sostener para hablar.
+/// Un toque abre el micrófono y otro lo cierra.
 ///
-/// **Mientras se sostiene**, no un interruptor: el mockup lo dice en su propio pie
-/// —«mantén pulsado para hablar»— y la razón es que un micrófono que se queda abierto
-/// porque nadie volvió a tocar el botón es exactamente lo que no se quiere en un
-/// teléfono que se guarda en el bolsillo.
+/// **Interruptor, y no mientras se sostiene.** El mockup pedía «mantén pulsado» y se
+/// construyó así, con el argumento de que un micrófono olvidado abierto es lo peor que
+/// le puede pasar a un teléfono que se guarda en el bolsillo. Pero sostener obliga a
+/// tener el dedo en el cristal mientras se habla, y hablando con el Mac se hace lo
+/// contrario: se deja el teléfono en la mesa y se habla.
+///
+/// El riesgo que preocupaba sigue cubierto, y no por el gesto: la sesión de voz del Mac
+/// **se cierra sola por inactividad**, así que un micrófono que nadie vuelve a tocar se
+/// apaga igual. Es mejor sitio para esa garantía que el dedo del usuario.
 ///
 /// Los cuatro estados del contrato se ven aquí: sin permiso, abriendo, hablando y sin
 /// Mac. Ninguno es una excepción — todos son cosas que pasan y que hay que poder decir.
@@ -680,28 +705,26 @@ class _Microfono extends ConsumerWidget {
       Voz.callado => (false, false, colors.mute),
     };
 
-    return Listener(
-      // `Listener` y no `GestureDetector`: hace falta saber cuándo **se levanta el
-      // dedo pase lo que pase** —incluido al salir del botón deslizando, que es el
-      // «desliza para cancelar» del mockup— y `onTapUp` no llega si el gesto se cancela.
-      onPointerDown: (_) => control.sostener(conversationId),
-      onPointerUp: (_) => control.soltar(conversationId),
-      onPointerCancel: (_) => control.soltar(conversationId),
-      child: _Cuadro(
-        key: const ValueKey('microfono'),
-        dibujo: MicrofonoDibujado(
-          color: color,
-          // Se mide con la tipografía de la fila para que los tres cuadros pesen
-          // igual: un dibujo a su tamaño de gusto se veía más grande que sus vecinos.
-          size: NexusTypography.lead.fontSize! * 1.3,
-          relleno: relleno,
-          tachado: tachado,
-        ),
+    // Abierto o abriéndose, el toque cierra; si no, abre. Se mira el estado y no un
+    // booleano propio del widget: el micrófono puede cerrarse **sin que nadie lo
+    // toque** —la sesión se cae, o el sistema quita el permiso— y un interruptor con
+    // memoria propia se quedaría diciendo «abierto» sobre un micrófono cerrado.
+    final abierto = voz == Voz.hablando || voz == Voz.abriendo;
+
+    return _Cuadro(
+      key: const ValueKey('microfono'),
+      dibujo: MicrofonoDibujado(
         color: color,
-        // Sin `alTocar`: quien manda es el sostener, y dejarlo también como toque haría
-        // que un toque suelto abriera el micrófono sin cerrarlo.
-        alTocar: () {},
+        // Se mide con la tipografía de la fila para que los tres cuadros pesen
+        // igual: un dibujo a su tamaño de gusto se veía más grande que sus vecinos.
+        size: NexusTypography.lead.fontSize! * 1.3,
+        relleno: relleno,
+        tachado: tachado,
       ),
+      color: color,
+      alTocar: () => abierto
+          ? control.soltar(conversationId)
+          : control.sostener(conversationId),
     );
   }
 }

@@ -63,9 +63,17 @@ void main() {
           200,
           scrollable: find.byType(Scrollable).last,
         );
-        expect(find.text(titulo), findsOne, reason: 'falta el bloque «$titulo»');
+        expect(
+          find.text(titulo),
+          findsOne,
+          reason: 'falta el bloque «$titulo»',
+        );
       }
-      expect(tester.takeException(), isNull, reason: 'y sin desbordar al bajar');
+      expect(
+        tester.takeException(),
+        isNull,
+        reason: 'y sin desbordar al bajar',
+      );
     });
 
     testWidgets('y en claro', (tester) async {
@@ -85,10 +93,10 @@ void main() {
     // dice «uno de dos modos». Es el único enganche entre la prosa y el código.
     test('son dos modos de carpeta, ni uno ni tres', () {
       expect(FolderModality.values, hasLength(2));
-      expect(
-        FolderModality.values.toSet(),
-        {FolderModality.textOnly, FolderModality.voice},
-      );
+      expect(FolderModality.values.toSet(), {
+        FolderModality.textOnly,
+        FolderModality.voice,
+      });
     });
 
     test('y el restrictivo es el que no deja hablar', () {

@@ -59,8 +59,8 @@ class _Guionizada extends HoldVoiceConversation {
 
 /// Nada de esto se llama: si algo lo llamara, la prueba lo diría a gritos en
 /// vez de pasar por un camino que no quería probar.
-class _Nada implements VoiceInput, VoiceGateway, AudioOutput, ClaudeBridge,
-    StaysAwake {
+class _Nada
+    implements VoiceInput, VoiceGateway, AudioOutput, ClaudeBridge, StaysAwake {
   @override
   dynamic noSuchMethod(Invocation invocation) =>
       throw UnimplementedError('${invocation.memberName} no debía llamarse');
@@ -69,9 +69,14 @@ class _Nada implements VoiceInput, VoiceGateway, AudioOutput, ClaudeBridge,
 class _NoMemory implements ConversationMemory {
   const _NoMemory();
   @override
-  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async => const FolderMemory();
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
+      const FolderMemory();
   @override
-  Future<void> rememberSession(String folderPath, String sessionId, {String? claudeProfile}) async {}
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override
@@ -81,14 +86,10 @@ class _NoMemory implements ConversationMemory {
 class _Workspace extends WorkspaceController {
   @override
   Workspace build() => Workspace(
-    folders: [
-      PairedFolder(path: folderPath, modality: FolderModality.voice),
-    ],
+    folders: [PairedFolder(path: folderPath, modality: FolderModality.voice)],
     activePath: folderPath,
   );
 }
-
-
 
 /// El permiso, en el estado que pida cada prueba.
 class _Permiso implements MicrophoneAccess {
@@ -144,7 +145,9 @@ void main() {
   }) {
     final container = ProviderContainer(
       overrides: [
-        conversationFolderProvider(conversationId).overrideWithValue(folderPath),
+        conversationFolderProvider(
+          conversationId,
+        ).overrideWithValue(folderPath),
         conversationMemoryProvider.overrideWithValue(const _NoMemory()),
         workspaceControllerProvider.overrideWith(_Workspace.new),
         holdVoiceConversationProvider(conversationId).overrideWithValue(voz),
@@ -161,7 +164,9 @@ void main() {
         .read(assistantControllerProvider(conversationId).notifier)
         .toggleVoice();
     await Future<void>.delayed(Duration.zero);
-    return container.read(assistantControllerProvider(conversationId)).errorMessage;
+    return container
+        .read(assistantControllerProvider(conversationId))
+        .errorMessage;
   }
 
   test('denegado: no se abre, y se dice dónde se arregla', () async {
@@ -192,10 +197,7 @@ void main() {
     // El caso del primer arranque. Rendirse aquí mandaría a Ajustes del sistema a
     // buscar un permiso que nadie ha pedido todavía.
     final micro = _Micro(true);
-    final container = montar(
-      permiso: MicrophoneStatus.notAsked,
-      micro: micro,
-    );
+    final container = montar(permiso: MicrophoneStatus.notAsked, micro: micro);
 
     await avisoTrasPulsar(container);
 
@@ -209,10 +211,7 @@ void main() {
 
   test('sin decidir y te dicen que no: se avisa igual', () async {
     final micro = _Micro(false);
-    final container = montar(
-      permiso: MicrophoneStatus.notAsked,
-      micro: micro,
-    );
+    final container = montar(permiso: MicrophoneStatus.notAsked, micro: micro);
 
     expect(
       await avisoTrasPulsar(container),

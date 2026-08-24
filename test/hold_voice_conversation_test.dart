@@ -100,8 +100,9 @@ class _Bridge implements ClaudeBridge {
 
   final _raw = <String>[];
 
-  List<String> get asked =>
-      [for (final instruction in _raw) instruction.split('\n\n').first];
+  List<String> get asked => [
+    for (final instruction in _raw) instruction.split('\n\n').first,
+  ];
 
   @override
   Stream<ClaudeEvent> ask(
@@ -118,7 +119,9 @@ class _Bridge implements ClaudeBridge {
   }) async* {
     _raw.add(instruction);
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
-    yield ClaudeTurnCompleted(result: 'lo de «${instruction.split('\n\n').first}»');
+    yield ClaudeTurnCompleted(
+      result: 'lo de «${instruction.split('\n\n').first}»',
+    );
   }
 }
 
@@ -127,7 +130,11 @@ class _Memory implements ConversationMemory {
   Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
       const FolderMemory(sessionId: null, prompts: []);
   @override
-  Future<void> rememberSession(String folderPath, String id, {String? claudeProfile}) async {}
+  Future<void> rememberSession(
+    String folderPath,
+    String id, {
+    String? claudeProfile,
+  }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override
@@ -175,7 +182,6 @@ AskClaude _armar(ClaudeBridge bridge) => AskClaude(
   FolderErrandQueue(),
   _Awake(),
 );
-
 
 /// Un puente que **anuncia el modelo**, como hace el CLI en su evento `init`.
 ///
@@ -255,35 +261,35 @@ void main() {
     },
   );
 
-  test('el turno cierra la frase: la siguiente no arrastra la anterior', () async {
-    final session = _Session();
-    final bridge = _Bridge();
-    final conversation = HoldVoiceConversation(
-      _Mic(),
-      _Gateway(session),
-      _Speaker(),
-      _askClaude(bridge),
-      (_) {},
-    );
+  test(
+    'el turno cierra la frase: la siguiente no arrastra la anterior',
+    () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = HoldVoiceConversation(
+        _Mic(),
+        _Gateway(session),
+        _Speaker(),
+        _askClaude(bridge),
+        (_) {},
+      );
 
-    final subscription = conversation().listen((_) {});
-    await Future<void>.delayed(Duration.zero);
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
 
-    session.emit(const VoiceUserTranscript('corre los tests'));
-    session.emit(const VoiceTurnCompleted());
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      session.emit(const VoiceUserTranscript('corre los tests'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    session.emit(const VoiceUserTranscript('y ahora mira el historial'));
-    session.emit(const VoiceTurnCompleted());
-    await Future<void>.delayed(const Duration(milliseconds: 20));
+      session.emit(const VoiceUserTranscript('y ahora mira el historial'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
 
-    expect(bridge.asked, [
-      'corre los tests',
-      'y ahora mira el historial',
-    ]);
+      expect(bridge.asked, ['corre los tests', 'y ahora mira el historial']);
 
-    await subscription.cancel();
-  });
+      await subscription.cancel();
+    },
+  );
 
   test(
     'una corrección que llega tarde no interrumpe: ya hablabas de otra cosa',
@@ -294,11 +300,7 @@ void main() {
       // pisaron y la segunda dejó a la primera a medias.
       final bridge = _Bridge(tarda: const Duration(milliseconds: 120));
       final registro = <String>[];
-      final conversation = _conversation(
-        session,
-        bridge,
-        log: registro.add,
-      );
+      final conversation = _conversation(session, bridge, log: registro.add);
 
       final subscription = conversation().listen((_) {});
       await Future<void>.delayed(Duration.zero);
@@ -419,7 +421,6 @@ void main() {
     });
   });
 
-
   test('hablando, el fin del encargo lleva el modelo y no solo los tokens', () async {
     // La prueba que faltaba, y que se echó en falta de la peor manera: el arreglo
     // se dio por hecho con el cableado muerto. Las pruebas de entonces miraban el
@@ -450,7 +451,8 @@ void main() {
     expect(
       fin!.model,
       'claude-opus-5[1m]',
-      reason: 'el modelo del `init` tiene que viajar con el fin del encargo: sin '
+      reason:
+          'el modelo del `init` tiene que viajar con el fin del encargo: sin '
           'él el medidor asume 200k y el porcentaje sale por cinco',
     );
     expect(fin.contextTokens, 175922);

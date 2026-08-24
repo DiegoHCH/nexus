@@ -426,4 +426,41 @@ void main() {
     // un golden, y el painter es privado. Lo que si queda atado es que el dibujo
     // existe y que ninguno de los tres estados revienta al pintarse.
   });
+  test('el microfono es un interruptor: un toque abre y otro cierra', () async {
+    // Era «manten pulsado», que obliga a tener el dedo en el cristal mientras se
+    // habla. Hablando con el Mac se hace lo contrario: se deja el telefono en la mesa
+    // y se habla, asi que el gesto pasa a ser un interruptor.
+    final orden = <String>[];
+    final c = _conVoz(orden: orden);
+
+    await c.read(vozProvider.notifier).sostener('a');
+    expect(c.read(vozProvider), Voz.hablando);
+
+    // Y el segundo toque lo cierra. Lo que preocupaba del interruptor —un microfono
+    // olvidado abierto— lo cubre la sesion del Mac, que se cierra sola por
+    // inactividad: es mejor sitio para esa garantia que el dedo del usuario.
+    await c.read(vozProvider.notifier).soltar('a');
+    expect(c.read(vozProvider), Voz.callado);
+    expect(orden, contains('micro:cerrar'));
+    expect(orden, contains('mac:stopVoice'));
+  });
+
+  test('y el boton del microfono es un toque, no un sostener', () {
+    // La prueba de arriba cubre el controlador; esto cubre el gesto, que es donde
+    // vivia el «manten pulsado»: un `Listener` con `onPointerUp` cerrando al levantar
+    // el dedo. Si vuelve, el controlador seguiria bien y la app volveria a obligar a
+    // tener el dedo en el cristal.
+    final fuente = File(
+      'lib/features/remote/presentation/pages/conversation_page.dart',
+    ).readAsStringSync();
+    final desde = fuente.indexOf('class _Microfono');
+    final cuerpo = fuente.substring(desde, fuente.indexOf('\n}\n', desde));
+
+    expect(cuerpo, contains('alTocar:'));
+    expect(
+      cuerpo,
+      isNot(contains('onPointerUp')),
+      reason: 'volvio el sostener',
+    );
+  });
 }

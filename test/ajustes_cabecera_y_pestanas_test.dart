@@ -48,7 +48,8 @@ void main() {
       expect(
         corta.width,
         greaterThan(180),
-        reason: 'la columna mide 200: el área útil es la columna, no la palabra',
+        reason:
+            'la columna mide 200: el área útil es la columna, no la palabra',
       );
     });
 

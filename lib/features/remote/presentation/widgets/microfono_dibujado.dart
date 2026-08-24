@@ -69,10 +69,7 @@ class _Trazo extends CustomPainter {
       Rect.fromLTRB(9.5 * k, 3 * k, 14.5 * k, 13.5 * k),
       Radius.circular(2.5 * k),
     );
-    canvas.drawRRect(
-      capsula,
-      relleno ? (Paint()..color = color) : trazo,
-    );
+    canvas.drawRRect(capsula, relleno ? (Paint()..color = color) : trazo);
 
     // La horquilla: media circunferencia por debajo de la cápsula. Va desde el lado
     // izquierdo hasta el derecho pasando por abajo, que es lo que hace que se lea como

@@ -27,7 +27,12 @@ void main() {
       // Es `/10` y no `/8`: `100.0.x` y `100.128.x` son direcciones públicas de
       // internet. Darlas por buenas sería escuchar donde no se debe, que es
       // exactamente lo contrario de la decisión 1.
-      for (final mala in ['100.0.0.1', '100.63.255.255', '100.128.0.1', '100.255.1.1']) {
+      for (final mala in [
+        '100.0.0.1',
+        '100.63.255.255',
+        '100.128.0.1',
+        '100.255.1.1',
+      ]) {
         expect(
           Tailscale.esDeTailscale(InternetAddress(mala)),
           isFalse,
@@ -37,7 +42,12 @@ void main() {
     });
 
     test('ni la red local, ni el bucle', () {
-      for (final otra in ['192.168.1.10', '10.0.0.5', '127.0.0.1', '172.16.0.1']) {
+      for (final otra in [
+        '192.168.1.10',
+        '10.0.0.5',
+        '127.0.0.1',
+        '172.16.0.1',
+      ]) {
         expect(Tailscale.esDeTailscale(InternetAddress(otra)), isFalse);
       }
     });
@@ -55,7 +65,10 @@ void main() {
       // El fallo que esto evita: a falta de Tailscale, «coger la primera que haya»
       // acabaría escuchando en la red local — abriendo el canal a todo el wifi.
       expect(
-        Tailscale.elegir([InternetAddress('192.168.1.10'), InternetAddress('10.0.0.1')]),
+        Tailscale.elegir([
+          InternetAddress('192.168.1.10'),
+          InternetAddress('10.0.0.1'),
+        ]),
         isNull,
       );
       expect(Tailscale.elegir([]), isNull);
@@ -108,7 +121,10 @@ void main() {
         Rechazo.desdeUnNavegador,
       );
       // Incluso si el origen parece inofensivo.
-      expect(revisar(montar(), origin: 'http://localhost:3000'), Rechazo.desdeUnNavegador);
+      expect(
+        revisar(montar(), origin: 'http://localhost:3000'),
+        Rechazo.desdeUnNavegador,
+      );
     });
 
     test('con un Host que no es el nuestro, no', () {
@@ -118,17 +134,20 @@ void main() {
       expect(revisar(montar(), host: '100.100.20.30:9999'), Rechazo.hostAjeno);
     });
 
-    test('el orden de las comprobaciones no gasta intentos de quien no lo intentaba', () {
-      // Un navegador rechazado por `Origin` no puede contar como intento fallido de
-      // adivinar el token: si contara, cualquier web abierta agotaría el cupo de la
-      // IP del propio Mac y dejaría al móvil fuera.
-      final g = montar();
-      for (var i = 0; i < 20; i++) {
-        revisar(g, origin: 'https://web.com');
-      }
-      expect(g.fallosDe('100.64.0.9'), 0);
-      expect(revisar(g), isNull, reason: 'el legítimo sigue pudiendo entrar');
-    });
+    test(
+      'el orden de las comprobaciones no gasta intentos de quien no lo intentaba',
+      () {
+        // Un navegador rechazado por `Origin` no puede contar como intento fallido de
+        // adivinar el token: si contara, cualquier web abierta agotaría el cupo de la
+        // IP del propio Mac y dejaría al móvil fuera.
+        final g = montar();
+        for (var i = 0; i < 20; i++) {
+          revisar(g, origin: 'https://web.com');
+        }
+        expect(g.fallosDe('100.64.0.9'), 0);
+        expect(revisar(g), isNull, reason: 'el legítimo sigue pudiendo entrar');
+      },
+    );
 
     test('demasiados intentos y se cierra', () {
       final g = montar();
@@ -159,8 +178,13 @@ void main() {
       }
       expect(revisar(g), Rechazo.demasiadosIntentos);
       ahora = ahora.add(const Duration(minutes: 2));
-      expect(revisar(g), isNull, reason: 'un bloqueo permanente por diez errores '
-          'dejaría fuera a quien se equivocó de token una tarde');
+      expect(
+        revisar(g),
+        isNull,
+        reason:
+            'un bloqueo permanente por diez errores '
+            'dejaría fuera a quien se equivocó de token una tarde',
+      );
     });
 
     test('los aciertos no gastan cupo', () {
@@ -212,7 +236,9 @@ void main() {
 
     test('desde el principio, todo', () {
       final log = EventLog();
-      log..emitir('a')..emitir('b');
+      log
+        ..emitir('a')
+        ..emitir('b');
       expect(log.desde(0)!.length, 2);
     });
 
@@ -229,12 +255,15 @@ void main() {
       expect(log.desde(7)!.map((e) => e.seq), [8, 9, 10]);
     });
 
-    test('un cliente que dice haber visto más de lo que existe pide snapshot', () {
-      // Pasa de verdad: el servidor se reinició y su numeración volvió a empezar.
-      // No es un resync, es otra vida.
-      final log = EventLog()..emitir('a');
-      expect(log.desde(500), isNull);
-    });
+    test(
+      'un cliente que dice haber visto más de lo que existe pide snapshot',
+      () {
+        // Pasa de verdad: el servidor se reinició y su numeración volvió a empezar.
+        // No es un resync, es otra vida.
+        final log = EventLog()..emitir('a');
+        expect(log.desde(500), isNull);
+      },
+    );
 
     test('el búfer no crece sin tope', () {
       final log = EventLog(capacidad: 10);
@@ -242,7 +271,11 @@ void main() {
         log.emitir('e');
       }
       expect(log.guardados, 10);
-      expect(log.lastSeq, 1000, reason: 'la numeración sigue, aunque el búfer no');
+      expect(
+        log.lastSeq,
+        1000,
+        reason: 'la numeración sigue, aunque el búfer no',
+      );
     });
   });
 }

@@ -35,7 +35,9 @@ void main() {
     await pumpScreen(
       tester,
       const Center(
-        child: PendingDot(child: Icon(Icons.add, size: 16, key: ValueKey('mas'))),
+        child: PendingDot(
+          child: Icon(Icons.add, size: 16, key: ValueKey('mas')),
+        ),
       ),
       overrides: [
         updatesControllerProvider.overrideWith(
@@ -54,14 +56,20 @@ void main() {
   testWidgets('sin nada pendiente no hay punto', (tester) async {
     await montar(tester);
     expect(find.byType(Icon), findsOne, reason: 'solo el icono envuelto');
-    expect(find.byType(Stack), findsNothing, reason: 'ni se monta el envoltorio');
+    expect(
+      find.byType(Stack),
+      findsNothing,
+      reason: 'ni se monta el envoltorio',
+    );
   });
 
   testWidgets('con una versión sin instalar aparece', (tester) async {
     await montar(tester, publicada: '0.0.4');
     // El punto es un contenedor circular rojo; se busca por su decoración para no
     // depender de cómo esté compuesto.
-    final puntos = tester.widgetList<Container>(find.byType(Container)).where((c) {
+    final puntos = tester.widgetList<Container>(find.byType(Container)).where((
+      c,
+    ) {
       final d = c.decoration;
       return d is BoxDecoration && d.shape == BoxShape.circle;
     });

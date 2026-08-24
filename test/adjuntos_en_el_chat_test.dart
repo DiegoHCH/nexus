@@ -146,9 +146,7 @@ void main() {
             theme: NexusTheme.dark(),
             builder: (context, child) =>
                 StringsScope(strings: const NexusStringsEs(), child: child!),
-            home: const Scaffold(
-              body: AttachmentStrip(paths: [adjunto]),
-            ),
+            home: const Scaffold(body: AttachmentStrip(paths: [adjunto])),
           ),
         ),
       );
@@ -160,7 +158,6 @@ void main() {
       expect(visor.abiertos, isEmpty);
     });
   });
-
 }
 
 class _VisorFalso implements ArtifactsDataSource {
