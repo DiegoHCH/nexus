@@ -92,6 +92,18 @@ class _Falsa implements RemoteSurface {
     _mirar(conversationId);
   }
 
+  @override
+  Future<void> renameConversation(String conversationId, String name) async {
+    diario.add('app:renameConversation:$name');
+    _mirar(conversationId);
+  }
+
+  @override
+  Future<void> closeConversation(String conversationId) async {
+    diario.add('app:closeConversation');
+    _mirar(conversationId);
+  }
+
   // ── lo que salió de usar el teléfono de verdad ──
 
   /// Las carpetas que este Mac «tiene emparejadas».

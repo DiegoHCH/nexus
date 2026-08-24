@@ -62,6 +62,13 @@ abstract class RemoteSurface {
   /// no abrir una segunda sobre la misma carpeta.
   Future<String> resumeConversation(String archivedId);
 
+  /// Le pone nombre a una conversación. Vacío se lo quita y vuelve al derivado.
+  Future<void> renameConversation(String conversationId, String name);
+
+  /// Cierra una conversación. **No borra nada**: lo dicho sigue en el archivo, y de
+  /// ahí se retoma — que es lo que hace que no sea destructivo aunque lo parezca.
+  Future<void> closeConversation(String conversationId);
+
   /// Las carpetas que el Mac **ya tiene emparejadas**.
   ///
   /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La

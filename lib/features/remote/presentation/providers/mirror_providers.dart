@@ -141,6 +141,40 @@ class MirrorController extends Notifier<RemoteMirror> {
     return encolado != null;
   }
 
+  /// Le pone nombre a una conversación. Vacío se lo quita.
+  ///
+  /// **Sin espejo optimista**: el nombre llega de vuelta por el evento `title` que ya
+  /// existe, así que pintarlo aquí crearía una segunda fuente para el mismo dato — y la
+  /// de aquí se quedaría vieja el día que el Mac decida otro.
+  Future<LinkError?> renombrar(String conversationId, String nombre) async {
+    try {
+      await ref
+          .read(channelLinkProvider)
+          .pedir(
+            RemoteMethod.renameConversation,
+            params: {'conversation': conversationId, 'name': nombre},
+          );
+      return null;
+    } on LinkError catch (error) {
+      return error;
+    }
+  }
+
+  /// Cierra una conversación en el Mac. No borra nada: sigue en el archivo.
+  Future<LinkError?> cerrar(String conversationId) async {
+    try {
+      await ref
+          .read(channelLinkProvider)
+          .pedir(
+            RemoteMethod.closeConversation,
+            params: {'conversation': conversationId},
+          );
+      return null;
+    } on LinkError catch (error) {
+      return error;
+    }
+  }
+
   Future<LinkError?> detener(String conversationId) async {
     try {
       await ref

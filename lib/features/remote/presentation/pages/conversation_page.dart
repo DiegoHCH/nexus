@@ -89,6 +89,40 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
   bool _vacia(MirroredConversation conv) =>
       conv.history.isEmpty && conv.reply.isEmpty && conv.steps.isEmpty;
 
+  /// Ponerle nombre o cerrarla.
+  ///
+  /// En una hoja y no en un menú de Material: es el mismo lenguaje que la hoja de la
+  /// frase de escritura, y un `PopupMenuButton` traería sus propias esquinas y su
+  /// sombra a una pantalla que no tiene ninguna de las dos.
+  ///
+  /// El contenido es un widget aparte porque **el campo tiene que ser suyo**: creado y
+  /// liberado aquí, se liberaba mientras la hoja seguía cerrándose —la animación aún lo
+  /// usaba— y eso revienta con «un TextEditingController se usó después de liberarlo».
+  Future<void> _acciones(
+    MirroredConversation conv,
+  ) => showModalBottomSheet<void>(
+    context: context,
+    backgroundColor: context.colors.deep,
+    shape: const RoundedRectangleBorder(),
+    builder: (hoja) => _HojaDeAcciones(
+      nombreDeAhora: conv.nombre,
+      alGuardar: (nombre) async {
+        Navigator.of(hoja).pop();
+        await ref
+            .read(mirrorProvider.notifier)
+            .renombrar(widget.conversationId, nombre);
+      },
+      alCerrar: () async {
+        Navigator.of(hoja).pop();
+        final fallo = await ref
+            .read(mirrorProvider.notifier)
+            .cerrar(widget.conversationId);
+        // Se sale **solo si se cerró**: quedarse en una pantalla que ya no refleja
+        // nada es peor que no haber salido.
+        if (fallo == null && mounted) Navigator.of(context).pop();
+      },
+    ),
+  );
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -125,8 +159,24 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
           conv.nombre.split('/').last,
           style: NexusTypography.lead.copyWith(color: colors.ink),
         ),
-        actions: const [
-          Padding(padding: EdgeInsets.only(right: 16), child: LinkBadge()),
+        actions: [
+          // Las dos acciones sobre la conversación **detrás de un toque**, no a la
+          // vista: cerrar al lado de la insignia de conexión es un botón destructivo
+          // pegado a algo que se mira todo el rato.
+          IconButton(
+            key: const ValueKey('acciones-de-la-conversacion'),
+            onPressed: () => _acciones(conv),
+            // Tres puntos dibujados con el sistema, no `Icons.more_vert`: el idioma de
+            // estas pantallas son hairlines y glifos.
+            icon: Text(
+              '···',
+              style: NexusTypography.lead.copyWith(color: colors.mute),
+            ),
+          ),
+          const Padding(
+            padding: EdgeInsets.only(right: 16),
+            child: LinkBadge(),
+          ),
         ],
       ),
       // **El orbe va detrás, no dentro.** Es la otra mitad de esta pieza: puesto entre
@@ -624,6 +674,77 @@ class _Cuadro extends StatelessWidget {
           style: NexusTypography.body.copyWith(
             color: vivo ? color : colors.rule2,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Lo que hay dentro de la hoja de acciones.
+class _HojaDeAcciones extends StatefulWidget {
+  const _HojaDeAcciones({
+    required this.nombreDeAhora,
+    required this.alGuardar,
+    required this.alCerrar,
+  });
+
+  final String nombreDeAhora;
+  final Future<void> Function(String) alGuardar;
+  final Future<void> Function() alCerrar;
+
+  @override
+  State<_HojaDeAcciones> createState() => _HojaDeAccionesState();
+}
+
+class _HojaDeAccionesState extends State<_HojaDeAcciones> {
+  late final _campo = TextEditingController(text: widget.nombreDeAhora);
+
+  @override
+  void dispose() {
+    _campo.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.all(NexusSpacing.s5),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            MobileField(
+              etiqueta: 'Nombre',
+              controlador: _campo,
+              // Se dice que se puede vaciar: es la forma de deshacer, y sin decirlo
+              // nadie la encuentra.
+              pista: 'vacío vuelve al primer encargo',
+            ),
+            const SizedBox(height: NexusSpacing.s4),
+            WideAction(
+              key: const ValueKey('guardar-nombre'),
+              texto: 'Guardar el nombre',
+              principal: true,
+              alTocar: () => widget.alGuardar(_campo.text),
+            ),
+            const SizedBox(height: NexusSpacing.s5),
+            Text(
+              // Lo que hace falta saber **antes** de tocar: cerrar suena a borrar y no
+              // lo es.
+              'Cerrarla la quita del Mac. Lo dicho sigue en el archivo, y desde ahí '
+              'se retoma.',
+              style: NexusTypography.mono.copyWith(color: colors.faint),
+            ),
+            const SizedBox(height: NexusSpacing.s3),
+            WideAction(
+              key: const ValueKey('cerrar-la-conversacion'),
+              texto: 'Cerrar la conversación',
+              alTocar: widget.alCerrar,
+            ),
+          ],
         ),
       ),
     );

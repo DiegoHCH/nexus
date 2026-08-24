@@ -354,6 +354,41 @@ void main() {
   });
 
   group('con qué se reconoce una conversación', () {
+    test('el nombre que puso el usuario manda sobre todo', () {
+      // Si se ha tomado la molestia de ponerle nombre, ningun derivado puede pisarlo —
+      // y menos el primer encargo, que **cambia** al retomarla del archivo.
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(
+              author: ChatAuthor.user,
+              text: 'de que trata el proyecto',
+            ),
+          ],
+          carpeta: '/Users/alguien/personal/nexus',
+          id: 'a',
+          puesto: 'lo del login',
+        ),
+        'lo del login',
+      );
+    });
+
+    test('un nombre en blanco no cuenta como nombre', () {
+      // Vaciarlo es la forma de deshacer: tiene que volver al derivado, no dejar el
+      // titulo en blanco.
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(author: ChatAuthor.user, text: 'ordena la casa'),
+          ],
+          carpeta: null,
+          id: 'a',
+          puesto: '   ',
+        ),
+        'ordena la casa',
+      );
+    });
+
     test('el primer encargo, no el identificador', () {
       expect(
         tituloDeConversacion(

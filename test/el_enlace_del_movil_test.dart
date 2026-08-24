@@ -519,6 +519,11 @@ void main() {
           // conversaciones sobre la misma carpeta, que el escritorio no permite.
           'openConversation': true,
           'resumeConversation': true,
+          // Renombrar y cerrar son **idempotentes**: el mismo nombre dos veces es el
+          // mismo nombre, y cerrar lo ya cerrado deja lo mismo. Con id nuevo, un cierre
+          // perdido se quedaria sin hacer.
+          'renameConversation': true,
+          'closeConversation': true,
           // Solo leen: una consulta perdida se vuelve a pedir con id nuevo, porque el
           // deduplicador protege efectos y no respuestas.
           'conversations': false,
