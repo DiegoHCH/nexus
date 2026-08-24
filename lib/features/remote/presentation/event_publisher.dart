@@ -84,6 +84,10 @@ class EventPublisher {
     return ConversationView(
       conversationId: id,
       streaming: hud.isStreaming,
+      // Tal cual lo tiene el Mac: aquí no se traduce ni se recalcula. Es lo que hace
+      // que el orbe del teléfono sea **el mismo** y no una imitación que se
+      // desincroniza en el primer estado que se añada.
+      orb: hud.orbState,
       reply: ultima.text,
       steps: [
         for (final paso in hud.activity)

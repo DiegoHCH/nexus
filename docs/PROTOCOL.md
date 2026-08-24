@@ -198,6 +198,19 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.
+- El **estado del orbe** viaja con cada conversación, y es el del Mac tal cual: el
+  teléfono no lo deduce. Sólo recibía `streaming`, así que de los cuatro estados
+  —reposo, escuchando, trabajando, hablando— podía dibujar dos: el micro abierto no
+  es trabajo corriendo, y la voz saliendo tampoco. Reenviarlo hace que el orbe del
+  teléfono **sea** el del Mac y no una imitación que se desincroniza en cuanto se
+  añada un estado.
+- Va en un evento propio, `orb`, y **no dentro de `turn`**: `streaming` y el orbe
+  cambian en momentos distintos, y juntarlos haría que uno arrastrara al otro.
+- **Y el teléfono lo apaga si no hay enlace.** El espejo se queda con lo último que
+  supo, así que un Mac que estaba trabajando cuando se perdió la cobertura dejaría el
+  orbe girando sobre una pantalla que dice «se perdió el enlace». Un orbe girando
+  promete trabajo que está pasando; sin enlace no se sabe si el Mac terminó, falló o
+  se durmió, y dormido es la única forma honesta de decir «no sé nada».
 - **Abrir una conversación sobre una carpeta ya emparejada**, y también
   **las carpetas emparejadas**, para poder elegir. Esto es lo que parece chocar con «emparejar carpetas se queda en el Mac»
   y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 /// Lo que el teléfono sabe del Mac, construido aplicando eventos.
 ///
@@ -53,6 +54,16 @@ class RemoteMirror {
         reemplazar: evento.data['replace'] == true,
       ),
       'turn' => antes.copyWith(streaming: evento.data['streaming'] == true),
+      // El estado del orbe **como lo mandó el Mac**, sin traducir. Un nombre que esta
+      // versión no conozca deja el que había: un móvil viejo frente a un Mac nuevo
+      // tiene que seguir dibujando algo, no quedarse sin orbe.
+      'orb' => antes.copyWith(
+        orb:
+            NexusOrbState.values
+                .where((e) => e.name == evento.data['state'])
+                .firstOrNull ??
+            antes.orb,
+      ),
       'activity' => antes.copyWith(
         steps: [
           for (final crudo in (evento.data['steps'] as List? ?? const []))
@@ -160,6 +171,7 @@ class MirroredConversation {
     this.folder,
     this.focused = false,
     this.streaming = false,
+    this.orb = NexusOrbState.sleep,
     this.reply = '',
     this.steps = const [],
     this.model,
@@ -176,6 +188,9 @@ class MirroredConversation {
       id: j['id']! as String,
       folder: j['folder'] as String?,
       streaming: j['streaming'] == true,
+      orb:
+          NexusOrbState.values.where((e) => e.name == j['orb']).firstOrNull ??
+          NexusOrbState.sleep,
       reply: (j['reply'] as String?) ?? '',
       steps: [
         for (final p in (j['steps'] as List? ?? const []))
@@ -200,6 +215,10 @@ class MirroredConversation {
   final String? folder;
   final bool focused;
   final bool streaming;
+
+  /// El estado del orbe en el Mac. `sleep` de partida, que es lo que le toca a una
+  /// conversación de la que todavía no ha llegado nada.
+  final NexusOrbState orb;
 
   /// La respuesta en curso, completa. Se construye pegando lo que llega.
   final String reply;
@@ -261,6 +280,7 @@ class MirroredConversation {
     String? folder,
     bool? focused,
     bool? streaming,
+    NexusOrbState? orb,
     String? reply,
     List<MirroredStep>? steps,
     String? model,
@@ -276,6 +296,7 @@ class MirroredConversation {
     folder: folder ?? this.folder,
     focused: focused ?? this.focused,
     streaming: streaming ?? this.streaming,
+    orb: orb ?? this.orb,
     reply: reply ?? this.reply,
     steps: steps ?? this.steps,
     model: model ?? this.model,

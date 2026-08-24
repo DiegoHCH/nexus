@@ -1,8 +1,11 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/domain/event_bridge.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 // El puente: de lo que pasa en la app a eventos numerados.
 //
@@ -44,6 +47,7 @@ void main() {
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    NexusOrbState orbe = NexusOrbState.sleep,
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
@@ -51,6 +55,7 @@ void main() {
     steps: pasos,
     meter: medidor,
     error: error,
+    orb: orbe,
   );
 
   List<Event> deTipo(String kind) =>
@@ -341,6 +346,68 @@ void main() {
 
       expect(puente.ventanasAbiertas, 0);
       expect(ventanas, isEmpty);
+    });
+  });
+
+  group('el orbe', () {
+    test('sale cuando cambia, y solo cuando cambia', () {
+      puente.observar(vista('a', orbe: NexusOrbState.sleep));
+      pasarElTiempo();
+      publicados.clear();
+
+      puente.observar(vista('a', orbe: NexusOrbState.think));
+      // El puente agrupa: nada sale hasta que la ventana se cierra.
+      pasarElTiempo();
+      expect(deTipo('orb').single.data, {
+        'conversation': 'a',
+        'state': 'think',
+      });
+
+      // Otra vez el mismo: nada. El puente manda cambios, no latidos.
+      publicados.clear();
+      puente.observar(vista('a', orbe: NexusOrbState.think));
+      pasarElTiempo();
+      expect(deTipo('orb'), isEmpty);
+    });
+
+    test('el publicador reenvia el estado del Mac, no uno inventado', () {
+      // El hueco que esto tapa: el puente puede mandar el orbe perfectamente y el
+      // publicador rellenarlo con una constante. Compila, las dos pruebas de arriba
+      // pasan —el puente hace su trabajo— y el telefono dibuja siempre dormido. Se vio
+      // sabotenadolo: ninguna prueba se enteraba.
+      //
+      // Es una comprobacion sobre el codigo porque el publicador escucha providers de
+      // la app entera; levantarlos aqui costaria mas que lo que mide.
+      final publicador = File(
+        'lib/features/remote/presentation/event_publisher.dart',
+      ).readAsStringSync();
+
+      expect(
+        publicador,
+        contains('orb: hud.orbState'),
+        reason:
+            'el orbe del telefono tiene que SER el del Mac; en cuanto se calcula '
+            'aqui otra cosa, son dos orbes que se desincronizan',
+      );
+    });
+
+    test('va aparte del turno, no dentro', () {
+      // `streaming` y el orbe cambian en momentos distintos —el micro se abre sin que
+      // haya nada corriendo— y meterlos en el mismo evento haria que uno arrastrara al
+      // otro: el telefono no podria distinguir «empezo a trabajar» de «te escucho».
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      publicados.clear();
+
+      puente.observar(vista('a', orbe: NexusOrbState.listen));
+      pasarElTiempo();
+
+      expect(deTipo('orb'), hasLength(1));
+      expect(
+        deTipo('turn'),
+        isEmpty,
+        reason: 'escuchar no es un turno: nada empezo a correr',
+      );
     });
   });
 }

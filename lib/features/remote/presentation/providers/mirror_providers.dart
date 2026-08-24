@@ -6,6 +6,7 @@ import 'package:nexus/features/remote/domain/remote_mirror.dart';
 import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 /// El espejo, mantenido al día por el enlace.
 ///
@@ -160,6 +161,29 @@ final mirrorProvider = NotifierProvider<MirrorController, RemoteMirror>(
 );
 
 /// Una conversación del espejo. `null` si ya no está.
+/// El orbe que se dibuja en el teléfono, que **no siempre es el del Mac**.
+///
+/// Con el enlace caído se fuerza a `sleep`, y en eso está toda la pieza: el espejo se
+/// queda con lo último que supo, así que si el Mac estaba trabajando cuando se perdió
+/// la cobertura, el teléfono seguiría girando su orbe sobre una pantalla que dice «se
+/// perdió el enlace». **Un orbe girando promete trabajo que está pasando**, y aquí no
+/// está pasando nada: el Mac puede haber terminado, haber fallado o estar dormido, y
+/// el teléfono no tiene forma de saberlo.
+///
+/// Dormido no es «no pasa nada»: es «no sé nada», que es exactamente lo que hay.
+NexusOrbState orbeParaElMovil({
+  required LinkState enlace,
+  required NexusOrbState delMac,
+}) => enlace == LinkState.conectado ? delMac : NexusOrbState.sleep;
+
+/// El orbe de una conversación, ya con la regla puesta.
+final orbeProvider = Provider.family<NexusOrbState, String>((ref, id) {
+  return orbeParaElMovil(
+    enlace: ref.watch(linkStateProvider).value ?? LinkState.sinConexion,
+    delMac: ref.watch(conversationProvider(id))?.orb ?? NexusOrbState.sleep,
+  );
+});
+
 final conversationProvider = Provider.family<MirroredConversation?, String>(
   (ref, id) => ref.watch(mirrorProvider).conversations[id],
 );

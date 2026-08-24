@@ -482,7 +482,9 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Esta conversación ya no está abierta en el Mac'),
+        // El molde de estados lo dice en dos partes —titulo y cuerpo— en vez de en
+        // una linea gris centrada, asi que se busca el titulo.
+        find.text('Esta conversación ya no está abierta'),
         findsOneWidget,
       );
       expect(c.read(mirrorProvider).vacio, isTrue);

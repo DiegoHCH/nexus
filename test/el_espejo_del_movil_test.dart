@@ -4,6 +4,9 @@ import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_mirror.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/remote/data/channel_link.dart';
+import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
 
 // El espejo del teléfono: aplicar eventos para reconstruir lo que pasa en el Mac.
 //
@@ -59,6 +62,7 @@ void main() {
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    NexusOrbState orbe = NexusOrbState.sleep,
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
@@ -66,6 +70,7 @@ void main() {
     steps: pasos,
     meter: medidor,
     error: error,
+    orb: orbe,
   );
 
   group('ida y vuelta: lo que el puente manda, el espejo lo entiende', () {
@@ -318,7 +323,75 @@ void main() {
       expect(espejo.vacio, isTrue);
     });
   });
+  group('el léxico del orbe', () {
+    test('el estado llega del Mac y el espejo lo guarda', () {
+      // No se deduce de `streaming`: el micro abierto no es trabajo corriendo, y la voz
+      // saliendo tampoco. De los cuatro estados, el telefono solo podia inferir dos.
+      final espejo = const RemoteMirror().aplicar(
+        const Event(
+          seq: 1,
+          kind: 'orb',
+          data: {'conversation': 'a', 'state': 'listen'},
+        ),
+      );
+
+      expect(espejo.conversations['a']!.orb, NexusOrbState.listen);
+    });
+
+    test('un estado que esta version no conoce deja el que habia', () {
+      // Un movil viejo frente a un Mac nuevo tiene que seguir dibujando algo.
+      final espejo = const RemoteMirror()
+          .aplicar(
+            const Event(
+              seq: 1,
+              kind: 'orb',
+              data: {'conversation': 'a', 'state': 'think'},
+            ),
+          )
+          .aplicar(
+            const Event(
+              seq: 2,
+              kind: 'orb',
+              data: {'conversation': 'a', 'state': 'bailando'},
+            ),
+          );
+
+      expect(espejo.conversations['a']!.orb, NexusOrbState.think);
+    });
+
+    test('sin enlace no gira, diga lo que diga lo ultimo que llego', () {
+      // **La pieza entera.** El espejo se queda con lo ultimo que supo, asi que si el
+      // Mac estaba trabajando cuando se perdio la cobertura, el telefono seguiria
+      // girando su orbe sobre una pantalla que dice «se perdio el enlace». Un orbe
+      // girando promete trabajo que esta pasando, y aqui no esta pasando nada: el Mac
+      // puede haber terminado, haber fallado o estar dormido.
+      for (final estado in [
+        LinkState.sinConexion,
+        LinkState.reconectando,
+        LinkState.noSeLlega,
+        LinkState.rechazado,
+      ]) {
+        expect(
+          orbeParaElMovil(enlace: estado, delMac: NexusOrbState.think),
+          NexusOrbState.sleep,
+          reason: 'con el enlace en $estado el orbe no puede prometer trabajo',
+        );
+      }
+    });
+
+    test('conectado, se respeta lo que dijo el Mac', () {
+      for (final delMac in NexusOrbState.values) {
+        expect(
+          orbeParaElMovil(enlace: LinkState.conectado, delMac: delMac),
+          delMac,
+          reason: 'conectado, el orbe del telefono ES el del Mac',
+        );
+      }
+    });
+  });
 }
+
+String _texto = '';
 
 /// Acumula el texto entre llamadas, como lo haría la app: el puente necesita la
 /// respuesta **entera** para poder restar.
@@ -326,5 +399,3 @@ String _acumulado(String trozo) {
   _texto += trozo;
   return _texto;
 }
-
-String _texto = '';
