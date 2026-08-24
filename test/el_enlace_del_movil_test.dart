@@ -154,6 +154,43 @@ void main() {
       expect(enlace.ahora, LinkState.resincronizando);
     });
 
+    test('no se anuncia conectado si queda resync por hacer', () async {
+      enlace = montar();
+      final vistos = <LinkState>[];
+      final sub = enlace.estado.listen(vistos.add);
+      await conectado(enlace, seq: 3);
+      await Future<void>.delayed(Duration.zero);
+
+      // Se anunciaba `conectado` y en la linea siguiente `resincronizando`. Duraba
+      // cero fotogramas, pero el espejo pide la lista **al oir conectado** y caia
+      // justo cuando `pedir` rechaza por no estarlo: la pantalla decia «no pude
+      // preguntarle al Mac» con el Mac contestando bien.
+      expect(vistos, isNot(contains(LinkState.conectado)));
+      expect(enlace.ahora, LinkState.resincronizando);
+      await sub.cancel();
+    });
+
+    test('el resync servido con eventos deja el enlace conectado', () async {
+      enlace = montar();
+      // El Mac va por el 2 y este telefono no ha visto ninguno, asi que pide resync.
+      await conectado(enlace, seq: 2);
+      expect(enlace.ahora, LinkState.resincronizando);
+
+      // Y el Mac lo sirve **con los eventos que faltan**, no con un snapshot. Solo la
+      // rama del snapshot volvia a `conectado`: el telefono se quedaba en
+      // `resincronizando` con el socket vivo, la pantalla decia «buscando tu Mac» y
+      // `pedir` y `mandarAudio` rechazaban todo en silencio.
+      socket.recibe(
+        const Event(seq: 1, kind: 'turn', data: {'conversation': 'c1'}),
+      );
+      socket.recibe(
+        const Event(seq: 2, kind: 'turn', data: {'conversation': 'c1'}),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(enlace.ahora, LinkState.conectado);
+    });
+
     test('y si coincide, no pide nada', () async {
       enlace = montar();
       await conectado(enlace, seq: 0);
