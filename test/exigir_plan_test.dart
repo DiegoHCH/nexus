@@ -38,17 +38,26 @@ void main() {
 
   int ahora() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
+  /// Una marca para **otra** carpeta, con su propio archivo. Hace falta para probar que
+  /// la de arriba cubre lo de dentro y que la de dentro puede contradecirla.
+  void marcarOtra(String carpeta, Map<String, Object?> contenido) {
+    final nombre = carpeta.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
+    File('${cuenta.path}/nexus-planes/$nombre.json')
+      ..createSync(recursive: true)
+      ..writeAsStringSync(jsonEncode({'carpeta': carpeta, ...contenido}));
+  }
+
   /// El motivo por el que denegó, o `null` si dejó pasar.
-  Future<String?> alIntentarEscribir() async {
+  Future<String?> alIntentarEscribirEn(String donde) async {
     final proceso = await Process.start(
       'python3',
       [hook],
-      workingDirectory: repo.path,
+      workingDirectory: donde,
       environment: {'CLAUDE_CONFIG_DIR': cuenta.path},
     );
     proceso.stdin.write(
       jsonEncode({
-        'cwd': repo.path,
+        'cwd': donde,
         'tool_name': 'Edit',
         'tool_input': {'file_path': 'lib/algo.dart'},
       }),
@@ -61,6 +70,46 @@ void main() {
     if (salida['permissionDecision'] != 'deny') return null;
     return salida['permissionDecisionReason'] as String?;
   }
+
+  Future<String?> alIntentarEscribir() => alIntentarEscribirEn(repo.path);
+
+  group('la marca cubre lo que hay dentro de la carpeta', () {
+    // El fallo que salió al encender el interruptor por primera vez en la app: Nexus
+    // arranca el encargo **dentro** del repo elegido, no en la carpeta emparejada. Con
+    // una raíz de varios repos, comparar rutas exactas dejaba escribir sin plan en cada
+    // repo de dentro — y en silencio, que es el peor final posible para esto.
+    test('un repo dentro de la carpeta también se deniega', () async {
+      marcar({'exige': true});
+      final dentro = Directory('${repo.path}/un-repo-dentro')
+        ..createSync(recursive: true);
+
+      expect(await alIntentarEscribirEn(dentro.path), isNotNull);
+      // Y más abajo todavía: el encargo puede arrancar en cualquier subdirectorio.
+      final mas = Directory('${dentro.path}/lib')..createSync(recursive: true);
+      expect(await alIntentarEscribirEn(mas.path), isNotNull);
+    });
+
+    test('la marca más cercana manda sobre la de arriba', () async {
+      // Apagarlo en un sitio concreto tiene que ser posible: si mandara la de arriba,
+      // una excepción deliberada no se podría expresar.
+      marcar({'exige': true});
+      final dentro = Directory('${repo.path}/con-excepcion')
+        ..createSync(recursive: true);
+      marcarOtra(dentro.path, {'exige': false});
+
+      expect(await alIntentarEscribir(), isNotNull);
+      expect(await alIntentarEscribirEn(dentro.path), isNull);
+    });
+
+    test('una carpeta de al lado no se ve afectada', () async {
+      // Subir hasta la raíz del sistema no puede convertir esto en un gate global.
+      marcar({'exige': true});
+      final vecina = Directory.systemTemp.createTempSync('vecina');
+      addTearDown(() => vecina.deleteSync(recursive: true));
+
+      expect(await alIntentarEscribirEn(vecina.path), isNull);
+    });
+  });
 
   test('sin marca, no se pide nada', () async {
     // **Es la mitad del diseño.** El hook vive en la cuenta, así que corre en todas las

@@ -44,7 +44,17 @@ VALE_POR = 3600
 
 
 def _marca(raiz: str) -> dict | None:
-    """La marca de esta carpeta, buscando por la ruta **resuelta**.
+    """La marca que manda aquí: la de esta carpeta o la de la más cercana por encima.
+
+    **Cubre lo que hay dentro, y eso no es un extra.** Nexus arranca el encargo *dentro*
+    del repo elegido, no en la carpeta emparejada: con una raíz de varios repos, encender
+    el interruptor en la raíz y comparar rutas exactas dejaba escribir sin plan en cada
+    repo de dentro, en silencio. Medido con el hook de verdad sobre
+    `~/Workspace/front-mobile-b2c` el mismo día que se añadió el interruptor.
+
+    Gana la **más cercana**, así que un `exige: false` en un subdirectorio es una excepción
+    deliberada a la regla de arriba y no un descuido — si mandara la de más arriba, apagarlo
+    en un sitio concreto sería imposible.
 
     La primera versión nombraba el archivo con un hash de la ruta, y falló en la primera
     prueba de verdad: macOS resuelve `/var` a `/private/var`, así que la marca se guardó
@@ -61,7 +71,7 @@ def _marca(raiz: str) -> dict | None:
     if not os.path.isdir(d):
         return None
 
-    real = os.path.realpath(raiz)
+    porCarpeta: dict[str, dict] = {}
     for nombre in os.listdir(d):
         if not nombre.endswith(".json"):
             continue
@@ -73,9 +83,18 @@ def _marca(raiz: str) -> dict | None:
         if not isinstance(marca, dict):
             continue
         suya = marca.get("carpeta")
-        if isinstance(suya, str) and os.path.realpath(suya) == real:
-            return marca
-    return None
+        if isinstance(suya, str) and suya:
+            porCarpeta[os.path.realpath(suya)] = marca
+
+    # De la carpeta hacia arriba, y la primera que aparezca decide.
+    actual = os.path.realpath(raiz)
+    while True:
+        if actual in porCarpeta:
+            return porCarpeta[actual]
+        padre = os.path.dirname(actual)
+        if padre == actual:  # la raíz del sistema: se acabó por dónde subir
+            return None
+        actual = padre
 
 
 def _denegar(motivo: str) -> None:
