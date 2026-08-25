@@ -10,15 +10,30 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 /// No sabe de transporte: recibe y entrega bytes, igual que el altavoz del Mac. Quien
 /// los mete en el canal es el cableado.
 class RemoteAudioSink implements AudioOutput {
-  RemoteAudioSink({required this.mandar, required this.tirar});
+  /// Por dónde salen los trozos, cuando hay teléfono.
+  ///
+  /// **Se enchufa y se desenchufa** en vez de fijarse al construir, y es el mismo truco
+  /// que ya usa el canal con el puente: el servidor necesita esta pieza y esta pieza
+  /// necesita al servidor, así que el círculo se rompe resolviendo la salida cuando se
+  /// usa y no cuando se crea.
+  void Function(Uint8List pcm)? _mandar;
+  void Function()? _tirar;
 
-  /// Un trozo de PCM hacia el teléfono.
-  final void Function(Uint8List pcm) mandar;
+  void conectar({
+    required void Function(Uint8List pcm) mandar,
+    required void Function() tirar,
+  }) {
+    _mandar = mandar;
+    _tirar = tirar;
+  }
 
-  /// «Deja de sonar y tira lo que te quede.» Hace falta porque una conversación por voz
-  /// se interrumpe: lo que quedaba por sonar deja de ser válido, y esperar a que termine
-  /// sería contestar a una pregunta que ya nadie hizo.
-  final void Function() tirar;
+  /// El teléfono ya no está al otro lado. Corta lo que sonara: es la decisión de que la
+  /// voz no se termina por los altavoces del Mac.
+  void desconectar() {
+    seFue();
+    _mandar = null;
+    _tirar = null;
+  }
 
   /// Si hay respuesta sonando en el teléfono ahora mismo.
   ///
@@ -49,7 +64,7 @@ class RemoteAudioSink implements AudioOutput {
     if (_mudo) return;
     _sonando = true;
     _encolado += Duration(microseconds: pcm.lengthInBytes * 1000000 ~/ 48000);
-    mandar(pcm);
+    _mandar?.call(pcm);
   }
 
   /// Se dice siempre, también sin nada encolado aquí: el teléfono puede tener cola de
@@ -58,7 +73,7 @@ class RemoteAudioSink implements AudioOutput {
   Future<void> discard() async {
     _sonando = false;
     _encolado = Duration.zero;
-    tirar();
+    _tirar?.call();
   }
 
   /// Cuánto queda por sonar.
@@ -92,7 +107,7 @@ class RemoteAudioSink implements AudioOutput {
     _mudo = true;
     _sonando = false;
     _encolado = Duration.zero;
-    tirar();
+    _tirar?.call();
   }
 
   /// El teléfono se fue a media respuesta.

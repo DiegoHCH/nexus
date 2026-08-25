@@ -1,6 +1,13 @@
+import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/remote/data/altavoz_del_movil.dart';
+import 'package:nexus/features/remote/data/channel_link.dart';
+import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/reproduccion_providers.dart';
+import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
 import 'package:nexus/features/remote/domain/remote_audio_sink.dart';
@@ -20,10 +27,11 @@ void main() {
 
     setUp(() {
       orden = [];
-      altavoz = RemoteAudioSink(
-        mandar: (p) => orden.add('mandar:${p.lengthInBytes}'),
-        tirar: () => orden.add('tirar'),
-      );
+      altavoz = RemoteAudioSink()
+        ..conectar(
+          mandar: (p) => orden.add('mandar:${p.lengthInBytes}'),
+          tirar: () => orden.add('tirar'),
+        );
     });
 
     test('quien reproduce dice cuando termino, y no un reloj de aqui', () async {
@@ -100,10 +108,11 @@ void main() {
     setUp(() {
       mac = _AltavozDelMac();
       orden = [];
-      telefono = RemoteAudioSink(
-        mandar: (p) => orden.add('telefono:${p.lengthInBytes}'),
-        tirar: () => orden.add('telefono:tirar'),
-      );
+      telefono = RemoteAudioSink()
+        ..conectar(
+          mandar: (p) => orden.add('telefono:${p.lengthInBytes}'),
+          tirar: () => orden.add('telefono:tirar'),
+        );
     });
 
     AudioOutputCompartido puerto(RemoteVoiceSource fuente) =>
@@ -175,6 +184,94 @@ void main() {
       expect(mac.encolados, [4800]);
     });
   });
+
+  group('el telefono reproduce', () {
+    late _AltavozFalso altavoz;
+    late _EnlaceQueBaja enlace;
+    late ProviderContainer c;
+
+    setUp(() {
+      altavoz = _AltavozFalso();
+      enlace = _EnlaceQueBaja();
+      c = ProviderContainer(
+        overrides: [
+          altavozProvider.overrideWithValue(altavoz),
+          channelLinkProvider.overrideWithValue(enlace),
+        ],
+      );
+      addTearDown(c.dispose);
+      c.read(reproduccionProvider.notifier).mirando('a');
+    });
+
+    test('lo que baja suena, y al vaciarse se le dice al Mac', () async {
+      expect(c.read(reproduccionProvider), Reproduccion.callada);
+
+      enlace.baja(pcm(4800));
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(reproduccionProvider), Reproduccion.sonando);
+      expect(altavoz.encolados, [4800]);
+
+      // **Quien reproduce dice cuando termino.** Es el aviso que le permite al Mac
+      // cerrar la sesion sin cortar la ultima palabra.
+      altavoz.seVacia();
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(reproduccionProvider), Reproduccion.callada);
+      expect(enlace.pedidos, contains('playbackFinished'));
+    });
+
+    test('callar corta aqui y se lo dice al Mac', () async {
+      enlace.baja(pcm(4800));
+      await Future<void>.delayed(Duration.zero);
+
+      await c.read(reproduccionProvider.notifier).callar();
+
+      // Las dos cosas: cortarlo solo aqui deja al Mac gastando canal en algo que nadie
+      // va a oir, y decirselo solo a el deja sonando lo que ya venia en vuelo.
+      expect(altavoz.tirados, 1);
+      expect(enlace.pedidos, contains('silenceReply'));
+      expect(c.read(reproduccionProvider), Reproduccion.silenciada);
+    });
+
+    test('callada, lo que siga llegando no suena', () async {
+      await c.read(reproduccionProvider.notifier).callar();
+      enlace.baja(pcm(4800));
+      await Future<void>.delayed(Duration.zero);
+
+      expect(altavoz.encolados, isEmpty);
+      // Y **no se avisa dos veces**: el Mac ya dejo de mandar, y lo que llega es lo que
+      // venia en vuelo.
+      expect(enlace.pedidos.where((p) => p == 'silenceReply'), hasLength(1));
+    });
+
+    test(
+      'callar es de esta respuesta, no un ajuste que se queda puesto',
+      () async {
+        await c.read(reproduccionProvider.notifier).callar();
+        c.read(reproduccionProvider.notifier).volverAOir();
+
+        enlace.baja(pcm(4800));
+        await Future<void>.delayed(Duration.zero);
+
+        // Un telefono que se quedara mudo para siempre por un toque seria peor que uno
+        // que no calla.
+        expect(altavoz.encolados, [4800]);
+      },
+    );
+
+    test('cuando el Mac interrumpe, se tira lo que quedaba', () async {
+      enlace.baja(pcm(4800));
+      await Future<void>.delayed(Duration.zero);
+
+      enlace.descarta();
+      await Future<void>.delayed(Duration.zero);
+
+      expect(altavoz.tirados, 1);
+      expect(c.read(reproduccionProvider), Reproduccion.callada);
+      // Y **no se dice que termino**: no termino, se corto. Decirlo dejaria al Mac
+      // creyendo que la respuesta se oyo entera.
+      expect(enlace.pedidos, isNot(contains('playbackFinished')));
+    });
+  });
 }
 
 /// El altavoz del Mac, solo para saber qué le llegó.
@@ -196,4 +293,57 @@ class _AltavozDelMac implements AudioOutput {
 
   @override
   Future<void> stop() async => arrancado = false;
+}
+
+/// El altavoz del teléfono, sin altavoz.
+class _AltavozFalso implements Altavoz {
+  final encolados = <int>[];
+  var tirados = 0;
+
+  @override
+  void Function()? alVaciarse;
+
+  @override
+  Future<void> preparar() async {}
+
+  @override
+  Future<void> encolar(Uint8List pcm) async => encolados.add(pcm.lengthInBytes);
+
+  @override
+  Future<void> tirar() async => tirados++;
+
+  @override
+  Future<void> soltar() async {}
+
+  /// Lo que dispara el aparato de verdad cuando la cola se queda a cero.
+  void seVacia() => alVaciarse?.call();
+}
+
+/// El enlace, con la voz bajando.
+class _EnlaceQueBaja implements ChannelLink {
+  final _audio = StreamController<Uint8List>.broadcast();
+  final _descartar = StreamController<void>.broadcast();
+  final pedidos = <String>[];
+
+  void baja(Uint8List pcm) => _audio.add(pcm);
+  void descarta() => _descartar.add(null);
+
+  @override
+  Stream<Uint8List> get audio => _audio.stream;
+
+  @override
+  Stream<void> get descartar => _descartar.stream;
+
+  @override
+  Future<Map<String, Object?>> pedir(
+    RemoteMethod metodo, {
+    Map<String, Object?> params = const {},
+    String? clientMsgId,
+  }) async {
+    pedidos.add(metodo.name);
+    return const {};
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }

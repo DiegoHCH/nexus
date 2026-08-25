@@ -105,6 +105,16 @@ class _Falsa implements RemoteSurface {
   }
 
   @override
+  Future<void> playbackFinished(String conversationId) async {
+    diario.add('app:playbackFinished');
+  }
+
+  @override
+  Future<void> silenceReply(String conversationId) async {
+    diario.add('app:silenceReply');
+  }
+
+  @override
   Future<void> renameConversation(String conversationId, String name) async {
     diario.add('app:renameConversation:$name');
     _mirar(conversationId);

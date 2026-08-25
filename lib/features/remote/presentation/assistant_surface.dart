@@ -331,6 +331,20 @@ class AssistantSurface implements RemoteSurface {
   }
 
   @override
+  Future<void> playbackFinished(String conversationId) async {
+    _existe(conversationId);
+    // No se comprueba que hubiera algo sonando: llegar de más es inofensivo —lo único
+    // que provoca es dejar de esperar— y llegar de menos deja la sesión colgada.
+    _ref.read(remoteAudioSinkProvider).terminoDeSonar();
+  }
+
+  @override
+  Future<void> silenceReply(String conversationId) async {
+    _existe(conversationId);
+    _ref.read(remoteAudioSinkProvider).callar();
+  }
+
+  @override
   Future<void> renameConversation(String conversationId, String name) async {
     // **Solo una que exista.** Sin esto, un id viejo guardado en el teléfono crearía
     // un nombre huérfano que nadie vería nunca y que se quedaría en las preferencias.

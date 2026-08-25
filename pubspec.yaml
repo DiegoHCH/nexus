@@ -31,6 +31,7 @@ dependencies:
   mobile_scanner: ^7.4.0
   webview_flutter: ^4.14.1
   record: ^7.1.1
+  flutter_pcm_sound: ^3.3.3
 
 dev_dependencies:
   flutter_test:

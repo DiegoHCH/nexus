@@ -104,6 +104,20 @@ class EventBridge {
     publicar(log.emitir('accent', {'argb': argb}));
   }
 
+  /// «Tira lo que te quede por sonar.»
+  ///
+  /// **No lleva conversación**, igual que el acento: la respuesta que suena es una sola
+  /// —solo la del foco abre sesión de voz— y meterle un identificador daría a entender
+  /// que puede haber varias sonando a la vez.
+  ///
+  /// Va por el registro numerado y no como audio porque es una **orden y no un caudal**:
+  /// el audio no se numera ni se guarda a propósito, y esto tiene que llegar en orden
+  /// respecto a los trozos que lo rodean.
+  void descartarLoQueSuena() {
+    if (_cerrado) return;
+    publicar(log.emitir('playback', {'action': 'discard'}));
+  }
+
   /// El estado entero, para quien pide desde un `seq` que ya se tiró.
   ///
   /// Sale de lo mismo que se fue mandando, así que no hay una segunda forma de

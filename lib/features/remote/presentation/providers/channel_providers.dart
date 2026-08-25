@@ -18,6 +18,8 @@ import 'package:nexus/features/remote/presentation/event_publisher.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/remote/domain/remote_audio_sink.dart';
 import 'package:nexus/features/remote/domain/remote_voice_source.dart';
 
 /// El puerto del canal.
@@ -102,6 +104,10 @@ class ChannelController extends Notifier<ChannelState> {
   /// puede seguir pidiendo desde su `lastSeq` en vez de tragarse un snapshot.
   final EventLog _eventos = EventLog();
 
+  /// El número de los trozos que bajan. Lo lleva el canal y no el altavoz porque el
+  /// altavoz no sabe de transporte, que es lo que le permite ser un `AudioOutput` más.
+  var _audioQueBaja = 0;
+
   EventLog get eventos => _eventos;
   ChannelServer? get servidor => _servidor;
 
@@ -157,6 +163,22 @@ class ChannelController extends Notifier<ChannelState> {
       log: _eventos,
       publicar: (evento) => enPie?.difundir(evento),
     );
+
+    // Y el altavoz del teléfono se enchufa por el mismo agujero: la respuesta baja
+    // por el mismo socket por el que subió la pregunta. Mismo truco de la variable
+    // que el puente, y por el mismo motivo — el servidor todavía no existe.
+    ref
+        .read(remoteAudioSinkProvider)
+        .conectar(
+          mandar: (pcm) => enPie?.difundirAudio(
+            Audio(seq: _audioQueBaja++, pcmBase64: base64Encode(pcm)),
+          ),
+          // Tirar lo que quede en la cola del teléfono. Va como evento y no como
+          // audio porque es una **orden y no un caudal**: el audio no se numera ni
+          // se guarda, y esto tiene que llegar en orden respecto a los trozos que lo
+          // rodean y sobrevivir a un resync.
+          tirar: puente.descartarLoQueSuena,
+        );
 
     final servidor = ChannelServer(
       // El despacho se construye al encender y no en un proveedor propio, porque
@@ -229,6 +251,7 @@ class ChannelController extends Notifier<ChannelState> {
     // estado a mitad de camino intentaría difundir a conexiones ya cerradas.
     _publicador?.parar();
     _publicador = null;
+    ref.read(remoteAudioSinkProvider).desconectar();
     final servidor = _servidor;
     _servidor = null;
     await servidor?.stop();
@@ -278,4 +301,15 @@ final remoteVoiceSourceProvider = Provider<RemoteVoiceSource>((ref) {
   final fuente = RemoteVoiceSource();
   ref.onDispose(fuente.cerrar);
   return fuente;
+});
+
+/// Los altavoces del teléfono, cuando la pregunta vino de ahí.
+///
+/// El gemelo del de arriba, y uno solo por lo mismo: no hay dos teléfonos escuchando.
+/// Nace desenchufado, y lo enchufa el canal al encenderse — que es donde existe el
+/// servidor por el que sale.
+final remoteAudioSinkProvider = Provider<RemoteAudioSink>((ref) {
+  final altavoz = RemoteAudioSink();
+  ref.onDispose(altavoz.desconectar);
+  return altavoz;
 });
