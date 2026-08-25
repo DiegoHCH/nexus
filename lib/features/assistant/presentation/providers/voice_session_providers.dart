@@ -10,6 +10,8 @@ import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
+import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
+import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 
 final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
@@ -29,10 +31,20 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
   );
 });
 
+/// El altavoz de la sesión: **el del teléfono si la pregunta vino de ahí, y si no el
+/// del Mac**.
+///
+/// El gemelo de `voiceInputProvider`, y el mismo motivo para existir: la sesión de voz
+/// sigue hablándole a un solo puerto, así que la voz de vuelta no obliga a tocar
+/// `HoldVoiceConversation` para meterle un segundo camino.
 final audioOutputProvider = Provider<AudioOutput>((ref) {
-  final output = AudioOutputImpl(ref.watch(nativeAudioDataSourceProvider));
-  ref.onDispose(output.stop);
-  return output;
+  final delMac = AudioOutputImpl(ref.watch(nativeAudioDataSourceProvider));
+  ref.onDispose(delMac.stop);
+  return AudioOutputCompartido(
+    local: delMac,
+    remoto: ref.watch(remoteAudioSinkProvider),
+    fuente: ref.watch(remoteVoiceSourceProvider),
+  );
 });
 
 /// Por conversación, porque el encargo que salga de la voz tiene que ir a la

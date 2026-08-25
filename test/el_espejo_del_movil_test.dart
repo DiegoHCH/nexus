@@ -4,6 +4,9 @@ import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_mirror.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/remote/data/channel_link.dart';
+import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
 
 // El espejo del teléfono: aplicar eventos para reconstruir lo que pasa en el Mac.
 //
@@ -56,16 +59,24 @@ void main() {
     String id, {
     bool streaming = false,
     String reply = '',
+    String pregunta = '',
+    bool vozAbierta = false,
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    NexusOrbState orbe = NexusOrbState.sleep,
+    String titulo = 'un encargo',
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
     reply: reply,
+    ask: pregunta,
+    voice: vozAbierta,
     steps: pasos,
     meter: medidor,
     error: error,
+    orb: orbe,
+    title: titulo,
   );
 
   group('ida y vuelta: lo que el puente manda, el espejo lo entiende', () {
@@ -318,7 +329,155 @@ void main() {
       expect(espejo.vacio, isTrue);
     });
   });
+  group('el nombre y la respuesta', () {
+    test('el nombre llega por evento, no solo con la lista', () {
+      // El fallo que esto ata: una conversacion abierta **desde el telefono** nace de
+      // un evento, y los eventos no llevaban carpeta ni nombre. Lo que se veia en la
+      // barra de titulo era su identificador — `1787575393339519-88753…`.
+      final espejo = const RemoteMirror().aplicar(
+        const Event(
+          seq: 1,
+          kind: 'title',
+          data: {'conversation': 'a', 'title': 'de que trata el proyecto'},
+        ),
+      );
+
+      expect(espejo.conversations['a']!.nombre, 'de que trata el proyecto');
+    });
+
+    test('el titulo manda sobre la carpeta', () {
+      // Reconocer una conversacion por lo que le pediste funciona mejor que por donde
+      // vive: dos conversaciones sobre el mismo repo se llaman igual.
+      final espejo = const RemoteMirror()
+          .conLista([
+            {'id': 'a', 'folder': '/Users/alguien/proyectos/api'},
+          ])
+          .aplicar(
+            const Event(
+              seq: 1,
+              kind: 'title',
+              data: {'conversation': 'a', 'title': 'arregla el login'},
+            ),
+          );
+
+      expect(espejo.conversations['a']!.nombre, 'arregla el login');
+    });
+
+    test('la respuesta en curso se reconoce cuando ya esta en el historial', () {
+      // Se veia dos veces: como respuesta en curso y otra vez como turno del
+      // historial, con dos estilos distintos — se lee como si hubiera contestado dos
+      // veces.
+      final conv = MirroredConversation(
+        id: 'a',
+        reply: 'la casa esta ordenada ',
+        history: const [
+          MirroredMessage(mine: true, text: 'ordena la casa'),
+          MirroredMessage(mine: false, text: 'la casa esta ordenada'),
+        ],
+      );
+
+      // Con el espacio del streaming al final: un espacio no es otra respuesta.
+      expect(conv.respuestaYaEnHistorial, isTrue);
+
+      final otra = conv.copyWith(reply: 'y el test pasa');
+      expect(
+        otra.respuestaYaEnHistorial,
+        isFalse,
+        reason: 'si es otra respuesta hay que verla, o desaparece del todo',
+      );
+    });
+  });
+
+  group('el léxico del orbe', () {
+    test('el estado llega del Mac y el espejo lo guarda', () {
+      // No se deduce de `streaming`: el micro abierto no es trabajo corriendo, y la voz
+      // saliendo tampoco. De los cuatro estados, el telefono solo podia inferir dos.
+      final espejo = const RemoteMirror().aplicar(
+        const Event(
+          seq: 1,
+          kind: 'orb',
+          data: {'conversation': 'a', 'state': 'listen'},
+        ),
+      );
+
+      expect(espejo.conversations['a']!.orb, NexusOrbState.listen);
+    });
+
+    test('un estado que esta version no conoce deja el que habia', () {
+      // Un movil viejo frente a un Mac nuevo tiene que seguir dibujando algo.
+      final espejo = const RemoteMirror()
+          .aplicar(
+            const Event(
+              seq: 1,
+              kind: 'orb',
+              data: {'conversation': 'a', 'state': 'think'},
+            ),
+          )
+          .aplicar(
+            const Event(
+              seq: 2,
+              kind: 'orb',
+              data: {'conversation': 'a', 'state': 'bailando'},
+            ),
+          );
+
+      expect(espejo.conversations['a']!.orb, NexusOrbState.think);
+    });
+
+    test('sin enlace no gira, diga lo que diga lo ultimo que llego', () {
+      // **La pieza entera.** El espejo se queda con lo ultimo que supo, asi que si el
+      // Mac estaba trabajando cuando se perdio la cobertura, el telefono seguiria
+      // girando su orbe sobre una pantalla que dice «se perdio el enlace». Un orbe
+      // girando promete trabajo que esta pasando, y aqui no esta pasando nada: el Mac
+      // puede haber terminado, haber fallado o estar dormido.
+      for (final estado in [
+        LinkState.sinConexion,
+        LinkState.reconectando,
+        LinkState.noSeLlega,
+        LinkState.rechazado,
+      ]) {
+        expect(
+          orbeParaElMovil(enlace: estado, delMac: NexusOrbState.think),
+          NexusOrbState.sleep,
+          reason: 'con el enlace en $estado el orbe no puede prometer trabajo',
+        );
+      }
+    });
+
+    test('conectado, se respeta lo que dijo el Mac', () {
+      for (final delMac in NexusOrbState.values) {
+        expect(
+          orbeParaElMovil(enlace: LinkState.conectado, delMac: delMac),
+          delMac,
+          reason: 'conectado, el orbe del telefono ES el del Mac',
+        );
+      }
+    });
+  });
+
+  test('la pregunta se pinta una vez, no dos', () {
+    // Llega por evento en cuanto se transcribe, y **tambien** aterriza en el historial
+    // cuando se pide una pagina. Sin la comprobacion se veria dos veces seguidas, que
+    // es el mismo fallo que ya tuvo la respuesta.
+    const conv = MirroredConversation(id: 'a', ask: 'que reuniones tengo hoy');
+    expect(conv.preguntaYaEnHistorial, isFalse);
+
+    final conHistorial = conv.copyWith(
+      history: const [
+        MirroredMessage(mine: true, text: 'que reuniones tengo hoy'),
+      ],
+    );
+    expect(conHistorial.preguntaYaEnHistorial, isTrue);
+
+    // Y una pregunta distinta en el historial no la tapa.
+    final otra = conv.copyWith(
+      history: const [MirroredMessage(mine: true, text: 'otra cosa')],
+    );
+    expect(otra.preguntaYaEnHistorial, isFalse);
+  });
 }
+
+String _texto = '';
 
 /// Acumula el texto entre llamadas, como lo haría la app: el puente necesita la
 /// respuesta **entera** para poder restar.
@@ -326,5 +485,3 @@ String _acumulado(String trozo) {
   _texto += trozo;
   return _texto;
 }
-
-String _texto = '';

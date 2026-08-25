@@ -34,7 +34,8 @@ void main() {
       size: Size(1280, alto),
       overrides: [
         workspaceControllerProvider.overrideWith(
-          () => FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
+          () =>
+              FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
         ),
       ],
     );
@@ -54,7 +55,11 @@ void main() {
       final tour = container.read(tourControllerProvider);
 
       expect(tour.running, isTrue);
-      expect(tour.stop, TourStop.orb, reason: 'el orbe es lo primero que se ve');
+      expect(
+        tour.stop,
+        TourStop.orb,
+        reason: 'el orbe es lo primero que se ve',
+      );
       expect(
         tour.total,
         greaterThan(1),
@@ -186,7 +191,11 @@ void main() {
             'el velo ya se había dado por intentado; sin enterarse de la '
             'petición, el botón de Ajustes no haría nada visible',
       );
-      expect(tour.stop, TourStop.orb, reason: 'empieza otra vez por el principio');
+      expect(
+        tour.stop,
+        TourStop.orb,
+        reason: 'empieza otra vez por el principio',
+      );
       expect(find.text('paso 1 de 4'), findsOne);
     });
 
@@ -214,11 +223,7 @@ void main() {
       );
       expect(cuatro.index, 1);
       expect(
-        const TourState(
-          stop: TourStop.meter,
-          pending: [],
-          total: 4,
-        ).index,
+        const TourState(stop: TourStop.meter, pending: [], total: 4).index,
         4,
         reason: 'si el total se recalculara, «4 de 4» sería «1 de 1»',
       );
@@ -253,7 +258,8 @@ void main() {
       theme: NexusTheme.light(),
       overrides: [
         workspaceControllerProvider.overrideWith(
-          () => FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
+          () =>
+              FixedWorkspace(workspaceWith(modality: FolderModality.textOnly)),
         ),
       ],
     );

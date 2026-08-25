@@ -34,6 +34,7 @@ class _SesionMuerta extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     resumeRecibidos.add(resumeSessionId);
 
@@ -45,7 +46,7 @@ class _SesionMuerta extends ClaudeCliDataSource {
       throw const ClaudeProcessException(
         1,
         'No conversation found with session ID: '
-            'fdb58ce5-1a35-4c1e-a749-e6c1d15be9c5',
+        'fdb58ce5-1a35-4c1e-a749-e6c1d15be9c5',
       );
     }
 
@@ -106,20 +107,23 @@ void main() {
     },
   );
 
-  test('un fallo que no es de sesión sí se cuenta, y no se reintenta', () async {
-    final source = _FalloDeVerdad();
-    final events = await ClaudeBridgeImpl(source)
-        .ask(
-          'algo',
-          workingDirectory: '/Users/alguien/General',
-          canEdit: false,
-          resumeSessionId: 'una-sesion',
-        )
-        .toList();
+  test(
+    'un fallo que no es de sesión sí se cuenta, y no se reintenta',
+    () async {
+      final source = _FalloDeVerdad();
+      final events = await ClaudeBridgeImpl(source)
+          .ask(
+            'algo',
+            workingDirectory: '/Users/alguien/General',
+            canEdit: false,
+            resumeSessionId: 'una-sesion',
+          )
+          .toList();
 
-    expect(source.intentos, 2, reason: 'se reintenta una vez, no más');
-    expect(events.whereType<ClaudeFailed>(), isNotEmpty);
-  });
+      expect(source.intentos, 2, reason: 'se reintenta una vez, no más');
+      expect(events.whereType<ClaudeFailed>(), isNotEmpty);
+    },
+  );
 }
 
 /// Falla siempre, con o sin sesión: aquí el reintento no puede tapar nada.
@@ -140,6 +144,7 @@ class _FalloDeVerdad extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     intentos++;
     throw const ClaudeProcessException(1, 'el disco está lleno');

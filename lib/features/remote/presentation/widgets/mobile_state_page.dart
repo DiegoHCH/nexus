@@ -17,10 +17,16 @@ import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 /// **obliga** a las tres partes: qué pasó, por qué, y qué se puede hacer. Un estado
 /// sin acciones tiene que decidirlo quien lo escribe, no aparecer por descuido.
 ///
-/// El orbe va **de fondo** y con su estado, no como una ilustración: es el único
-/// elemento vivo del sistema, y en un estado de error tiene que estar dormido — un
-/// orbe girando mientras la pantalla dice «se perdió el enlace» promete trabajo que
-/// no está pasando.
+/// El orbe va con su estado y no como ilustración: es el único elemento vivo del
+/// sistema, y en un estado de error tiene que estar dormido — un orbe girando mientras
+/// la pantalla dice «se perdió el enlace» promete trabajo que no está pasando.
+///
+/// Y va **en el flujo**, con el mismo reparto que `ConnectingPage`: orbe centrado entre
+/// dos espaciadores y el texto abajo. Estaba como capa de fondo fijada al 46 % del alto,
+/// y el resultado era que el orbe quedaba pegado arriba y el texto centrado, con el
+/// tercio inferior de la pantalla vacío — se veía **de otra app** al lado de las demás.
+/// El reparto no es un detalle estético aquí: estas pantallas y las de conexión se ven
+/// una detrás de otra, y un salto de composición entre ellas se lee como un fallo.
 class MobileStatePage extends StatelessWidget {
   const MobileStatePage({
     super.key,
@@ -59,70 +65,69 @@ class MobileStatePage extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: colors.void_,
-      body: Stack(
-        children: [
-          // Arriba y pequeño, como en los mockups: el orbe no compite con el texto,
-          // lo acompaña.
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: MediaQuery.of(context).size.height * 0.46,
-            child: IgnorePointer(
-              child: NexusOrb(state: orbe, showHorizon: false),
-            ),
+      body: SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+            NexusSpacing.s5,
+            NexusSpacing.s4,
+            NexusSpacing.s5,
+            NexusSpacing.s5,
           ),
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(
-                NexusSpacing.s5,
-                NexusSpacing.s4,
-                NexusSpacing.s5,
-                NexusSpacing.s5,
-              ),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const MobileChrome(),
-                  const Spacer(),
-                  Text(
-                    titulo,
-                    key: const ValueKey('titulo-del-estado'),
-                    style: NexusTypography.subtitleMobile.copyWith(
-                      color: colors.ink,
-                    ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const MobileChrome(),
+              const Spacer(),
+              // Sin horizonte, al contrario que en la de conectar: el horizonte es lo
+              // que dice «trabajando», y aquí no se está trabajando.
+              const SizedBox(
+                height: 260,
+                child: IgnorePointer(
+                  child: NexusOrb(
+                    state: NexusOrbState.sleep,
+                    showHorizon: false,
                   ),
-                  const SizedBox(height: NexusSpacing.s3),
-                  Text(
-                    cuerpo,
-                    style: NexusTypography.body.copyWith(color: colors.mute),
-                  ),
-                  if (detalle != null) ...[
-                    const SizedBox(height: NexusSpacing.s4),
-                    detalle!,
-                  ],
-                  if (acciones.isNotEmpty) ...[
-                    const SizedBox(height: NexusSpacing.s6),
-                    Wrap(
-                      spacing: NexusSpacing.s3,
-                      runSpacing: NexusSpacing.s2,
-                      children: acciones,
-                    ),
-                  ],
-                  if (pieDeAyuda != null) ...[
-                    const SizedBox(height: NexusSpacing.s5),
-                    Text(
-                      pieDeAyuda!,
-                      style: NexusTypography.mono.copyWith(color: colors.faint),
-                    ),
-                  ],
-                  const Spacer(),
-                  ?abajo,
-                ],
+                ),
               ),
-            ),
+              const Spacer(),
+              Text(
+                titulo,
+                key: const ValueKey('titulo-del-estado'),
+                style: NexusTypography.subtitleMobile.copyWith(
+                  color: colors.ink,
+                ),
+              ),
+              const SizedBox(height: NexusSpacing.s3),
+              Text(
+                cuerpo,
+                style: NexusTypography.body.copyWith(color: colors.mute),
+              ),
+              if (detalle != null) ...[
+                const SizedBox(height: NexusSpacing.s4),
+                detalle!,
+              ],
+              if (acciones.isNotEmpty) ...[
+                const SizedBox(height: NexusSpacing.s6),
+                Wrap(
+                  spacing: NexusSpacing.s3,
+                  runSpacing: NexusSpacing.s2,
+                  children: acciones,
+                ),
+              ],
+              if (pieDeAyuda != null) ...[
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  pieDeAyuda!,
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+              ],
+              // Sin espaciador aquí: el bloque de texto queda **abajo**, como en la de
+              // conectar. Con uno, el texto se centraba y el tercio inferior quedaba
+              // vacío — que es justo lo que se veía mal.
+              ?abajo,
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

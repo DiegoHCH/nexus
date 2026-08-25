@@ -172,8 +172,7 @@ class ClaudeUsageDataSource {
   /// La pregunta vive en [ClaudeCli]: la comprobación de arranque necesita la
   /// misma, y con una copia aquí las dos se separarían en cuanto una cambiara.
   /// Solo se paga en el camino en que ya no había cifras que dar.
-  Future<bool> _loggedIn(String configDir) =>
-      ClaudeCli().loggedIn(configDir);
+  Future<bool> _loggedIn(String configDir) => ClaudeCli().loggedIn(configDir);
 
   /// La caducidad se mira aquí en vez de dejar que la API conteste 401: es una
   /// petición de red menos, y sobre todo permite distinguir «esta cuenta no

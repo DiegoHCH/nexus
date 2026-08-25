@@ -15,4 +15,21 @@ abstract class VoiceInput {
   /// Abre el micrófono y emite un frame por cada trozo que llega. Cancelar
   /// la suscripción cierra el micrófono: no se queda abierto de fondo.
   Stream<AudioFrame> listen();
+
+  /// Avisa de que **el audio se corta aquí**, sin que el flujo termine.
+  ///
+  /// Existe porque el servicio decide que terminaste de hablar **mirando el audio**:
+  /// espera ver silencio. Un micrófono que sigue abierto se lo da solo —las pausas
+  /// entre palabras viajan— pero uno que se cierra de golpe deja al servicio esperando
+  /// un silencio que ya no llega, y el turno no cierra nunca.
+  ///
+  /// **No se modela cerrando el flujo**, que sería lo obvio: el flujo tiene que seguir
+  /// vivo para que la sesión pueda contestar y para que volver a abrir el micrófono caiga
+  /// en la misma sesión en vez de en un stream que nadie lee. Son dos cosas distintas
+  /// —«no entra más audio por ahora» y «esta entrada se acabó»— y confundirlas es lo que
+  /// dejó una tarde de sesiones con cero turnos.
+  ///
+  /// El micrófono del Mac no emite nunca: no se pausa, se calla, y callarse ya es
+  /// silencio que viaja.
+  Stream<void> get pausas;
 }

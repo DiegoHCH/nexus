@@ -7,6 +7,12 @@
 
     <!-- La cámara, solo para leer el código de emparejamiento. -->
     <uses-permission android:name="android.permission.CAMERA" />
+
+    <!-- El micrófono, para hablarle a Nexus desde el teléfono.
+         **En el manifest de `main`**, no en el de depuración: ya pasó con INTERNET,
+         que estaba solo en debug y profile — habría funcionado todo el desarrollo y
+         llegado sin red a quien la instalara. -->
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
     <!-- Y declarada **no obligatoria**: sin esto, Play oculta la app en cualquier
          aparato sin cámara, y escribir el código a mano funciona igual. -->
     <uses-feature android:name="android.hardware.camera" android:required="false" />

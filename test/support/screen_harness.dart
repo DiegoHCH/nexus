@@ -29,6 +29,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// El micrófono, que en una prueba no existe: sin esto, cualquier pantalla que
 /// enseñe la prueba de sonido revienta al pedir permiso.
 class FakeVoiceInput implements VoiceInput {
+  @override
+  Stream<void> get pausas => const Stream<void>.empty();
+
   const FakeVoiceInput({this.granted = true});
 
   final bool granted;

@@ -25,8 +25,7 @@ class ChannelTokenStoreImpl implements ChannelTokenStore {
   }
 
   @override
-  Future<void> write(ChannelToken token) =>
-      _storage.write(_key, token.value);
+  Future<void> write(ChannelToken token) => _storage.write(_key, token.value);
 
   @override
   Future<void> clear() => _storage.delete(_key);

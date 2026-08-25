@@ -39,8 +39,11 @@ class _Memory implements ConversationMemory {
       FolderMemory(sessionId: sessionId, prompts: prompts);
 
   @override
-  Future<void> rememberSession(String folderPath, String id, {String? claudeProfile}) async =>
-      sessionId = id;
+  Future<void> rememberSession(
+    String folderPath,
+    String id, {
+    String? claudeProfile,
+  }) async => sessionId = id;
 
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async =>

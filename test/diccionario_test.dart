@@ -22,11 +22,10 @@ void main() {
   ///
   /// Se salta las declaraciones de la clase abstracta —no tienen `=>`— y coge
   /// tanto los `String get x =>` como los `String x(int y) =>`.
-  final cuerpos =
-      RegExp(
-        r'  String (?:get )?(\w+)(\([^)]*\))? =>(.*?);\n',
-        dotAll: true,
-      ).allMatches(fuente.readAsStringSync()).toList();
+  final cuerpos = RegExp(
+    r'  String (?:get )?(\w+)(\([^)]*\))? =>(.*?);\n',
+    dotAll: true,
+  ).allMatches(fuente.readAsStringSync()).toList();
 
   // Antes de comprobar nada: que de verdad se haya leído algo.
   //
@@ -84,7 +83,8 @@ void main() {
     expect(
       escapadas,
       isEmpty,
-      reason: 'imprimirían el literal en vez del valor: ${escapadas.join(', ')}',
+      reason:
+          'imprimirían el literal en vez del valor: ${escapadas.join(', ')}',
     );
   });
 
@@ -107,7 +107,8 @@ void main() {
     expect(
       pegadas,
       isEmpty,
-      reason: 'falta un espacio al final de un literal en: ${pegadas.join(', ')}',
+      reason:
+          'falta un espacio al final de un literal en: ${pegadas.join(', ')}',
     );
   });
 }

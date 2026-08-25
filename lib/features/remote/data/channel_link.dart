@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -258,6 +259,21 @@ class ChannelLink {
 
   final _acento = StreamController<int>.broadcast();
 
+  /// La respuesta hablada, cuando la pregunta salió de este teléfono.
+  ///
+  /// Un `Stream` de bytes y no de marcos: lo que hay al otro lado es un altavoz, y
+  /// darle el marco entero sería hacerle saber de transporte para nada.
+  final _audio = StreamController<Uint8List>.broadcast();
+
+  /// Trozos de la respuesta. Llegan **sin confirmación y sin número que sirva**: uno que
+  /// llega tarde es peor que un hueco, porque mete en la frase medio segundo de hace un
+  /// rato.
+  Stream<Uint8List> get audio => _audio.stream;
+
+  /// «Tira lo que te quede por sonar.» Llega cuando alguien interrumpe.
+  final _descartar = StreamController<void>.broadcast();
+  Stream<void> get descartar => _descartar.stream;
+
   /// El acento que eligió el Mac, cada vez que se saluda.
   ///
   /// Un `Stream` y no un valor porque **llega en cada conexión**: cambiar el acento en
@@ -300,6 +316,8 @@ class ChannelLink {
     await _eventos.close();
     await _fotos.close();
     await _acento.close();
+    await _audio.close();
+    await _descartar.close();
   }
 
   /// Pide algo y espera la respuesta.
@@ -339,6 +357,22 @@ class ChannelLink {
     return pendiente.futuro;
   }
 
+  /// Manda un trozo de micrófono. **Sin esperar nada.**
+  ///
+  /// No pasa por `pedir` a propósito: eso registra la petición, arma dos plazos y
+  /// espera confirmación, y aquí no hay nada que confirmar —el contrato del marco de
+  /// audio dice que un trozo tarde es peor que un hueco—. Si no hay socket, el trozo se
+  /// tira: es exactamente lo que hay que hacer con audio sin conexión.
+  ///
+  /// Devuelve si salió, para que quien captura pueda darse cuenta de que está hablando
+  /// contra una pared.
+  bool mandarAudio(Audio marco) {
+    final socket = _socket;
+    if (socket == null || ahora != LinkState.conectado) return false;
+    socket.enviar(marco.encode());
+    return true;
+  }
+
   /// Si reintentar con **el mismo** id es lo correcto.
   ///
   /// Solo para lo que muta. El deduplicador del Mac protege **efectos**, no
@@ -351,11 +385,31 @@ class ChannelLink {
     // con id nuevo abriría dos conversaciones sobre la misma carpeta.
     RemoteMethod.sendErrand ||
     RemoteMethod.stopErrand ||
+    // Callar es un efecto y se reintenta con el mismo id: callar dos veces es lo mismo
+    // que callar una, y perder el aviso deja al Mac mandando audio que nadie oye.
+    RemoteMethod.silenceReply ||
     RemoteMethod.unlockWrites ||
     RemoteMethod.openConversation ||
-    RemoteMethod.resumeConversation => true,
+    RemoteMethod.resumeConversation ||
+    // Renombrar y cerrar también cambian algo. Los dos son **idempotentes** —el mismo
+    // nombre dos veces es el mismo nombre, y cerrar lo ya cerrado deja lo mismo— así
+    // que reintentar con el mismo id es seguro y además correcto: con id nuevo, un
+    // cierre perdido se quedaría sin hacer.
+    RemoteMethod.renameConversation ||
+    RemoteMethod.closeConversation ||
+    // Abrir y cerrar el micrófono cambian algo en el Mac, y los dos son idempotentes:
+    // abrir dos veces es una sesión, cerrar lo cerrado es lo mismo. Con id nuevo, **un
+    // cierre perdido dejaría el micrófono abierto**, que es el peor final de esta lista.
+    RemoteMethod.startVoice ||
+    RemoteMethod.stopVoice => true,
+    // **Terminar de sonar es un hecho, no un efecto**, y por eso va abajo con las
+    // lecturas aunque no lea nada: reintentado con el mismo id volvería «duplicada» y
+    // ninguna respuesta, y el Mac se quedaría esperando un aviso que ya no se manda.
+    // Con id nuevo el segundo intento sí le llega, y decirlo dos veces es inofensivo
+    // porque lo único que provoca es dejar de esperar.
     // Lo que solo **lee**: una consulta perdida se vuelve a pedir con id nuevo,
     // porque el deduplicador protege efectos y no respuestas.
+    RemoteMethod.playbackFinished ||
     RemoteMethod.conversations ||
     RemoteMethod.history ||
     RemoteMethod.meter ||
@@ -368,7 +422,23 @@ class ChannelLink {
 
   // ──────────────────────────── por dentro ────────────────────────────
 
+  /// Si ya hay un bucle de conexión corriendo.
+  ///
+  /// **Uno y solo uno.** Con dos, los dos escriben en `_socket`, en `_escucha` y en
+  /// `_saludo`, y el último gana: el `Welcome` del socket que sí saludó le llega a un
+  /// oyente que ya fue reemplazado, así que nadie pasa el estado a «conectado» y la
+  /// pantalla se queda en «reconectando» **con la conexión funcionando**. Medido en el
+  /// registro del Mac: una conexión pidiendo cosas y otra tirada a los 10 s por no
+  /// saludar.
+  ///
+  /// Pasa al volver del fondo: el sistema corta el socket, `_seCayo` arranca un bucle,
+  /// y lo que traiga a la app por delante —un reintento a mano, reabrirla— arranca
+  /// otro.
+  var _intentando = false;
+
   Future<void> _intentar({bool desdeCero = false}) async {
+    if (_intentando) return;
+    _intentando = true;
     var intento = 0;
     while (_quiereEstarConectado && !_cerrado) {
       _pasarA(
@@ -386,17 +456,22 @@ class ChannelLink {
           cancelOnError: true,
         );
         await _saludar(socket);
+        _intentando = false;
         return;
       } on _VersionIncompatible {
         // Terminal: no se reintenta. Reintentar aquí sería pedirle a la red que
         // arregle un problema de versiones.
         _pasarA(LinkState.hayQueActualizar);
         await _tirarSocket();
+        _intentando = false;
         return;
       } on Object catch (error) {
         debugPrint('el enlace no pudo conectar: $error');
         await _tirarSocket();
-        if (!_quiereEstarConectado || _cerrado) return;
+        if (!_quiereEstarConectado || _cerrado) {
+          _intentando = false;
+          return;
+        }
 
         // **Aquí está el arreglo.** Antes todo fallo era el mismo «reconectando», y
         // «no tengo Tailscale» y «el token no es» pedían cosas distintas: una es
@@ -409,16 +484,50 @@ class ChannelLink {
         });
         ultimoRechazo = error is ChannelRefused ? error.status : null;
 
+        // **Se puede acortar la espera desde fuera.** Volver del fondo a la app cae
+        // casi siempre en medio de una espera larga —la escalera acaba en 30 s— y
+        // quedarse mirando «reconectando» medio minuto se lee como colgado. Quien
+        // sabe que hemos vuelto es la app, no el enlace, así que despierta a este.
+        _despertar = Completer<void>();
+
         // Un rechazo se reintenta **por el final de la escalera**: el portero limita
         // intentos por IP, así que insistir rápido con un token malo es la forma de
         // gastarse el cupo y quedarse fuera también cuando el token se arregle.
         final espera = error is ChannelRefused
             ? esperas.last
             : esperas[intento.clamp(0, esperas.length - 1)];
-        await _dormir(espera);
+        // Lo que ocurra primero: que pase la espera o que alguien nos despierte.
+        await Future.any([_dormir(espera), _despertar!.future]);
+        _despertar = null;
         intento++;
       }
+      // Y al salir del `while` —ya no se quiere estar conectado, o se cerró— el
+      // guardia se suelta igual: si no, no habría forma de volver a intentarlo.
+      _intentando = false;
     }
+  }
+
+  /// Espera en curso entre reintentos, si hay alguna.
+  Completer<void>? _despertar;
+
+  /// **Reintenta ahora**, sin esperar a que acabe la escalera.
+  ///
+  /// Lo llama la app al volver del fondo: el sistema puede haber cortado el socket
+  /// mientras estaba en segundo plano y, al volver, el enlace estaba casi siempre
+  /// dormido en la espera de 30 segundos. Lo que se veía era «reconectando» clavado, y
+  /// la única salida a mano era cancelar — que hasta ahora además desemparejaba.
+  ///
+  /// No fuerza nada si ya está conectado: acortar una espera que no existe no hace
+  /// daño, pero tirar una conexión buena sí.
+  void reintentarYa() {
+    if (_cerrado || ahora == LinkState.conectado) return;
+    if (_despertar != null && !_despertar!.isCompleted) {
+      _despertar!.complete();
+      return;
+    }
+    // Sin espera en curso: o está conectando —y entonces no hay nada que acortar— o
+    // nadie lo intentó todavía.
+    if (!_quiereEstarConectado) unawaited(conectar());
   }
 
   Future<void> _saludar(ChannelSocket socket) async {
@@ -452,10 +561,19 @@ class ChannelLink {
         if (accent != null && !_acento.isClosed) _acento.add(accent);
         // **El `seq` de la bienvenida dice si vamos al día sin pedir nada.** Si
         // coincide con lo último visto, no hay resync que hacer; si no, se pide.
-        _pasarA(LinkState.conectado);
+        //
+        // Y `conectado` **solo se anuncia si no hay resync**. Antes se anunciaba
+        // siempre y en la línea siguiente se pasaba a `resincronizando`: el aviso
+        // duraba cero fotogramas, pero quien lo escucha —el espejo pide la lista al
+        // conectar— actuaba justo cuando `pedir` ya rechazaba por no estar conectado.
+        // Lo que se veía era «no pude preguntarle al Mac» con el Mac contestando
+        // perfectamente. Un estado que se anuncia y se desmiente en el mismo bloque
+        // no es un estado: es ruido con nombre.
+        final alDia = seq == _ultimoSeq;
+        if (alDia) _pasarA(LinkState.conectado);
         _saludo?.complete();
         _saludo = null;
-        if (seq != _ultimoSeq) _pedirLoQueFalta();
+        if (!alDia) _pedirLoQueFalta();
 
       case UpgradeRequired():
         _saludo?.completeError(const _VersionIncompatible());
@@ -496,6 +614,18 @@ class ChannelLink {
         _fotos.add(marco);
         _pasarA(LinkState.conectado);
 
+      case Audio(:final pcmBase64):
+        // **El audio baja cuando la pregunta vino de aquí.** Antes se rechazaba, con el
+        // motivo de que un teléfono que reprodujera sería «una segunda boca»; eso se
+        // cae con la regla que lo sustituye —suena donde se preguntó, así que nunca
+        // suenan los dos— y la prohibición era además más ancha que la `lo8` que
+        // citaba: reproducir lo que manda el Mac no le da al teléfono ni una llave ni
+        // una sesión propia.
+        //
+        // El base64 se deshace aquí y no en el altavoz, por lo mismo que al subir: el
+        // altavoz recibe bytes y no sabe de transporte.
+        if (!_audio.isClosed) _audio.add(base64Decode(pcmBase64));
+
       case Hello() || Call() || Resume():
         // Cosas que manda el teléfono, no el Mac. Si llegan, es un Mac mal escrito.
         debugPrint('el Mac mandó algo que no le toca: ${marco.runtimeType}');
@@ -522,6 +652,43 @@ class ChannelLink {
       return;
     }
     _ultimoSeq = evento.seq;
+
+    // **El resync servido con eventos también termina aquí.** `_pedirLoQueFalta` deja
+    // el estado en `resincronizando`, y el Mac puede contestar de dos maneras: con un
+    // `Snapshot` —que sí volvía a `conectado`— o con los eventos que faltan, que no
+    // volvían de ninguna. El teléfono se quedaba en `resincronizando` para siempre:
+    // la pantalla decía «buscando tu Mac» con el socket vivo y el saludo hecho, y
+    // `pedir` y `mandarAudio` —que exigen `conectado`— rechazaban todo en silencio.
+    //
+    // Solo se veía con atraso: un teléfono al día no pide resync y se quedaba
+    // conectado, así que el fallo esperaba a la primera reconexión con eventos
+    // pendientes. Recibir un evento en orden **es** la prueba de que el canal
+    // funciona, así que es aquí donde se dice.
+    if (_ahora == LinkState.resincronizando) _pasarA(LinkState.conectado);
+
+    // **El acento no es de ninguna conversación**, así que no va al espejo: el espejo
+    // descarta lo que no lleva `conversation` y el cambio se perdería en silencio. Va
+    // al mismo sitio que el del saludo, que es quien ya sabe pintarlo.
+    //
+    // Se cuenta en el `seq` igual que los demás —de ahí que esto vaya después de
+    // apuntarlo— para que un teléfono que se reincorpora lo reciba en su resync en vez
+    // de necesitar un camino aparte.
+    // Una orden de reproducción, no un trozo de estado: **no va al espejo**, igual que
+    // el acento. El espejo descarta lo que no lleva `conversation` y esto se perdería en
+    // silencio — y además no describe cómo está nada, dice qué hacer ahora.
+    if (evento.kind == 'playback') {
+      if (evento.data['action'] == 'discard' && !_descartar.isClosed) {
+        _descartar.add(null);
+      }
+      return;
+    }
+
+    if (evento.kind == 'accent') {
+      final argb = evento.data['argb'];
+      if (argb is int && !_acento.isClosed) _acento.add(argb);
+      return;
+    }
+
     _eventos.add(evento);
   }
 

@@ -6,12 +6,14 @@ import 'package:nexus/features/history/presentation/providers/archive_providers.
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus/features/remote/domain/write_phrase.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 
 /// El único sitio que sabe **a la vez** del canal y de cómo está montada la app.
 ///
@@ -195,14 +197,180 @@ class AssistantSurface implements RemoteSurface {
     final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
     if (registro == null) throw UnknownConversation(archivedId);
 
-    // **Retomar es abrir su carpeta**, y `open` ya devuelve la que hubiera si esa
-    // carpeta tenía una viva. Eso es lo correcto: dos conversaciones sobre el mismo
-    // repo compartirían la sesión de Claude y se pisarían el contexto.
-    final id = await _ref
-        .read(conversationsProvider.notifier)
-        .open(registro.folderPath);
+    // **Por el mismo camino que el escritorio.** Esto abría la carpeta y no pintaba el
+    // registro, así que el teléfono retomaba una conversación y la recibía **vacía**.
+    // Es el mismo fallo que ya pasó tres veces hoy en el escritorio —dos caminos que
+    // hacen lo mismo y solo uno arreglado—, así que en vez de copiar aquí el `resume`
+    // se reusa el proveedor que ya decide: si esa conversación está abierta va a su
+    // pestaña, y si no, abre una nueva sobre su carpeta y la pinta entera.
+    final resultado = await _ref.read(retomarDelArchivoProvider)(registro);
+    if (resultado == RetomarResultado.noCabe) {
+      throw DemasiadasConversaciones();
+    }
+
+    // La que quedó con el foco es la que se retomó: el proveedor enfoca en los dos
+    // caminos, así que el teléfono no tiene que adivinar cuál es.
+    final id = _ref.read(conversationsProvider).focusedId;
     if (id == null) throw UnknownConversation(archivedId);
     return id;
+  }
+
+  /// Que esa conversación exista. Un id viejo guardado en el teléfono no puede abrir
+  /// el micrófono de una conversación que ya se cerró.
+  void _existe(String conversationId) {
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      throw UnknownConversation(conversationId);
+    }
+  }
+
+  @override
+  Future<void> startVoice(String conversationId) =>
+      _enFila(conversationId, () => _encenderVoz(conversationId));
+
+  /// Encender y apagar la voz, **en fila y por conversación**.
+  ///
+  /// De aquí salía el fallo entero: `stopVoice` llegaba mientras `startVoice` todavía
+  /// estaba arrancando la sesión, leía un `voiceActive` que aún era `false` —así que
+  /// no paraba nada— y **cerraba la fuente**. La sesión terminaba de arrancar, pedía
+  /// audio, encontraba la fuente cerrada y se quedaba con el micrófono del Mac para
+  /// toda la sesión. Se medió: `startVoice`, `stopVoice`, y el primer trozo del
+  /// teléfono descartado por llegar a una fuente ya cerrada.
+  ///
+  /// Un teléfono manda estas dos cosas en ráfaga —se toca el orbe y se suelta— y el
+  /// canal no promete orden entre dos peticiones en vuelo. La fila lo promete aquí, que
+  /// es el único sitio donde se sabe qué significa cada una.
+  final _filaDeVoz = <String, Future<void>>{};
+
+  Future<void> _enFila(String conversationId, Future<void> Function() tarea) {
+    final anterior = _filaDeVoz[conversationId] ?? Future<void>.value();
+    // El `catchError` es de la fila, no de la tarea: un fallo al encender no puede
+    // dejar la fila envenenada y con ella el apagado sin correr nunca.
+    final mio = anterior.then((_) => tarea());
+    _filaDeVoz[conversationId] = mio.catchError((Object _) {});
+    return mio;
+  }
+
+  Future<void> _encenderVoz(String conversationId) async {
+    _existe(conversationId);
+    // **Se cancela la espera del cierre anterior**, y sin esto el segundo audio de una
+    // conversación moría: al soltar queda una espera que cierra la fuente cuando la
+    // sesión termine, y si se vuelve a hablar antes de que termine, esa espera
+    // disparaba después y cerraba **la fuente nueva**. El teléfono seguía mandando
+    // trozos a un micrófono ya cerrado.
+    final espera = _esperandoElFin.remove(conversationId);
+    if (espera != null) espera.close();
+    // La fuente se abre **antes** de la sesión: cuando la sesión pida audio, el puerto
+    // compartido tiene que ver ya el micrófono del teléfono activo, o le daría el del
+    // Mac y estaríamos escuchando la habitación equivocada.
+    _ref.read(remoteVoiceSourceProvider).abrir();
+    final hud = _ref.read(assistantControllerProvider(conversationId));
+    if (hud.voiceActive) return;
+    await _ref
+        .read(assistantControllerProvider(conversationId).notifier)
+        .toggleVoice();
+  }
+
+  @override
+  Future<void> stopVoice(String conversationId) =>
+      _enFila(conversationId, () => _apagarVoz(conversationId));
+
+  /// Cerrar el micrófono desde el teléfono es **«ya está, contéstame»**, no «cancela».
+  ///
+  /// Esto derribaba la sesión de voz en el acto, y con ella la respuesta: medido, el
+  /// teléfono soltaba a los 4,3 s y la primera señal de Gemini en una sesión igual
+  /// había tardado 11,3 s. No se transcribía nada ni contestaba nadie, y el audio sí
+  /// estaba llegando — el fallo no era del micrófono sino del significado de soltar.
+  ///
+  /// Ahora soltar hace lo que hace callarse delante del Mac: **deja de entrar audio y
+  /// la sesión sigue viva**, y se cierra sola por inactividad cuando ya no queda nada
+  /// que decir —lo que también espera a que el altavoz termine la frase—. La fuente se
+  /// cierra cuando la sesión acaba de verdad, porque cerrarla antes dejaría a la sesión
+  /// leyendo un stream terminado y eso se ve como la voz cortándose sola.
+  Future<void> _apagarVoz(String conversationId) async {
+    _existe(conversationId);
+    // **El micrófono se cierra en el acto.** Es lo que se tocó, y esperar a que la
+    // sesión terminara dejaba al Mac escuchando la habitación después de haber cerrado
+    // desde el teléfono.
+    _ref.read(remoteVoiceSourceProvider).silenciar();
+
+    final hud = _ref.read(assistantControllerProvider(conversationId));
+    if (!hud.voiceActive) {
+      // Sin sesión que esperar: es el caso del `stopVoice` repetido o del que llega
+      // después de que la sesión ya se cerrara sola.
+      _ref.read(remoteVoiceSourceProvider).cerrar();
+      return;
+    }
+    // Y el flujo se cierra cuando la sesión acabe de verdad, para que la siguiente
+    // empiece con uno limpio. La sesión sigue viva a propósito: le queda contestar.
+    _cerrarLaFuenteCuandoTermine(conversationId);
+  }
+
+  /// Lo que queda por hacer al soltar: esperar el final de la sesión para cerrar el
+  /// micrófono del teléfono.
+  ///
+  /// Uno por conversación: soltar dos veces no puede dejar dos esperas, que cerrarían
+  /// la fuente dos veces —la segunda ya sobre la sesión siguiente—.
+  final _esperandoElFin = <String, ProviderSubscription<AssistantHudState>>{};
+
+  void _cerrarLaFuenteCuandoTermine(String conversationId) {
+    if (_esperandoElFin.containsKey(conversationId)) return;
+    _esperandoElFin[conversationId] = _ref.listen(
+      assistantControllerProvider(conversationId),
+      (_, siguiente) {
+        if (siguiente.voiceActive) return;
+        _ref.read(remoteVoiceSourceProvider).cerrar();
+        // Cerrar la suscripción **fuera** de su propia llamada: hacerlo dentro es
+        // tocar la lista que Riverpod está recorriendo en ese momento.
+        final suya = _esperandoElFin.remove(conversationId);
+        if (suya != null) Future.microtask(suya.close);
+      },
+    );
+  }
+
+  @override
+  Future<void> playbackFinished(String conversationId) async {
+    _existe(conversationId);
+    // No se comprueba que hubiera algo sonando: llegar de más es inofensivo —lo único
+    // que provoca es dejar de esperar— y llegar de menos deja la sesión colgada.
+    _ref.read(remoteAudioSinkProvider).terminoDeSonar();
+  }
+
+  @override
+  Future<void> silenceReply(String conversationId) async {
+    _existe(conversationId);
+    _ref.read(remoteAudioSinkProvider).callar();
+  }
+
+  @override
+  Future<void> renameConversation(String conversationId, String name) async {
+    // **Solo una que exista.** Sin esto, un id viejo guardado en el teléfono crearía
+    // un nombre huérfano que nadie vería nunca y que se quedaría en las preferencias.
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      throw UnknownConversation(conversationId);
+    }
+    await _ref
+        .read(conversationsProvider.notifier)
+        .renombrar(conversationId, name);
+  }
+
+  @override
+  Future<void> closeConversation(String conversationId) async {
+    // Cerrar lo ya cerrado **no es un error**: es el estado que se pedía. Lanzar aquí
+    // convertiría un reintento —y estos se reintentan con el mismo id— en un fallo en
+    // pantalla por algo que ya está hecho.
+    if (!_ref
+        .read(conversationsProvider)
+        .items
+        .any((c) => c.id == conversationId)) {
+      return;
+    }
+    await _ref.read(conversationsProvider.notifier).close(conversationId);
   }
 
   @override

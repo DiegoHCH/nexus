@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/features/remote/presentation/providers/mirror_providers.dart';
+import 'package:nexus/core/design_system/nexus_typography.dart';
 
 /// Abrir la escritura con la frase.
 ///
@@ -63,7 +64,6 @@ class _HojaState extends ConsumerState<_Hoja> {
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    final texto = Theme.of(context).textTheme;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(
@@ -78,13 +78,13 @@ class _HojaState extends ConsumerState<_Hoja> {
         children: [
           Text(
             'Abrir la escritura',
-            style: texto.titleMedium?.copyWith(color: colors.ink),
+            style: NexusTypography.subtitleMobile.copyWith(color: colors.ink),
           ),
           const SizedBox(height: 8),
           Text(
             'Tu frase no se guarda en el teléfono. La comprueba el Mac, y la '
             'ventana dura 30 minutos.',
-            style: texto.bodySmall?.copyWith(color: colors.mute),
+            style: NexusTypography.mono.copyWith(color: colors.mute),
           ),
           const SizedBox(height: 20),
           TextField(
@@ -106,7 +106,7 @@ class _HojaState extends ConsumerState<_Hoja> {
             Text(
               _decir(_codigo!),
               key: const ValueKey('fallo-de-la-frase'),
-              style: texto.bodySmall?.copyWith(color: colors.err),
+              style: NexusTypography.mono.copyWith(color: colors.err),
             ),
           ],
           const SizedBox(height: 20),

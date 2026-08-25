@@ -130,11 +130,12 @@ class GitDataSource {
 
   Future<String?> _run(String folderPath, List<String> arguments) async {
     try {
-      final result = await Process.run('git', [
-        '-C',
-        folderPath,
-        ...arguments,
-      ], runInShell: false, environment: ClaudeEnvironment.forTools());
+      final result = await Process.run(
+        'git',
+        ['-C', folderPath, ...arguments],
+        runInShell: false,
+        environment: ClaudeEnvironment.forTools(),
+      );
       if (result.exitCode != 0) return null;
       final output = (result.stdout as String).trim();
       return output.isEmpty ? null : output;

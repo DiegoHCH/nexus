@@ -36,23 +36,46 @@ class ConversationDock extends ConsumerWidget {
     // botón que existe para crear la primera no puede faltar cuando no hay
     // ninguna.
 
-    // En columna: las fichas se apilan hacia arriba desde la esquina. Cada
-    // ficha sigue siendo horizontal —orbe y nombre en línea— así que la
-    // columna crece poco y deja libre el centro, que es del orbe grande.
-    return Column(
+    // En columnas de tres, y la siguiente **al lado**. Cada ficha es horizontal
+    // —orbe y nombre en línea— así que una columna crece poco; pero con seis en una
+    // sola, la pila llegaba al orbe grande, que es el centro de la pantalla y no se
+    // tapa. Al lado hay sitio de sobra.
+    //
+    // El botón de abrir otra va al final de la última columna, que es donde se busca
+    // después de mirar las que hay.
+    final piezas = <Widget>[
+      for (final conversation in all)
+        _DockOrb(
+          conversation: conversation,
+          isFocused: conversation.id == conversations.focused?.id,
+          onTap: () =>
+              ref.read(conversationsProvider.notifier).focus(conversation.id),
+          onClose: () =>
+              ref.read(conversationsProvider.notifier).close(conversation.id),
+        ),
+      if (!conversations.isFull) const _OpenAnother(),
+    ];
+
+    return Row(
       mainAxisSize: MainAxisSize.min,
-      crossAxisAlignment: CrossAxisAlignment.start,
+      crossAxisAlignment: CrossAxisAlignment.end,
       children: [
-        for (final conversation in all)
-          _DockOrb(
-            conversation: conversation,
-            isFocused: conversation.id == conversations.focused?.id,
-            onTap: () =>
-                ref.read(conversationsProvider.notifier).focus(conversation.id),
-            onClose: () =>
-                ref.read(conversationsProvider.notifier).close(conversation.id),
+        for (
+          var desde = 0;
+          desde < piezas.length;
+          desde += Conversations.porColumna
+        )
+          Padding(
+            padding: EdgeInsets.only(left: desde == 0 ? 0 : NexusSpacing.s3),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: piezas
+                  .skip(desde)
+                  .take(Conversations.porColumna)
+                  .toList(),
+            ),
           ),
-        if (!conversations.isFull) const _OpenAnother(),
       ],
     );
   }

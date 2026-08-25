@@ -110,9 +110,17 @@ void main() {
   group('la caducidad', () {
     test('lo viejo se tira, y se puede decir qué', () {
       final cola = montar(caducidad: const Duration(hours: 2));
-      cola.encolar(clientMsgId: 'viejo', conversationId: 'c1', text: 'de antes');
+      cola.encolar(
+        clientMsgId: 'viejo',
+        conversationId: 'c1',
+        text: 'de antes',
+      );
       ahora = ahora.add(const Duration(hours: 3));
-      cola.encolar(clientMsgId: 'nuevo', conversationId: 'c1', text: 'de ahora');
+      cola.encolar(
+        clientMsgId: 'nuevo',
+        conversationId: 'c1',
+        text: 'de ahora',
+      );
 
       final fuera = cola.caducar();
 
@@ -142,7 +150,11 @@ void main() {
   group('sobrevivir a cerrar la app', () {
     test('la cola va y vuelve de JSON con el id intacto', () {
       final cola = montar();
-      cola.encolar(clientMsgId: 'e1', conversationId: 'c1', text: 'con tildes ñ');
+      cola.encolar(
+        clientMsgId: 'e1',
+        conversationId: 'c1',
+        text: 'con tildes ñ',
+      );
       cola.falloReintentable('e1');
 
       final devuelta = montar(inicial: Outbox.leer(cola.toJson()));
@@ -168,26 +180,35 @@ void main() {
       // — que se le echa a la red.
       final espejo = const RemoteMirror()
           .aplicar(
-            const Event(seq: 1, kind: 'text', data: {
-              'conversation': 'a',
-              'append': 'ya está',
-            }),
+            const Event(
+              seq: 1,
+              kind: 'text',
+              data: {'conversation': 'a', 'append': 'ya está'},
+            ),
           )
           .aplicar(
-            const Event(seq: 2, kind: 'meter', data: {
-              'conversation': 'a',
-              'model': 'opus',
-              'contextTokens': 250000,
-              'percent': 25,
-            }),
+            const Event(
+              seq: 2,
+              kind: 'meter',
+              data: {
+                'conversation': 'a',
+                'model': 'opus',
+                'contextTokens': 250000,
+                'percent': 25,
+              },
+            ),
           )
           .aplicar(
-            const Event(seq: 3, kind: 'activity', data: {
-              'conversation': 'a',
-              'steps': [
-                {'id': '1', 'text': 'escribiendo', 'writes': true},
-              ],
-            }),
+            const Event(
+              seq: 3,
+              kind: 'activity',
+              data: {
+                'conversation': 'a',
+                'steps': [
+                  {'id': '1', 'text': 'escribiendo', 'writes': true},
+                ],
+              },
+            ),
           )
           .conLista([
             {'id': 'a', 'folder': '/tmp/repo', 'focused': true},
@@ -212,15 +233,19 @@ void main() {
 
     test('lo que no se sabe no se inventa al volver', () {
       final espejo = const RemoteMirror().aplicar(
-        const Event(seq: 1, kind: 'turn', data: {
-          'conversation': 'a',
-          'streaming': true,
-        }),
+        const Event(
+          seq: 1,
+          kind: 'turn',
+          data: {'conversation': 'a', 'streaming': true},
+        ),
       );
       final devuelto = RemoteMirror.desdeSnapshot(
-        Snapshot(seq: 0, data: {
-          'conversations': [for (final c in espejo.visibles) c.toJson()],
-        }),
+        Snapshot(
+          seq: 0,
+          data: {
+            'conversations': [for (final c in espejo.visibles) c.toJson()],
+          },
+        ),
       );
 
       // Sin carpeta y sin medidor: la caché no puede rellenar lo que nunca llegó, y

@@ -179,4 +179,52 @@ void main() {
           'la promesa de recordarlo es mentira',
     );
   });
+  test('las pantallas del móvil no hablan Material', () {
+    // La pieza 6 del tracker, atada. Estas pantallas se construyeron con
+    // `textTheme` y widgets de Material —`Card`, `AppBar`, burbujas redondeadas—
+    // teniendo el sistema del proyecto escrito al lado, y la diferencia no es
+    // estética: una burbuja dice «dos personas charlando» y un bloque con hairline
+    // dice «un registro de lo que pasó», que es lo que esto es.
+    //
+    // Se excluye `mobile_section`: es la sección «Móvil» de los Ajustes **del
+    // escritorio**, así que le toca hablar el idioma del escritorio.
+    //
+    // Y se quitan los comentarios antes de mirar, porque varios de estos archivos
+    // explican en prosa por qué NO usan Material — y una prueba que se creyera esa
+    // prosa fallaría precisamente en los sitios que hicieron bien las cosas.
+    final prohibido = {
+      'Theme.of(context).textTheme':
+          'la tipografía del sistema es NexusTypography',
+      'Card(': 'las listas del teléfono son filas con hairline, no tarjetas',
+      'Icons.':
+          'los iconos de Material traen su propio idioma; aquí hay glifos y puntos',
+      'CircularProgressIndicator':
+          'lo único que gira en este sistema es el orbe',
+      'LinearProgressIndicator':
+          'una barra que se anima sola parece medir en vivo',
+      'ListTile': 'trae alturas y paddings de Material que no son los de aquí',
+    };
+
+    final culpables = <String>[];
+    for (final archivo
+        in Directory('lib/features/remote/presentation')
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((f) => f.path.endsWith('.dart'))
+            .where((f) => !f.path.contains('mobile_section'))) {
+      final sinComentarios = archivo
+          .readAsLinesSync()
+          .where((l) => !l.trimLeft().startsWith('//'))
+          .join('\n');
+      for (final (patron, motivo) in prohibido.entries.map(
+        (e) => (e.key, e.value),
+      )) {
+        if (sinComentarios.contains(patron)) {
+          culpables.add('${archivo.path.split('/').last} · $patron ($motivo)');
+        }
+      }
+    }
+
+    expect(culpables, isEmpty);
+  });
 }

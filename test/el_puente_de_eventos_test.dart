@@ -1,8 +1,13 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/domain/event_bridge.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/remote/presentation/event_publisher.dart';
 
 // El puente: de lo que pasa en la app a eventos numerados.
 //
@@ -41,16 +46,24 @@ void main() {
     String id, {
     bool streaming = false,
     String reply = '',
+    String pregunta = '',
+    bool vozAbierta = false,
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    NexusOrbState orbe = NexusOrbState.sleep,
+    String titulo = 'un encargo',
   }) => ConversationView(
     conversationId: id,
     streaming: streaming,
     reply: reply,
+    ask: pregunta,
+    voice: vozAbierta,
     steps: pasos,
     meter: medidor,
     error: error,
+    orb: orbe,
+    title: titulo,
   );
 
   List<Event> deTipo(String kind) =>
@@ -342,5 +355,232 @@ void main() {
       expect(puente.ventanasAbiertas, 0);
       expect(ventanas, isEmpty);
     });
+  });
+
+  group('con qué se reconoce una conversación', () {
+    test('el nombre que puso el usuario manda sobre todo', () {
+      // Si se ha tomado la molestia de ponerle nombre, ningun derivado puede pisarlo —
+      // y menos el primer encargo, que **cambia** al retomarla del archivo.
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(
+              author: ChatAuthor.user,
+              text: 'de que trata el proyecto',
+            ),
+          ],
+          carpeta: '/Users/alguien/personal/nexus',
+          id: 'a',
+          puesto: 'lo del login',
+        ),
+        'lo del login',
+      );
+    });
+
+    test('un nombre en blanco no cuenta como nombre', () {
+      // Vaciarlo es la forma de deshacer: tiene que volver al derivado, no dejar el
+      // titulo en blanco.
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(author: ChatAuthor.user, text: 'ordena la casa'),
+          ],
+          carpeta: null,
+          id: 'a',
+          puesto: '   ',
+        ),
+        'ordena la casa',
+      );
+    });
+
+    test('el primer encargo, no el identificador', () {
+      expect(
+        tituloDeConversacion(
+          mensajes: const [
+            ChatMessage(
+              author: ChatAuthor.user,
+              text: 'de que trata el proyecto',
+            ),
+            ChatMessage(
+              author: ChatAuthor.nexus,
+              text: 'Nexus es un asistente…',
+            ),
+          ],
+          carpeta: '/Users/alguien/personal/nexus',
+          id: '1787575393339519-88753',
+        ),
+        'de que trata el proyecto',
+      );
+    });
+
+    test('aplanado a una linea y recortado', () {
+      // Un encargo puede tener tres parrafos y esto va en una barra de titulo.
+      final largo = tituloDeConversacion(
+        mensajes: [
+          ChatMessage(
+            author: ChatAuthor.user,
+            text: 'revisa\n\n  el diff   y ${'x' * 80}',
+          ),
+        ],
+        carpeta: null,
+        id: 'a',
+      );
+
+      expect(largo, startsWith('revisa el diff y x'));
+      expect(largo.contains('\n'), isFalse);
+      expect(largo.length, lessThanOrEqualTo(60));
+    });
+
+    test('sin encargos todavia, la cola de la carpeta', () {
+      expect(
+        tituloDeConversacion(
+          mensajes: const [],
+          carpeta: '/Users/alguien/proyectos/api',
+          id: 'a',
+        ),
+        'api',
+      );
+    });
+
+    test('el id solo como ultimo recurso', () {
+      // Es lo que se veia antes en el telefono, y no dice nada de nada.
+      expect(
+        tituloDeConversacion(mensajes: const [], carpeta: null, id: 'a-b-c'),
+        'a-b-c',
+      );
+    });
+  });
+
+  group('el acento', () {
+    test('sale al cambiar, y no es de ninguna conversacion', () {
+      // Lo que se prometio fue heredarlo **sin volver a emparejar**, y eso ya estaba:
+      // viaja en el saludo. Lo que faltaba era en vivo — cambiarlo con el telefono
+      // conectado no llegaba hasta la siguiente reconexion.
+      puente.acento(0xFF56E1EA);
+
+      final evento = deTipo('accent').single;
+      expect(evento.data['argb'], 0xFF56E1EA);
+      expect(
+        evento.data.containsKey('conversation'),
+        isFalse,
+        reason: 'el acento es del Mac entero, no de una conversacion',
+      );
+    });
+
+    test('va numerado como todo lo demas', () {
+      // Asi un telefono que se reincorpora lo recibe en su resync, sin un camino
+      // aparte que mantener.
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      final antes = publicados.last.seq;
+
+      puente.acento(0xFF00FF00);
+
+      expect(publicados.last.seq, antes + 1);
+    });
+  });
+
+  group('el orbe', () {
+    test('sale cuando cambia, y solo cuando cambia', () {
+      puente.observar(vista('a', orbe: NexusOrbState.sleep));
+      pasarElTiempo();
+      publicados.clear();
+
+      puente.observar(vista('a', orbe: NexusOrbState.think));
+      // El puente agrupa: nada sale hasta que la ventana se cierra.
+      pasarElTiempo();
+      expect(deTipo('orb').single.data, {
+        'conversation': 'a',
+        'state': 'think',
+      });
+
+      // Otra vez el mismo: nada. El puente manda cambios, no latidos.
+      publicados.clear();
+      puente.observar(vista('a', orbe: NexusOrbState.think));
+      pasarElTiempo();
+      expect(deTipo('orb'), isEmpty);
+    });
+
+    test('el publicador reenvia el estado del Mac, no uno inventado', () {
+      // El hueco que esto tapa: el puente puede mandar el orbe perfectamente y el
+      // publicador rellenarlo con una constante. Compila, las dos pruebas de arriba
+      // pasan —el puente hace su trabajo— y el telefono dibuja siempre dormido. Se vio
+      // sabotenadolo: ninguna prueba se enteraba.
+      //
+      // Es una comprobacion sobre el codigo porque el publicador escucha providers de
+      // la app entera; levantarlos aqui costaria mas que lo que mide.
+      final publicador = File(
+        'lib/features/remote/presentation/event_publisher.dart',
+      ).readAsStringSync();
+
+      expect(
+        publicador,
+        contains('orb: hud.orbState'),
+        reason:
+            'el orbe del telefono tiene que SER el del Mac; en cuanto se calcula '
+            'aqui otra cosa, son dos orbes que se desincronizan',
+      );
+    });
+
+    test('va aparte del turno, no dentro', () {
+      // `streaming` y el orbe cambian en momentos distintos —el micro se abre sin que
+      // haya nada corriendo— y meterlos en el mismo evento haria que uno arrastrara al
+      // otro: el telefono no podria distinguir «empezo a trabajar» de «te escucho».
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      publicados.clear();
+
+      puente.observar(vista('a', orbe: NexusOrbState.listen));
+      pasarElTiempo();
+
+      expect(deTipo('orb'), hasLength(1));
+      expect(
+        deTipo('turn'),
+        isEmpty,
+        reason: 'escuchar no es un turno: nada empezo a correr',
+      );
+    });
+  });
+  group('lo que dijo el usuario', () {
+    test('viaja entero y solo cuando cambia a algo', () {
+      // Hablando, el telefono no sabe lo que dijo: la voz se transcribe en el Mac. Sin
+      // esto le llegaba la respuesta a una pregunta que nunca se pinto — una
+      // conversacion contestando sola.
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      // El vacio del arranque no es una pregunta: mandarlo pintaria un turno en blanco.
+      expect(publicados.where((e) => e.kind == 'ask'), isEmpty);
+
+      puente.observar(vista('a', pregunta: 'que reuniones tengo hoy'));
+      pasarElTiempo();
+      final ask = publicados.where((e) => e.kind == 'ask').toList();
+      expect(ask, hasLength(1));
+      // Entera y no por trozos, al reves que la respuesta: una pregunta aparece de
+      // golpe al terminar de transcribirse, asi que no hay nada que ir sumando.
+      expect(ask.single.data['text'], 'que reuniones tengo hoy');
+
+      // Y no se repite si no cambia.
+      puente.observar(vista('a', pregunta: 'que reuniones tengo hoy'));
+      pasarElTiempo();
+      expect(publicados.where((e) => e.kind == 'ask'), hasLength(1));
+    });
+  });
+  test('el fin de la voz en el Mac se dice', () {
+    // El telefono presta el microfono pero quien decide cuando acaba es el Mac: su
+    // sesion se cierra sola por inactividad. Sin decirlo, el telefono se quedaba con
+    // el microfono abierto mandando a una sesion que ya no existia.
+    puente.observar(vista('a', vozAbierta: true));
+    pasarElTiempo();
+    expect(
+      publicados.where((e) => e.kind == 'voice').single.data['active'],
+      isTrue,
+    );
+
+    puente.observar(vista('a'));
+    pasarElTiempo();
+    expect(
+      publicados.where((e) => e.kind == 'voice').last.data['active'],
+      isFalse,
+    );
   });
 }

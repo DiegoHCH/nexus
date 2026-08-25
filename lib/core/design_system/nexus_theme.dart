@@ -41,7 +41,9 @@ abstract final class NexusTheme {
     _oscuros,
     (accent ?? NexusColors.dark.accent).toARGB32(),
     () => _build(
-      accent == null ? NexusColors.dark : NexusColors.dark.copyWith(accent: accent),
+      accent == null
+          ? NexusColors.dark
+          : NexusColors.dark.copyWith(accent: accent),
       Brightness.dark,
     ),
   );
@@ -50,7 +52,9 @@ abstract final class NexusTheme {
     _claros,
     (accent ?? NexusColors.light.accent).toARGB32(),
     () => _build(
-      accent == null ? NexusColors.light : NexusColors.light.copyWith(accent: accent),
+      accent == null
+          ? NexusColors.light
+          : NexusColors.light.copyWith(accent: accent),
       Brightness.light,
     ),
   );

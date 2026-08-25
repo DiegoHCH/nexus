@@ -56,7 +56,10 @@ void main() {
     overrides: [
       updatesControllerProvider.overrideWith(
         () => _Fijo(
-          UpdatesState(notice: ReleaseCheck(current: corriendo), stage: fase),
+          UpdatesState(
+            notice: ReleaseCheck(current: corriendo),
+            stage: fase,
+          ),
         ),
       ),
       installabilityProvider.overrideWith((ref) async => puede),
@@ -219,7 +222,8 @@ void _sobreLasRutas() {
                   child: ElevatedButton(
                     onPressed: () => Navigator.of(context).push(
                       MaterialPageRoute<void>(
-                        builder: (_) => const Scaffold(body: Text('otra pantalla')),
+                        builder: (_) =>
+                            const Scaffold(body: Text('otra pantalla')),
                       ),
                     ),
                     child: const Text('abrir'),

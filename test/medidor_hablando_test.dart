@@ -26,7 +26,11 @@ void main() {
     test('y sin ella, doscientos mil', () {
       const m = SessionMeter(model: 'claude-opus-5', contextTokens: 175922);
       expect(m.contextWindow, 200000);
-      expect(m.contextPercent, 88, reason: 'lo que se veía mal, con el mismo dato');
+      expect(
+        m.contextPercent,
+        88,
+        reason: 'lo que se veía mal, con el mismo dato',
+      );
     });
 
     test('sin modelo se asume la pequeña, y eso es lo que engañaba', () {

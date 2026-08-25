@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:nexus/core/platform/claude_environment.dart';
 
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
@@ -31,6 +33,10 @@ class ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+
+    /// Los servidores MCP que este encargo puede usar, ya con el prefijo `mcp__`.
+    /// Vacío significa **ninguno**, que es lo que había antes sin querer.
+    List<String> herramientasMcp = const [],
   }) async* {
     final process = await Process.start(
       'claude',
@@ -54,6 +60,33 @@ class ClaudeCliDataSource {
           '--append-system-prompt',
           appendSystemPrompt,
         ],
+        // **El modelo y el esfuerzo de la carpeta.** Se calculaban, se pasaban por
+        // tres capas y se tiraban aquí: llegaban a este método y nunca a la línea de
+        // comandos, así que la elección por carpeta no hacía nada.
+        if (model != null && model.isNotEmpty) ...['--model', model],
+        if (effort != null && effort.isNotEmpty) ...['--effort', effort],
+        // **Las herramientas MCP, permitidas por servidor.**
+        //
+        // En headless nadie aprueba nada, así que sin esto toda llamada a un servidor
+        // MCP se deniega sola: se preguntaba «¿qué reuniones tengo hoy?» y contestaba
+        // que no podía consultar el calendario, con el conector conectado y sano. Y no
+        // lo arregla el modo de permisos — con `acceptEdits` falla igual.
+        //
+        // Por servidor y no por herramienta porque enumerar las de lectura de cada
+        // conector sería una lista que caduca con cada versión suya. Lo que no vale es
+        // el comodín: `mcp__*` no autoriza nada, probado contra el CLI real.
+        if (herramientasMcp.isNotEmpty) ...[
+          '--allowedTools',
+          ...herramientasMcp,
+        ],
+        // **Lo que no puede tocar.** Aquí van los comandos bloqueados de la carpeta y,
+        // cuando es de solo lectura, las herramientas MCP que actúan fuera de la
+        // máquina. La denegación gana al permiso, medido, así que permitir el servidor
+        // entero y negar estas es seguro.
+        if (disallowedTools.isNotEmpty) ...[
+          '--disallowedTools',
+          ...disallowedTools,
+        ],
         // Al final y de una sola vez: el flag es variádico, así que cualquier
         // argumento que fuera detrás se lo tragaría como si fuera una carpeta.
         if (extraDirectories.isNotEmpty) ...['--add-dir', ...extraDirectories],
@@ -62,6 +95,21 @@ class ClaudeCliDataSource {
       environment: ClaudeEnvironment.forProfile(configDir),
       includeParentEnvironment: false,
     );
+    // **Qué manos lleva este encargo, dicho una vez.**
+    //
+    // Se anota porque su ausencia costó una tarde: «no puedo consultar tu calendario»
+    // con el conector conectado y sano no se parece a un problema de permisos, y desde
+    // fuera no había forma de ver que el CLI arrancaba sin autorizar ninguna
+    // herramienta. Una línea por encargo, no por herramienta: es una decisión y no un
+    // caudal.
+    debugPrint(
+      'claude · perfil ${configDir ?? 'el de siempre'} · '
+      '${herramientasMcp.length} servidores MCP permitidos'
+      '${disallowedTools.isEmpty ? '' : ' · ${disallowedTools.length} herramientas negadas'}'
+      '${model == null ? '' : ' · $model'}'
+      '${effort == null ? '' : ' · esfuerzo $effort'}',
+    );
+
     // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
     // arrancar — nadie le va a escribir nada, así que se lo avisamos ya.
     unawaited(process.stdin.close());

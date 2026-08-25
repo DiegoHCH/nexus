@@ -8,12 +8,54 @@ import 'package:flutter/foundation.dart';
 /// a la que tenga el foco y las demás avanzan de fondo.
 @immutable
 class Conversation {
-  const Conversation({required this.id, required this.folderPath});
+  const Conversation({
+    required this.id,
+    required this.folderPath,
+    this.name,
+    this.recordId,
+  });
 
   final String id;
   final String folderPath;
 
-  Map<String, dynamic> toJson() => {'id': id, 'folderPath': folderPath};
+  /// El nombre que le puso el usuario, si le puso uno.
+  ///
+  /// **Nulo es lo normal**, y entonces el nombre se deriva —el primer encargo, o la
+  /// cola de la carpeta—. Guardar un nombre derivado como si fuera elegido haría
+  /// imposible distinguir «no lo has llamado de ninguna forma» de «lo llamaste así»,
+  /// y con eso el título dejaría de seguir a la conversación cuando cambia el primer
+  /// encargo al retomarla.
+  final String? name;
+
+  /// Con qué identidad se guarda, si adoptó una del archivo.
+  ///
+  /// Al retomar una del historial, la pestaña **adopta el id de ese registro** para
+  /// seguir escribiendo en él en vez de crear otro. Ese dato vivía solo en memoria, así
+  /// que al reabrir la app la recuperación buscaba un registro con el id de la
+  /// conversación —que no existe— y la pestaña volvía **vacía** con sus turnos intactos
+  /// en disco.
+  final String? recordId;
+
+  Conversation conNombre(String? nuevo) => Conversation(
+    id: id,
+    folderPath: folderPath,
+    name: nuevo,
+    recordId: recordId,
+  );
+
+  Conversation conRegistro(String? adoptado) => Conversation(
+    id: id,
+    folderPath: folderPath,
+    name: name,
+    recordId: adoptado,
+  );
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'folderPath': folderPath,
+    if (name != null) 'name': name,
+    if (recordId != null) 'recordId': recordId,
+  };
 
   static Conversation? fromJson(Map<String, dynamic> json) {
     final id = json['id'] as String?;
@@ -21,21 +63,53 @@ class Conversation {
     if (id == null || id.isEmpty || folderPath == null || folderPath.isEmpty) {
       return null;
     }
-    return Conversation(id: id, folderPath: folderPath);
+    return Conversation(
+      id: id,
+      folderPath: folderPath,
+      name: json['name'] as String?,
+      recordId: json['recordId'] as String?,
+    );
   }
 }
 
 /// Las conversaciones abiertas y cuál tiene el foco.
 @immutable
 class Conversations {
-  const Conversations({this.items = const [], this.focusedId});
+  const Conversations({
+    this.items = const [],
+    this.focusedId,
+    this.cargado = false,
+  });
 
-  /// El tope no es técnico, es de atención: más de tres cosas a la vez no se
-  /// siguen, y un asistente que pierdes de vista deja de ser útil.
-  static const max = 3;
+  /// El tope no es técnico, es de atención. Estuvo en tres con ese argumento, y el
+  /// uso lo corrigió: seis caben porque **no se siguen todas a la vez** — se dejan
+  /// corriendo y se vuelve a ellas, que es justo para lo que sirve tener varias.
+  ///
+  /// Seis y no siete por la rejilla: se apilan en columnas de [porColumna], así que un
+  /// número que no sea múltiplo deja una columna coja.
+  static const max = 6;
+
+  /// Cuántas fichas caben en una columna del muelle antes de empezar otra al lado.
+  ///
+  /// Tres es lo que cabe sin que la columna llegue al orbe grande, que es el centro de
+  /// la pantalla y no se tapa.
+  static const porColumna = 3;
 
   final List<Conversation> items;
   final String? focusedId;
+
+  /// Si ya se leyó del disco lo que había abierto.
+  ///
+  /// **Vacío y «todavía no sé» no son lo mismo**, y confundirlos es lo que hacía que la
+  /// app enseñara la pantalla de primera vez justo después de arrancar: la lista nace
+  /// vacía y el disco se lee después, así que durante esa ventana parecía que no había
+  /// ninguna conversación. Quien tocaba el orbe ahí se llevaba una conversación nueva
+  /// en vez de la que tenía abierta.
+  final bool cargado;
+
+  /// La misma lista, ya marcada como leída del disco.
+  Conversations copyCargado() =>
+      Conversations(items: items, focusedId: focusedId, cargado: true);
 
   bool get isEmpty => items.isEmpty;
   bool get isFull => items.length >= max;

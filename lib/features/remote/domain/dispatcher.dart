@@ -73,6 +73,12 @@ class Dispatcher {
         code: 'unknownConversation',
         message: 'la conversación ${error.id} ya no está abierta',
       );
+    } on DemasiadasConversaciones {
+      yield Failure(
+        id: call.id,
+        code: 'tooManyConversations',
+        message: 'el Mac ya tiene todas sus conversaciones abiertas',
+      );
     } on BinaryArtifact catch (error) {
       yield Failure(
         id: call.id,
@@ -150,6 +156,35 @@ class Dispatcher {
         // El resultado dice **que arrancó**, no que terminara: un encargo dura
         // minutos y lo que pasa dentro llega como eventos.
         return Result(id: call.id, data: {'started': true});
+
+      case RemoteMethod.renameConversation:
+        // El nombre **puede venir vacío**, y eso significa «quítaselo»: sin esa
+        // salida, un nombre puesto por error se quedaría para siempre.
+        await surface.renameConversation(
+          _id(call),
+          (call.params['name'] as String?) ?? '',
+        );
+        return Result(id: call.id, data: {'renamed': true});
+
+      case RemoteMethod.startVoice:
+        await surface.startVoice(_id(call));
+        return Result(id: call.id, data: {'listening': true});
+
+      case RemoteMethod.stopVoice:
+        await surface.stopVoice(_id(call));
+        return Result(id: call.id, data: {'listening': false});
+
+      case RemoteMethod.playbackFinished:
+        await surface.playbackFinished(_id(call));
+        return Result(id: call.id, data: {'playing': false});
+
+      case RemoteMethod.silenceReply:
+        await surface.silenceReply(_id(call));
+        return Result(id: call.id, data: {'silenced': true});
+
+      case RemoteMethod.closeConversation:
+        await surface.closeConversation(_id(call));
+        return Result(id: call.id, data: {'closed': true});
 
       case RemoteMethod.stopErrand:
         await surface.stopErrand(_id(call));

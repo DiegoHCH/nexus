@@ -39,7 +39,9 @@ void main() {
   double luminancia(int r, int g, int b) {
     double canal(int v) {
       final x = v / 255;
-      return x <= 0.03928 ? x / 12.92 : math.pow((x + 0.055) / 1.055, 2.4) as double;
+      return x <= 0.03928
+          ? x / 12.92
+          : math.pow((x + 0.055) / 1.055, 2.4) as double;
     }
 
     return 0.2126 * canal(r) + 0.7152 * canal(g) + 0.0722 * canal(b);
@@ -117,8 +119,7 @@ void main() {
   }
 
   testWidgets('el orbe dormido se ve en oscuro', (tester) async {
-    expect(await mejorContraste(tester, NexusTheme.dark()),
-        greaterThan(suelo));
+    expect(await mejorContraste(tester, NexusTheme.dark()), greaterThan(suelo));
   });
 
   testWidgets('y también en claro, que era el que se perdía', (tester) async {

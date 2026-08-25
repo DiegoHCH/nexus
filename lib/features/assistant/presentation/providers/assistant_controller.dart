@@ -58,11 +58,17 @@ class AssistantController extends Notifier<AssistantHudState> {
     });
 
     unawaited(_loadMemory());
+    unawaited(_recuperarLoDicho());
 
     // Perder el foco cierra el micrófono: solo la conversación en foco puede
     // hablar, y dejarlo abierto en una que ya no miras sería exactamente el
     // estado que el proyecto lleva evitando desde 2.5.
     ref.listen(conversationsProvider, (previous, next) {
+      // **Solo si el foco está en otra**, no cuando no hay foco. Sin ese matiz,
+      // cualquier estado sin foco —la lista todavía sin leer, o vacía— cerraba el
+      // micrófono a mitad de un turno: se veía como que la voz se corta sola, y el
+      // encargo se quedaba sin terminar.
+      if (!next.cargado || next.focusedId == null) return;
       if (state.voiceActive && next.focusedId != conversationId) {
         unawaited(stopVoice());
       }
@@ -89,6 +95,56 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (folder == null) return;
     final memory = await ref.read(conversationMemoryProvider).read(folder);
     state = state.copyWith(history: memory.prompts);
+  }
+
+  /// Vuelve a pintar lo que ya se había dicho en esta conversación.
+  ///
+  /// Al reabrir la app, las conversaciones abiertas volvían **vacías**: la lista se
+  /// guardaba —ids y carpetas— y los turnos no se recuperaban, aunque estuvieran en
+  /// disco desde el primer encargo. El efecto es peor que perderlos: la ficha sigue
+  /// ahí, con su nombre, invitando a seguir una conversación de la que no se ve nada.
+  ///
+  /// Lo guardado se busca **por el id de esta conversación**, que es con el que se
+  /// guarda —el archivo se llama así—. Se reusa `resume`, que es exactamente esto:
+  /// pintar un registro entero y seguir escribiendo en él.
+  ///
+  /// **Solo si no ha llegado nada todavía.** Esto es asíncrono y el usuario puede
+  /// haber empezado a hablar mientras se leía el disco; sobrescribir entonces sería
+  /// borrarle lo que acaba de decir.
+  Future<void> _recuperarLoDicho() async {
+    final folder = _folder;
+    if (folder == null) return;
+
+    final List<ConversationRecord> guardadas;
+    try {
+      guardadas = await ref.read(localConversationStoreProvider).list(folder);
+    } catch (error) {
+      // Un historial ilegible no puede impedir abrir la conversación: se sigue en
+      // blanco, que es lo que había antes de esto.
+      debugPrint('archivo · no se pudo leer lo dicho: $error');
+      return;
+    }
+
+    // La lista, leída del disco antes de preguntarle nada: recién construida está
+    // vacía, y preguntar ahí devolvía «no adoptó ningún registro» siempre.
+    await ref.read(conversationsProvider.notifier).asegurarCargado();
+
+    // **El registro adoptado primero.** Una conversación retomada del archivo escribe
+    // en el id de ese registro, no en el suyo: buscar por el propio no encontraba nada
+    // y la pestaña salía vacía.
+    final buscado =
+        ref
+            .read(conversationsProvider)
+            .items
+            .where((c) => c.id == conversationId)
+            .firstOrNull
+            ?.recordId ??
+        conversationId;
+    final mia = guardadas.where((r) => r.id == buscado).firstOrNull;
+    if (mia == null || mia.messages.isEmpty) return;
+    if (state.messages.isNotEmpty) return;
+
+    resume(mia);
   }
 
   /// Empezar de cero **en esta carpeta**: Claude deja de reanudar la sesión
@@ -492,6 +548,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// diciendo se añade a ella.
   void resume(ConversationRecord record) {
     _recordId = record.id;
+    // **Y se apunta en la lista guardada.** Adoptar el registro solo en memoria era lo
+    // que hacía que al reabrir la app la conversación volviera vacía: la recuperación
+    // buscaba un fichero con el id de la conversación, y esta escribe en el del
+    // registro adoptado.
+    unawaited(
+      ref
+          .read(conversationsProvider.notifier)
+          .apuntarRegistro(conversationId, record.id),
+    );
     _startedAt = record.startedAt;
     state = state.copyWith(
       messages: record.messages,

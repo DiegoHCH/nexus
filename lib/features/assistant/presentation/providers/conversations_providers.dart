@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/conversations_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 
 final conversationsDataSourceProvider = Provider<ConversationsDataSource>(
   (ref) => const ConversationsDataSource(),
@@ -70,7 +72,17 @@ class ConversationsController extends Notifier<Conversations> {
     // pantalla vacía pregunta dónde quieres trabajar, que es mejor pregunta
     // que una respuesta inventada.
     if (unique.isEmpty) {
-      if (state.items.isNotEmpty) await _persist(const Conversations());
+      // Vacío **ya leído**: es lo que distingue «no tienes ninguna abierta» de
+      // «todavía no lo sé», y con eso la pantalla de primera vez deja de aparecer en
+      // el arranque de una app que sí tenía conversaciones.
+      //
+      // Marcar que ya se leyó **no escribe en disco**: no hay nada nuevo que guardar, y
+      // escribir por esto disparaba el guardado en sitios que solo estaban leyendo.
+      if (state.items.isNotEmpty) {
+        await _persist(const Conversations());
+      } else if (!state.cargado) {
+        state = state.copyCargado();
+      }
       return;
     }
 
@@ -84,7 +96,9 @@ class ConversationsController extends Notifier<Conversations> {
   }
 
   Future<void> _persist(Conversations next) async {
-    state = next;
+    // Todo lo que se persiste sale de una lista ya leída, así que a partir de aquí
+    // «vacío» significa vacío de verdad.
+    state = next.copyCargado();
     await ref.read(conversationsDataSourceProvider).write({
       'items': next.items.map((item) => item.toJson()).toList(),
       'focusedId': next.focusedId,
@@ -97,6 +111,15 @@ class ConversationsController extends Notifier<Conversations> {
   /// sobre el mismo repo —una revisando, otra escribiendo— es un caso legítimo.
   /// Cada una lleva su memoria, así que no se pisan.
   Future<String?> open(String folderPath) async {
+    // **Primero lo guardado, y luego se añade.** `build()` devuelve la lista vacía y
+    // el disco se lee después, así que abrir una conversación en esa ventana persistía
+    // una lista con **solo la nueva** y se llevaba por delante las que había. Es como
+    // se perdió una conversación con su contenido: quedó un id nuevo sobre la misma
+    // carpeta y el registro viejo huérfano en disco.
+    //
+    // `_reconcile` es idempotente y baratísimo después de la primera vez, así que
+    // esperarlo aquí no cuesta nada y quita la ventana entera.
+    await _reconcile();
     if (state.isFull) return null;
 
     // El identificador se compone del reloj y la carpeta: no hace falta un
@@ -114,7 +137,59 @@ class ConversationsController extends Notifier<Conversations> {
     return id;
   }
 
+  /// Le pone nombre a una conversación, o se lo quita.
+  ///
+  /// Vacío quita el nombre y devuelve al derivado —el primer encargo—, que es lo que
+  /// hace falta para deshacer: sin eso, un nombre puesto por error se quedaría para
+  /// siempre y habría que cerrar la conversación para librarse de él.
+  Future<void> renombrar(String id, String nombre) async {
+    // Mismo motivo que en `open`: renombrar reescribe la lista entera, y hacerlo con
+    // la lista sin cargar borraría las demás.
+    await _reconcile();
+    final limpio = nombre.trim();
+    final items = [
+      for (final item in state.items)
+        if (item.id == id)
+          item.conNombre(limpio.isEmpty ? null : limpio)
+        else
+          item,
+    ];
+    await _persist(Conversations(items: items, focusedId: state.focusedId));
+  }
+
+  /// Espera a que la lista esté leída del disco.
+  ///
+  /// Público porque **quien pregunta desde fuera necesita lo mismo**: leer esta lista
+  /// recién construida devuelve vacío, y eso ya ha causado tres fallos distintos —la
+  /// pantalla de primera vez en el arranque, una lista que se sobreescribía, y una
+  /// conversación retomada que volvía vacía por no encontrar su registro adoptado—.
+  Future<void> asegurarCargado() => _reconcile();
+
+  /// Apunta con qué registro del archivo se guarda esa conversación.
+  ///
+  /// Lo llama el controlador al retomar una del historial. Va **en la lista guardada**
+  /// porque tiene que sobrevivir al cierre de la app: sin eso, al volver a abrirla la
+  /// recuperación buscaba un registro con el id de la conversación —que no existe
+  /// cuando adoptó otro— y la pestaña salía vacía con sus turnos intactos en disco.
+  Future<void> apuntarRegistro(String id, String recordId) async {
+    await _reconcile();
+    final ficha = state.items.where((c) => c.id == id).firstOrNull;
+    if (ficha == null || ficha.recordId == recordId) return;
+    await _persist(
+      Conversations(
+        items: [
+          for (final item in state.items)
+            if (item.id == id) item.conRegistro(recordId) else item,
+        ],
+        focusedId: state.focusedId,
+      ),
+    );
+  }
+
   Future<void> close(String id) async {
+    // Y aquí igual: cerrar reescribe la lista. Sin cargar, «cerrar una» se convertía en
+    // «dejar la lista vacía».
+    await _reconcile();
     final items = state.items.where((item) => item.id != id).toList();
     await _persist(
       Conversations(
@@ -172,3 +247,53 @@ final conversationFolderProvider = Provider.family<String?, String>(
   (ref, conversationId) =>
       ref.watch(conversationsProvider).byId(conversationId)?.folderPath,
 );
+
+/// Retomar una conversación del archivo.
+///
+/// **Fuera del notifier, y no por gusto:** los controladores de cada conversación
+/// escuchan a `conversationsProvider`, así que si él los leyera habría dependencia
+/// circular — Riverpod lo detecta y lanza. Aquí las lecturas pasan al llamar, no al
+/// construir, así que no hay ciclo.
+///
+/// Tres desenlaces, y los tres importan:
+///
+/// - **Ya está abierta** → se va a su pestaña. Una conversación viva se guarda en el
+///   archivo desde su primer turno, así que la de la lista puede ser exactamente la que
+///   tienes delante; abrirla otra vez creaba una segunda pestaña escribiendo en el
+///   **mismo registro**, y lo que escribías en una aparecía en la otra.
+/// - **No está** → pestaña nueva, sobre su carpeta. Repetir carpeta está permitido a
+///   propósito: son sesiones independientes con su propia memoria.
+/// - **No cabe** → se dice. Antes no hacía nada, y no hacer nada en silencio se lee
+///   como que la app se colgó.
+final retomarDelArchivoProvider =
+    Provider<Future<RetomarResultado> Function(ConversationRecord)>((ref) {
+      return (registro) async {
+        for (final item in ref.read(conversationsProvider).items) {
+          final controlador = ref.read(
+            assistantControllerProvider(item.id).notifier,
+          );
+          if (!controlador.isShowing(registro.id)) continue;
+          ref.read(conversationsProvider.notifier).focus(item.id);
+          return RetomarResultado.yaEstaba;
+        }
+
+        final id = await ref
+            .read(conversationsProvider.notifier)
+            .open(registro.folderPath);
+        if (id == null) return RetomarResultado.noCabe;
+        ref.read(assistantControllerProvider(id).notifier).resume(registro);
+        return RetomarResultado.enPestanaNueva;
+      };
+    });
+
+/// Qué pasó al retomar una del archivo.
+enum RetomarResultado {
+  /// Estaba abierta ya: se fue a su pestaña, sin duplicarla.
+  yaEstaba,
+
+  /// Se abrió una pestaña nueva con ella.
+  enPestanaNueva,
+
+  /// El muelle está lleno. Quien llama tiene que **decirlo**.
+  noCabe,
+}

@@ -198,11 +198,113 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
 - **Los artifacts** y **el contenido de un artifact**: los documentos que produce
   Claude. Son de lectura y son el resultado del trabajo — poder mandar un encargo y no
   poder ver lo que produjo es medio canal.
+- El **estado del orbe** viaja con cada conversación, y es el del Mac tal cual: el
+  teléfono no lo deduce. Sólo recibía `streaming`, así que de los cuatro estados
+  —reposo, escuchando, trabajando, hablando— podía dibujar dos: el micro abierto no
+  es trabajo corriendo, y la voz saliendo tampoco. Reenviarlo hace que el orbe del
+  teléfono **sea** el del Mac y no una imitación que se desincroniza en cuanto se
+  añada un estado.
+- **Lo que dijo el usuario** viaja también, en su evento `ask`. Escribiendo no haría
+  falta —el teléfono acaba de teclearlo— pero **hablando sí**: la voz se transcribe en
+  el Mac, y sin esto al teléfono le llegaba la respuesta a una pregunta que nunca se
+  pintó, que se lee como una conversación contestando sola. Va entero y no por trozos,
+  al revés que la respuesta: una pregunta aparece de golpe cuando termina de
+  transcribirse, así que no hay nada que ir sumando.
+- Y **si el Mac tiene la sesión de voz abierta**, en su evento `voice`. El teléfono
+  presta el micrófono, pero quien decide cuándo termina es el Mac: su sesión se cierra
+  sola por inactividad. Sin esta señal el teléfono se quedaba con el micrófono abierto
+  —diciendo en pantalla que escuchaba— mandando trozos a una sesión que ya no existía.
+  Se dice y no se deduce del orbe: `sleep` también sale al terminar un encargo escrito.
+- Va en un evento propio, `orb`, y **no dentro de `turn`**: `streaming` y el orbe
+  cambian en momentos distintos, y juntarlos haría que uno arrastrara al otro.
+- Con cada conversación viaja también **su nombre**: el primer encargo, aplanado a una
+  línea. Va en la vista y no solo en la lista porque una conversación **nace de un
+  evento** —se abre desde el teléfono— y hasta la siguiente lista no tenía carpeta ni
+  nombre: lo que se veía era su identificador, que no dice nada.
+- Y el **acento** tiene su propio evento, sin `conversation`: es del Mac entero. Se
+  leía solo en el saludo, así que cambiarlo con el teléfono conectado no llegaba hasta
+  la siguiente reconexión — y lo prometido era heredarlo sin volver a emparejar, no
+  reconectar. Va numerado como todo lo demás para que un teléfono que se reincorpora lo
+  reciba en su resync, sin un camino aparte que mantener.
+- **Y el teléfono lo apaga si no hay enlace.** El espejo se queda con lo último que
+  supo, así que un Mac que estaba trabajando cuando se perdió la cobertura dejaría el
+  orbe girando sobre una pantalla que dice «se perdió el enlace». Un orbe girando
+  promete trabajo que está pasando; sin enlace no se sabe si el Mac terminó, falló o
+  se durmió, y dormido es la única forma honesta de decir «no sé nada».
 - **Abrir una conversación sobre una carpeta ya emparejada**, y también
   **las carpetas emparejadas**, para poder elegir. Esto es lo que parece chocar con «emparejar carpetas se queda en el Mac»
   y no choca: el motivo de esa línea es que por red se elegiría **a ciegas cualquier
   ruta del disco**, y aquí el Mac ofrece la lista y el teléfono escoge de ella. Nadie
   elige una ruta que el Mac no tuviera ya. Emparejar una carpeta nueva sigue fuera.
+- **Ponerle nombre a una conversación** y **cerrar una conversación**. Las dos son
+  estado de Nexus sobre sus propias fichas, no los archivos del usuario, así que **no
+  piden la frase de escritura** — el mismo razonamiento que abrir una sobre una carpeta
+  ya emparejada. Cerrar no borra nada: lo dicho sigue en el archivo y de ahí se retoma,
+  que es lo que hace que no sea destructivo aunque lo parezca. Un nombre vacío quita el
+  puesto y devuelve al derivado, que es lo que hace falta para poder deshacer.
+- **Abrir el micrófono del teléfono** y **cerrar el micrófono del teléfono**. Son dos
+  métodos y no un interruptor con parámetro: **cerrar tiene que poder llegar aunque se
+  haya perdido el que abrió**, y con uno solo habría que llevar la cuenta de quién
+  manda. Tampoco piden la frase, por lo mismo que abrir una conversación: hablar no
+  escribe archivos. Lo que se diga sí pasa por el permiso, porque acaba en un encargo y
+  el encargo ya lo comprueba.
+- Y el audio va en un **marco propio, sin confirmación y sin reintento**. Es la decisión
+  de fondo de la voz remota: un trozo que llega tarde es peor que un hueco, porque
+  reenviarlo mete en la conversación medio segundo de hace un rato. Un `ack` por trozo
+  serían tres mensajes por cada 20 ms de voz, y lo que protege el deduplicador —efectos
+  que no se repiten— aquí no aplica: un trozo duplicado no borra un archivo, solo suena
+  raro. Va en base64 porque el canal es de texto: cuesta un tercio más, unos 43 KB/s a
+  16 kHz mono de 16 bits, que es nada por Tailscale y bastante menos que mantener un
+  segundo transporte solo para esto.
+- **Bajando cuesta la mitad más que subiendo**, y conviene decirlo porque la cuenta de
+  arriba es solo de subida: la entrada es 16 kHz y la salida **24 kHz**, así que son
+  48.000 bytes por segundo crudos y unos **64 KB/s en base64**. Sigue sin ser un problema
+  por Tailscale, pero tú hablas segundos y él contesta párrafos, que es donde está el
+  volumen de verdad.
+
+- **La voz que suena es la misma la reproduzca quien la reproduzca.** La síntesis pasa en
+  el servidor: la sesión pide audio y la voz se elige al abrirla, así que lo que viaja
+  son muestras ya cantadas y el destino no puede cambiarlas. Lo que sí cambia un poco es
+  el **color**, porque el Mac remuestrea a la frecuencia de su dispositivo y —solo con el
+  altavoz interno— pasa por el cancelador de eco del sistema. No es una diferencia nueva:
+  hoy el Mac ya suena distinto con altavoces que con auriculares, por lo mismo.
+
+- **La voz suena donde se preguntó.** Si el turno se habló por el teléfono, la respuesta
+  suena en el teléfono; si se habló delante del Mac, suena en el Mac. El Mac ya sabe de
+  qué micrófono está escuchando —hizo falta para arreglar la voz remota— así que la
+  regla no cuesta un dato nuevo: sale del que ya hay.
+
+  Esto **corrige una frase anterior de este documento**, que decía «el audio sube; la voz
+  no baja» y era más ancha que la decisión que citaba. `lo8` eligió que **el audio pasa
+  por el Mac**, y lo que de verdad separaba sus dos caminos era la segunda copia de la
+  llave de Gemini en el teléfono y que el guardia de `i5` acabara siendo un mensaje que
+  el cliente puede saltarse. Un teléfono que reproduce PCM que le manda el Mac no toca
+  nada de eso: no tiene llave, no habla con Google, y el Mac sigue siendo el único sitio
+  donde se decide qué sale de la máquina. **Sigue siendo un mando a distancia; un mando
+  con altavoz.** Y sin Mac despierto y alcanzable sigue sin haber voz.
+
+  El otro motivo que se dio para no bajarla —que el teléfono sería «una segunda boca»—
+  **se cae con la propia regla**: si suena donde se preguntó, nunca suenan los dos.
+
+- **Quien reproduce dice cuándo terminó**, así que el teléfono puede
+  **decir que la respuesta terminó de sonar**. El Mac no puede cerrar la sesión mientras
+  queda respuesta por sonar, o corta a media palabra, y sonando en el teléfono no lo sabe
+  por su cuenta. Así que lo dice el teléfono. Estimarlo por bytes y ritmo sería adivinar
+  el jitter de la red, y adivinar aquí se oye.
+
+- **Si el teléfono se va a media respuesta, la voz se corta y no sigue por ningún sitio.**
+  No se termina por los altavoces del Mac: la respuesta se estaba diciendo a quien no
+  está delante del Mac, y soltarla en una habitación vacía es peor que callarse. **El
+  texto sigue llegando**, que es lo que se puede leer al volver. Pasa de verdad y está
+  medido: con la pantalla apagada, Android suspende la app y el canal se cae.
+
+- **Mientras suena la respuesta el micrófono está cerrado, y no se puede abrir.** Si no,
+  el teléfono se oye a sí mismo y se lo manda de vuelta a Gemini — su cancelación de eco
+  no cubre lo que sale de su propio altavoz por esta ruta. Lo que sí hay es **un botón
+  para **callar la respuesta y seguir leyendo**: se deja de oír y el texto sigue, que es
+  lo que uno quiere cuando ya entendió por dónde va. Callar no cancela el turno, y se le
+  dice al Mac en vez de silenciarlo solo aquí para que deje de mandar audio que nadie va
+  a oír.
 
 ### Se queda en el Mac
 

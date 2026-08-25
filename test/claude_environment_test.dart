@@ -24,7 +24,9 @@ void main() {
 
   test('la cuenta se fija cuando se pide, y solo entonces', () {
     expect(
-      ClaudeEnvironment.forProfile('/tmp/perfil-de-prueba')['CLAUDE_CONFIG_DIR'],
+      ClaudeEnvironment.forProfile(
+        '/tmp/perfil-de-prueba',
+      )['CLAUDE_CONFIG_DIR'],
       '/tmp/perfil-de-prueba',
     );
 

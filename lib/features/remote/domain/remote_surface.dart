@@ -62,6 +62,32 @@ abstract class RemoteSurface {
   /// no abrir una segunda sobre la misma carpeta.
   Future<String> resumeConversation(String archivedId);
 
+  /// Le pone nombre a una conversación. Vacío se lo quita y vuelve al derivado.
+  Future<void> renameConversation(String conversationId, String name);
+
+  /// Cierra una conversación. **No borra nada**: lo dicho sigue en el archivo, y de
+  /// ahí se retoma — que es lo que hace que no sea destructivo aunque lo parezca.
+  Future<void> closeConversation(String conversationId);
+
+  /// Abre el micrófono del teléfono hacia esa conversación.
+  ///
+  /// **El audio pasa por el Mac** (`lo8`): el teléfono presta el micrófono y el Mac
+  /// hace lo que ya sabía hacer con él, así que la sesión de voz no se toca.
+  Future<void> startVoice(String conversationId);
+
+  /// Lo cierra.
+  Future<void> stopVoice(String conversationId);
+
+  /// El teléfono terminó de reproducir la respuesta.
+  ///
+  /// **Quien reproduce dice cuándo terminó.** El Mac no puede cerrar la sesión mientras
+  /// queda respuesta por sonar —cortaría a media palabra— y sonando en el teléfono no lo
+  /// sabe por su cuenta.
+  Future<void> playbackFinished(String conversationId);
+
+  /// El usuario calló la respuesta y sigue leyendo. **No cancela el turno.**
+  Future<void> silenceReply(String conversationId);
+
   /// Las carpetas que el Mac **ya tiene emparejadas**.
   ///
   /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La
@@ -216,6 +242,16 @@ class UnknownConversation implements Exception {
 
   @override
   String toString() => 'UnknownConversation($id)';
+}
+
+/// No cabe otra conversación abierta en el Mac.
+///
+/// Tiene su tipo porque **es una respuesta y no una avería**: el teléfono puede decirlo
+/// —«cierra una para retomar esta»— y con un fallo genérico solo podía decir «no se pudo
+/// atender», que manda a mirar al sitio equivocado.
+class DemasiadasConversaciones implements Exception {
+  @override
+  String toString() => 'DemasiadasConversaciones()';
 }
 
 /// Se pidió el contenido de un documento que no es texto.

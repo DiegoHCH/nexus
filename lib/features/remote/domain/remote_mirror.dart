@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 /// Lo que el teléfono sabe del Mac, construido aplicando eventos.
 ///
@@ -52,7 +53,25 @@ class RemoteMirror {
         (evento.data['append'] as String?) ?? '',
         reemplazar: evento.data['replace'] == true,
       ),
+      // Entera y no por trozos, al revés que la respuesta: una pregunta aparece de
+      // golpe al terminar de transcribirse, así que no hay nada que ir sumando.
+      'ask' => antes.copyWith(ask: (evento.data['text'] as String?) ?? ''),
+      'voice' => antes.copyWith(voiceOnMac: evento.data['active'] == true),
       'turn' => antes.copyWith(streaming: evento.data['streaming'] == true),
+      // El estado del orbe **como lo mandó el Mac**, sin traducir. Un nombre que esta
+      // versión no conozca deja el que había: un móvil viejo frente a un Mac nuevo
+      // tiene que seguir dibujando algo, no quedarse sin orbe.
+      // El nombre que manda el Mac. Llega por evento porque una conversación abierta
+      // desde el teléfono nace así: sin esto se quedaba con su identificador hasta la
+      // siguiente vez que se pidiera la lista.
+      'title' => antes.copyWith(title: evento.data['title'] as String?),
+      'orb' => antes.copyWith(
+        orb:
+            NexusOrbState.values
+                .where((e) => e.name == evento.data['state'])
+                .firstOrNull ??
+            antes.orb,
+      ),
       'activity' => antes.copyWith(
         steps: [
           for (final crudo in (evento.data['steps'] as List? ?? const []))
@@ -160,7 +179,11 @@ class MirroredConversation {
     this.folder,
     this.focused = false,
     this.streaming = false,
+    this.orb = NexusOrbState.sleep,
+    this.title,
     this.reply = '',
+    this.ask = '',
+    this.voiceOnMac = false,
     this.steps = const [],
     this.model,
     this.contextTokens,
@@ -176,6 +199,10 @@ class MirroredConversation {
       id: j['id']! as String,
       folder: j['folder'] as String?,
       streaming: j['streaming'] == true,
+      title: j['title'] as String?,
+      orb:
+          NexusOrbState.values.where((e) => e.name == j['orb']).firstOrNull ??
+          NexusOrbState.sleep,
       reply: (j['reply'] as String?) ?? '',
       steps: [
         for (final p in (j['steps'] as List? ?? const []))
@@ -201,8 +228,27 @@ class MirroredConversation {
   final bool focused;
   final bool streaming;
 
+  /// El estado del orbe en el Mac. `sleep` de partida, que es lo que le toca a una
+  /// conversación de la que todavía no ha llegado nada.
+  final NexusOrbState orb;
+
+  /// El nombre que manda el Mac: el primer encargo, o la cola de la carpeta.
+  final String? title;
+
   /// La respuesta en curso, completa. Se construye pegando lo que llega.
   final String reply;
+
+  /// **Lo último que dijo el usuario**, cuando llegó por el canal.
+  ///
+  /// Existe porque hablando el teléfono no sabe lo que dijo: la voz se transcribe en
+  /// el Mac, y sin esto llegaba la respuesta a una pregunta que nunca se pintó — una
+  /// conversación contestando sola. Escribiendo no hace falta, pero tenerlo siempre es
+  /// más barato que tener dos caminos según de dónde vino el turno.
+  final String ask;
+
+  /// Si el Mac tiene la sesión de voz abierta. El teléfono presta el micrófono, pero
+  /// quien decide cuándo termina es el Mac.
+  final bool voiceOnMac;
   final List<MirroredStep> steps;
 
   final String? model;
@@ -226,8 +272,42 @@ class MirroredConversation {
   /// Por dónde seguir pidiendo, o `null` si ya se llegó al principio.
   final int? masHistorial;
 
-  /// Lo que se enseña como nombre. La ruta si se sabe; el id si todavía no.
-  String get nombre => folder ?? id;
+  /// Si la respuesta en curso **ya está** en el historial.
+  ///
+  /// Existe porque se veía dos veces: el texto llega como respuesta en curso y, al
+  /// terminar el turno, otra vez como turno del historial. Se compara por contenido y
+  /// no por «si está corriendo»: el historial puede llegar antes de que el turno pare
+  /// —una página de historial pedida a mano, por ejemplo— y con la regla del estado se
+  /// perdería el texto en pantalla justo mientras se está leyendo.
+  /// Si lo que dijo el usuario ya está en el historial.
+  ///
+  /// El gemelo de [respuestaYaEnHistorial], y por lo mismo: la pregunta llega por
+  /// evento en cuanto se transcribe y **también** aterriza en el historial cuando se
+  /// pide una página, así que sin esto se vería dos veces seguidas.
+  bool get preguntaYaEnHistorial {
+    if (ask.isEmpty) return false;
+    final ultimoMio = history.where((m) => m.mine).lastOrNull;
+    if (ultimoMio == null) return false;
+    return ultimoMio.text.trim() == ask.trim();
+  }
+
+  bool get respuestaYaEnHistorial {
+    if (reply.isEmpty) return false;
+    final ultimoDeNexus = history.where((m) => !m.mine).lastOrNull;
+    if (ultimoDeNexus == null) return false;
+    // `trim` porque el streaming deja un espacio al final que el historial no trae, y
+    // un espacio no es una respuesta distinta.
+    return ultimoDeNexus.text.trim() == reply.trim();
+  }
+
+  /// Lo que se enseña como nombre.
+  ///
+  /// **El título que manda el Mac primero**: es el primer encargo, y reconocer una
+  /// conversación por lo que le pediste funciona mejor que por dónde vive. Luego la
+  /// ruta, y el id solo si no ha llegado nada — que es lo que se veía en una
+  /// conversación recién abierta desde el teléfono, porque nacía de un evento y los
+  /// eventos no llevaban ni carpeta ni nombre.
+  String get nombre => title ?? folder ?? id;
 
   /// Para la caché.
   ///
@@ -261,7 +341,11 @@ class MirroredConversation {
     String? folder,
     bool? focused,
     bool? streaming,
+    NexusOrbState? orb,
+    String? title,
     String? reply,
+    String? ask,
+    bool? voiceOnMac,
     List<MirroredStep>? steps,
     String? model,
     int? contextTokens,
@@ -276,6 +360,10 @@ class MirroredConversation {
     folder: folder ?? this.folder,
     focused: focused ?? this.focused,
     streaming: streaming ?? this.streaming,
+    orb: orb ?? this.orb,
+    title: title ?? this.title,
+    ask: ask ?? this.ask,
+    voiceOnMac: voiceOnMac ?? this.voiceOnMac,
     reply: reply ?? this.reply,
     steps: steps ?? this.steps,
     model: model ?? this.model,

@@ -142,6 +142,7 @@ class NexusOrbPainter extends CustomPainter {
   /// ya se satura— así que sube solo lo que hacía falta.
   static const _refuerzoPuntos = 2.3;
   static const _refuerzoAristas = 1.6;
+
   /// El halo se refuerza **poco**, y a propósito. Sobre oscuro suma luz y da
   /// presencia; sobre claro la quita, así que multiplicarlo tiñe de azul toda
   /// la zona del orbe y baja el contraste de los puntos contra lo que tienen

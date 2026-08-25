@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -15,6 +16,8 @@ import 'package:nexus/features/remote/domain/outbox.dart';
 import 'package:nexus/features/remote/presentation/providers/outbox_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 
 // Las pantallas del teléfono, contra un socket falso.
 //
@@ -111,6 +114,30 @@ class _Emparejado implements PairingStore {
 }
 
 void main() {
+  test('las pantallas de estado reparten el alto como las de conexion', () {
+    // El orbe estaba como capa de fondo fijada al 46 % del alto: quedaba pegado arriba,
+    // el texto centrado y el tercio inferior vacio. Al lado de `ConnectingPage` —que se
+    // ven una detras de otra— se leia como de otra app. El reparto no es estetica aqui:
+    // un salto de composicion entre dos pantallas seguidas se lee como un fallo.
+    final fuente = File(
+      'lib/features/remote/presentation/widgets/mobile_state_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      fuente,
+      isNot(contains('Positioned(')),
+      reason: 'el orbe volvio a ser una capa de fondo',
+    );
+    expect(
+      fuente,
+      isNot(contains('MediaQuery')),
+      reason: 'el alto del orbe volvio a depender del de la pantalla',
+    );
+    // Orbe **en el flujo** y entre espaciadores, igual que la de conectar.
+    expect(fuente, contains('height: 260'));
+    expect(fuente.split('Spacer()').length - 1, 2);
+  });
+
   late _SocketFalso socket;
   late _ColaEnMemoria cola;
 
@@ -282,6 +309,182 @@ void main() {
       return c;
     }
 
+    testWidgets('vacía, el orbe es el contenido; con turnos, se aparta', (
+      tester,
+    ) async {
+      // Vacía no hay nada que tapar y lo unico que hay que decir es «aqui esta el
+      // asistente, esperando». Con texto en pantalla, un orbe grande detras de los
+      // parrafos se lee como suciedad sobre el texto.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        const Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {'id': 'a', 'folder': '/tmp/repo'},
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final vacia = tester.getSize(find.byType(NexusOrb));
+      // Contra la pantalla y no contra un numero: un umbral absoluto se rompe cada vez
+      // que se ajusta la proporcion, sin que nada haya empeorado.
+      final pantalla = tester.getSize(find.byType(ConversationPage)).height;
+      expect(
+        vacia.height,
+        greaterThan(pantalla * 0.4),
+        reason: 'vacia, el orbe es el contenido',
+      );
+
+      // Llega un turno: el orbe se aparta a la banda de arriba.
+      socket.recibe(
+        const Event(
+          seq: 6,
+          kind: 'text',
+          data: {'conversation': 'a', 'append': 'ya está ordenado'},
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final conTexto = tester.getSize(find.byType(NexusOrb));
+      expect(
+        conTexto.height,
+        lessThan(vacia.height),
+        reason: 'con algo que leer, el orbe no puede estar detras del texto',
+      );
+    });
+
+    testWidgets('al desplazar los mensajes, el orbe se queda quieto', (
+      tester,
+    ) async {
+      // **Lo que se pidió, y lo que dos intentos anteriores no daban.** De fondo, el
+      // texto se le montaba encima —cualquier cosa por detras de una lista que se
+      // desplaza vuelve a quedar bajo los parrafos en cuanto se hace scroll, y un
+      // padding solo lo salva en la posicion cero—. Como cabecera de la lista se iba de
+      // la pantalla al leer. Fijo arriba no hace ninguna de las dos.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {
+                'id': 'a',
+                'folder': '/tmp/repo',
+                'history': [
+                  for (var i = 0; i < 30; i++)
+                    {
+                      'mine': i.isEven,
+                      'text': 'turno numero \$i con texto de sobra',
+                    },
+                ],
+              },
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      final antes = tester.getRect(find.byType(NexusOrb));
+      await tester.drag(find.byType(ListView), const Offset(0, -400));
+      await tester.pump();
+
+      expect(
+        tester.getRect(find.byType(NexusOrb)),
+        antes,
+        reason:
+            'el orbe no es contenido: es quien te atiende, y no se va al leer',
+      );
+    });
+
+    testWidgets('ponerle nombre desde el movil', (tester) async {
+      await conUna(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('acciones-de-la-conversacion')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      await tester.enterText(find.byType(TextField).last, 'lo del login');
+      await tester.tap(find.byKey(const ValueKey('guardar-nombre')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(socket.pidio('renameConversation'), isTrue);
+      final peticion = socket.ultima('renameConversation');
+      expect(peticion.params['conversation'], 'a');
+      expect(peticion.params['name'], 'lo del login');
+    });
+
+    testWidgets('cerrarla se pide al Mac y se sale de la pantalla', (
+      tester,
+    ) async {
+      await conUna(tester);
+
+      await tester.tap(
+        find.byKey(const ValueKey('acciones-de-la-conversacion')),
+      );
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      // Se dice **antes** de tocar que no borra nada: cerrar suena a borrar.
+      expect(find.textContaining('sigue en el archivo'), findsOne);
+
+      await tester.tap(find.byKey(const ValueKey('cerrar-la-conversacion')));
+      await tester.pump();
+      await tester.pump();
+
+      expect(socket.pidio('closeConversation'), isTrue);
+      expect(socket.ultima('closeConversation').params['conversation'], 'a');
+    });
+
+    testWidgets('la respuesta no se pinta dos veces', (tester) async {
+      // Lo que se veia en el telefono: el mismo texto como respuesta en curso y otra
+      // vez como turno del historial, con dos estilos distintos — se lee como si el
+      // asistente hubiera contestado dos veces.
+      //
+      // La regla vive en el espejo y esta probada alli; esto comprueba que **la
+      // pantalla la usa**, que es lo que faltaba: quitarla del `if` pasaba todo.
+      final c = await conectado(tester);
+      await tester.pumpWidget(
+        app(c, const ConversationPage(conversationId: 'a')),
+      );
+      socket.recibe(
+        const Snapshot(
+          seq: 5,
+          data: {
+            'conversations': [
+              {
+                'id': 'a',
+                'folder': '/tmp/repo',
+                'reply': 'ya está ordenado',
+                'history': [
+                  {'mine': true, 'text': 'ordena la casa'},
+                  {'mine': false, 'text': 'ya está ordenado'},
+                ],
+              },
+            ],
+          },
+        ),
+      );
+      await tester.pump();
+      await tester.pump();
+
+      expect(find.text('ya está ordenado'), findsOne);
+    });
+
     Future<ProviderContainer> conUnaSinContestar(
       WidgetTester tester,
       Set<String> callados,
@@ -334,9 +537,14 @@ void main() {
 
       // Sin frase abierta no se puede escribir, y **se dice antes de teclear el
       // encargo**: enterarse después de redactarlo es hacer trabajo para tirarlo.
+      // Se comprueba el estado del interruptor y no un texto: ahora se ven los dos
+      // lados a la vez —«Solo leer» y «Puede editar» están siempre en pantalla— asi
+      // que buscar una de las dos etiquetas no distingue en cual esta.
       expect(
-        find.text('solo lectura · toca para abrir con tu frase'),
-        findsOneWidget,
+        tester
+            .widget<PermissionToggle>(find.byKey(const ValueKey('permiso')))
+            .puedeEditar,
+        isFalse,
       );
     });
 
@@ -362,9 +570,14 @@ void main() {
       await tester.pump();
 
       expect(c.read(writePermissionProvider).value, isNull);
+      // Se comprueba el estado del interruptor y no un texto: ahora se ven los dos
+      // lados a la vez —«Solo leer» y «Puede editar» están siempre en pantalla— asi
+      // que buscar una de las dos etiquetas no distingue en cual esta.
       expect(
-        find.text('solo lectura · toca para abrir con tu frase'),
-        findsOneWidget,
+        tester
+            .widget<PermissionToggle>(find.byKey(const ValueKey('permiso')))
+            .puedeEditar,
+        isFalse,
       );
     });
 
@@ -471,7 +684,9 @@ void main() {
       await tester.pump();
 
       expect(
-        find.text('Esta conversación ya no está abierta en el Mac'),
+        // El molde de estados lo dice en dos partes —titulo y cuerpo— en vez de en
+        // una linea gris centrada, asi que se busca el titulo.
+        find.text('Esta conversación ya no está abierta'),
         findsOneWidget,
       );
       expect(c.read(mirrorProvider).vacio, isTrue);
@@ -534,5 +749,25 @@ void main() {
       expect(conLaFrase, hasLength(1));
       expect((conLaFrase.single as Call).method, 'unlockWrites');
     });
+  });
+  test('retomar y abrir refrescan el espejo antes de navegar', () {
+    // El telefono navegaba a una conversacion que su espejo no conocia, y
+    // `masHistorial` devuelve `false` en su primera linea cuando no la encuentra: la
+    // pantalla llegaba vacia. La lista solo se pedia al conectar o con el tiron, y
+    // estos son los dos unicos sitios donde el telefono estrena una conversacion.
+    final fuente = File(
+      'lib/features/remote/presentation/providers/utility_providers.dart',
+    ).readAsStringSync();
+
+    for (final metodo in ['retomar', 'abrir']) {
+      final desde = fuente.indexOf('> $metodo(');
+      expect(desde, greaterThan(0), reason: 'no encontre $metodo');
+      final cuerpo = fuente.substring(desde, fuente.indexOf('\n  }\n', desde));
+      expect(
+        cuerpo,
+        contains('mirrorProvider.notifier).refrescar()'),
+        reason: 'sin refrescar, $metodo abre una pantalla vacia',
+      );
+    }
   });
 }

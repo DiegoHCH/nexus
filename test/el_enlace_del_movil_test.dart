@@ -62,17 +62,24 @@ void main() {
 
   /// Monta el enlace con un socket falso. [nuevoCadaVez] hace que reconectar abra
   /// otro socket, que es lo que hace la vida real.
+  /// Si `abrir` tiene que fallar, para dejar al enlace dando vueltas en su escalera
+  /// de reintentos. Hace falta para probar lo que pasa **mientras** reintenta, que es
+  /// donde vive más de un fallo de este enlace.
+  var sinLlegar = false;
+
   ChannelLink montar({
     List<Duration>? esperas,
     Future<void> Function(Duration)? dormir,
     String Function()? idNuevo,
   }) {
     abiertos = [];
+    sinLlegar = false;
     socket = _SocketFalso();
     abiertos.add(socket);
     var primera = true;
     return ChannelLink(
       abrir: () async {
+        if (sinLlegar) throw const ChannelUnreachable();
         if (primera) {
           primera = false;
           return socket;
@@ -145,6 +152,43 @@ void main() {
       // vas al día **sin gastar una petición**.
       expect(socket.ultimo<Resume>()?.lastSeq, 0);
       expect(enlace.ahora, LinkState.resincronizando);
+    });
+
+    test('no se anuncia conectado si queda resync por hacer', () async {
+      enlace = montar();
+      final vistos = <LinkState>[];
+      final sub = enlace.estado.listen(vistos.add);
+      await conectado(enlace, seq: 3);
+      await Future<void>.delayed(Duration.zero);
+
+      // Se anunciaba `conectado` y en la linea siguiente `resincronizando`. Duraba
+      // cero fotogramas, pero el espejo pide la lista **al oir conectado** y caia
+      // justo cuando `pedir` rechaza por no estarlo: la pantalla decia «no pude
+      // preguntarle al Mac» con el Mac contestando bien.
+      expect(vistos, isNot(contains(LinkState.conectado)));
+      expect(enlace.ahora, LinkState.resincronizando);
+      await sub.cancel();
+    });
+
+    test('el resync servido con eventos deja el enlace conectado', () async {
+      enlace = montar();
+      // El Mac va por el 2 y este telefono no ha visto ninguno, asi que pide resync.
+      await conectado(enlace, seq: 2);
+      expect(enlace.ahora, LinkState.resincronizando);
+
+      // Y el Mac lo sirve **con los eventos que faltan**, no con un snapshot. Solo la
+      // rama del snapshot volvia a `conectado`: el telefono se quedaba en
+      // `resincronizando` con el socket vivo, la pantalla decia «buscando tu Mac» y
+      // `pedir` y `mandarAudio` rechazaban todo en silencio.
+      socket.recibe(
+        const Event(seq: 1, kind: 'turn', data: {'conversation': 'c1'}),
+      );
+      socket.recibe(
+        const Event(seq: 2, kind: 'turn', data: {'conversation': 'c1'}),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(enlace.ahora, LinkState.conectado);
     });
 
     test('y si coincide, no pide nada', () async {
@@ -508,21 +552,138 @@ void main() {
           'sendErrand': true,
           'stopErrand': true,
           'unlockWrites': true,
+          // Callar la respuesta es un efecto: perder el aviso deja al Mac mandando
+          // audio que nadie va a oír, y callar dos veces es callar.
+          'silenceReply': true,
           // Abrir y retomar **crean estado**: reenviarlas con id nuevo abriría dos
           // conversaciones sobre la misma carpeta, que el escritorio no permite.
           'openConversation': true,
           'resumeConversation': true,
+          // Renombrar y cerrar son **idempotentes**: el mismo nombre dos veces es el
+          // mismo nombre, y cerrar lo ya cerrado deja lo mismo. Con id nuevo, un cierre
+          // perdido se quedaria sin hacer.
+          'renameConversation': true,
+          'closeConversation': true,
+          // Abrir y cerrar el microfono: idempotentes, y con id nuevo **un cierre
+          // perdido dejaria el microfono abierto**, que es el peor final de la lista.
+          'startVoice': true,
+          'stopVoice': true,
           // Solo leen: una consulta perdida se vuelve a pedir con id nuevo, porque el
           // deduplicador protege efectos y no respuestas.
           'conversations': false,
           'history': false,
           'meter': false,
+          // **Terminar de sonar es un hecho, no un efecto.** Con el mismo id, el
+          // segundo intento volvería «duplicada» y sin respuesta, y el Mac se quedaría
+          // esperando un aviso que ya no se manda. Decirlo dos veces es inofensivo:
+          // lo único que provoca es dejar de esperar.
+          'playbackFinished': false,
           'permission': false,
           'archive': false,
           'folders': false,
           'artifacts': false,
           'artifact': false,
         },
+      );
+    });
+  });
+
+  group('un solo intento a la vez', () {
+    test('dos llamadas a conectar no abren dos sockets', () async {
+      // **El fallo, medido en el registro del Mac:** una conexion pidiendo cosas y otra
+      // tirada a los 10 s por no saludar. Con dos bucles, los dos escriben en el mismo
+      // socket, el mismo oyente y el mismo saludo, y el ultimo gana: el `Welcome` del
+      // que si saludo le llega a un oyente reemplazado, nadie pasa el estado a
+      // «conectado» y la pantalla se queda en «reconectando» **con la conexion
+      // funcionando**. Es lo que pasa al volver del fondo.
+      enlace = montar();
+
+      unawaited(enlace.conectar());
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        abiertos,
+        hasLength(1),
+        reason: 'el segundo bucle abre un socket que nadie saluda',
+      );
+    });
+
+    test('desconectar mientras reintenta no deja el guardia puesto', () async {
+      // **La salida del bucle por arriba**, que es la unica que suelta el guardia en
+      // el `while` y no en un `return`. Si se quedara puesto, el siguiente `conectar`
+      // volveria en silencio sin abrir nada — y eso es peor que el fallo original: el
+      // telefono no tendria forma de volver.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      sinLlegar = true;
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      await enlace.desconectar();
+      sinLlegar = false;
+      final antes = abiertos.length;
+
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(const Duration(milliseconds: 30));
+
+      expect(abiertos.length, greaterThan(antes));
+    });
+
+    test('desconectar a mano no deja el enlace sin poder reintentar', () async {
+      // El guardia tiene que soltarse **tambien al salir del bucle**, que es por donde
+      // se sale al desconectar a mano. Si se quedara puesto, el siguiente `conectar`
+      // volveria en silencio sin abrir nada — y eso es peor que el fallo original: el
+      // telefono no tendria forma de volver, ni cancelando.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      await conectado(enlace);
+      final antes = abiertos.length;
+
+      await enlace.desconectar();
+      unawaited(enlace.conectar());
+      await Future<void>.delayed(Duration.zero);
+
+      expect(abiertos.length, greaterThan(antes));
+    });
+
+    test('despues de conectar se puede volver a intentar', () async {
+      // El guardia tiene que soltarse en **todas** las salidas del bucle, o el enlace
+      // se queda sin poder reintentar nunca — que es peor que el fallo original.
+      enlace = montar(esperas: const [Duration(milliseconds: 10)]);
+      await conectado(enlace);
+
+      // Se cae y el enlace lo reintenta por su cuenta: si el guardia se hubiera
+      // quedado puesto, esto no abriria nada.
+      socket.caer();
+      await Future<void>.delayed(const Duration(milliseconds: 120));
+
+      expect(abiertos.length, greaterThan(1));
+    });
+  });
+
+  group('el acento en vivo', () {
+    test('un evento de acento llega al acento, no al espejo', () async {
+      // El evento no lleva `conversation`, y el espejo descarta lo que no lo lleva —
+      // asi que sin este desvio el cambio se perderia en silencio, que es la peor
+      // forma de perderse.
+      enlace = montar();
+      await conectado(enlace);
+      final acentos = <int>[];
+      final delEspejo = <Event>[];
+      final s1 = enlace.acento.listen(acentos.add);
+      final s2 = enlace.eventos.listen(delEspejo.add);
+      addTearDown(s1.cancel);
+      addTearDown(s2.cancel);
+
+      socket.recibe(
+        const Event(seq: 1, kind: 'accent', data: {'argb': 0xFF56E1EA}),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(acentos, [0xFF56E1EA]);
+      expect(
+        delEspejo,
+        isEmpty,
+        reason: 'al espejo no le sirve: no es de ninguna conversacion',
       );
     });
   });

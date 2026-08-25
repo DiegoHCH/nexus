@@ -21,6 +21,7 @@ import 'package:nexus_protocol/nexus_protocol.dart';
 class ChannelServer {
   ChannelServer({
     required this.gatekeeper,
+    this.audio,
     required this.log,
     this.despacho,
     this.snapshot,
@@ -31,6 +32,12 @@ class ChannelServer {
   }) : protocolo = protocolo ?? ProtocolRange.mine;
 
   final Gatekeeper gatekeeper;
+
+  /// Dónde entra el micrófono del teléfono, si hay alguien escuchándolo.
+  ///
+  /// Un gancho y no una dependencia: el servidor mueve marcos y no tiene por qué
+  /// saber qué es el audio ni quién lo usa.
+  final void Function(Audio)? audio;
 
   /// Quien atiende los métodos.
   ///
@@ -111,6 +118,21 @@ class ChannelServer {
   void difundir(Event evento) {
     for (final cliente in _conexiones) {
       if (cliente.saludado) cliente.enviar(evento);
+    }
+  }
+
+  /// Manda un trozo de audio a quien esté dentro.
+  ///
+  /// Aparte de [difundir] y no como un evento más: **el audio no se numera ni se
+  /// guarda**. Un teléfono que se reincorpora no quiere que le repitan medio segundo de
+  /// hace un rato —eso es lo que decidió el marco propio para la voz que sube— y meterlo
+  /// en el registro haría que el resync lo arrastrara.
+  ///
+  /// Si no hay nadie saludado, se cae al suelo en silencio. Es lo correcto: quien
+  /// reproduce ya no está, y quien lo mandaba se entera por su propio camino.
+  void difundirAudio(Audio marco) {
+    for (final cliente in _conexiones) {
+      if (cliente.saludado) cliente.enviar(marco);
     }
   }
 
@@ -250,6 +272,14 @@ class ChannelServer {
         }
         if (marco is Resume) {
           _reanudar(cliente, marco);
+          return;
+        }
+        if (marco is Audio) {
+          // **Sin anotar y sin contestar.** Un trozo cada 20 ms llenaría el registro
+          // del canal en un minuto y taparía todo lo demás, que es justo donde se
+          // diagnostican los problemas; y confirmarlo sería volver a ponerle el `ack`
+          // que este marco existe para no tener.
+          audio?.call(marco);
           return;
         }
         // Lo que no es ni petición ni resync se anota para que no desaparezca en

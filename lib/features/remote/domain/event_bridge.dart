@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nexus/features/remote/domain/event_log.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
+import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 
 /// Convierte lo que pasa en la app en eventos numerados para el teléfono.
 ///
@@ -89,6 +90,34 @@ class EventBridge {
     publicar(log.emitir('closed', {'conversation': conversationId}));
   }
 
+  /// Avisa de que el acento del Mac cambió.
+  ///
+  /// **No es de ninguna conversación**, y de ahí que vaya por su cuenta: es del Mac
+  /// entero. Existe porque el acento se leía solo en el saludo, así que cambiarlo con
+  /// el teléfono ya conectado no llegaba hasta la siguiente reconexión — y lo que se
+  /// prometió es que se hereda sin volver a emparejar, no que haya que reconectar.
+  ///
+  /// Va por el mismo registro numerado que lo demás para que un teléfono que se
+  /// reincorpora lo reciba en su resync sin un camino aparte.
+  void acento(int argb) {
+    if (_cerrado) return;
+    publicar(log.emitir('accent', {'argb': argb}));
+  }
+
+  /// «Tira lo que te quede por sonar.»
+  ///
+  /// **No lleva conversación**, igual que el acento: la respuesta que suena es una sola
+  /// —solo la del foco abre sesión de voz— y meterle un identificador daría a entender
+  /// que puede haber varias sonando a la vez.
+  ///
+  /// Va por el registro numerado y no como audio porque es una **orden y no un caudal**:
+  /// el audio no se numera ni se guarda a propósito, y esto tiene que llegar en orden
+  /// respecto a los trozos que lo rodean.
+  void descartarLoQueSuena() {
+    if (_cerrado) return;
+    publicar(log.emitir('playback', {'action': 'discard'}));
+  }
+
   /// El estado entero, para quien pide desde un `seq` que ya se tiró.
   ///
   /// Sale de lo mismo que se fue mandando, así que no hay una segunda forma de
@@ -158,10 +187,45 @@ class EventBridge {
       }
     }
 
+    // ── lo que dijo el usuario ──────────────────────────────────────────────
+    //
+    // Entero y no por trozos, al revés que la respuesta: una pregunta aparece de
+    // golpe cuando se termina de transcribir, así que no hay nada que ir sumando. Y
+    // solo cuando cambia a algo con contenido: el vacío del arranque no es una
+    // pregunta, y mandarlo pintaría un turno en blanco.
+    if (ahora.ask.isNotEmpty && ahora.ask != (antes?.ask ?? '')) {
+      salida.add(log.emitir('ask', {'conversation': id, 'text': ahora.ask}));
+    }
+
+    // ── la sesión de voz ────────────────────────────────────────────────────
+    if (antes?.voice != ahora.voice) {
+      salida.add(
+        log.emitir('voice', {'conversation': id, 'active': ahora.voice}),
+      );
+    }
+
     // ── el turno ────────────────────────────────────────────────────────────
     if (antes?.streaming != ahora.streaming) {
       salida.add(
         log.emitir('turn', {'conversation': id, 'streaming': ahora.streaming}),
+      );
+    }
+
+    // ── el orbe ─────────────────────────────────────────────────────────────
+    //
+    // Aparte del turno y no dentro: `streaming` y el orbe cambian en momentos
+    // distintos —el micro se abre sin que haya nada corriendo— y meterlos en el
+    // mismo evento haría que uno arrastrara al otro.
+    if (antes?.orb != ahora.orb) {
+      salida.add(
+        log.emitir('orb', {'conversation': id, 'state': ahora.orb.name}),
+      );
+    }
+
+    // ── el nombre ───────────────────────────────────────────────────────────
+    if (antes?.title != ahora.title) {
+      salida.add(
+        log.emitir('title', {'conversation': id, 'title': ahora.title}),
       );
     }
 
@@ -223,15 +287,61 @@ class ConversationView {
     required this.conversationId,
     required this.streaming,
     required this.reply,
+    required this.ask,
+    required this.voice,
     required this.steps,
     required this.meter,
+    required this.orb,
+    required this.title,
     this.error,
   });
 
   final String conversationId;
 
-  /// Si hay algo corriendo. Es lo que el teléfono convierte en el orbe pensando.
+  /// **Lo último que dijo el usuario.**
+  ///
+  /// Viaja porque el teléfono no siempre lo sabe: cuando el encargo se escribe allí,
+  /// sí —lo acaba de teclear—, pero **hablando no**. La voz se transcribe en el Mac, y
+  /// sin esto el teléfono veía llegar la respuesta a una pregunta que nunca se pintó.
+  /// Lo que se veía era una conversación contestando sola.
+  ///
+  /// Es el gemelo de [reply]: aquel es lo último que dijo Nexus y este lo último que
+  /// dijo quien pregunta.
+  final String ask;
+
+  /// Si hay algo corriendo.
   final bool streaming;
+
+  /// **Si el Mac tiene la sesión de voz abierta.**
+  ///
+  /// El teléfono presta su micrófono, pero quien decide cuándo termina es el Mac: la
+  /// sesión se cierra sola por inactividad. Sin esta señal, el teléfono se quedaba con
+  /// el micrófono abierto mandando trozos a una sesión que ya no existía, y en pantalla
+  /// seguía diciendo que estaba escuchando. Se dice y no se deduce del orbe: `sleep`
+  /// también sale al terminar un encargo escrito.
+  final bool voice;
+
+  /// **El estado del orbe, tal cual lo tiene el Mac.**
+  ///
+  /// Va por el canal en vez de deducirse en el teléfono, y ese es el punto de la
+  /// pieza: el móvil solo sabía si algo estaba corriendo, así que de sus cuatro
+  /// estados podía dibujar dos. `escuchando` y `hablando` no se pueden inferir de
+  /// `streaming` —el micro abierto no es trabajo corriendo, y la voz saliendo tampoco—
+  /// y adivinarlos sería justo la clase de mentira que esta pieza existe para evitar.
+  ///
+  /// El Mac ya lo calcula para su propia pantalla, así que aquí no se computa nada
+  /// nuevo: se reenvía. Con eso el orbe del teléfono **es** el del Mac y no una
+  /// imitación que se desincroniza en el primer estado que se añada.
+  final NexusOrbState orb;
+
+  /// Con qué se reconoce esta conversación.
+  ///
+  /// **El primer encargo**, que es el mejor título que nadie ha escrito — es lo que ya
+  /// usa el archivo del escritorio—. Y viaja en la vista y no solo en la lista porque
+  /// una conversación **nace de un evento**: se abre desde el teléfono, llega por el
+  /// puente, y hasta la siguiente lista no tenía ni carpeta ni nombre. Lo que se veía
+  /// entonces era su identificador, que no dice nada.
+  final String title;
 
   /// La respuesta en curso, **completa**. El puente ya se encarga de mandar solo lo
   /// que falta; guardarla entera aquí es lo que permite calcularlo.
@@ -244,6 +354,8 @@ class ConversationView {
   Map<String, Object?> toJson() => {
     'id': conversationId,
     'streaming': streaming,
+    'orb': orb.name,
+    'title': title,
     'reply': reply,
     'steps': [for (final p in steps) p.toJson()],
     'meter': meter.toJson(),
