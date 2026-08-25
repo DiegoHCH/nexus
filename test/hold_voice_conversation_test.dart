@@ -27,8 +27,16 @@ class _Mic implements VoiceInput {
   @override
   Stream<AudioFrame> listen() => _frames.stream;
 
+  final _pausas = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get pausas => _pausas.stream;
+
   /// El micrófono se cierra. Es lo que hace el del teléfono al tocar el botón, y lo que
-  /// el del Mac **no** hace mientras la sesión vive.
+  /// el del Mac **no** hace mientras la sesión vive: **corta sin terminar el flujo**.
+  void cortar() => _pausas.add(null);
+
+  /// Y esto es el flujo terminándose, que es otra cosa.
   Future<void> cerrar() => _frames.close();
 }
 
@@ -499,7 +507,7 @@ void main() {
     await Future<void>.delayed(Duration.zero);
     expect(session.avisosDeFin, 0);
 
-    await micro.cerrar();
+    micro.cortar();
     await Future<void>.delayed(Duration.zero);
 
     expect(

@@ -49,4 +49,10 @@ class VoiceInputCompartido implements VoiceInput {
     );
     return delTelefono ?? local.listen();
   }
+
+  /// Las pausas son **del teléfono**: el micrófono del Mac no se pausa. Se reenvían tal
+  /// cual para que la sesión no tenga que saber de dónde vino el audio, que es lo que
+  /// este puerto existe para evitar.
+  @override
+  Stream<void> get pausas => remoto.pausas;
 }

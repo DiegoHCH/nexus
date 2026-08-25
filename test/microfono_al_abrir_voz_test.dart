@@ -106,6 +106,9 @@ class _Permiso implements MicrophoneAccess {
 /// Solo se usa en el camino `notAsked`, que es el único donde la app **pide** el
 /// permiso: ahí sí toca el diálogo del sistema.
 class _Micro implements VoiceInput {
+  @override
+  Stream<void> get pausas => const Stream<void>.empty();
+
   _Micro(this.concede);
 
   final bool concede;

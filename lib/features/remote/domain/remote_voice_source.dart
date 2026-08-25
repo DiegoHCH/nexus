@@ -38,6 +38,10 @@ class RemoteVoiceSource {
   /// abrir, cerrando de paso el primero. Los trozos que llegaban en medio entraban al
   /// controlador que nadie escuchaba y **se perdían en silencio** — justo los del
   /// principio de la frase, que es lo que `startVoice` existe para no perder.
+  /// Los cortes: cada vez que el teléfono cierra el micrófono.
+  final _pausas = StreamController<void>.broadcast();
+  Stream<void> get pausas => _pausas.stream;
+
   /// Si está entrando audio ahora mismo. **Distinto de que el flujo exista**: al
   /// cerrar el micrófono desde el teléfono se corta la entrada en el acto, pero el
   /// flujo sigue vivo porque la sesión del Mac todavía tiene que contestar.
@@ -54,6 +58,11 @@ class RemoteVoiceSource {
   void silenciar() {
     if (!_entrando) return;
     _entrando = false;
+    // **Y se dice.** El servicio decide que terminaste de hablar mirando el audio, y
+    // esto es un corte y no un silencio: sin avisar, el turno no cierra nunca. No se
+    // modela cerrando el flujo porque el flujo tiene que seguir vivo — para contestar,
+    // y para que volver a abrir caiga en la misma sesión.
+    if (!_pausas.isClosed) _pausas.add(null);
     debugPrint(
       'voz · el teléfono cerró el micrófono · $_trozos trozos, '
       'pico ${_pico.toStringAsFixed(2)}'

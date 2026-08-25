@@ -88,6 +88,7 @@ class HoldVoiceConversation {
     late StreamController<VoiceEvent> controller;
     VoiceSession? session;
     StreamSubscription<AudioFrame>? micSubscription;
+    StreamSubscription<void>? pausaSubscription;
     StreamSubscription<VoiceEvent>? sessionSubscription;
     Timer? idleTimer;
     late void Function(VoiceSession) attach;
@@ -162,10 +163,12 @@ class HoldVoiceConversation {
       idleTimer?.cancel();
       idleTimer = null;
       await micSubscription?.cancel();
+      await pausaSubscription?.cancel();
       await sessionSubscription?.cancel();
       await _output.stop();
       await session?.close();
       micSubscription = null;
+      pausaSubscription = null;
       sessionSubscription = null;
       session = null;
     }
@@ -565,23 +568,31 @@ class HoldVoiceConversation {
               );
             }
           },
-          // **El micrófono se cerró: hay que decírselo al servicio.**
-          //
-          // El detector de turno es automático y mira el audio: espera ver silencio
-          // para decidir que terminaste de hablar. El micrófono del Mac se lo da
-          // siempre —sigue mandando aunque calles, así que el silencio viaja— pero el
-          // del teléfono **deja de mandar de golpe** cuando se cierra. Cerrando pronto,
-          // el servicio se quedaba esperando un silencio que ya no iba a llegar y la
-          // sesión moría por inactividad con cero turnos.
-          //
-          // Por eso el mismo montaje funcionaba dejando el micrófono abierto: con audio
-          // fluyendo, las pausas entre palabras son el silencio que el detector
-          // necesita. El fallo no estaba en la voz remota sino en **cerrar pronto**, y
-          // ahí el gesto nuevo —un toque abre, otro cierra— lo destapó.
+          // Si el flujo termina, el audio también. Sirve para el micrófono del Mac,
+          // cuyo flujo solo acaba cuando acaba la sesión — el del teléfono se cierra
+          // **sin** terminar su flujo, y para eso está la escucha de pausas de abajo.
           onDone: () => session?.endAudio(),
           onError: (Object error) =>
               controller.add(VoiceSessionFailed('$error')),
         );
+
+        // **El aviso que de verdad hacía falta.**
+        //
+        // El detector de turno es automático y mira el audio: espera ver silencio para
+        // decidir que terminaste de hablar. Un micrófono abierto se lo da solo —las
+        // pausas entre palabras viajan— pero el del teléfono **se cierra de golpe**, y
+        // el servicio se quedaba esperando un silencio que ya no llegaba: sesiones
+        // enteras muriendo por inactividad con cero turnos.
+        //
+        // Estuvo colgado del `onDone` de arriba y **estaba mal**: cerrar el micrófono
+        // del teléfono no termina su flujo a propósito —tiene que seguir vivo para que
+        // la sesión conteste, y para que volver a abrirlo caiga en la misma sesión— así
+        // que el aviso no se mandaba nunca. «No entra más audio por ahora» y «esta
+        // entrada se acabó» son dos cosas, y confundirlas costó una tarde sin respuesta.
+        pausaSubscription = _voiceInput.pausas.listen((_) {
+          _log('voz · el audio se cortó: que el servicio cierre el turno');
+          session?.endAudio();
+        });
       } catch (error, stackTrace) {
         controller.addError(error, stackTrace);
         await controller.close();
