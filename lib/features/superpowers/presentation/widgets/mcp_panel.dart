@@ -47,11 +47,32 @@ class _McpPanelState extends ConsumerState<McpPanel> {
     String name, {
     String? url,
     List<String> command = const [],
+    String? comoSeInstala,
   }) async {
     setState(() {
       _busy = true;
       _error = null;
     });
+
+    // **El binario, antes de registrar nada.** `claude mcp add` acepta cualquier
+    // comando sin comprobar que exista: se instalaría con un tic verde y fallaría
+    // la primera vez que un encargo lo use, en headless, diciendo algo que no se
+    // parece a esto. Aquí el aviso llega donde se pulsó el botón.
+    final binario = command.isEmpty ? null : command.first;
+    if (binario != null &&
+        !ref.read(mcpDataSourceProvider).hayBinario(binario)) {
+      setState(() {
+        _busy = false;
+        // Sin traducir y con la ruta del comando dentro, como los errores del
+        // CLI que este panel ya muestra literales: lo accionable es el comando,
+        // y un «no se pudo instalar» obliga a abrir la terminal para averiguar
+        // qué faltaba.
+        _error = comoSeInstala == null
+            ? 'No se encuentra «$binario». Instálalo y vuelve a intentarlo.'
+            : 'No se encuentra «$binario». Instálalo con: $comoSeInstala';
+      });
+      return;
+    }
     final error = await ref
         .read(mcpDataSourceProvider)
         // A la cuenta de arriba **y a las demás si se pidió**. Aquí el síntoma de
@@ -192,8 +213,12 @@ class _McpPanelState extends ConsumerState<McpPanel> {
             entry: entry,
             already: names.contains(entry.name),
             enabled: !_busy,
-            onAdd: () =>
-                _install(entry.name, url: entry.url, command: entry.command),
+            onAdd: () => _install(
+              entry.name,
+              url: entry.url,
+              command: entry.command,
+              comoSeInstala: entry.comoSeInstala,
+            ),
           ),
 
         const SizedBox(height: NexusSpacing.s6),
