@@ -34,6 +34,7 @@ class _SesionMuerta extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     resumeRecibidos.add(resumeSessionId);
 
@@ -143,6 +144,7 @@ class _FalloDeVerdad extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     intentos++;
     throw const ClaudeProcessException(1, 'el disco está lleno');
