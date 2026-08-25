@@ -70,6 +70,7 @@ abstract class NexusStrings {
 
   // Superpoderes: servidores MCP de cada cuenta.
   String get sectionSuperpowers;
+  String get sectionEmulators;
   String get sectionAppearance;
   String get themeTitle;
   String get accentTitle;
@@ -299,6 +300,16 @@ abstract class NexusStrings {
   String get sectionLanguage;
   String get sectionHistory;
   String get sectionMobile;
+
+  // Emuladores
+  String get emulatorsTitle;
+  String get emulatorsExplainer;
+  String get emulatorsLaunch;
+  String get emulatorsClose;
+  String get emulatorsRunning;
+  String get emulatorsColdBoot;
+  String get emulatorsRefresh;
+  String get emulatorsEmpty;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -563,6 +574,8 @@ class NexusStringsEs extends NexusStrings {
       '$input entrada · $output salida';
   @override
   String get sectionSuperpowers => 'Superpoderes';
+  @override
+  String get sectionEmulators => 'Emuladores';
   @override
   String get sectionAppearance => 'Apariencia';
   @override
@@ -967,6 +980,25 @@ class NexusStringsEs extends NexusStrings {
   String get sectionLanguage => 'Idioma';
   @override
   String get sectionMobile => 'Móvil';
+
+  @override
+  String get emulatorsTitle => 'Emuladores y simuladores';
+  @override
+  String get emulatorsExplainer =>
+      'Los de esta máquina, con cuáles están arriba. Se arrancan aquí y siguen '
+      'vivos aunque cierres Nexus: cerrar la app no te cuesta la sesión.';
+  @override
+  String get emulatorsLaunch => 'Arrancar';
+  @override
+  String get emulatorsClose => 'Cerrar';
+  @override
+  String get emulatorsRunning => 'arriba';
+  @override
+  String get emulatorsColdBoot => 'en frío';
+  @override
+  String get emulatorsRefresh => 'Comprobar';
+  @override
+  String get emulatorsEmpty => 'No hay ninguno en esta máquina.';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -1541,6 +1573,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get sectionSuperpowers => 'Superpowers';
   @override
+  String get sectionEmulators => 'Emulators';
+  @override
   String get sectionAppearance => 'Appearance';
   @override
   String get themeTitle => 'Light or dark';
@@ -1943,6 +1977,26 @@ class NexusStringsEn extends NexusStrings {
   String get sectionLanguage => 'Language';
   @override
   String get sectionMobile => 'Mobile';
+
+  @override
+  String get emulatorsTitle => 'Emulators and simulators';
+  @override
+  String get emulatorsExplainer =>
+      "The ones on this machine, and which are up. Launch them here and they "
+      "stay alive after you quit Nexus: closing the app won't cost you your "
+      'session.';
+  @override
+  String get emulatorsLaunch => 'Launch';
+  @override
+  String get emulatorsClose => 'Close';
+  @override
+  String get emulatorsRunning => 'up';
+  @override
+  String get emulatorsColdBoot => 'cold boot';
+  @override
+  String get emulatorsRefresh => 'Check';
+  @override
+  String get emulatorsEmpty => 'None on this machine.';
   @override
   String get channelTitle => 'The phone channel';
   @override
