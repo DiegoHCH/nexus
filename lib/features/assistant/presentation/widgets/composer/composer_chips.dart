@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -6,8 +8,11 @@ import 'package:nexus/features/artifacts/presentation/providers/artifacts_provid
 import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/workspace/data/datasources/plan_firmado_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/workspace/presentation/widgets/firmar_plan_sheet.dart';
 
 /// Las fichas de la barra: carpeta, modelo, esfuerzo, cupo.
 ///
@@ -245,11 +250,95 @@ class ComposerChips extends ConsumerWidget {
             if (paired?.claudeProfile?.split('/').last case final profile?)
               if (profile.startsWith('.claude-'))
                 _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
+        // El plan, **solo donde se exige**. En las demás carpetas no aparece
+        // nada: un chip apagado en todas las conversaciones enseñaría un
+        // mecanismo que casi nadie enciende, y el sitio se paga en atención.
+        if (folderPath case final carpeta?)
+          if (ref
+                  .watch(
+                    planFirmadoProvider(
+                      dondeMirar(
+                        carpeta: carpeta,
+                        perfil: paired?.claudeProfile,
+                      ),
+                    ),
+                  )
+                  .value
+              case final plan? when plan.exige)
+            _PlanChip(
+              plan: plan,
+              donde: dondeMirar(
+                carpeta: carpeta,
+                perfil: paired?.claudeProfile,
+              ),
+            ),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
         // interruptor— y se contradecían a la vista.
       ],
+    );
+  }
+}
+
+/// El plan de esta carpeta: firmado y con lo que le queda, o sin firmar en ámbar.
+///
+/// **No apaga el botón de mandar**, y es a propósito: el gate solo deniega escrituras, así
+/// que sin plan el asistente sigue pudiendo leer el proyecto y contestar preguntas —que es
+/// buena parte de para qué se usa—. Apagar el compositor prohibiría más de lo que prohíbe
+/// el hook, y una app más estricta que su propia regla se acaba desactivando entera.
+///
+/// Se refresca solo porque **la vigencia se mide con el reloj**: un chip que dijera «47
+/// MIN» durante dos horas es exactamente la mentira que este mecanismo existe para no
+/// contar. Solo hay temporizador donde hay plan, que son las pocas carpetas que lo piden.
+class _PlanChip extends StatefulWidget {
+  const _PlanChip({required this.plan, required this.donde});
+
+  final PlanFirmado plan;
+  final DondeMirar donde;
+
+  @override
+  State<_PlanChip> createState() => _PlanChipState();
+}
+
+class _PlanChipState extends State<_PlanChip> {
+  Timer? _reloj;
+
+  @override
+  void initState() {
+    super.initState();
+    // Medio minuto: se enseñan minutos, así que más fino sería trabajo que no se ve.
+    _reloj = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => setState(() {}),
+    );
+  }
+
+  @override
+  void dispose() {
+    _reloj?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final strings = context.strings;
+    final ahora = DateTime.now().toUtc();
+    final vigente = widget.plan.vigenteEn(ahora);
+    final resta = widget.plan.restanteEn(ahora);
+
+    return Tooltip(
+      message: widget.plan.plan ?? '',
+      child: GestureDetector(
+        onTap: () => FirmarPlanSheet.open(context, widget.donde),
+        child: _Chip(
+          icon: vigente ? Icons.assignment_turned_in_outlined : Icons.gavel,
+          label: vigente
+              ? strings.planValidFor((resta?.inMinutes ?? 0) + 1)
+              : strings.planUnsigned,
+          warn: !vigente,
+        ),
+      ),
     );
   }
 }

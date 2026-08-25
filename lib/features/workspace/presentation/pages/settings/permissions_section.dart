@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
@@ -162,6 +163,7 @@ class _FolderRow extends ConsumerWidget {
               ),
             ),
             _AccountPicker(folder: folder),
+            _PlanToggle(folder: folder),
             _ModalityToggle(modality: folder.modality, onChanged: onModality),
             IconButton(
               onPressed: onRemove,
@@ -170,6 +172,43 @@ class _FolderRow extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Si esta carpeta exige un plan firmado antes de escribir.
+///
+/// Va en la misma fila que la cuenta y la modalidad porque es lo mismo que ellas: un
+/// permiso de **esta** carpeta. Y se enciende aquí y se firma en el compositor a
+/// propósito — encender es una decisión que se toma una vez, firmar es algo que se hace
+/// cada vez que se va a trabajar, y mezclarlos mandaría a Ajustes a cada rato.
+///
+/// Apagarlo no borra el plan escrito: si mañana se enciende, lo que había sigue ahí con
+/// su fecha. Borrarlo haría que apagar y encender pareciera firmar.
+class _PlanToggle extends ConsumerWidget {
+  const _PlanToggle({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final donde = dondeMirar(
+      carpeta: folder.path,
+      perfil: folder.claudeProfile,
+    );
+    final exige = ref.watch(planFirmadoProvider(donde)).value?.exige ?? false;
+
+    return IconButton(
+      onPressed: () =>
+          ref.read(planFirmadoProvider(donde).notifier).exigir(!exige),
+      tooltip: exige ? strings.planRequireOn : strings.planRequireOff,
+      icon: Icon(
+        Icons.gavel,
+        size: 15,
+        color: exige ? colors.accent : colors.faint,
       ),
     );
   }
