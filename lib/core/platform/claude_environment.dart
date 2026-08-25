@@ -27,6 +27,16 @@ abstract final class ClaudeEnvironment {
     final extraPaths = [
       ..._extraPathDirs,
       if (home.isNotEmpty) '$home/.local/bin',
+      // **Maestro, y por qué necesita línea propia.** Su instalador deja el
+      // binario en `~/.maestro/bin` y añade ese directorio **editando el perfil
+      // de la shell**, que es justo lo que una app de escritorio no lee. O sea
+      // que en una terminal `maestro` está y aquí no, y el servidor MCP que lo
+      // llama se registraría bien para fallar al arrancarlo.
+      //
+      // Va detrás de Homebrew a propósito: quien lo instaló por el tap tiene el
+      // binario en `/opt/homebrew/bin`, y ahí el que gana debe ser el que puso a
+      // propósito, igual que con `claude` y `git`.
+      if (home.isNotEmpty) '$home/.maestro/bin',
     ];
     final currentPath = env['PATH'] ?? '';
     env['PATH'] = [

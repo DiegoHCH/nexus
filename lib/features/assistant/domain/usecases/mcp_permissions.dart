@@ -69,6 +69,11 @@ abstract final class McpPermissions {
 
   /// Los conectores cuyas escrituras están catalogadas en [escrituraDeFuera].
   ///
+  /// Sale de los nombres de esa lista, así que desde que hay ahí una herramienta
+  /// de un servidor propio —`maestro`— este conjunto trae también su nombre. Es
+  /// inocuo y conviene decir por qué: esto solo filtra los conectores de la
+  /// cuenta, que llegan con el prefijo `claude.ai `, y ninguno se llama así.
+  ///
   /// De aquí sale la regla que cierra el agujero: **un conector nuevo no se autoriza en
   /// una carpeta de solo lectura hasta que se sepa qué escribe.** Antes se autorizaba
   /// entero, así que instalar un conector mañana podía escribir hacia fuera desde una
@@ -164,5 +169,16 @@ abstract final class McpPermissions {
     'mcp__claude_ai_Atlassian_Rovo__createConfluenceFooterComment',
     'mcp__claude_ai_Atlassian_Rovo__createConfluenceInlineComment',
     'mcp__claude_ai_Atlassian_Rovo__createIssueLink',
+    // **Maestro, que no es un conector de la cuenta y aun así sale de la
+    // máquina.** Todo lo suyo es local —mirar la pantalla del emulador, correr un
+    // flow— salvo esta: `run_on_cloud` **sube el binario de la app** a los
+    // servidores de mobile.dev para ejecutarla allí. Una carpeta que promete no
+    // escribir no puede mandar fuera lo que compiló.
+    //
+    // Es la primera de esta lista que no viene de `claude.ai `, y eso descoloca
+    // un poco al leerla: los servidores del propio usuario van permitidos siempre
+    // —ver [permitidosPara]—, así que para uno suyo la única forma de recortarle
+    // una herramienta es negarla aquí. La denegación gana al permiso, medido.
+    'mcp__maestro__run_on_cloud',
   ];
 }

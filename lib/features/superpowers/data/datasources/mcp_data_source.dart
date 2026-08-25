@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
@@ -14,6 +15,14 @@ import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
 /// lista al CLI tarda casi un minuto porque comprueba la salud de cada uno.
 class McpDataSource {
   const McpDataSource();
+
+  /// ¿Está el binario que pide un servidor de comando?
+  ///
+  /// Aquí y no en el panel aunque la cuenta la eche [BinarioEnElPath]: pasando por
+  /// el data source entra por un provider, y una prueba de la pantalla puede
+  /// decir que sí o que no sin depender de lo que haya instalado en el Mac que
+  /// corre la suite.
+  bool hayBinario(String nombre) => BinarioEnElPath.hay(nombre);
 
   /// La lista rápida: lo que hay puesto, sin saber si responde.
   Future<List<McpServer>> list(String configDir) async {
