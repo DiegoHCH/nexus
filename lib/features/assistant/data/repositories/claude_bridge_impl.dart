@@ -94,8 +94,16 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         // Sin ellos, en headless toda llamada MCP se deniega sola: no hay nadie que
         // apruebe el diálogo, así que preguntar por el calendario acababa en «no puedo
         // consultarlo» con el conector conectado y sano.
+        // **Y un conector nuevo no entra en una carpeta de solo lectura hasta que se
+        // sepa qué escribe.** Autorizarlo entero dejaría escribir hacia fuera desde una
+        // carpeta que promete no escribir, porque la lista de negación es por nombre y
+        // no puede adivinar herramientas que no conoce. Los servidores del propio
+        // usuario van siempre: los eligió él y son procesos suyos.
         herramientasMcp: [
-          for (final servidor in McpPermissions.servidoresDe(claudeProfile))
+          for (final servidor in McpPermissions.permitidosPara(
+            claudeProfile,
+            puedeEscribir: canEdit,
+          ))
             'mcp__$servidor',
         ],
         // Los comandos bloqueados de la carpeta y, **si no puede escribir**, las

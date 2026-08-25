@@ -54,7 +54,7 @@ void main() {
       }''');
 
       expect(
-        McpPermissions.servidoresDe(perfil.path),
+        McpPermissions.permitidosPara(perfil.path, puedeEscribir: true),
         containsAll([
           'docs-context',
           'context7',
@@ -80,34 +80,50 @@ void main() {
 
     test('se lee en cada encargo, asi que un MCP nuevo entra sin reiniciar', () {
       escribir('{"mcpServers": {"uno": {}}}');
-      expect(McpPermissions.servidoresDe(perfil.path), ['uno']);
+      expect(McpPermissions.permitidosPara(perfil.path, puedeEscribir: true), [
+        'uno',
+      ]);
 
       // Alguien instala otro con la app abierta. **No hay cache**: la siguiente
       // lectura lo ve. Guardarlo al arrancar habria obligado a reiniciar Nexus cada
       // vez que se añade una herramienta, y eso nadie lo adivina.
       escribir('{"mcpServers": {"uno": {}, "dos": {}}}');
-      expect(McpPermissions.servidoresDe(perfil.path), ['uno', 'dos']);
+      expect(McpPermissions.permitidosPara(perfil.path, puedeEscribir: true), [
+        'uno',
+        'dos',
+      ]);
     });
 
     test('un perfil sin archivo, o con basura, no revienta ni inventa', () {
       // Pasa de verdad: el perfil por defecto de esta maquina no esta autenticado y
       // no tiene ni conectores. Devolver una lista vacia es lo correcto —no habra
       // herramientas— y lo que no vale es caerse en la ruta de cada encargo.
-      expect(McpPermissions.servidoresDe(perfil.path), isEmpty);
-      expect(McpPermissions.servidoresDe(null), isEmpty);
-      expect(McpPermissions.servidoresDe(''), isEmpty);
+      expect(
+        McpPermissions.permitidosPara(perfil.path, puedeEscribir: true),
+        isEmpty,
+      );
+      expect(McpPermissions.permitidosPara(null, puedeEscribir: true), isEmpty);
+      expect(McpPermissions.permitidosPara('', puedeEscribir: true), isEmpty);
 
       escribir('esto no es json');
-      expect(McpPermissions.servidoresDe(perfil.path), isEmpty);
+      expect(
+        McpPermissions.permitidosPara(perfil.path, puedeEscribir: true),
+        isEmpty,
+      );
 
       escribir('{"mcpServers": "tampoco es un mapa"}');
-      expect(McpPermissions.servidoresDe(perfil.path), isEmpty);
+      expect(
+        McpPermissions.permitidosPara(perfil.path, puedeEscribir: true),
+        isEmpty,
+      );
     });
 
     test('acepta la clave de la cuenta tambien como mapa', () {
       // El formato es de otro programa: hoy es una lista y puede dejar de serlo.
       escribir('{"claudeAiMcpEverConnected": {"claude.ai Slack": true}}');
-      expect(McpPermissions.servidoresDe(perfil.path), ['claude_ai_Slack']);
+      expect(McpPermissions.permitidosPara(perfil.path, puedeEscribir: true), [
+        'claude_ai_Slack',
+      ]);
     });
   });
 
@@ -154,6 +170,61 @@ void main() {
 
       expect(fuente, contains('incompleta por naturaleza'));
       expect(fuente, contains('el disco'));
+    });
+  });
+  group('un conector nuevo y una carpeta de solo lectura', () {
+    test('el conector desconocido no se autoriza si no se puede escribir', () {
+      // **El agujero que esto cierra.** La lista de negacion es por nombre, asi que no
+      // puede adivinar las escrituras de un conector que no conoce: autorizarlo entero
+      // dejaria escribir hacia fuera desde una carpeta que promete no escribir.
+      escribir('''
+      {
+        "mcpServers": {"docs-context": {}},
+        "claudeAiMcpEverConnected": [
+          "claude.ai Google Calendar",
+          "claude.ai Lo Que Instale Manana"
+        ]
+      }''');
+
+      final enSoloLectura = McpPermissions.permitidosPara(
+        perfil.path,
+        puedeEscribir: false,
+      );
+
+      // El catalogado si, porque de ese sabemos que negarle.
+      expect(enSoloLectura, contains('claude_ai_Google_Calendar'));
+      // El desconocido no. **Falla del lado seguro**: se pierde que funcione en solo
+      // lectura y se gana que la promesa no dependa de que alguien actualice una lista.
+      expect(enSoloLectura, isNot(contains('claude_ai_Lo_Que_Instale_Manana')));
+      // Y los propios van siempre: los eligio el usuario y son procesos suyos.
+      expect(enSoloLectura, contains('docs-context'));
+    });
+
+    test('y en una carpeta que puede escribir, va entero', () {
+      escribir('''
+      {"claudeAiMcpEverConnected": ["claude.ai Lo Que Instale Manana"]}''');
+
+      // Si la carpeta puede escribir, no hay promesa que romper: no se le va a estorbar
+      // a un conector nuevo por no estar catalogado.
+      expect(
+        McpPermissions.permitidosPara(perfil.path, puedeEscribir: true),
+        contains('claude_ai_Lo_Que_Instale_Manana'),
+      );
+    });
+
+    test('los catalogados salen de la propia lista de negacion', () {
+      // Derivado y no escrito aparte: con dos listas, añadir las escrituras de un
+      // conector nuevo y olvidarse de apuntarlo como catalogado lo dejaria sin
+      // autorizar para siempre, sin que nadie entendiera por que.
+      expect(
+        McpPermissions.conectoresCatalogados,
+        containsAll([
+          'claude_ai_Google_Calendar',
+          'claude_ai_Gmail',
+          'claude_ai_Slack',
+          'claude_ai_Google_Drive',
+        ]),
+      );
     });
   });
 }

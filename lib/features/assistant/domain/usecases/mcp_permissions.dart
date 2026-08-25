@@ -12,40 +12,93 @@ import 'dart:io';
 /// y sin él las deniega, y **el modo de permisos no influye** — con `acceptEdits` falla
 /// igual, así que no es el interruptor de «puede editar».
 abstract final class McpPermissions {
-  /// Los servidores MCP de un perfil, tal como se nombran en las herramientas.
+  /// Los servidores MCP de un perfil, **separados por procedencia**.
   ///
   /// Se leen **del archivo y no del CLI**: pedirle la lista a `claude mcp list` tarda
   /// casi un minuto porque comprueba la salud de cada servidor, y esto va en la ruta de
-  /// cada encargo.
+  /// cada encargo. Y se lee **en cada encargo, sin caché**, para que un servidor
+  /// instalado con la app abierta entre en el siguiente en vez de pedir un reinicio que
+  /// nadie adivina.
   ///
-  /// Dos sitios y no uno: `mcpServers` son los que se configuraron a mano, y
-  /// `claudeAiMcpEverConnected` los conectores de la cuenta de claude.ai — que **son
-  /// mayoría y son los que importan** aquí (Calendar, Gmail, Drive, Slack). Mirar solo
-  /// el primero deja fuera justo los que se querían usar.
-  static List<String> servidoresDe(String? configDir) {
-    if (configDir == null || configDir.isEmpty) return const [];
+  /// Dos sitios y no uno, y ahí estaba media causa del fallo: `mcpServers` son los que
+  /// se configuraron a mano y `claudeAiMcpEverConnected` los conectores de la cuenta de
+  /// claude.ai — que **son mayoría y son los que importan** (Calendar, Gmail, Drive,
+  /// Slack). Mirar solo el primero deja fuera justo los que se querían usar.
+  ///
+  /// La separación no es burocrática: los del usuario suelen ser procesos locales
+  /// —documentación, memoria— y los conectores **actúan sobre servicios de fuera**. El
+  /// riesgo de conceder de más está todo en los segundos.
+  ///
+  /// La distinción no es burocrática: los de `mcpServers` los puso el usuario a mano y
+  /// suelen ser procesos locales —documentación, memoria—, mientras los conectores de la
+  /// cuenta **actúan sobre servicios de fuera**: correo, calendario, canales de un
+  /// equipo. El riesgo de conceder de más está todo en los segundos.
+  static ({List<String> propios, List<String> deLaCuenta}) porProcedencia(
+    String? configDir,
+  ) {
+    if (configDir == null || configDir.isEmpty) {
+      return (propios: const [], deLaCuenta: const []);
+    }
     final file = File('$configDir/.claude.json');
-    if (!file.existsSync()) return const [];
+    if (!file.existsSync()) return (propios: const [], deLaCuenta: const []);
     try {
       final leido = jsonDecode(file.readAsStringSync());
-      if (leido is! Map) return const [];
+      if (leido is! Map) return (propios: const [], deLaCuenta: const []);
 
-      final nombres = <String>{};
-      final propios = leido['mcpServers'];
-      if (propios is Map) nombres.addAll(propios.keys.map((k) => '$k'));
+      final propios = <String>{};
+      final suyos = leido['mcpServers'];
+      if (suyos is Map) propios.addAll(suyos.keys.map((k) => '$k'));
 
-      // Una **lista** y no un mapa, al contrario que la de arriba. Se acepta también
-      // como mapa: el formato es de otro programa y puede cambiar de versión.
-      final deLaCuenta = leido['claudeAiMcpEverConnected'];
-      if (deLaCuenta is List) nombres.addAll(deLaCuenta.map((k) => '$k'));
-      if (deLaCuenta is Map) nombres.addAll(deLaCuenta.keys.map((k) => '$k'));
+      final deLaCuenta = <String>{};
+      final conectores = leido['claudeAiMcpEverConnected'];
+      if (conectores is List) deLaCuenta.addAll(conectores.map((k) => '$k'));
+      if (conectores is Map) {
+        deLaCuenta.addAll(conectores.keys.map((k) => '$k'));
+      }
 
-      return [for (final n in nombres) comoSeLlamaLaHerramienta(n)];
+      return (
+        propios: [for (final n in propios) comoSeLlamaLaHerramienta(n)],
+        deLaCuenta: [for (final n in deLaCuenta) comoSeLlamaLaHerramienta(n)],
+      );
     } on FormatException {
-      return const [];
+      return (propios: const [], deLaCuenta: const []);
     } on FileSystemException {
-      return const [];
+      return (propios: const [], deLaCuenta: const []);
     }
+  }
+
+  /// Los conectores cuyas escrituras están catalogadas en [escrituraDeFuera].
+  ///
+  /// De aquí sale la regla que cierra el agujero: **un conector nuevo no se autoriza en
+  /// una carpeta de solo lectura hasta que se sepa qué escribe.** Antes se autorizaba
+  /// entero, así que instalar un conector mañana podía escribir hacia fuera desde una
+  /// carpeta que promete no escribir — la lista de negación es por nombre y no puede
+  /// adivinar herramientas que no conoce.
+  ///
+  /// Falla del lado seguro y no del cómodo: se pierde que el conector nuevo funcione en
+  /// solo lectura —en una carpeta que puede escribir va igual— y se gana que la promesa
+  /// de solo lectura no dependa de que alguien se acuerde de actualizar una lista.
+  static Set<String> get conectoresCatalogados => {
+    for (final herramienta in escrituraDeFuera) herramienta.split('__')[1],
+  };
+
+  /// Los servidores que puede usar un encargo, según si la carpeta puede escribir.
+  ///
+  /// Los del propio usuario van siempre: los eligió él y son procesos suyos. Los
+  /// conectores de la cuenta van todos si la carpeta puede escribir, y solo los
+  /// catalogados si no — ver [conectoresCatalogados].
+  static List<String> permitidosPara(
+    String? configDir, {
+    required bool puedeEscribir,
+  }) {
+    final (propios: propios, deLaCuenta: deLaCuenta) = porProcedencia(
+      configDir,
+    );
+    final catalogados = conectoresCatalogados;
+    return [
+      ...propios,
+      ...deLaCuenta.where((c) => puedeEscribir || catalogados.contains(c)),
+    ];
   }
 
   /// El nombre del servidor tal como aparece en sus herramientas.
