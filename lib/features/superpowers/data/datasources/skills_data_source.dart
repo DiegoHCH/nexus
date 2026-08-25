@@ -75,6 +75,33 @@ class SkillsDataSource {
 
   /// Copia la carpeta de la skill al perfil. Reemplaza si ya estaba: eso es
   /// «actualizar», y es lo que uno espera al pulsar de nuevo.
+  /// Instala la misma skill en **varias cuentas de una vez**.
+  ///
+  /// Existe porque una skill puesta en un solo perfil es **invisible** para las
+  /// carpetas del otro —también para los encargos, que corren con el perfil de su
+  /// carpeta— y el síntoma no menciona perfiles en ninguna parte: «en esta carpeta
+  /// funciona y en esta no». Hacerlo a mano dos veces es lo que ya dejó `canvas-design`
+  /// y `frontend-design` puestas en dos cuentas y `skill-creator` en una sola.
+  ///
+  /// **El repo se trae una vez** y se copia a cada destino: el clon es lo que cuesta, y
+  /// repetirlo por cuenta sería pagar la red tres veces por lo mismo.
+  ///
+  /// Devuelve los errores por cuenta, y no el primero: instalar en dos y fallar en la
+  /// tercera es un resultado distinto de no instalar en ninguna, y decir solo «falló»
+  /// deja al usuario sin saber en cuáles quedó.
+  Future<Map<String, String>> installEn(
+    List<String> configDirs, {
+    required String repoRaw,
+    required String id,
+  }) async {
+    final fallos = <String, String>{};
+    for (final configDir in configDirs) {
+      final error = await install(configDir, repoRaw: repoRaw, id: id);
+      if (error != null) fallos[configDir] = error;
+    }
+    return fallos;
+  }
+
   Future<String?> install(
     String configDir, {
     required String repoRaw,

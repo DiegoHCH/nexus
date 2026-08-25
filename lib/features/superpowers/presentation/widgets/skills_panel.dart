@@ -6,12 +6,24 @@ import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/usecases/skill_source.dart';
 import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
 import 'package:url_launcher/url_launcher.dart';
+import 'package:nexus/features/superpowers/domain/usecases/fallos_por_cuenta.dart';
 
 /// Las skills de una cuenta: las puestas, las de un repo, y crear una propia.
 class SkillsPanel extends ConsumerStatefulWidget {
-  const SkillsPanel({super.key, required this.configDir});
+  const SkillsPanel({
+    super.key,
+    required this.configDir,
+    this.tambienEn = const [],
+  });
 
   final String configDir;
+
+  /// Las demás cuentas donde replicar lo que se instale aquí.
+  ///
+  /// Vacío es lo normal: solo la de arriba. Va como lista y no como un booleano «en
+  /// todas» porque este panel no sabe cuántas cuentas hay ni cómo se llaman — eso lo
+  /// decide la sección, que es quien tiene las pestañas.
+  final List<String> tambienEn;
 
   @override
   ConsumerState<SkillsPanel> createState() => _SkillsPanelState();
@@ -187,11 +199,16 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                         : () => _act(
                             () => ref
                                 .read(skillsDataSourceProvider)
-                                .install(
-                                  widget.configDir,
+                                // A la cuenta de arriba **y a las demás si se
+                                // pidió**: una skill en un solo perfil es invisible
+                                // para las carpetas del otro, también para sus
+                                // encargos.
+                                .installEn(
+                                  [widget.configDir, ...widget.tambienEn],
                                   repoRaw: _browsing,
                                   id: skill.id,
-                                ),
+                                )
+                                .then(FallosPorCuenta.primero),
                           ),
                     // Ya instalada se ofrece **actualizar**, no se apaga el
                     // botón: un repo de skills cambia, y la copia local es de
