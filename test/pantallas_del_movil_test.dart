@@ -114,6 +114,30 @@ class _Emparejado implements PairingStore {
 }
 
 void main() {
+  test('las pantallas de estado reparten el alto como las de conexion', () {
+    // El orbe estaba como capa de fondo fijada al 46 % del alto: quedaba pegado arriba,
+    // el texto centrado y el tercio inferior vacio. Al lado de `ConnectingPage` —que se
+    // ven una detras de otra— se leia como de otra app. El reparto no es estetica aqui:
+    // un salto de composicion entre dos pantallas seguidas se lee como un fallo.
+    final fuente = File(
+      'lib/features/remote/presentation/widgets/mobile_state_page.dart',
+    ).readAsStringSync();
+
+    expect(
+      fuente,
+      isNot(contains('Positioned(')),
+      reason: 'el orbe volvio a ser una capa de fondo',
+    );
+    expect(
+      fuente,
+      isNot(contains('MediaQuery')),
+      reason: 'el alto del orbe volvio a depender del de la pantalla',
+    );
+    // Orbe **en el flujo** y entre espaciadores, igual que la de conectar.
+    expect(fuente, contains('height: 260'));
+    expect(fuente.split('Spacer()').length - 1, 2);
+  });
+
   late _SocketFalso socket;
   late _ColaEnMemoria cola;
 
