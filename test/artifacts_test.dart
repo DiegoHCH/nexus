@@ -204,6 +204,7 @@ class _SpyCli implements ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) {
     lastDirs = extraDirectories;
     return const Stream.empty();

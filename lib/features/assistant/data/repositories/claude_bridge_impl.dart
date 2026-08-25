@@ -2,6 +2,7 @@ import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source
 import 'package:nexus/features/assistant/data/datasources/project_context_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
+import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
@@ -89,7 +90,33 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         configDir: claudeProfile,
         model: model,
         effort: effort,
-        disallowedTools: disallowedTools,
+        // Los servidores MCP del perfil de **esta** carpeta, con permiso explícito.
+        // Sin ellos, en headless toda llamada MCP se deniega sola: no hay nadie que
+        // apruebe el diálogo, así que preguntar por el calendario acababa en «no puedo
+        // consultarlo» con el conector conectado y sano.
+        // **Y un conector nuevo no entra en una carpeta de solo lectura hasta que se
+        // sepa qué escribe.** Autorizarlo entero dejaría escribir hacia fuera desde una
+        // carpeta que promete no escribir, porque la lista de negación es por nombre y
+        // no puede adivinar herramientas que no conoce. Los servidores del propio
+        // usuario van siempre: los eligió él y son procesos suyos.
+        herramientasMcp: [
+          for (final servidor in McpPermissions.permitidosPara(
+            claudeProfile,
+            puedeEscribir: canEdit,
+          ))
+            'mcp__$servidor',
+        ],
+        // Los comandos bloqueados de la carpeta y, **si no puede escribir**, las
+        // herramientas MCP que actúan fuera de la máquina.
+        //
+        // Esto último es la parte que conviene entender: el modo de solo lectura
+        // garantiza **el disco** —lo hace el CLI y está medido— y hacia fuera de la
+        // máquina lo único que protege es esa lista. Sin ella, permitir el conector de
+        // correo para poder leerlo dejaría también mandarlo.
+        disallowedTools: [
+          ...disallowedTools,
+          if (!canEdit) ...McpPermissions.escrituraDeFuera,
+        ],
         appendSystemPrompt: ProjectContextPrompt.compose(
           rules: context.rules,
           sharedContext: context.sharedContext,

@@ -29,6 +29,7 @@ class _TurnoConHerramientas extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     yield {
       'type': 'system',
@@ -118,6 +119,7 @@ class _TurnoDirecto extends ClaudeCliDataSource {
     String? model,
     String? effort,
     List<String> disallowedTools = const [],
+    List<String> herramientasMcp = const [],
   }) async* {
     yield {
       'type': 'result',
