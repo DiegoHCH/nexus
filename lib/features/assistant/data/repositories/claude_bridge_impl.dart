@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/datasources/project_context_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
@@ -67,6 +68,18 @@ class ClaudeBridgeImpl implements ClaudeBridge {
 
     try {
       final context = await _projectContext.read(workingDirectory);
+      // **Qué sabe Claude antes de empezar, dicho una vez por encargo.**
+      //
+      // Va aparte de la línea del CLI porque es otra pregunta: aquella dice cómo se
+      // lanzó y esta qué se le puso delante. Y hace falta porque las reglas que un
+      // repo declara pueden no existir o no caber, y sin verlo el síntoma es trabajo
+      // que ignora una regla sin que nadie sepa por qué.
+      debugPrint(
+        'claude · ${context.rules.length} archivos de reglas · '
+        '${context.rules.fold(0, (t, f) => t + f.content.length)} caracteres'
+        '${context.sharedContext == null ? '' : ' · con contexto compartido'}',
+      );
+
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
