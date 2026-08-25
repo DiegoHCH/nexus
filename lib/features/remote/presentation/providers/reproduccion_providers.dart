@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/altavoz_del_movil.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 
 /// En qué anda la respuesta hablada, aquí.
@@ -77,6 +78,19 @@ class ReproduccionController extends Notifier<Reproduccion> {
       // Llegó más: lo de antes no era el final.
       _esperandoElFinal?.cancel();
       _esperandoElFinal = null;
+
+      // **Y si el micrófono seguía abierto, se cierra.**
+      //
+      // Normalmente ya está cerrado —se cierra a mano y eso es lo que dispara la
+      // respuesta— pero el servicio también contesta por su cuenta cuando ve silencio
+      // suficiente, y ahí el micrófono sigue abierto. Sin esto, el teléfono se oiría a
+      // sí mismo y se lo mandaría de vuelta: su cancelación de eco no cubre lo que sale
+      // de su propio altavoz por esta ruta.
+      //
+      // Va aquí y no solo en el botón porque el botón cubre la intención y esto cubre
+      // el caso: apagar la posibilidad en la pantalla no sirve si nadie la tocó.
+      if (state != Reproduccion.sonando) _cerrarElMicrofono();
+
       state = Reproduccion.sonando;
       unawaited(altavoz.encolar(pcm));
     });
@@ -124,6 +138,14 @@ class ReproduccionController extends Notifier<Reproduccion> {
   /// toque sería peor que uno que no calla.
   void volverAOir() {
     if (state == Reproduccion.silenciada) state = Reproduccion.callada;
+  }
+
+  void _cerrarElMicrofono() {
+    final id = _deQuien;
+    if (id == null) return;
+    final voz = ref.read(vozProvider);
+    if (voz != Voz.hablando && voz != Voz.abriendo) return;
+    unawaited(ref.read(vozProvider.notifier).soltar(id));
   }
 
   Future<void> _avisar(RemoteMethod metodo) async {

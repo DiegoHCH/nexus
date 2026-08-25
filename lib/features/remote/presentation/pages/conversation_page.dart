@@ -730,6 +730,27 @@ class _Microfono extends ConsumerWidget {
       Voz.callado => (false, false, colors.mute),
     };
 
+    // **Mientras suena la respuesta, este cuadro es el de callar.**
+    //
+    // El micrófono no puede estar abierto entonces: el teléfono se oiría a sí mismo y se
+    // lo mandaría de vuelta al servicio —su cancelación de eco no cubre lo que sale de
+    // su propio altavoz por esta ruta—. Y como no se puede usar, su sitio queda libre
+    // justo para lo que sí se quiere en ese momento: dejar de oír y seguir leyendo.
+    //
+    // Un cuadro y no tres: quitar o añadir uno movería el campo de texto mientras se
+    // escribe, que es lo que la fila ya evitaba apagando en vez de esconder.
+    if (ref.watch(reproduccionProvider) == Reproduccion.sonando) {
+      return _Cuadro(
+        key: const ValueKey('callar'),
+        dibujo: AltavozDibujado(
+          color: colors.mute,
+          size: NexusTypography.lead.fontSize! * 1.3,
+        ),
+        color: colors.mute,
+        alTocar: () => ref.read(reproduccionProvider.notifier).callar(),
+      );
+    }
+
     // Abierto o abriéndose, el toque cierra; si no, abre. Se mira el estado y no un
     // booleano propio del widget: el micrófono puede cerrarse **sin que nadie lo
     // toque** —la sesión se cae, o el sistema quita el permiso— y un interruptor con

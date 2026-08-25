@@ -1,9 +1,12 @@
+import 'dart:io';
 import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/data/altavoz_del_movil.dart';
+import 'package:nexus/features/remote/data/microfono_del_movil.dart';
+import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/reproduccion_providers.dart';
@@ -19,6 +22,27 @@ import 'package:nexus/features/remote/domain/remote_voice_source.dart';
 /// sistema operativo del telefono— sino las tres decisiones que se tomaron alrededor,
 /// porque las tres salieron de problemas reales y las tres se pueden romper en silencio.
 void main() {
+  test('mientras suena, el boton del microfono es el de callar', () {
+    // El microfono no puede estar abierto mientras suena la respuesta: el telefono se
+    // oiria a si mismo y se lo mandaria de vuelta al servicio. Y como no se puede usar,
+    // su sitio queda libre para lo que si se quiere entonces: dejar de oir y seguir
+    // leyendo. Un cuadro y no tres, porque quitar o añadir uno moveria el campo de
+    // texto mientras se escribe.
+    final fuente = File(
+      'lib/features/remote/presentation/pages/conversation_page.dart',
+    ).readAsStringSync();
+    final desde = fuente.indexOf('class _Microfono');
+    final cuerpo = fuente.substring(desde, fuente.indexOf('\n}\n', desde));
+
+    expect(cuerpo, contains('Reproduccion.sonando'));
+    expect(cuerpo, contains("ValueKey('callar')"));
+    expect(
+      cuerpo.indexOf('Reproduccion.sonando'),
+      lessThan(cuerpo.indexOf('control.sostener')),
+      reason: 'se puede abrir el microfono con la respuesta sonando',
+    );
+  });
+
   test('vaciarse no es haber terminado', () async {
     // El servicio entrega la respuesta mas rapido que en tiempo real, asi que el audio
     // llega a rachas y la cola se queda a cero entre racha y racha. Avisando en cada
@@ -30,6 +54,7 @@ void main() {
       overrides: [
         altavozProvider.overrideWithValue(altavoz),
         channelLinkProvider.overrideWithValue(enlace),
+        microfonoProvider.overrideWithValue(_MicroQuieto()),
       ],
     );
     addTearDown(c.dispose);
@@ -234,6 +259,9 @@ void main() {
         overrides: [
           altavozProvider.overrideWithValue(altavoz),
           channelLinkProvider.overrideWithValue(enlace),
+          // El reproductor cierra el microfono al empezar a sonar, asi que ahora lo
+          // alcanza: sin doble, la prueba construiria el de verdad.
+          microfonoProvider.overrideWithValue(_MicroQuieto()),
         ],
       );
       addTearDown(c.dispose);
@@ -387,4 +415,17 @@ class _EnlaceQueBaja implements ChannelLink {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
+}
+
+/// Un micrófono que no existe: aquí no se graba nada, solo hace falta que el
+/// reproductor pueda preguntarle si estaba abierto.
+class _MicroQuieto implements Microfono {
+  @override
+  Future<bool> tienePermiso() async => true;
+
+  @override
+  Future<Stream<Uint8List>> escuchar() async => const Stream<Uint8List>.empty();
+
+  @override
+  Future<void> cerrar() async {}
 }

@@ -1,3 +1,4 @@
+import 'dart:collection';
 import 'dart:typed_data';
 
 import 'package:flutter_pcm_sound/flutter_pcm_sound.dart';
@@ -53,10 +54,20 @@ class AltavozDelMovil implements Altavoz {
 
   var _preparado = false;
 
-  /// Lo que se guarda mientras se junta el colchón. Se suelta de golpe en cuanto hay
-  /// bastante, y a partir de ahí se va dando lo que llega.
-  final _esperando = <Uint8List>[];
-  var _bytesEsperando = 0;
+  /// **Una sola fila, y se vacía de uno en uno.**
+  ///
+  /// Es lo que hacía que la voz se oyera entrecortada aunque hubiera colchón: cada
+  /// trozo se entregaba con su propio `await` sin esperar al anterior, así que dos
+  /// trozos podían estar entrando al altavoz a la vez y **llegar desordenados**. PCM
+  /// desordenado no suena a hueco: suena a picadillo, que es justo lo que se oía.
+  final _cola = Queue<Uint8List>();
+  var _bytesEnCola = 0;
+
+  /// Si hay alguien vaciando la fila ahora mismo. Sin esta guarda, dos llegadas
+  /// seguidas arrancarían dos vaciados y volveríamos al desorden por otra puerta.
+  var _bombeando = false;
+
+  /// Si ya se juntó el colchón de esta tanda.
   var _sonando = false;
 
   @override
@@ -77,28 +88,43 @@ class AltavozDelMovil implements Altavoz {
       // La cola se quedó a cero. **Se vuelve a juntar colchón** antes de seguir: si se
       // siguiera dando trozo a trozo, el resto de la respuesta sonaría igual de
       // entrecortada que lo que acabó de sonar.
-      _sonando = false;
+      // Se vuelve a juntar colchón **solo si no queda nada en la fila**: si quedaba, no
+      // fue la red la que se quedó corta sino que el altavoz iba más rápido, y ahí lo
+      // que toca es seguir dándole y no callar 300 ms más.
+      if (_cola.isEmpty) _sonando = false;
       alVaciarse?.call();
     });
   }
 
   @override
   Future<void> encolar(Uint8List pcm) async {
+    // **Se apunta antes de cualquier `await`.** Si se hiciera después de preparar el
+    // dispositivo, dos llegadas seguidas podrían añadirse en el orden contrario: el
+    // mismo desorden de antes, una puerta más arriba.
+    _cola.add(pcm);
+    _bytesEnCola += pcm.lengthInBytes;
     await preparar();
 
-    // Ya sonando: lo que llega va directo, que el colchón ya está puesto.
-    if (_sonando) return _dar(pcm);
-
-    _esperando.add(pcm);
-    _bytesEsperando += pcm.lengthInBytes;
-    if (_bytesEsperando < _bytesDelColchon) return;
-
+    // Hasta juntar el colchón no se suelta nada: es lo que absorbe las rachas con que
+    // llega la respuesta.
+    if (!_sonando && _bytesEnCola < _bytesDelColchon) return;
     _sonando = true;
-    for (final trozo in _esperando) {
-      await _dar(trozo);
+    await _bombear();
+  }
+
+  /// Vacía la fila **en orden y de uno en uno**.
+  Future<void> _bombear() async {
+    if (_bombeando) return;
+    _bombeando = true;
+    try {
+      while (_cola.isNotEmpty) {
+        final trozo = _cola.removeFirst();
+        _bytesEnCola -= trozo.lengthInBytes;
+        await _dar(trozo);
+      }
+    } finally {
+      _bombeando = false;
     }
-    _esperando.clear();
-    _bytesEsperando = 0;
   }
 
   Future<void> _dar(Uint8List pcm) async {
@@ -113,8 +139,8 @@ class AltavozDelMovil implements Altavoz {
 
   @override
   Future<void> tirar() async {
-    _esperando.clear();
-    _bytesEsperando = 0;
+    _cola.clear();
+    _bytesEnCola = 0;
     _sonando = false;
     if (!_preparado) return;
     // El paquete no tiene «vaciar la cola», así que se suelta y se vuelve a preparar en
@@ -126,8 +152,8 @@ class AltavozDelMovil implements Altavoz {
 
   @override
   Future<void> soltar() async {
-    _esperando.clear();
-    _bytesEsperando = 0;
+    _cola.clear();
+    _bytesEnCola = 0;
     _sonando = false;
     FlutterPcmSound.setFeedCallback(null);
     if (!_preparado) return;
