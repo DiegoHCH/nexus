@@ -256,6 +256,19 @@ La superficie de Nexus es mucho menor que la de La Oficina —allí el triaje co
   raro. Va en base64 porque el canal es de texto: cuesta un tercio más, unos 43 KB/s a
   16 kHz mono de 16 bits, que es nada por Tailscale y bastante menos que mantener un
   segundo transporte solo para esto.
+- **Bajando cuesta la mitad más que subiendo**, y conviene decirlo porque la cuenta de
+  arriba es solo de subida: la entrada es 16 kHz y la salida **24 kHz**, así que son
+  48.000 bytes por segundo crudos y unos **64 KB/s en base64**. Sigue sin ser un problema
+  por Tailscale, pero tú hablas segundos y él contesta párrafos, que es donde está el
+  volumen de verdad.
+
+- **La voz que suena es la misma la reproduzca quien la reproduzca.** La síntesis pasa en
+  el servidor: la sesión pide audio y la voz se elige al abrirla, así que lo que viaja
+  son muestras ya cantadas y el destino no puede cambiarlas. Lo que sí cambia un poco es
+  el **color**, porque el Mac remuestrea a la frecuencia de su dispositivo y —solo con el
+  altavoz interno— pasa por el cancelador de eco del sistema. No es una diferencia nueva:
+  hoy el Mac ya suena distinto con altavoces que con auriculares, por lo mismo.
+
 - **La voz suena donde se preguntó.** Si el turno se habló por el teléfono, la respuesta
   suena en el teléfono; si se habló delante del Mac, suena en el Mac. El Mac ya sabe de
   qué micrófono está escuchando —hizo falta para arreglar la voz remota— así que la
