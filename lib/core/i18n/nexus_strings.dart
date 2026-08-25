@@ -113,6 +113,32 @@ abstract class NexusStrings {
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
 
+  /// El plan de esta carpeta, cuando la carpeta lo exige y no está firmado.
+  ///
+  /// Va en el compositor y no en Ajustes porque es un estado de **ahora**, no una
+  /// preferencia: dice por qué el siguiente encargo no va a poder escribir.
+  String get planUnsigned;
+
+  /// Firmado y vigente, con lo que le queda.
+  String planValidFor(int minutes);
+
+  /// El título de la hoja donde se firma.
+  String get planSignTitle;
+
+  /// Qué se le pide escribir. Una frase, no un documento.
+  String get planSignHint;
+
+  /// Lo que explica para qué sirve, y que se puede negar.
+  String get planSignBody;
+
+  String get planSignAction;
+
+  /// El interruptor por carpeta, en Permisos. Dos textos y no uno porque el estado
+  /// encendido tiene que decir qué está pasando, no qué pasaría al pulsar.
+  String get planRequireOff;
+
+  String get planRequireOn;
+
   /// Instalar en todas las cuentas de golpe.
   ///
   /// Existe porque lo instalado en una cuenta es **invisible** para las carpetas de
@@ -628,6 +654,32 @@ class NexusStringsEs extends NexusStrings {
   String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
   @override
   String get superpowersMcp => 'Servidores MCP';
+
+  @override
+  String get planUnsigned => 'PLAN SIN FIRMAR';
+
+  @override
+  String planValidFor(int minutes) => 'PLAN · $minutes MIN';
+
+  @override
+  String get planSignTitle => 'Firma el plan';
+
+  @override
+  String get planSignHint => 'Qué vas a hacer, en una frase';
+
+  @override
+  String get planSignBody =>
+      'Esta carpeta no deja escribir sin un plan firmado. Mientras no lo esté, el asistente puede leer y contestar, pero cualquier edición se le deniega — y se le dice por qué. La firma caduca en una hora: un permiso que no caduca deja de ser una decisión.';
+
+  @override
+  String get planSignAction => 'Firmar';
+
+  @override
+  String get planRequireOff => 'Exigir un plan firmado antes de escribir';
+
+  @override
+  String get planRequireOn =>
+      'Esta carpeta exige un plan firmado antes de escribir';
 
   @override
   String get superpowersEverywhere => 'En todas las cuentas';
@@ -1579,6 +1631,32 @@ class NexusStringsEn extends NexusStrings {
   String get mcpCheckFailed => 'The CLI could not produce the list.';
   @override
   String get superpowersMcp => 'MCP servers';
+
+  @override
+  String get planUnsigned => 'PLAN NOT SIGNED';
+
+  @override
+  String planValidFor(int minutes) => 'PLAN · $minutes MIN';
+
+  @override
+  String get planSignTitle => 'Sign the plan';
+
+  @override
+  String get planSignHint => 'What you are about to do, in one sentence';
+
+  @override
+  String get planSignBody =>
+      'This folder will not allow writing without a signed plan. Until it is, the assistant can read and answer, but any edit is denied — and it is told why. The signature expires in an hour: a permission that never expires stops being a decision.';
+
+  @override
+  String get planSignAction => 'Sign';
+
+  @override
+  String get planRequireOff => 'Require a signed plan before writing';
+
+  @override
+  String get planRequireOn =>
+      'This folder requires a signed plan before writing';
 
   @override
   String get superpowersEverywhere => 'In every account';
