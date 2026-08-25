@@ -80,68 +80,68 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) => CallbackShortcuts(
-      bindings: {
-        const SingleActivator(LogicalKeyboardKey.escape): () =>
-            Navigator.of(context).maybePop(),
-      },
-      child: Focus(
-        autofocus: true,
-        child: Scaffold(
-          body: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _SettingsTopBar(onClose: () => Navigator.of(context).maybePop()),
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(64, 56, 64, 0),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      SizedBox(
-                        width: 200,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            for (final section in _Section.values)
-                              _SectionLink(
-                                // Con nombre propio: «VOZ» aparece dos veces en
-                                // esta pantalla —el enlace de la izquierda y la
-                                // modalidad de una carpeta— y sin una llave no
-                                // hay forma de decir cuál se pulsa.
-                                key: ValueKey('seccion-${section.name}'),
-                                label: section.title(context.strings),
-                                active: _section == section,
-                                onTap: () => setState(() => _section = section),
-                              ),
-                          ],
-                        ),
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.escape): () =>
+          Navigator.of(context).maybePop(),
+    },
+    child: Focus(
+      autofocus: true,
+      child: Scaffold(
+        body: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SettingsTopBar(onClose: () => Navigator.of(context).maybePop()),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(64, 56, 64, 0),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 200,
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          for (final section in _Section.values)
+                            _SectionLink(
+                              // Con nombre propio: «VOZ» aparece dos veces en
+                              // esta pantalla —el enlace de la izquierda y la
+                              // modalidad de una carpeta— y sin una llave no
+                              // hay forma de decir cuál se pulsa.
+                              key: ValueKey('seccion-${section.name}'),
+                              label: section.title(context.strings),
+                              active: _section == section,
+                              onTap: () => setState(() => _section = section),
+                            ),
+                        ],
                       ),
-                      const SizedBox(width: 96),
-                      Expanded(
-                        child: SizedBox(
-                          width: 600,
-                          child: switch (_section) {
-                            _Section.voice => const VoiceSection(),
-                            _Section.permissions => const PermissionsSection(),
-                            _Section.mobile => const MobileSection(),
-                            _Section.history => const HistorySection(),
-                            _Section.stats => const StatsSection(),
-                            _Section.superpowers => const SuperpowersSection(),
-                            _Section.appearance => const AppearanceSection(),
-                            _Section.language => const LanguageSection(),
-                            _Section.help => const HelpSection(),
-                          },
-                        ),
+                    ),
+                    const SizedBox(width: 96),
+                    Expanded(
+                      child: SizedBox(
+                        width: 600,
+                        child: switch (_section) {
+                          _Section.voice => const VoiceSection(),
+                          _Section.permissions => const PermissionsSection(),
+                          _Section.mobile => const MobileSection(),
+                          _Section.history => const HistorySection(),
+                          _Section.stats => const StatsSection(),
+                          _Section.superpowers => const SuperpowersSection(),
+                          _Section.appearance => const AppearanceSection(),
+                          _Section.language => const LanguageSection(),
+                          _Section.help => const HelpSection(),
+                        },
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
-    );
+    ),
+  );
 }
 
 class _SectionLink extends StatelessWidget {

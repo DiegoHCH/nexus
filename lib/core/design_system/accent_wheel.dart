@@ -50,7 +50,12 @@ class AccentWheel extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _Disco(size: size, hsv: hsv, onChanged: onChanged, onSettled: onSettled),
+        _Disco(
+          size: size,
+          hsv: hsv,
+          onChanged: onChanged,
+          onSettled: onSettled,
+        ),
         const SizedBox(height: NexusSpacing.s5),
         SizedBox(
           width: size,
@@ -190,7 +195,8 @@ class _DiscoPainter extends CustomPainter {
     // que hay que juzgar, que es justo el que está debajo.
     final angulo = (hsv.hue - 90) * math.pi / 180;
     final punto =
-        centro + Offset(math.cos(angulo), math.sin(angulo)) * radio * hsv.saturation;
+        centro +
+        Offset(math.cos(angulo), math.sin(angulo)) * radio * hsv.saturation;
     canvas.drawCircle(
       punto,
       7,
@@ -250,10 +256,12 @@ class _BarraDeBrillo extends StatelessWidget {
           ),
           Slider(
             value: hsv.value,
-            onChanged: (v) =>
-                onChanged(HSVColor.fromAHSV(1, hsv.hue, hsv.saturation, v).toColor()),
-            onChangeEnd: (v) =>
-                onSettled(HSVColor.fromAHSV(1, hsv.hue, hsv.saturation, v).toColor()),
+            onChanged: (v) => onChanged(
+              HSVColor.fromAHSV(1, hsv.hue, hsv.saturation, v).toColor(),
+            ),
+            onChangeEnd: (v) => onSettled(
+              HSVColor.fromAHSV(1, hsv.hue, hsv.saturation, v).toColor(),
+            ),
           ),
         ],
       ),
@@ -280,10 +288,11 @@ class AccentPreview extends StatelessWidget {
           padding: const EdgeInsets.only(right: NexusSpacing.s3),
           child: _Muestra(
             // El vacío de cada tema, que es el fondo real de la app.
-            fondo: (brillo == Brightness.dark
-                    ? NexusColors.dark
-                    : NexusColors.light)
-                .void_,
+            fondo:
+                (brillo == Brightness.dark
+                        ? NexusColors.dark
+                        : NexusColors.light)
+                    .void_,
             color: accent.forBrightness(brillo),
           ),
         ),

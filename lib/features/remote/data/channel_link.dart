@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
@@ -258,6 +259,21 @@ class ChannelLink {
 
   final _acento = StreamController<int>.broadcast();
 
+  /// La respuesta hablada, cuando la pregunta salió de este teléfono.
+  ///
+  /// Un `Stream` de bytes y no de marcos: lo que hay al otro lado es un altavoz, y
+  /// darle el marco entero sería hacerle saber de transporte para nada.
+  final _audio = StreamController<Uint8List>.broadcast();
+
+  /// Trozos de la respuesta. Llegan **sin confirmación y sin número que sirva**: uno que
+  /// llega tarde es peor que un hueco, porque mete en la frase medio segundo de hace un
+  /// rato.
+  Stream<Uint8List> get audio => _audio.stream;
+
+  /// «Tira lo que te quede por sonar.» Llega cuando alguien interrumpe.
+  final _descartar = StreamController<void>.broadcast();
+  Stream<void> get descartar => _descartar.stream;
+
   /// El acento que eligió el Mac, cada vez que se saluda.
   ///
   /// Un `Stream` y no un valor porque **llega en cada conexión**: cambiar el acento en
@@ -300,6 +316,8 @@ class ChannelLink {
     await _eventos.close();
     await _fotos.close();
     await _acento.close();
+    await _audio.close();
+    await _descartar.close();
   }
 
   /// Pide algo y espera la respuesta.
@@ -367,6 +385,9 @@ class ChannelLink {
     // con id nuevo abriría dos conversaciones sobre la misma carpeta.
     RemoteMethod.sendErrand ||
     RemoteMethod.stopErrand ||
+    // Callar es un efecto y se reintenta con el mismo id: callar dos veces es lo mismo
+    // que callar una, y perder el aviso deja al Mac mandando audio que nadie oye.
+    RemoteMethod.silenceReply ||
     RemoteMethod.unlockWrites ||
     RemoteMethod.openConversation ||
     RemoteMethod.resumeConversation ||
@@ -381,8 +402,14 @@ class ChannelLink {
     // cierre perdido dejaría el micrófono abierto**, que es el peor final de esta lista.
     RemoteMethod.startVoice ||
     RemoteMethod.stopVoice => true,
+    // **Terminar de sonar es un hecho, no un efecto**, y por eso va abajo con las
+    // lecturas aunque no lea nada: reintentado con el mismo id volvería «duplicada» y
+    // ninguna respuesta, y el Mac se quedaría esperando un aviso que ya no se manda.
+    // Con id nuevo el segundo intento sí le llega, y decirlo dos veces es inofensivo
+    // porque lo único que provoca es dejar de esperar.
     // Lo que solo **lee**: una consulta perdida se vuelve a pedir con id nuevo,
     // porque el deduplicador protege efectos y no respuestas.
+    RemoteMethod.playbackFinished ||
     RemoteMethod.conversations ||
     RemoteMethod.history ||
     RemoteMethod.meter ||
@@ -587,12 +614,17 @@ class ChannelLink {
         _fotos.add(marco);
         _pasarA(LinkState.conectado);
 
-      case Audio():
-        // El audio **solo sube**. Que baje significa un Mac mal escrito o alguien
-        // probando el canal: se ignora en vez de reproducirlo, porque lo que Nexus
-        // dice en voz alta sale por los altavoces del Mac —`lo8`— y un teléfono que
-        // empezara a reproducir audio sería una segunda boca.
-        debugPrint('el Mac mandó audio, que solo va en la otra dirección');
+      case Audio(:final pcmBase64):
+        // **El audio baja cuando la pregunta vino de aquí.** Antes se rechazaba, con el
+        // motivo de que un teléfono que reprodujera sería «una segunda boca»; eso se
+        // cae con la regla que lo sustituye —suena donde se preguntó, así que nunca
+        // suenan los dos— y la prohibición era además más ancha que la `lo8` que
+        // citaba: reproducir lo que manda el Mac no le da al teléfono ni una llave ni
+        // una sesión propia.
+        //
+        // El base64 se deshace aquí y no en el altavoz, por lo mismo que al subir: el
+        // altavoz recibe bytes y no sabe de transporte.
+        if (!_audio.isClosed) _audio.add(base64Decode(pcmBase64));
 
       case Hello() || Call() || Resume():
         // Cosas que manda el teléfono, no el Mac. Si llegan, es un Mac mal escrito.
@@ -641,6 +673,16 @@ class ChannelLink {
     // Se cuenta en el `seq` igual que los demás —de ahí que esto vaya después de
     // apuntarlo— para que un teléfono que se reincorpora lo reciba en su resync en vez
     // de necesitar un camino aparte.
+    // Una orden de reproducción, no un trozo de estado: **no va al espejo**, igual que
+    // el acento. El espejo descarta lo que no lleva `conversation` y esto se perdería en
+    // silencio — y además no describe cómo está nada, dice qué hacer ahora.
+    if (evento.kind == 'playback') {
+      if (evento.data['action'] == 'discard' && !_descartar.isClosed) {
+        _descartar.add(null);
+      }
+      return;
+    }
+
     if (evento.kind == 'accent') {
       final argb = evento.data['argb'];
       if (argb is int && !_acento.isClosed) _acento.add(argb);

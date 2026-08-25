@@ -121,6 +121,21 @@ class ChannelServer {
     }
   }
 
+  /// Manda un trozo de audio a quien esté dentro.
+  ///
+  /// Aparte de [difundir] y no como un evento más: **el audio no se numera ni se
+  /// guarda**. Un teléfono que se reincorpora no quiere que le repitan medio segundo de
+  /// hace un rato —eso es lo que decidió el marco propio para la voz que sube— y meterlo
+  /// en el registro haría que el resync lo arrastrara.
+  ///
+  /// Si no hay nadie saludado, se cae al suelo en silencio. Es lo correcto: quien
+  /// reproduce ya no está, y quien lo mandaba se entera por su propio camino.
+  void difundirAudio(Audio marco) {
+    for (final cliente in _conexiones) {
+      if (cliente.saludado) cliente.enviar(marco);
+    }
+  }
+
   /// Levanta el servidor. Devuelve el puerto de verdad.
   Future<int> start({
     required InternetAddress direccion,

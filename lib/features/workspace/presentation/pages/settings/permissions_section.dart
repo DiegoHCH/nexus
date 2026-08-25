@@ -6,6 +6,7 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
+
 /// Permisos: las carpetas emparejadas, su modalidad y qué no puede ejecutar.
 ///
 /// Es la sección más grande, y la que más piezas propias tiene —la fila de
@@ -129,7 +130,9 @@ class _FolderRow extends ConsumerWidget {
         decoration: BoxDecoration(
           color: colors.rise,
           border: Border.all(
-            color: isActive ? colors.accent.withValues(alpha: 0.5) : colors.rule2,
+            color: isActive
+                ? colors.accent.withValues(alpha: 0.5)
+                : colors.rule2,
           ),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),

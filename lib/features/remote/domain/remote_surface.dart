@@ -78,6 +78,16 @@ abstract class RemoteSurface {
   /// Lo cierra.
   Future<void> stopVoice(String conversationId);
 
+  /// El teléfono terminó de reproducir la respuesta.
+  ///
+  /// **Quien reproduce dice cuándo terminó.** El Mac no puede cerrar la sesión mientras
+  /// queda respuesta por sonar —cortaría a media palabra— y sonando en el teléfono no lo
+  /// sabe por su cuenta.
+  Future<void> playbackFinished(String conversationId);
+
+  /// El usuario calló la respuesta y sigue leyendo. **No cancela el turno.**
+  Future<void> silenceReply(String conversationId);
+
   /// Las carpetas que el Mac **ya tiene emparejadas**.
   ///
   /// No es emparejar: la lista la pone el Mac, y el teléfono solo elige de ella. La

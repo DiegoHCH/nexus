@@ -98,3 +98,59 @@ class _Trazo extends CustomPainter {
       anterior.relleno != relleno ||
       anterior.tachado != tachado;
 }
+
+/// El altavoz, dibujado, para callar la respuesta.
+///
+/// Va aquí y con el mismo trazo que el micrófono porque es su pareja: uno dice de dónde
+/// entra la voz y el otro por dónde sale. Tachado siempre, porque **solo aparece para
+/// callar**: nunca hay un botón «poner el sonido», ya que la respuesta suena por su
+/// cuenta.
+class AltavozDibujado extends StatelessWidget {
+  const AltavozDibujado({super.key, required this.color, required this.size});
+
+  final Color color;
+  final double size;
+
+  @override
+  Widget build(BuildContext context) => SizedBox.square(
+    dimension: size,
+    child: CustomPaint(painter: _TrazoAltavoz(color: color)),
+  );
+}
+
+class _TrazoAltavoz extends CustomPainter {
+  const _TrazoAltavoz({required this.color});
+
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final k = size.width / 24;
+    final trazo = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = (1.4 * k).clamp(0.8, 2.0)
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    // La caja y el cono, de una pieza: un altavoz partido en dos formas se lee como dos
+    // cosas pequeñas y no como un objeto.
+    final cuerpo = Path()
+      ..moveTo(3 * k, 9 * k)
+      ..lineTo(7 * k, 9 * k)
+      ..lineTo(12 * k, 4.5 * k)
+      ..lineTo(12 * k, 19.5 * k)
+      ..lineTo(7 * k, 15 * k)
+      ..lineTo(3 * k, 15 * k)
+      ..close();
+    canvas.drawPath(cuerpo, trazo);
+
+    // Tachado, y **de esquina a esquina por encima del cuerpo**: una tachadura que
+    // esquiva el dibujo se lee como parte del dibujo.
+    canvas.drawLine(Offset(15 * k, 8 * k), Offset(21 * k, 16 * k), trazo);
+    canvas.drawLine(Offset(21 * k, 8 * k), Offset(15 * k, 16 * k), trazo);
+  }
+
+  @override
+  bool shouldRepaint(_TrazoAltavoz anterior) => anterior.color != color;
+}

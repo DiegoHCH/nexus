@@ -14,6 +14,7 @@ import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/reproduccion_providers.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -49,6 +50,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // conversaciones para leer el de una.
       await notifier.masHistorial(widget.conversationId);
     });
+
+    // **Leerlo es lo que lo enciende.** El reproductor escucha el canal desde que se
+    // construye, y sin nadie que lo lea no se construye nunca: la respuesta bajaría por
+    // el socket y no la recogería nadie. Y se le dice qué conversación se mira, porque
+    // el aviso de «ya terminó» viaja por el canal y el canal pregunta de cuál.
+    ref.read(reproduccionProvider.notifier).mirando(widget.conversationId);
 
     // **Cuando el Mac da por terminada la voz, aquí se cierra el micrófono.**
     //
@@ -722,6 +729,27 @@ class _Microfono extends ConsumerWidget {
       Voz.sinMac => (false, true, colors.warn),
       Voz.callado => (false, false, colors.mute),
     };
+
+    // **Mientras suena la respuesta, este cuadro es el de callar.**
+    //
+    // El micrófono no puede estar abierto entonces: el teléfono se oiría a sí mismo y se
+    // lo mandaría de vuelta al servicio —su cancelación de eco no cubre lo que sale de
+    // su propio altavoz por esta ruta—. Y como no se puede usar, su sitio queda libre
+    // justo para lo que sí se quiere en ese momento: dejar de oír y seguir leyendo.
+    //
+    // Un cuadro y no tres: quitar o añadir uno movería el campo de texto mientras se
+    // escribe, que es lo que la fila ya evitaba apagando en vez de esconder.
+    if (ref.watch(reproduccionProvider) == Reproduccion.sonando) {
+      return _Cuadro(
+        key: const ValueKey('callar'),
+        dibujo: AltavozDibujado(
+          color: colors.mute,
+          size: NexusTypography.lead.fontSize! * 1.3,
+        ),
+        color: colors.mute,
+        alTocar: () => ref.read(reproduccionProvider.notifier).callar(),
+      );
+    }
 
     // Abierto o abriéndose, el toque cierra; si no, abre. Se mira el estado y no un
     // booleano propio del widget: el micrófono puede cerrarse **sin que nadie lo

@@ -53,6 +53,12 @@ class VoiceInputImpl implements VoiceInput {
 
     return controller.stream;
   }
+
+  /// **Nunca.** El micrófono del Mac no se pausa: se queda abierto mientras la sesión
+  /// vive, así que cuando el usuario calla lo que viaja es silencio de verdad y el
+  /// detector del servicio lo ve. Este aviso existe para el del teléfono, que sí cierra.
+  @override
+  Stream<void> get pausas => const Stream<void>.empty();
 }
 
 /// Copia el trozo a un buffer propio con offset 0 y longitud par.

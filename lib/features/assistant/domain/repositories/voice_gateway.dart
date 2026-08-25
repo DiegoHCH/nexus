@@ -49,6 +49,18 @@ abstract class VoiceSession {
   /// [VoiceSessionFormat.inputSampleRate].
   void sendAudio(Uint8List pcm);
 
+  /// Dice que el audio se acabó, para que el servicio cierre el turno y conteste.
+  ///
+  /// **Hace falta porque el detector de turno es automático y mira el audio**: espera
+  /// ver silencio para decidir que terminaste de hablar. El micrófono del Mac se lo da
+  /// siempre —sigue mandando aunque calles— pero el del teléfono **deja de mandar de
+  /// golpe** cuando se cierra, así que el servicio se quedaba esperando un silencio que
+  /// nunca llegaba: la sesión moría por inactividad con cero turnos.
+  ///
+  /// Medido así: 65 trozos entrando, un solo evento del servicio —el del montaje— y
+  /// ninguna respuesta.
+  void endAudio();
+
   /// Le mete a la conversación un texto que no vino del micrófono.
   ///
   /// Se usa para corregir al modelo cuando contesta por su cuenta algo que

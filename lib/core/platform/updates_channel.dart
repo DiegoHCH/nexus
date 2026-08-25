@@ -26,7 +26,8 @@ abstract final class UpdatesChannel {
   /// Empieza a escuchar. Se llama una vez, al montar la app.
   static void listen() {
     _channel.setMethodCallHandler((call) async {
-      final datos = (call.arguments as Map?)?.cast<String, Object?>() ?? const {};
+      final datos =
+          (call.arguments as Map?)?.cast<String, Object?>() ?? const {};
       _eventos.add(UpdateEvent(name: call.method, data: datos));
       return null;
     });
@@ -60,7 +61,10 @@ abstract final class UpdatesChannel {
 
   static Future<void> cancel() => _pedir<void>('cancel');
 
-  static Future<T?> _pedir<T>(String metodo, [Map<String, Object?>? args]) async {
+  static Future<T?> _pedir<T>(
+    String metodo, [
+    Map<String, Object?>? args,
+  ]) async {
     try {
       return await _channel.invokeMethod<T>(metodo, args);
     } on PlatformException catch (error) {
@@ -75,8 +79,10 @@ abstract final class UpdatesChannel {
 
   /// Para las pruebas: empujar un evento sin canal nativo al otro lado.
   @visibleForTesting
-  static void emitForTesting(String name, [Map<String, Object?> data = const {}]) =>
-      _eventos.add(UpdateEvent(name: name, data: data));
+  static void emitForTesting(
+    String name, [
+    Map<String, Object?> data = const {},
+  ]) => _eventos.add(UpdateEvent(name: name, data: data));
 }
 
 /// Un aviso del actualizador, tal como llega.

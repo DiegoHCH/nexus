@@ -24,10 +24,12 @@ class AppRoot extends ConsumerWidget {
     // para que la modal tenga dónde salir, pase lo que pase con el enrutado.
     return UpdatesGate(
       child: switch (route) {
-      AppRouteLoading() => const SplashPage(),
-      AppRouteNotReady(:final readiness) => ReadinessPage(readiness: readiness),
-      AppRouteNeedsSetup() => const InitialSetupPage(),
-      AppRouteReady() => const HomePage(),
+        AppRouteLoading() => const SplashPage(),
+        AppRouteNotReady(:final readiness) => ReadinessPage(
+          readiness: readiness,
+        ),
+        AppRouteNeedsSetup() => const InitialSetupPage(),
+        AppRouteReady() => const HomePage(),
       },
     );
   }

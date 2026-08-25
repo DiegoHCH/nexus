@@ -96,6 +96,21 @@ enum RemoteMethod {
   /// Cerrarlo.
   stopVoice('cerrar el micrófono del teléfono'),
 
+  /// El teléfono terminó de reproducir la respuesta.
+  ///
+  /// **Lo dice quien reproduce**, y no lo calcula el Mac: el Mac no puede cerrar la
+  /// sesión mientras queda respuesta por sonar —cortaría a media palabra— y sonando en
+  /// el teléfono no lo sabe. Estimarlo por bytes y ritmo sería adivinar el jitter de la
+  /// red, y adivinar aquí se oye.
+  playbackFinished('decir que la respuesta terminó de sonar'),
+
+  /// El usuario calló la respuesta y sigue leyendo.
+  ///
+  /// **No cancela el turno**: el texto sigue llegando. Solo deja de sonar, que es lo que
+  /// uno quiere cuando ya entendió por dónde va. Y se le dice al Mac en vez de callarlo
+  /// solo aquí para que deje de mandar audio que nadie va a oír.
+  silenceReply('callar la respuesta y seguir leyendo'),
+
   unlockWrites('subir el permiso');
 
   const RemoteMethod(this.enElDocumento);

@@ -29,6 +29,9 @@ Uint8List _pcm(List<int> muestras) {
 }
 
 class _MicroDelMac implements VoiceInput {
+  @override
+  Stream<void> get pausas => const Stream<void>.empty();
+
   var vecesQueSeAbrio = 0;
 
   @override
@@ -42,6 +45,9 @@ class _MicroDelMac implements VoiceInput {
 }
 
 class _MicroNegado implements VoiceInput {
+  @override
+  Stream<void> get pausas => const Stream<void>.empty();
+
   @override
   Future<bool> hasPermission() async => false;
 
@@ -135,6 +141,31 @@ Stream<AudioFrame> abrirY(RemoteVoiceSource fuente) {
 }
 
 void main() {
+  test('cerrar el microfono avisa de que el audio se corto', () async {
+    // El servicio decide que terminaste de hablar **mirando el audio**: espera ver
+    // silencio. Un microfono abierto se lo da solo, pero el del telefono se cierra de
+    // golpe, y sin este aviso el turno no cierra nunca — sesiones enteras muriendo por
+    // inactividad con cero turnos, medido.
+    final fuente = RemoteVoiceSource();
+    final avisos = <void>[];
+    fuente.pausas.listen(avisos.add);
+
+    fuente.abrir();
+    fuente.entra(_pcm([9000, 9000]));
+    await Future<void>.delayed(Duration.zero);
+    expect(avisos, isEmpty, reason: 'no hubo corte todavia');
+
+    fuente.silenciar();
+    await Future<void>.delayed(Duration.zero);
+    expect(avisos, hasLength(1));
+
+    // Y **no se avisa dos veces** del mismo corte: el segundo `silenciar` no cambia
+    // nada, y un aviso de mas le diria al servicio que cierre un turno ya cerrado.
+    fuente.silenciar();
+    await Future<void>.delayed(Duration.zero);
+    expect(avisos, hasLength(1));
+  });
+
   group('la fuente remota', () {
     test('lo que llega mientras está abierta sale como frames', () async {
       final fuente = RemoteVoiceSource();

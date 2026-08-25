@@ -174,6 +174,14 @@ class Dispatcher {
         await surface.stopVoice(_id(call));
         return Result(id: call.id, data: {'listening': false});
 
+      case RemoteMethod.playbackFinished:
+        await surface.playbackFinished(_id(call));
+        return Result(id: call.id, data: {'playing': false});
+
+      case RemoteMethod.silenceReply:
+        await surface.silenceReply(_id(call));
+        return Result(id: call.id, data: {'silenced': true});
+
       case RemoteMethod.closeConversation:
         await surface.closeConversation(_id(call));
         return Result(id: call.id, data: {'closed': true});

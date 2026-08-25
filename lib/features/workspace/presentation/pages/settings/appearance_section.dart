@@ -7,6 +7,7 @@ import 'package:nexus/core/design_system/accent_wheel.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+
 /// Apariencia: claro u oscuro, y el color de acento.
 ///
 /// `AccentDialog` es la única pública: la abre el botón de aquí, pero es una modal
@@ -161,10 +162,8 @@ String _nombre(AccentName nombre, NexusStrings strings) => switch (nombre) {
 class AccentDialog extends ConsumerStatefulWidget {
   const AccentDialog({super.key});
 
-  static Future<void> open(BuildContext context) => showDialog<void>(
-    context: context,
-    builder: (_) => const AccentDialog(),
-  );
+  static Future<void> open(BuildContext context) =>
+      showDialog<void>(context: context, builder: (_) => const AccentDialog());
 
   @override
   ConsumerState<AccentDialog> createState() => _AccentDialogState();

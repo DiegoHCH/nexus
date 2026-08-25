@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+
 /// El idioma de la app, que no es el del sistema salvo que se elija así.
 
 class LanguageSection extends ConsumerWidget {

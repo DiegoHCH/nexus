@@ -378,6 +378,19 @@ class _GeminiVoiceSession implements VoiceSession {
     });
   }
 
+  /// El campo que el servicio entiende como «este flujo de audio terminó».
+  ///
+  /// Se manda en vez de rellenar con silencio a mano, que era la otra salida: 1,2 s de
+  /// ceros funcionarían igual, pero serían 38 KB de nada por cada turno y dejarían la
+  /// duración del silencio duplicada —aquí y en la configuración del detector— con dos
+  /// sitios donde puede desincronizarse.
+  @override
+  void endAudio() {
+    _connection.send({
+      'realtimeInput': {'audioStreamEnd': true},
+    });
+  }
+
   @override
   Future<void> close() async {
     await _subscription.cancel();

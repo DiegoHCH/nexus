@@ -26,6 +26,18 @@ class _Mic implements VoiceInput {
 
   @override
   Stream<AudioFrame> listen() => _frames.stream;
+
+  final _pausas = StreamController<void>.broadcast();
+
+  @override
+  Stream<void> get pausas => _pausas.stream;
+
+  /// El micrófono se cierra. Es lo que hace el del teléfono al tocar el botón, y lo que
+  /// el del Mac **no** hace mientras la sesión vive: **corta sin terminar el flujo**.
+  void cortar() => _pausas.add(null);
+
+  /// Y esto es el flujo terminándose, que es otra cosa.
+  Future<void> cerrar() => _frames.close();
 }
 
 /// La sesión de voz, movida a mano desde la prueba.
@@ -43,6 +55,13 @@ class _Session implements VoiceSession {
 
   @override
   void sendAudio(Uint8List pcm) {}
+
+  /// Cuántas veces se dijo que el audio terminó. Es lo que hace que el servicio cierre
+  /// el turno cuando el micrófono se cierra de golpe, como hace el del teléfono.
+  var avisosDeFin = 0;
+
+  @override
+  void endAudio() => avisosDeFin++;
 
   @override
   void sendSystemNote(String text) => notes.add(text);
@@ -466,5 +485,36 @@ void main() {
     expect(medidor.contextPercent, 18);
 
     await subscription.cancel();
+  });
+
+  test('al cerrarse el microfono se le dice al servicio que el audio termino', () async {
+    // El detector de turno es automatico y mira el audio: espera ver silencio para
+    // decidir que terminaste. El microfono del Mac se lo da siempre —sigue mandando
+    // aunque calles— pero el del telefono deja de mandar de golpe, asi que sin este
+    // aviso el servicio esperaba un silencio que ya no llegaba y la sesion moria por
+    // inactividad **con cero turnos**. Medido: 65 trozos entrando, un solo evento.
+    final micro = _Mic();
+    final session = _Session();
+    final conversation = HoldVoiceConversation(
+      micro,
+      _Gateway(session),
+      _Speaker(),
+      _askClaude(_Bridge()),
+      (_) {},
+    );
+
+    final sub = conversation().listen((_) {});
+    await Future<void>.delayed(Duration.zero);
+    expect(session.avisosDeFin, 0);
+
+    micro.cortar();
+    await Future<void>.delayed(Duration.zero);
+
+    expect(
+      session.avisosDeFin,
+      1,
+      reason: 'el turno se queda abierto para siempre',
+    );
+    await sub.cancel();
   });
 }

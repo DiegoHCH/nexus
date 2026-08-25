@@ -5,6 +5,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+
 /// Historial: dónde se archivan las conversaciones cuando terminan.
 
 /// Dónde acaban las conversaciones.

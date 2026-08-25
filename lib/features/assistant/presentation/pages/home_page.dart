@@ -209,7 +209,20 @@ class _HomePageState extends ConsumerState<HomePage> {
                       Positioned(
                         left: MediaQuery.sizeOf(context).width * 0.44,
                         right: NexusSpacing.s7,
-                        top: NexusSpacing.s6,
+                        // **Le deja sitio al aviso cuando el aviso está.**
+                        //
+                        // El chip de «micro abierto» / «trabajando» flota en una capa
+                        // de encima, así que se pintaba sobre el primer mensaje: lo
+                        // tapaba justo cuando más se mira la conversación. Se baja la
+                        // columna en vez de mover el chip porque el chip **tiene** que
+                        // estar arriba y centrado —es el aviso de que se está
+                        // grabando— y la conversación sí puede empezar más abajo.
+                        //
+                        // Y solo mientras está: dejar el hueco siempre regalaría una
+                        // franja vacía en la vista normal, que es la de casi siempre.
+                        top: hud.voiceActive
+                            ? NexusSpacing.s6 + _altoDelAviso
+                            : NexusSpacing.s6,
                         bottom: NexusSpacing.s4,
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -478,6 +491,14 @@ String _statusFor(NexusOrbState state, NexusStrings strings) => switch (state) {
   NexusOrbState.think => strings.working,
   NexusOrbState.speak => strings.speaking,
 };
+
+/// Lo que ocupa el aviso flotante, para dejarle sitio sin adivinarlo.
+///
+/// Sale de sus partes y no de mirar la pantalla: el alto de la etiqueta —10 de fuente
+/// con su interlineado—, los 3 px de relleno arriba y abajo, el borde, y un hueco para
+/// que el primer mensaje no quede pegado. Escrito así, cambiar el relleno del chip no
+/// vuelve a tapar la conversación sin que nadie se entere.
+const _altoDelAviso = 14.0 + 3 * 2 + 2 + NexusSpacing.s3;
 
 class _LiveBadge extends StatelessWidget {
   const _LiveBadge({required this.working});

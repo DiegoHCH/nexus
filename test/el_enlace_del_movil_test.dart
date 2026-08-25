@@ -552,6 +552,9 @@ void main() {
           'sendErrand': true,
           'stopErrand': true,
           'unlockWrites': true,
+          // Callar la respuesta es un efecto: perder el aviso deja al Mac mandando
+          // audio que nadie va a oír, y callar dos veces es callar.
+          'silenceReply': true,
           // Abrir y retomar **crean estado**: reenviarlas con id nuevo abriría dos
           // conversaciones sobre la misma carpeta, que el escritorio no permite.
           'openConversation': true,
@@ -570,6 +573,11 @@ void main() {
           'conversations': false,
           'history': false,
           'meter': false,
+          // **Terminar de sonar es un hecho, no un efecto.** Con el mismo id, el
+          // segundo intento volvería «duplicada» y sin respuesta, y el Mac se quedaría
+          // esperando un aviso que ya no se manda. Decirlo dos veces es inofensivo:
+          // lo único que provoca es dejar de esperar.
+          'playbackFinished': false,
           'permission': false,
           'archive': false,
           'folders': false,
