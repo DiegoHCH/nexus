@@ -5,13 +5,25 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_catalog.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
+import 'package:nexus/features/superpowers/domain/usecases/fallos_por_cuenta.dart';
 
 /// Los servidores MCP de una cuenta: los que hay, los que se pueden poner de un
 /// clic, y uno a mano.
 class McpPanel extends ConsumerStatefulWidget {
-  const McpPanel({super.key, required this.configDir});
+  const McpPanel({
+    super.key,
+    required this.configDir,
+    this.tambienEn = const [],
+  });
 
   final String configDir;
+
+  /// Las demás cuentas donde replicar lo que se instale aquí.
+  ///
+  /// Vacío es lo normal: solo la de arriba. Va como lista y no como un booleano «en
+  /// todas» porque este panel no sabe cuántas cuentas hay ni cómo se llaman — eso lo
+  /// decide la sección, que es quien tiene las pestañas.
+  final List<String> tambienEn;
 
   @override
   ConsumerState<McpPanel> createState() => _McpPanelState();
@@ -42,7 +54,16 @@ class _McpPanelState extends ConsumerState<McpPanel> {
     });
     final error = await ref
         .read(mcpDataSourceProvider)
-        .add(widget.configDir, name: name, url: url, command: command);
+        // A la cuenta de arriba **y a las demás si se pidió**. Aquí el síntoma de
+        // tenerlo en una sola es el peor de leer: «no puedo consultar tu calendario»
+        // no se parece a un problema de cuentas.
+        .addEn(
+          [widget.configDir, ...widget.tambienEn],
+          name: name,
+          url: url,
+          command: command,
+        )
+        .then(FallosPorCuenta.primero);
     ref.invalidate(mcpServersProvider(widget.configDir));
     if (!mounted) return;
     setState(() {

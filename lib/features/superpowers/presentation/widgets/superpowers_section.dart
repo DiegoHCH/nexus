@@ -6,6 +6,7 @@ import 'package:nexus/features/superpowers/presentation/widgets/mcp_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/plugins_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
 /// Lo que Claude sabe hacer de más, por cuenta.
 ///
@@ -26,6 +27,18 @@ enum _Kind { mcp, skills, plugins }
 class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   String? _profile;
   var _kind = _Kind.mcp;
+
+  /// Si lo que se instale va a todas las cuentas o solo a la elegida.
+  ///
+  /// **Nace apagado**: instalar en cuentas que no se están mirando es un efecto que
+  /// hay que pedir, no heredar. Y no se recuerda entre visitas por lo mismo — una
+  /// casilla marcada la semana pasada tocaría cuentas sin que nadie lo decida hoy.
+  var _enTodas = false;
+
+  /// Las demás cuentas, si se pidió instalar en todas.
+  List<String> _otras(List<ClaudeProfile> profiles, String current) => _enTodas
+      ? [for (final p in profiles) p.path].where((p) => p != current).toList()
+      : const [];
 
   @override
   Widget build(BuildContext context) {
@@ -48,7 +61,7 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (profiles.length > 1)
+        if (profiles.length > 1) ...[
           Row(
             children: [
               for (final profile in profiles)
@@ -61,6 +74,17 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
                 ),
             ],
           ),
+          const SizedBox(height: NexusSpacing.s3),
+          // **El aviso va aquí y no en cada panel**: no es de los MCP ni de las
+          // skills, es de las pestañas de arriba. Y va siempre, no solo al fallar:
+          // enterarse por el síntoma —«en esta carpeta funciona y en esta no»— cuesta
+          // mucho más que leerlo antes.
+          _AvisoDeCuenta(
+            enTodas: _enTodas,
+            cuantas: profiles.length,
+            alCambiar: (valor) => setState(() => _enTodas = valor),
+          ),
+        ],
         const SizedBox(height: NexusSpacing.s5),
         Row(
           children: [
@@ -85,11 +109,13 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
         Expanded(
           child: switch (_kind) {
             _Kind.mcp => McpPanel(
-              key: ValueKey('mcp-$current'),
+              key: ValueKey('mcp-$current-$_enTodas'),
+              tambienEn: _otras(profiles, current),
               configDir: current,
             ),
             _Kind.skills => SkillsPanel(
-              key: ValueKey('skills-$current'),
+              key: ValueKey('skills-$current-$_enTodas'),
+              tambienEn: _otras(profiles, current),
               configDir: current,
             ),
             _Kind.plugins => PluginsPanel(
@@ -173,6 +199,82 @@ class _Tab extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// La casilla de «en todas las cuentas», con su aviso debajo.
+///
+/// Un párrafo y no un icono con globo: lo que hay que decir no cabe en un adorno, y es
+/// justo la clase de cosa que se descubre tarde y se diagnostica mal — el síntoma es
+/// «en esta carpeta funciona y en esta no», que no menciona cuentas en ninguna parte.
+class _AvisoDeCuenta extends StatelessWidget {
+  const _AvisoDeCuenta({
+    required this.enTodas,
+    required this.cuantas,
+    required this.alCambiar,
+  });
+
+  final bool enTodas;
+  final int cuantas;
+  final ValueChanged<bool> alCambiar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        InkWell(
+          onTap: () => alCambiar(!enTodas),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s2),
+            child: Row(
+              children: [
+                // Un cuadro con hairline y un punto dentro, como el resto del sistema:
+                // una casilla de Material aquí se ve de otra app.
+                Container(
+                  width: 14,
+                  height: 14,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(2),
+                    border: Border.all(
+                      color: enTodas ? colors.accent : colors.rule2,
+                    ),
+                  ),
+                  alignment: Alignment.center,
+                  child: enTodas
+                      ? Container(
+                          width: 6,
+                          height: 6,
+                          decoration: BoxDecoration(
+                            color: colors.accent,
+                            borderRadius: BorderRadius.circular(1),
+                          ),
+                        )
+                      : null,
+                ),
+                const SizedBox(width: NexusSpacing.s3),
+                Text(
+                  '${strings.superpowersEverywhere}  ($cuantas)',
+                  style: NexusTypography.label.copyWith(
+                    color: enTodas ? colors.accent : colors.mute,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        // El aviso solo cuando **no** se instala en todas: con la casilla marcada deja
+        // de ser verdad, y un aviso que miente es peor que ninguno.
+        if (!enTodas)
+          Text(
+            strings.superpowersOnlyHere,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+      ],
     );
   }
 }
