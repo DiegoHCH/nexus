@@ -35,7 +35,29 @@ class AltavozDelMovil implements Altavoz {
   /// 24 kHz mono: lo que dice el formato de salida de la sesión de voz.
   static const _frecuencia = 24000;
 
+  /// **El colchón antes de empezar a sonar.**
+  ///
+  /// Sin él la voz se oía entrecortada, y el motivo es que el servicio entrega la
+  /// respuesta **más rápido que en tiempo real**: los trozos llegan a rachas, el altavoz
+  /// los consume a ritmo constante, y cualquier irregularidad de la red entre racha y
+  /// racha es un hueco que se oye. Dándole 300 ms de ventaja, esos huecos se los come el
+  /// colchón en vez de la frase.
+  ///
+  /// 300 ms y no más porque es retardo que se paga al principio de cada respuesta, y
+  /// esto es una conversación: medio segundo de más antes de oír la primera palabra se
+  /// nota mucho más que un tropiezo a la mitad.
+  static const _colchon = Duration(milliseconds: 300);
+
+  /// 24 kHz mono de 16 bits: 48.000 bytes por segundo.
+  static int get _bytesDelColchon => 48000 * _colchon.inMilliseconds ~/ 1000;
+
   var _preparado = false;
+
+  /// Lo que se guarda mientras se junta el colchón. Se suelta de golpe en cuanto hay
+  /// bastante, y a partir de ahí se va dando lo que llega.
+  final _esperando = <Uint8List>[];
+  var _bytesEsperando = 0;
+  var _sonando = false;
 
   @override
   void Function()? alVaciarse;
@@ -51,13 +73,35 @@ class AltavozDelMovil implements Altavoz {
     // el final.
     await FlutterPcmSound.setFeedThreshold(0);
     FlutterPcmSound.setFeedCallback((restantes) {
-      if (restantes == 0) alVaciarse?.call();
+      if (restantes != 0) return;
+      // La cola se quedó a cero. **Se vuelve a juntar colchón** antes de seguir: si se
+      // siguiera dando trozo a trozo, el resto de la respuesta sonaría igual de
+      // entrecortada que lo que acabó de sonar.
+      _sonando = false;
+      alVaciarse?.call();
     });
   }
 
   @override
   Future<void> encolar(Uint8List pcm) async {
     await preparar();
+
+    // Ya sonando: lo que llega va directo, que el colchón ya está puesto.
+    if (_sonando) return _dar(pcm);
+
+    _esperando.add(pcm);
+    _bytesEsperando += pcm.lengthInBytes;
+    if (_bytesEsperando < _bytesDelColchon) return;
+
+    _sonando = true;
+    for (final trozo in _esperando) {
+      await _dar(trozo);
+    }
+    _esperando.clear();
+    _bytesEsperando = 0;
+  }
+
+  Future<void> _dar(Uint8List pcm) async {
     // Las muestras vienen como bytes del canal y el paquete las quiere como enteros de
     // 16 bits. Es la misma memoria vista de otra forma, no una conversión: copiarla
     // sería pagar por cada trozo de una respuesta entera.
@@ -69,6 +113,9 @@ class AltavozDelMovil implements Altavoz {
 
   @override
   Future<void> tirar() async {
+    _esperando.clear();
+    _bytesEsperando = 0;
+    _sonando = false;
     if (!_preparado) return;
     // El paquete no tiene «vaciar la cola», así que se suelta y se vuelve a preparar en
     // el siguiente trozo. Es brusco, y es exactamente lo que se quiere: interrumpir es
@@ -79,6 +126,9 @@ class AltavozDelMovil implements Altavoz {
 
   @override
   Future<void> soltar() async {
+    _esperando.clear();
+    _bytesEsperando = 0;
+    _sonando = false;
     FlutterPcmSound.setFeedCallback(null);
     if (!_preparado) return;
     _preparado = false;

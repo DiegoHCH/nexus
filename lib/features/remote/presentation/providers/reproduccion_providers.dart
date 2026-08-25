@@ -34,6 +34,11 @@ class ReproduccionController extends Notifier<Reproduccion> {
   StreamSubscription<Uint8List>? _deAudio;
   StreamSubscription<void>? _deDescartes;
 
+  /// Lo que se espera con la cola vacía antes de dar la respuesta por terminada.
+  static const _huecoQueYaEsFinal = Duration(milliseconds: 700);
+
+  Timer? _esperandoElFinal;
+
   /// La conversación cuya respuesta está sonando. Hace falta para poder decir que
   /// terminó: el aviso viaja por el canal y el canal pregunta de cuál.
   String? _deQuien;
@@ -43,13 +48,25 @@ class ReproduccionController extends Notifier<Reproduccion> {
     final enlace = ref.watch(channelLinkProvider);
     final altavoz = ref.watch(altavozProvider);
 
+    // **Vaciarse no es haber terminado.**
+    //
+    // El servicio entrega la respuesta más rápido que en tiempo real, así que el audio
+    // llega a rachas y la cola se queda a cero entre racha y racha. Avisando en cada
+    // cero se decía «terminé» ocho veces por respuesta —medido—, el Mac dejaba de
+    // esperar y cerraba la sesión por inactividad: **la respuesta se cortaba a mitad**.
+    //
+    // Terminar es quedarse a cero **y que no llegue nada más**. La espera es corta
+    // porque los huecos dentro de una respuesta lo son —la cola se vacía porque suena
+    // más rápido de lo que llega, no porque el servicio se haya callado— y pasarse solo
+    // cuesta que la sesión viva un momento más de la cuenta.
     altavoz.alVaciarse = () {
-      // **Quien reproduce dice cuándo terminó.** Sin esto el Mac tendría que adivinarlo
-      // por bytes y ritmo, que es adivinar el jitter de la red — y de menos corta la
-      // última palabra.
       if (state != Reproduccion.sonando) return;
-      state = Reproduccion.callada;
-      _avisar(RemoteMethod.playbackFinished);
+      _esperandoElFinal?.cancel();
+      _esperandoElFinal = Timer(_huecoQueYaEsFinal, () {
+        if (state != Reproduccion.sonando) return;
+        state = Reproduccion.callada;
+        _avisar(RemoteMethod.playbackFinished);
+      });
     };
 
     _deAudio = enlace.audio.listen((pcm) {
@@ -57,17 +74,23 @@ class ReproduccionController extends Notifier<Reproduccion> {
       // sonar. El Mac deja de mandarlos en cuanto le llega el aviso, pero los que ya
       // venían en vuelo no se pueden desandar.
       if (state == Reproduccion.silenciada) return;
+      // Llegó más: lo de antes no era el final.
+      _esperandoElFinal?.cancel();
+      _esperandoElFinal = null;
       state = Reproduccion.sonando;
       unawaited(altavoz.encolar(pcm));
     });
 
     // El Mac interrumpe: alguien habló encima, o se calló la respuesta desde aquí.
     _deDescartes = enlace.descartar.listen((_) {
+      _esperandoElFinal?.cancel();
+      _esperandoElFinal = null;
       unawaited(altavoz.tirar());
       if (state == Reproduccion.sonando) state = Reproduccion.callada;
     });
 
     ref.onDispose(() {
+      _esperandoElFinal?.cancel();
       altavoz.alVaciarse = null;
       _deAudio?.cancel();
       _deDescartes?.cancel();
@@ -90,6 +113,8 @@ class ReproduccionController extends Notifier<Reproduccion> {
   Future<void> callar() async {
     if (state == Reproduccion.silenciada) return;
     state = Reproduccion.silenciada;
+    _esperandoElFinal?.cancel();
+    _esperandoElFinal = null;
     await ref.read(altavozProvider).tirar();
     await _avisar(RemoteMethod.silenceReply);
   }

@@ -19,6 +19,43 @@ import 'package:nexus/features/remote/domain/remote_voice_source.dart';
 /// sistema operativo del telefono— sino las tres decisiones que se tomaron alrededor,
 /// porque las tres salieron de problemas reales y las tres se pueden romper en silencio.
 void main() {
+  test('vaciarse no es haber terminado', () async {
+    // El servicio entrega la respuesta mas rapido que en tiempo real, asi que el audio
+    // llega a rachas y la cola se queda a cero entre racha y racha. Avisando en cada
+    // cero se decia «termine» **ocho veces por respuesta** —medido— el Mac dejaba de
+    // esperar y cerraba por inactividad: la respuesta se cortaba a mitad.
+    final altavoz = _AltavozFalso();
+    final enlace = _EnlaceQueBaja();
+    final c = ProviderContainer(
+      overrides: [
+        altavozProvider.overrideWithValue(altavoz),
+        channelLinkProvider.overrideWithValue(enlace),
+      ],
+    );
+    addTearDown(c.dispose);
+    c.read(reproduccionProvider.notifier).mirando('a');
+
+    enlace.baja(Uint8List(4800));
+    await Future<void>.delayed(Duration.zero);
+
+    // Se vacia, y **enseguida llega mas**: eso era un hueco, no el final.
+    altavoz.seVacia();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    enlace.baja(Uint8List(4800));
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+
+    expect(
+      enlace.pedidos.where((p) => p == 'playbackFinished'),
+      isEmpty,
+      reason: 'dijo que termino en un hueco de la respuesta',
+    );
+
+    // Y ahora si: se vacia y no llega nada mas.
+    altavoz.seVacia();
+    await Future<void>.delayed(const Duration(milliseconds: 900));
+    expect(enlace.pedidos.where((p) => p == 'playbackFinished'), hasLength(1));
+  });
+
   Uint8List pcm(int bytes) => Uint8List(bytes);
 
   group('el altavoz del telefono', () {
@@ -213,8 +250,12 @@ void main() {
 
       // **Quien reproduce dice cuando termino.** Es el aviso que le permite al Mac
       // cerrar la sesion sin cortar la ultima palabra.
+      //
+      // Y se espera: vaciarse no es haber terminado, porque el audio llega a rachas y
+      // la cola se queda a cero entre racha y racha. El aviso sale cuando el hueco dura
+      // lo suficiente para no ser un hueco.
       altavoz.seVacia();
-      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(const Duration(milliseconds: 900));
       expect(c.read(reproduccionProvider), Reproduccion.callada);
       expect(enlace.pedidos, contains('playbackFinished'));
     });
