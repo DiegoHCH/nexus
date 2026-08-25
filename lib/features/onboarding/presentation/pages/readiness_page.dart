@@ -157,10 +157,7 @@ class _Missing extends StatelessWidget {
             ],
           ),
           const SizedBox(height: NexusSpacing.s3),
-          Text(
-            fix,
-            style: NexusTypography.body.copyWith(color: colors.mute),
-          ),
+          Text(fix, style: NexusTypography.body.copyWith(color: colors.mute)),
           if (label != null) ...[
             const SizedBox(height: NexusSpacing.s4),
             _Action(label: label, color: colors.accent, onTap: onLink),
@@ -192,10 +189,7 @@ class _Action extends StatelessWidget {
           border: Border.all(color: color),
           borderRadius: BorderRadius.circular(NexusRadius.sm),
         ),
-        child: Text(
-          label,
-          style: NexusTypography.label.copyWith(color: color),
-        ),
+        child: Text(label, style: NexusTypography.label.copyWith(color: color)),
       ),
     );
   }

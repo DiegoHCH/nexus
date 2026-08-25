@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
+
 /// Ayuda: la guía en frío, el tour otra vez, y la versión con su actualización.
 
 /// Ayuda: por ahora, volver a ver el tour.
@@ -94,8 +95,7 @@ class _VersionRow extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final aviso = ref.watch(updatesControllerProvider).notice;
-    final actual =
-        aviso?.current ?? ref.watch(currentVersionProvider).value;
+    final actual = aviso?.current ?? ref.watch(currentVersionProvider).value;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -121,7 +121,9 @@ class _VersionRow extends ConsumerWidget {
           // mismo —preguntar— y el aviso sale arriba a la derecha por su cuenta,
           // incluso estando en esta pantalla.
           child: OutlinedButton(
-            onPressed: ref.read(updatesControllerProvider.notifier).comprobarAhora,
+            onPressed: ref
+                .read(updatesControllerProvider.notifier)
+                .comprobarAhora,
             child: Text(
               aviso != null && aviso.isNewer
                   ? strings.updateAvailable(aviso.latest ?? '')
@@ -154,10 +156,7 @@ class _GuideBlock extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            title,
-            style: NexusTypography.lead.copyWith(color: colors.ink),
-          ),
+          Text(title, style: NexusTypography.lead.copyWith(color: colors.ink)),
           const SizedBox(height: NexusSpacing.s4),
           for (final parrafo in body.split('\n\n'))
             Padding(

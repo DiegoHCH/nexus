@@ -117,30 +117,30 @@ class _TourOverlayState extends ConsumerState<TourOverlay> {
 
     return Stack(
       children: [
-          // El velo se traga los toques: durante el tour, tocar el orbe abriría
-          // una sesión de voz por detrás de la explicación.
-          Positioned.fill(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () {},
-              child: CustomPaint(
-                painter: _Spotlight(
-                  hole: hole,
-                  scrim: colors.scrim,
-                  ring: colors.accent,
-                ),
+        // El velo se traga los toques: durante el tour, tocar el orbe abriría
+        // una sesión de voz por detrás de la explicación.
+        Positioned.fill(
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: () {},
+            child: CustomPaint(
+              painter: _Spotlight(
+                hole: hole,
+                scrim: colors.scrim,
+                ring: colors.accent,
               ),
             ),
           ),
-          _Card(
-            hole: hole,
-            title: titulo,
-            body: cuerpo,
-            step: strings.tourStep(tour.index, tour.total),
-            isLast: tour.pending.isEmpty,
-            onNext: () => ref.read(tourControllerProvider.notifier).next(),
-            onSkip: () => ref.read(tourControllerProvider.notifier).skip(),
-          ),
+        ),
+        _Card(
+          hole: hole,
+          title: titulo,
+          body: cuerpo,
+          step: strings.tourStep(tour.index, tour.total),
+          isLast: tour.pending.isEmpty,
+          onNext: () => ref.read(tourControllerProvider.notifier).next(),
+          onSkip: () => ref.read(tourControllerProvider.notifier).skip(),
+        ),
       ],
     );
   }
@@ -285,77 +285,79 @@ class _Card extends StatelessWidget {
         constraints: BoxConstraints(maxHeight: maxAlto),
         child: Container(
           key: cardKey,
-        padding: const EdgeInsets.all(NexusSpacing.s5),
-        decoration: BoxDecoration(
-          color: colors.deep,
-          border: Border.all(color: colors.accent),
-          borderRadius: BorderRadius.circular(NexusRadius.md),
-        ),
-        child: Column(
-          // La tarjeta se calza a su texto.
-          //
-          // Sin esto la columna ocupa **todo** el alto que le deja el tope, y el
-          // `Flexible` del cuerpo lo rellena: salían cuadros de casi 800 px con el
-          // texto arriba y el resto vacío, cruzando la pantalla por el medio. Con
-          // `min`, el `Flexible` solo sirve para lo que se puso — encogerse si no
-          // cabe — y no para estirar.
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              step,
-              style: NexusTypography.label.copyWith(color: colors.faint),
-            ),
-            const SizedBox(height: NexusSpacing.s3),
-            Text(
-              title,
-              style: NexusTypography.lead.copyWith(color: colors.ink),
-            ),
-            const SizedBox(height: NexusSpacing.s3),
-            Flexible(
-              child: SingleChildScrollView(
-                child: Text(
-                  body,
-                  style: NexusTypography.body.copyWith(color: colors.mute),
+          padding: const EdgeInsets.all(NexusSpacing.s5),
+          decoration: BoxDecoration(
+            color: colors.deep,
+            border: Border.all(color: colors.accent),
+            borderRadius: BorderRadius.circular(NexusRadius.md),
+          ),
+          child: Column(
+            // La tarjeta se calza a su texto.
+            //
+            // Sin esto la columna ocupa **todo** el alto que le deja el tope, y el
+            // `Flexible` del cuerpo lo rellena: salían cuadros de casi 800 px con el
+            // texto arriba y el resto vacío, cruzando la pantalla por el medio. Con
+            // `min`, el `Flexible` solo sirve para lo que se puso — encogerse si no
+            // cabe — y no para estirar.
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                step,
+                style: NexusTypography.label.copyWith(color: colors.faint),
+              ),
+              const SizedBox(height: NexusSpacing.s3),
+              Text(
+                title,
+                style: NexusTypography.lead.copyWith(color: colors.ink),
+              ),
+              const SizedBox(height: NexusSpacing.s3),
+              Flexible(
+                child: SingleChildScrollView(
+                  child: Text(
+                    body,
+                    style: NexusTypography.body.copyWith(color: colors.mute),
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: NexusSpacing.s5),
-            // `Expanded` en el de saltar y no `spaceBetween` a secas: con los dos
-            // a su tamaño natural la fila **desbordaba 48 px**, y en inglés o con
-            // una tipografía más ancha volvería a pasar. Así el que cede es el
-            // secundario, que es el que puede ceder.
-            Row(
-              children: [
-                Expanded(
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    // Saltar está siempre, y no escondido: un tour del que no se
-                    // puede salir es un peaje.
-                    child: TextButton(
-                      onPressed: onSkip,
-                      child: Text(
-                        context.strings.tourSkip,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: NexusTypography.label.copyWith(
-                          color: colors.faint,
+              const SizedBox(height: NexusSpacing.s5),
+              // `Expanded` en el de saltar y no `spaceBetween` a secas: con los dos
+              // a su tamaño natural la fila **desbordaba 48 px**, y en inglés o con
+              // una tipografía más ancha volvería a pasar. Así el que cede es el
+              // secundario, que es el que puede ceder.
+              Row(
+                children: [
+                  Expanded(
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      // Saltar está siempre, y no escondido: un tour del que no se
+                      // puede salir es un peaje.
+                      child: TextButton(
+                        onPressed: onSkip,
+                        child: Text(
+                          context.strings.tourSkip,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexusTypography.label.copyWith(
+                            color: colors.faint,
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(width: NexusSpacing.s3),
-                FilledButton(
-                  onPressed: onNext,
-                  child: Text(
-                    isLast ? context.strings.tourDone : context.strings.tourNext,
-                    maxLines: 1,
+                  const SizedBox(width: NexusSpacing.s3),
+                  FilledButton(
+                    onPressed: onNext,
+                    child: Text(
+                      isLast
+                          ? context.strings.tourDone
+                          : context.strings.tourNext,
+                      maxLines: 1,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
           ),
         ),
       ),

@@ -45,10 +45,7 @@ class ReleaseCheck {
     // Se tira la `v` de la etiqueta y cualquier sufijo: `v0.2.0-beta.1` → 0,2,0.
     final limpio = version.trim().replaceFirst(RegExp(r'^[vV]'), '');
     final numeros = limpio.split(RegExp(r'[-+]')).first;
-    return numeros
-        .split('.')
-        .map((tramo) => int.tryParse(tramo) ?? 0)
-        .toList();
+    return numeros.split('.').map((tramo) => int.tryParse(tramo) ?? 0).toList();
   }
 
   static int _en(List<int> tramos, int i) => i < tramos.length ? tramos[i] : 0;

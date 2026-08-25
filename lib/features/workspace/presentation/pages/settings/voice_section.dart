@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/microphone_tester.dart';
+
 /// La sección de Voz de Ajustes.
 ///
 /// Vive en su propio archivo desde que `settings_page.dart` pasó de las 1.400

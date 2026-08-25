@@ -184,7 +184,8 @@ class _Cuerpo extends ConsumerWidget {
         // Se anuncia, pero no se ofrece lo que no se puede cumplir: desde una
         // copia traslocada no hay nada que reemplazar.
         final UpdateFound encontrada
-            when !(ref.watch(installabilityProvider).value ?? Installability.unknown)
+            when !(ref.watch(installabilityProvider).value ??
+                    Installability.unknown)
                 .canInstall =>
           [
             titulo(strings.updateMoveTitle),
@@ -197,7 +198,8 @@ class _Cuerpo extends ConsumerWidget {
           _Salto(desde: corriendo ?? '—', hasta: encontrada.version),
           if (encontrada.notes case final texto? when texto.trim().isNotEmpty)
             _Notas(texto),
-          if (encontrada.bytes case final peso? when !encontrada.alreadyDownloaded)
+          if (encontrada.bytes case final peso?
+              when !encontrada.alreadyDownloaded)
             linea(strings.updateWeight(_enMegas(peso))),
           _Acciones(
             secundaria: (strings.updateLater, control.descartar),
@@ -256,7 +258,9 @@ class _Cuerpo extends ConsumerWidget {
 
         final UpdateFailed fallo => [
           titulo(strings.updateFailedTitle),
-          linea(fallo.message.isEmpty ? strings.updateFailedBody : fallo.message),
+          linea(
+            fallo.message.isEmpty ? strings.updateFailedBody : fallo.message,
+          ),
           _Acciones(principal: (strings.updateRetry, control.comprobarAhora)),
         ],
       },
@@ -281,12 +285,18 @@ class _Salto extends StatelessWidget {
       padding: const EdgeInsets.only(top: NexusSpacing.s2),
       child: Row(
         children: [
-          Text(desde, style: NexusTypography.data.copyWith(color: colors.faint)),
+          Text(
+            desde,
+            style: NexusTypography.data.copyWith(color: colors.faint),
+          ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s2),
             child: Icon(Icons.arrow_forward, size: 12, color: colors.faint),
           ),
-          Text(hasta, style: NexusTypography.data.copyWith(color: colors.accent)),
+          Text(
+            hasta,
+            style: NexusTypography.data.copyWith(color: colors.accent),
+          ),
         ],
       ),
     );

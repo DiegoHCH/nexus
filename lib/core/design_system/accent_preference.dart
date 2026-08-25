@@ -86,8 +86,9 @@ class Accent {
 
   /// Luminancia relativa de WCAG 2.1.
   static double luminance(Color c) {
-    double canal(double v) =>
-        v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+    double canal(double v) => v <= 0.03928
+        ? v / 12.92
+        : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
     return 0.2126 * canal(c.r) + 0.7152 * canal(c.g) + 0.0722 * canal(c.b);
   }
 

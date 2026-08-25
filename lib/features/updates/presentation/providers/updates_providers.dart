@@ -181,7 +181,9 @@ class UpdatesController extends Notifier<UpdatesState> {
 
       case 'extracting':
         state = state.copyWith(
-          stage: UpdateExtracting(progress: evento.get<double>('progress') ?? 0),
+          stage: UpdateExtracting(
+            progress: evento.get<double>('progress') ?? 0,
+          ),
         );
 
       case 'ready':

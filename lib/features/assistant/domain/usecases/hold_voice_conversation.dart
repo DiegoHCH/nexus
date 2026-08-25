@@ -565,6 +565,20 @@ class HoldVoiceConversation {
               );
             }
           },
+          // **El micrófono se cerró: hay que decírselo al servicio.**
+          //
+          // El detector de turno es automático y mira el audio: espera ver silencio
+          // para decidir que terminaste de hablar. El micrófono del Mac se lo da
+          // siempre —sigue mandando aunque calles, así que el silencio viaja— pero el
+          // del teléfono **deja de mandar de golpe** cuando se cierra. Cerrando pronto,
+          // el servicio se quedaba esperando un silencio que ya no iba a llegar y la
+          // sesión moría por inactividad con cero turnos.
+          //
+          // Por eso el mismo montaje funcionaba dejando el micrófono abierto: con audio
+          // fluyendo, las pausas entre palabras son el silencio que el detector
+          // necesita. El fallo no estaba en la voz remota sino en **cerrar pronto**, y
+          // ahí el gesto nuevo —un toque abre, otro cierra— lo destapó.
+          onDone: () => session?.endAudio(),
           onError: (Object error) =>
               controller.add(VoiceSessionFailed('$error')),
         );

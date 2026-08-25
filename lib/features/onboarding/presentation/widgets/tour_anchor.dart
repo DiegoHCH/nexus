@@ -16,8 +16,6 @@ class TourAnchor extends ConsumerWidget {
   final Widget child;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) => KeyedSubtree(
-    key: ref.watch(tourAnchorsProvider)[stop],
-    child: child,
-  );
+  Widget build(BuildContext context, WidgetRef ref) =>
+      KeyedSubtree(key: ref.watch(tourAnchorsProvider)[stop], child: child);
 }

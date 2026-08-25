@@ -211,9 +211,7 @@ class _SkillsPanelState extends ConsumerState<SkillsPanel> {
                 Padding(
                   padding: const EdgeInsets.only(top: NexusSpacing.s2),
                   child: Text(
-                    strings.skillsMore(
-                      _filtrar(value.skills).length - _shown,
-                    ),
+                    strings.skillsMore(_filtrar(value.skills).length - _shown),
                     style: NexusTypography.mono.copyWith(color: colors.faint),
                   ),
                 ),

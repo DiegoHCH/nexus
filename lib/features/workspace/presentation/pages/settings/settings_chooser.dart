@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+
 /// El selector de opciones excluyentes de Ajustes.
 ///
 /// Aparte porque lo comparten tres secciones —tema, idioma y voz— y era la única

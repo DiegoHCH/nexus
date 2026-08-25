@@ -14,6 +14,7 @@ import 'package:nexus/features/remote/presentation/widgets/mobile_chrome.dart';
 import 'package:nexus/features/remote/presentation/widgets/mobile_state_page.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/remote/presentation/providers/voz_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/reproduccion_providers.dart';
 
 /// Una conversación: lo que está haciendo, lo que respondió, y el compositor.
 class ConversationPage extends ConsumerStatefulWidget {
@@ -49,6 +50,12 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
       // conversaciones para leer el de una.
       await notifier.masHistorial(widget.conversationId);
     });
+
+    // **Leerlo es lo que lo enciende.** El reproductor escucha el canal desde que se
+    // construye, y sin nadie que lo lea no se construye nunca: la respuesta bajaría por
+    // el socket y no la recogería nadie. Y se le dice qué conversación se mira, porque
+    // el aviso de «ya terminó» viaja por el canal y el canal pregunta de cuál.
+    ref.read(reproduccionProvider.notifier).mirando(widget.conversationId);
 
     // **Cuando el Mac da por terminada la voz, aquí se cierra el micrófono.**
     //
