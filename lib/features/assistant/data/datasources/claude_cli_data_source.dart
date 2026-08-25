@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 import 'package:nexus/core/platform/claude_environment.dart';
 
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
@@ -93,6 +95,21 @@ class ClaudeCliDataSource {
       environment: ClaudeEnvironment.forProfile(configDir),
       includeParentEnvironment: false,
     );
+    // **Qué manos lleva este encargo, dicho una vez.**
+    //
+    // Se anota porque su ausencia costó una tarde: «no puedo consultar tu calendario»
+    // con el conector conectado y sano no se parece a un problema de permisos, y desde
+    // fuera no había forma de ver que el CLI arrancaba sin autorizar ninguna
+    // herramienta. Una línea por encargo, no por herramienta: es una decisión y no un
+    // caudal.
+    debugPrint(
+      'claude · perfil ${configDir ?? 'el de siempre'} · '
+      '${herramientasMcp.length} servidores MCP permitidos'
+      '${disallowedTools.isEmpty ? '' : ' · ${disallowedTools.length} herramientas negadas'}'
+      '${model == null ? '' : ' · $model'}'
+      '${effort == null ? '' : ' · esfuerzo $effort'}',
+    );
+
     // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
     // arrancar — nadie le va a escribir nada, así que se lo avisamos ya.
     unawaited(process.stdin.close());
