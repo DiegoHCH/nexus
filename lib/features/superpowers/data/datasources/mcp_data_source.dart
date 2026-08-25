@@ -79,6 +79,36 @@ class McpDataSource {
     return _run(configDir, args);
   }
 
+  /// El mismo servidor en **varias cuentas de una vez**.
+  ///
+  /// Por lo mismo que las skills: un servidor puesto en un solo perfil no existe para
+  /// las carpetas del otro, y el encargo corre con el perfil de su carpeta. La
+  /// diferencia es que aquí el síntoma es peor de leer — «no puedo consultar tu
+  /// calendario» no se parece a un problema de cuentas.
+  ///
+  /// Los errores van por cuenta: el CLI dice cosas accionables —«ya existe uno con ese
+  /// nombre»— y da información que puesta en montón se pierde.
+  Future<Map<String, String>> addEn(
+    List<String> configDirs, {
+    required String name,
+    String? url,
+    List<String> command = const [],
+    List<String> env = const [],
+  }) async {
+    final fallos = <String, String>{};
+    for (final configDir in configDirs) {
+      final error = await add(
+        configDir,
+        name: name,
+        url: url,
+        command: command,
+        env: env,
+      );
+      if (error != null) fallos[configDir] = error;
+    }
+    return fallos;
+  }
+
   Future<String?> remove(String configDir, String name) =>
       _run(configDir, McpCommand.remove(name));
 

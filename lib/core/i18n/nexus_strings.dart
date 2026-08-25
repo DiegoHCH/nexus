@@ -112,6 +112,15 @@ abstract class NexusStrings {
 
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
+
+  /// Instalar en todas las cuentas de golpe.
+  ///
+  /// Existe porque lo instalado en una cuenta es **invisible** para las carpetas de
+  /// otra, y el síntoma no menciona cuentas: «en esta carpeta funciona y en esta no».
+  String get superpowersEverywhere;
+
+  /// Y el aviso que lo explica sin tener que descubrirlo.
+  String get superpowersOnlyHere;
   String get superpowersSkills;
   String get skillsExplainer;
   String get skillsInstalled;
@@ -619,6 +628,14 @@ class NexusStringsEs extends NexusStrings {
   String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
   @override
   String get superpowersMcp => 'Servidores MCP';
+
+  @override
+  String get superpowersEverywhere => 'En todas las cuentas';
+
+  @override
+  String get superpowersOnlyHere =>
+      'Lo que instales aquí solo lo verán las carpetas de esta cuenta — también sus '
+      'encargos, que corren con la cuenta de su carpeta.';
   @override
   String get superpowersSkills => 'Skills';
   @override
@@ -1562,6 +1579,14 @@ class NexusStringsEn extends NexusStrings {
   String get mcpCheckFailed => 'The CLI could not produce the list.';
   @override
   String get superpowersMcp => 'MCP servers';
+
+  @override
+  String get superpowersEverywhere => 'In every account';
+
+  @override
+  String get superpowersOnlyHere =>
+      'What you install here is only visible to this account\'s folders — including '
+      'their errands, which run with their folder\'s account.';
   @override
   String get superpowersSkills => 'Skills';
   @override
