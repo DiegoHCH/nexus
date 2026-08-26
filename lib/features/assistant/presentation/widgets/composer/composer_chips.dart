@@ -332,7 +332,13 @@ class _PlanChipState extends State<_PlanChip> {
       child: GestureDetector(
         onTap: () => FirmarPlanSheet.open(context, widget.donde),
         child: _Chip(
-          icon: vigente ? Icons.assignment_turned_in_outlined : Icons.gavel,
+          // Un icono distinto del martillo de Ajustes **a propósito**: allí el martillo
+          // dice «esta carpeta exige plan» y aquí se dice «falta firmarlo». Con el mismo
+          // en los dos sitios, tener el martillo encendido se leía como estar firmado —
+          // pasó en la primera prueba con alguien delante.
+          icon: vigente
+              ? Icons.assignment_turned_in_outlined
+              : Icons.assignment_late_outlined,
           label: vigente
               ? strings.planValidFor((resta?.inMinutes ?? 0) + 1)
               : strings.planUnsigned,

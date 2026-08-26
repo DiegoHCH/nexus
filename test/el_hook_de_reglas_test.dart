@@ -15,10 +15,14 @@ import 'package:flutter_test/flutter_test.dart';
 /// que revienta y bloquea la edición sería peor que no tener hook.
 void main() {
   late Directory repo;
+  late Directory cuenta;
   final hook = File('tool/hooks/inyectar_reglas.py').absolute.path;
 
   setUp(() {
     repo = Directory.systemTemp.createTempSync('proyecto');
+    // Una cuenta de mentira por prueba. Sin ella el hook hereda el `CLAUDE_CONFIG_DIR` de
+    // quien corre las pruebas y le ensucia su registro de verdad con rutas temporales.
+    cuenta = Directory.systemTemp.createTempSync('cuenta');
     File('${repo.path}/reglas/dominio.md')
       ..createSync(recursive: true)
       ..writeAsStringSync('el dominio no conoce la base de datos');
@@ -27,16 +31,26 @@ void main() {
       ..writeAsStringSync('nada de reglas de negocio en el widget');
   });
 
-  tearDown(() => repo.deleteSync(recursive: true));
+  tearDown(() {
+    repo.deleteSync(recursive: true);
+    cuenta.deleteSync(recursive: true);
+  });
 
   void declarar(String contenido) =>
       File('${repo.path}/.nexus-reglas').writeAsStringSync(contenido);
 
   /// Lo que el hook le pone delante al modelo, o `null` si no dijo nada.
   Future<String?> conEntrada(Object payload) async {
-    final proceso = await Process.start('python3', [
-      hook,
-    ], workingDirectory: repo.path);
+    // **Cada lanzamiento con su propia cuenta.** El hook deja constancia de lo que
+    // inyecta en `CLAUDE_CONFIG_DIR`, así que sin fijarlo aquí hereda el de quien corre
+    // las pruebas y las escribe en su registro de verdad — con rutas de carpetas
+    // temporales que no significan nada. Pasó: seis líneas en el `~/.claude-work` real.
+    final proceso = await Process.start(
+      'python3',
+      [hook],
+      workingDirectory: repo.path,
+      environment: {'CLAUDE_CONFIG_DIR': cuenta.path},
+    );
     proceso.stdin.write(jsonEncode(payload));
     await proceso.stdin.close();
     final texto = await proceso.stdout.transform(utf8.decoder).join();
@@ -109,9 +123,12 @@ void main() {
   group('no puede impedir editar', () {
     test('con basura por la entrada', () async {
       declarar('**/domain/** -> reglas/dominio.md');
-      final proceso = await Process.start('python3', [
-        hook,
-      ], workingDirectory: repo.path);
+      final proceso = await Process.start(
+        'python3',
+        [hook],
+        workingDirectory: repo.path,
+        environment: {'CLAUDE_CONFIG_DIR': cuenta.path},
+      );
       proceso.stdin.write('esto no es json');
       await proceso.stdin.close();
       expect(await proceso.exitCode, 0, reason: 'un hook que falla bloquearía');

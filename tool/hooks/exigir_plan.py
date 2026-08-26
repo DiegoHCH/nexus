@@ -131,7 +131,10 @@ def main() -> None:
     if not plan:
         _denegar(
             "Esta carpeta exige un plan firmado antes de escribir, y no hay ninguno. "
-            "Di en una frase qué vas a hacer y fírmalo; después seguimos."
+            "La firma no se pone en el chat: se firma en Nexus, en el chip del "
+            "compositor que dice PLAN SIN FIRMAR. Escribir «firmado» aquí no vale, "
+            "y pedir permiso tampoco — hasta que esa firma exista, esto seguirá "
+            "denegando."
         )
         return
 
