@@ -32,6 +32,18 @@ class DecisionDeRecarga {
 /// siempre, porque casi todo archivo Dart declara clases.
 ///
 /// Los patrones vienen medidos de `la-oficina`, que ya pagó este aprendizaje.
+///
+/// **Un límite conocido: de un archivo nuevo solo se ve la ruta.** Comprobado
+/// contra un repo de verdad — un `lib/nuevo.dart` recién creado deja el diff
+/// vacío, porque para git todavía no existe, y llega aquí como ruta suelta. Así
+/// que un enum o un provider dentro de un archivo nuevo no se leen y la decisión
+/// sale «recargar».
+///
+/// Se deja así a propósito y no se leen los archivos nuevos del disco: código que
+/// nadie importa todavía no afecta a la app que corre, y si el mismo encargo lo
+/// engancha, ese enganche sí aparece en el diff del archivo que ya existía. Lo que
+/// sí funciona por ruta es lo nativo: un `android/algo.gradle` nuevo fuerza
+/// recompilar igual, también comprobado.
 abstract final class QueHacerConElCambio {
   /// Lo que no se puede recargar de ninguna manera: si se toca, hay que
   /// recompilar. Nativo, `pubspec.yaml` y los archivos de las plataformas.
