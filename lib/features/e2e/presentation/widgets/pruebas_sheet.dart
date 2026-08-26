@@ -1,10 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
-import 'package:nexus/features/e2e/presentation/widgets/prueba_en_marcha_page.dart';
+import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
@@ -81,14 +83,20 @@ class PruebasSheet extends ConsumerWidget {
   }
 }
 
-/// Que hay una corriendo, y por dónde va. La vista está en otra pantalla.
-class _AvisoDeQueCorre extends StatelessWidget {
+/// Que hay una corriendo, y por dónde va.
+///
+/// **La vista de verdad está en una ventana del sistema aparte**, no en una
+/// pantalla encima de esta: una pantalla encima impide seguir trabajando, que es
+/// justo lo que se reportó. Se hace reusando el visor de documentos —una
+/// `NSWindow` con `WKWebView` que vigila su archivo— así que se actualiza sola,
+/// se puede dejar al lado y se cierra cuando estorbe.
+class _AvisoDeQueCorre extends ConsumerWidget {
   const _AvisoDeQueCorre({required this.prueba});
 
   final PruebaEnMarcha prueba;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
 
@@ -128,7 +136,7 @@ class _AvisoDeQueCorre extends StatelessWidget {
           ),
           TextButton(
             style: _apretado,
-            onPressed: () => PruebaEnMarchaPage.abrir(context),
+            onPressed: ref.read(pruebaEnMarchaProvider.notifier).traeLaVentana,
             child: Text(strings.e2eSee),
           ),
         ],
@@ -158,6 +166,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   String? _dispositivo;
   String? _error;
   String? _confirmandoBorrado;
+  var _arrancando = false;
 
   /// Los dispositivos sobre los que se puede correr: **encendidos y nada más**.
   ///
@@ -184,6 +193,36 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     return hay.length == 1 ? hay.single : null;
   }
 
+  /// Arranca un emulador y espera a que exista.
+  ///
+  /// **Maestro no arranca nada**: sin dispositivo encendido, `--device` falla. Y
+  /// arrancarlo es algo que Nexus ya sabe hacer —incluido esperar a que aparezca,
+  /// que el comando vuelve antes que el aparato—, así que en vez de decir «hace
+  /// falta un dispositivo» se ofrece encenderlo.
+  Future<void> _arrancarUno() async {
+    final apagados = ref
+        .read(emuladoresProvider)
+        .value
+        ?.emuladores
+        .where((e) => !e.corriendo)
+        .toList();
+    if (apagados == null || apagados.isEmpty) return;
+
+    setState(() {
+      _arrancando = true;
+      _error = null;
+    });
+    final error = await ref
+        .read(emuladoresDataSourceProvider)
+        .lanzar(apagados.first);
+    ref.invalidate(emuladoresProvider);
+    if (!mounted) return;
+    setState(() {
+      _arrancando = false;
+      _error = error;
+    });
+  }
+
   Future<void> _lanzar(Prueba prueba) async {
     final dispositivos = _dispositivos;
     if (dispositivos.isEmpty) {
@@ -196,6 +235,26 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       return;
     }
     setState(() => _error = null);
+
+    // **Antes de correr: ¿está la app ahí?** Maestro no la instala, y sin ella la
+    // prueba falla en el primer `launchApp` con «Package … is not installed»
+    // **saliendo con código 0** — un fallo disfrazado de éxito. Decirlo antes
+    // cuesta 70 ms y ahorra leer un informe engañoso.
+    //
+    // Solo se para cuando se sabe que **no** está: `null` es «no se pudo
+    // comprobar» —un iPhone, sin adb— y ahí no se bloquea nada.
+    final yaml = await File(prueba.ruta).readAsString().catchError((_) => '');
+    if (PasosDeUnaPrueba.appIdDe(yaml) case final appId?) {
+      final instalada = await ref
+          .read(e2eDataSourceProvider)
+          .estaInstalada(deviceId: donde, appId: appId);
+      if (instalada == false) {
+        if (!mounted) return;
+        setState(() => _error = context.strings.e2eNotInstalled);
+        return;
+      }
+    }
+    if (!mounted) return;
 
     final error = await ref
         .read(pruebaEnMarchaProvider.notifier)
@@ -210,9 +269,8 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       setState(() => _error = error);
       return;
     }
-    // Y se abre su vista: es lo que se va a mirar durante el próximo medio
-    // minuto, y hacerlo buscar el botón después de lanzar sería raro.
-    await PruebaEnMarchaPage.abrir(context);
+    // Su ventana se abre sola al lanzar: es lo que se va a mirar durante el
+    // próximo medio minuto. Y al ser una ventana aparte, la app sigue usable.
   }
 
   Future<void> _borrar(Prueba prueba) async {
@@ -255,6 +313,36 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           )
         else ...[
+          // **Sin nada encendido, se ofrece encenderlo** en vez de decir que
+          // falta. Es lo único que separa «no puedo correr» de «dame 30 s».
+          if (dispositivos.isEmpty)
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+              child: _arrancando
+                  ? Row(
+                      children: [
+                        SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: colors.accent,
+                          ),
+                        ),
+                        const SizedBox(width: NexusSpacing.s3),
+                        Text(
+                          strings.e2eStarting,
+                          style: NexusTypography.mono.copyWith(
+                            color: colors.faint,
+                          ),
+                        ),
+                      ],
+                    )
+                  : OutlinedButton(
+                      onPressed: _arrancarUno,
+                      child: Text(strings.e2eStartDevice),
+                    ),
+            ),
           // El dispositivo, y solo cuando hay más de uno que elegir.
           if (dispositivos.length > 1) ...[
             SelectorCompacto(

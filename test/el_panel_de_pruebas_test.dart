@@ -41,9 +41,25 @@ class _Maquina extends EmuladoresDataSource {
 }
 
 class _Borrados extends E2eDataSource {
-  const _Borrados(this.borrados);
+  const _Borrados(this.borrados, {this.instalada});
 
   final List<String> borrados;
+
+  /// Qué contesta la comprobación de instalación: `null` es «no se pudo saber».
+  final bool? instalada;
+
+  @override
+  Future<bool?> estaInstalada({
+    required String deviceId,
+    required String appId,
+  }) async => instalada;
+
+  @override
+  Future<void> pintaLaCorrida({
+    required String flow,
+    required String html,
+    required bool primeraVez,
+  }) async {}
 
   @override
   Future<String?> borrar(String carpeta) async {
@@ -83,6 +99,7 @@ Future<void> _abrir(
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
   List<String>? borrados,
+  bool? instalada,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -90,8 +107,9 @@ Future<void> _abrir(
         emuladoresDataSourceProvider.overrideWithValue(
           _Maquina(encendidos: encendidos),
         ),
-        if (borrados != null)
-          e2eDataSourceProvider.overrideWithValue(_Borrados(borrados)),
+        e2eDataSourceProvider.overrideWithValue(
+          _Borrados(borrados ?? [], instalada: instalada),
+        ),
         pruebasProvider('/casa/tienda').overrideWith((ref) async => pruebas),
         corridasDePruebaProvider.overrideWith(
           (ref) async => corridas ?? const [],
@@ -307,8 +325,24 @@ void main() {
 
       expect(find.textContaining('login · 1/2'), findsOneWidget);
       expect(find.text(strings.e2eSee), findsOneWidget);
-      // Los pasos ya no se pintan aquí.
+      // Los pasos no se pintan aquí ni en ninguna pantalla de la app: van en una
+      // ventana del sistema aparte, para no impedir seguir trabajando.
       expect(find.text('launchApp'), findsNothing);
+    });
+  });
+
+  group('antes de correr', () {
+    testWidgets('sin nada encendido se ofrece arrancar uno', (tester) async {
+      // **Maestro no arranca nada.** Y encenderlo es algo que Nexus ya sabe hacer,
+      // así que decir «hace falta un dispositivo» era quedarse a medio camino.
+      await _abrir(tester, encendidos: 0);
+
+      expect(find.text(strings.e2eStartDevice), findsOneWidget);
+    });
+
+    testWidgets('con uno encendido no se ofrece', (tester) async {
+      await _abrir(tester);
+      expect(find.text(strings.e2eStartDevice), findsNothing);
     });
   });
 }

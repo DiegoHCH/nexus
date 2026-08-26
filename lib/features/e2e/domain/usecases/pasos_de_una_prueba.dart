@@ -2,6 +2,23 @@
 enum EstadoDePaso { hecho, enCurso, pendiente, fallado }
 
 abstract final class PasosDeUnaPrueba {
+  /// Qué app declara el flow, de su cabecera.
+  ///
+  /// **Hace falta para poder avisar antes de correr.** Maestro no instala nada: si
+  /// la app no está en el dispositivo, falla en el primer `launchApp` con
+  /// «Package … is not installed» **y sale con código 0**, así que ni el código de
+  /// salida lo delata. Comprobado contra el binario.
+  ///
+  /// Va antes del `---`, como el resto de la cabecera.
+  static String? appIdDe(String yaml) {
+    for (final linea in yaml.split('\n')) {
+      if (linea.trim() == '---') return null;
+      final m = RegExp(r'^appId:\s*(.+)$').firstMatch(linea.trim());
+      if (m != null) return m.group(1)!.trim().replaceAll(RegExp('^[\'"]|[\'"]\$'), '');
+    }
+    return null;
+  }
+
   /// Los pasos que declara un flow, leídos de su YAML.
   ///
   /// **Se cuentan las líneas de primer nivel que empiezan por `- ` después del

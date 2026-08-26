@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'package:flutter/services.dart';
+
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
@@ -176,6 +178,93 @@ class E2eDataSource {
     }
   }
 
+  /// ¿Está la app instalada en ese dispositivo?
+  ///
+  /// `null` cuando no se puede saber —un iPhone, o sin `adb`— y entonces **no se
+  /// bloquea nada**: no saber no es lo mismo que saber que no está, y negarse por
+  /// no saber sería peor que dejar fallar a Maestro.
+  ///
+  /// Existe porque Maestro no instala: sin la app, la prueba falla en el primer
+  /// `launchApp` con «Package … is not installed», **saliendo con código 0**. Ese
+  /// aviso llega tarde y encima disfrazado de éxito.
+  Future<bool?> estaInstalada({
+    required String deviceId,
+    required String appId,
+  }) async {
+    // Solo Android: un `emulator-…` o un número de serie. Un UDID de iPhone se
+    // reconoce por sus guiones y por ahí no se puede preguntar con adb.
+    if (deviceId.contains('-') && !deviceId.startsWith('emulator-')) return null;
+
+    final adb = await HerramientaExterna.donde(
+      'adb',
+      candidatos: HerramientaExterna.candidatosDeAdb(
+        Platform.environment['HOME'] ?? '',
+      ),
+    );
+    if (adb == null) return null;
+
+    final salida = await _correr(adb, [
+      '-s',
+      deviceId,
+      'shell',
+      'pm',
+      'list',
+      'packages',
+      appId,
+    ]);
+    if (salida == null) return null;
+    // `pm list packages <filtro>` hace prefijo, así que se compara la línea
+    // entera: `com.app.ci` no puede darse por instalada porque exista
+    // `com.app.ci.debug`.
+    return salida.salida
+        .split('\n')
+        .map((l) => l.trim())
+        .contains('package:$appId');
+  }
+
+  /// Escribe la página de la corrida y **abre su ventana**, o la actualiza.
+  ///
+  /// **Se reusa el visor de documentos y no se escribe una ventana nueva.** Es una
+  /// `NSWindow` con un `WKWebView` que ya vigila el archivo y se recarga cuando
+  /// cambia, así que reescribir aquí en cada paso da exactamente lo que hacía
+  /// falta: una ventana independiente que se actualiza sola, no bloquea la app y
+  /// se puede dejar al lado mientras se trabaja.
+  ///
+  /// La ruta es **estable por corrida**, y eso importa: el visor lleva sus
+  /// ventanas por archivo, así que reescribir la misma ruta actualiza la que ya
+  /// está delante en vez de abrir otra en cada paso.
+  ///
+  /// Estrecha y alta —440 × 900— porque lo que se enseña es una columna de pasos.
+  Future<void> pintaLaCorrida({
+    required String flow,
+    required String html,
+    required bool primeraVez,
+  }) async {
+    final ruta = '${Directory.systemTemp.path}/nexus-prueba-$flow.html';
+    try {
+      File(ruta).writeAsStringSync(html);
+    } on FileSystemException {
+      return;
+    }
+    if (!primeraVez) return;
+
+    try {
+      await _visor.invokeMethod<bool>('open', {
+        'path': ruta,
+        'width': 440.0,
+        'height': 900.0,
+      });
+    } on PlatformException {
+      // Sin canal nativo —en una prueba, o si el visor no está— la corrida sigue
+      // igual: la ventana es una forma de mirarla, no la corrida.
+    } on MissingPluginException {
+      return;
+    }
+  }
+
+  /// El mismo canal que el visor de documentos: es literalmente el mismo visor.
+  static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
+
   /// Borra **la prueba**: su archivo `.yaml` del repo.
   ///
   /// Distinto de [borrar], que se lleva artefactos reproducibles. Esto toca
@@ -209,6 +298,31 @@ class E2eDataSource {
       return total;
     }
     return total;
+  }
+
+  /// Lanzar un binario y quedarse con lo que dijo.
+  ///
+  /// Las dos salidas **separadas**, por lo aprendido con los emuladores: pegar el
+  /// `stderr` detrás del `stdout` rompe cualquier parseo que dependa del formato,
+  /// y ahí se fue un rato con un JSON.
+  Future<({String salida, String error})?> _correr(
+    String binario,
+    List<String> argumentos, {
+    Duration tope = const Duration(seconds: 30),
+  }) async {
+    try {
+      final r = await Process.run(
+        binario,
+        argumentos,
+        environment: ClaudeEnvironment.forTools(),
+        includeParentEnvironment: false,
+      ).timeout(tope);
+      return (salida: '${r.stdout}', error: '${r.stderr}');
+    } on ProcessException {
+      return null;
+    } on Exception {
+      return null;
+    }
   }
 
   // ── Lo de dentro ───────────────────────────────────────────────────────────

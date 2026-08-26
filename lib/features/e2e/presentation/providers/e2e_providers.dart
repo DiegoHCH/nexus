@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -107,6 +108,9 @@ class PruebaEnMarcha {
 class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   Process? _proceso;
 
+  /// Si la ventana de esta corrida ya está abierta.
+  var _ventanaAbierta = false;
+
   @override
   PruebaEnMarcha? build() => null;
 
@@ -129,10 +133,12 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     // El YAML se lee ahora: es lo que se pinta, y leerlo después sería pintar los
     // pasos de una versión que igual ya cambió.
     final yaml = await _leer(prueba.ruta);
+    _ventanaAbierta = false;
     state = PruebaEnMarcha(
       flow: prueba.nombre,
       pasos: PasosDeUnaPrueba.leer(yaml),
     );
+    await _pinta();
 
     final proceso = await ref
         .read(e2eDataSourceProvider)
@@ -178,6 +184,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           viva: false,
           fallo: actual.fallo || codigo != 0,
         );
+        unawaited(_pinta());
         // Y la lista de corridas ya tiene una más.
         ref.invalidate(corridasDePruebaProvider);
       }),
@@ -204,6 +211,37 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       lineas: lineas,
       fallo: avance.fallo,
     );
+    unawaited(_pinta());
+  }
+
+  /// Reescribe la página de la corrida. La ventana se recarga sola al verla
+  /// cambiar, así que esto es todo lo que hace falta para que siga en vivo.
+  Future<void> _pinta() async {
+    final actual = state;
+    if (actual == null) return;
+
+    await ref
+        .read(e2eDataSourceProvider)
+        .pintaLaCorrida(
+          flow: actual.flow,
+          html: LaCorridaComoHtml.escribe(
+            flow: actual.flow,
+            pasos: actual.pasos,
+            estados: actual.estados,
+            lineas: actual.lineas,
+            terminados: actual.terminados,
+            viva: actual.viva,
+            fallo: actual.fallo,
+          ),
+          primeraVez: !_ventanaAbierta,
+        );
+    _ventanaAbierta = true;
+  }
+
+  /// Volver a traer la ventana al frente, para el botón «Ver».
+  Future<void> traeLaVentana() async {
+    _ventanaAbierta = false;
+    await _pinta();
   }
 
   Future<String> _leer(String ruta) async {

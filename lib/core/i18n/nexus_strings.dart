@@ -345,6 +345,9 @@ abstract class NexusStrings {
   String get e2eDeleteTestAsk;
   String get e2eSee;
   String get e2eRunningTitle;
+  String get e2eStartDevice;
+  String get e2eStarting;
+  String get e2eNotInstalled;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1096,6 +1099,15 @@ class NexusStringsEs extends NexusStrings {
   String get e2eSee => 'Ver';
   @override
   String get e2eRunningTitle => 'Corriendo';
+  @override
+  String get e2eStartDevice =>
+      'Arrancar un emulador';
+  @override
+  String get e2eStarting =>
+      'Arrancando el emulador…';
+  @override
+  String get e2eNotInstalled =>
+      'La app no está instalada en ese dispositivo. Maestro no la instala: córrela primero con ▶.';
   @override
   String get runAuto =>
       'Recargar sola al terminar cada encargo';
@@ -2159,6 +2171,15 @@ class NexusStringsEn extends NexusStrings {
   String get e2eSee => 'Open';
   @override
   String get e2eRunningTitle => 'Running';
+  @override
+  String get e2eStartDevice =>
+      "Start an emulator";
+  @override
+  String get e2eStarting =>
+      "Starting the emulator…";
+  @override
+  String get e2eNotInstalled =>
+      "The app is not installed on that device. Maestro will not install it: run it first with ▶.";
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override

@@ -160,4 +160,33 @@ appId: x
       expect(estados.last, EstadoDePaso.pendiente);
     });
   });
+
+  group('qué app declara el flow', () {
+    test('sale de la cabecera', () {
+      // Hace falta para avisar antes de correr: Maestro no instala nada y falla
+      // en el primer `launchApp` **saliendo con código 0**, un fallo disfrazado
+      // de éxito.
+      expect(PasosDeUnaPrueba.appIdDe(flow), 'com.ejemplo.app');
+    });
+
+    test('con comillas también', () {
+      expect(
+        PasosDeUnaPrueba.appIdDe('appId: "com.uno.dos"\n---\n- launchApp'),
+        'com.uno.dos',
+      );
+    });
+
+    test('lo de después del separador no cuenta', () {
+      // Un `appId` dentro de un paso no es la app del flow.
+      expect(
+        PasosDeUnaPrueba.appIdDe('---\n- launchApp:\n    appId: com.otra'),
+        isNull,
+      );
+    });
+
+    test('un flow sin appId no revienta', () {
+      expect(PasosDeUnaPrueba.appIdDe('---\n- launchApp'), isNull);
+      expect(PasosDeUnaPrueba.appIdDe(''), isNull);
+    });
+  });
 }

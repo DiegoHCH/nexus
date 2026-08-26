@@ -31,9 +31,17 @@ final class NexusArtifacts: NSObject {
         result(FlutterMethodNotImplemented)
         return
       }
+      let args = call.arguments as? [String: Any]
       switch call.method {
       case "open":
-        show(path: path)
+        // El tamaño es opcional y por eso llega así: un documento quiere la
+        // ventana grande de siempre, y una prueba corriendo quiere una columna
+        // estrecha y alta que se pueda dejar al lado mientras se trabaja.
+        show(
+          path: path,
+          width: args?["width"] as? Double,
+          height: args?["height"] as? Double
+        )
         result(true)
       case "reveal":
         NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
@@ -45,13 +53,15 @@ final class NexusArtifacts: NSObject {
     log.info("canal de artefactos registrado")
   }
 
-  private static func show(path: String) {
+  private static func show(path: String, width: Double? = nil, height: Double? = nil) {
     if let already = open[path], already.window.isVisible {
       already.window.makeKeyAndOrderFront(nil)
       NSApp.activate(ignoringOtherApps: true)
       return
     }
-    let viewer = Viewer(path: path) { open.removeValue(forKey: path) }
+    let viewer = Viewer(path: path, width: width, height: height) {
+      open.removeValue(forKey: path)
+    }
     open[path] = viewer
     viewer.window.makeKeyAndOrderFront(nil)
     NSApp.activate(ignoringOtherApps: true)
@@ -74,11 +84,20 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   /// recargar.
   private var scrollY: Double = 0
 
-  init(path: String, onClose: @escaping () -> Void) {
+  init(
+    path: String,
+    width: Double? = nil,
+    height: Double? = nil,
+    onClose: @escaping () -> Void
+  ) {
     self.url = URL(fileURLWithPath: path)
     self.onClose = onClose
     window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 1000, height: 780),
+      // Los mil por setecientos ochenta de siempre cuando nadie dice otra cosa:
+      // es la medida de un documento y no hay motivo para cambiarla.
+      contentRect: NSRect(
+        x: 0, y: 0, width: width ?? 1000, height: height ?? 780
+      ),
       styleMask: [.titled, .closable, .miniaturizable, .resizable],
       backing: .buffered,
       defer: false
