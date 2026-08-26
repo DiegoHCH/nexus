@@ -126,6 +126,28 @@ abstract class NexusStrings {
   /// Para qué rama es esta firma. La firma es de la tarea, y una tarea es una rama.
   String planSignBranch(String branch);
 
+  // El gate del repositorio: lo que declara y cómo salió.
+  //
+  // «Verde» es un código de salida y nada más. No hay texto en esta lista que permita
+  // afirmar que pasó: eso sería sustituir una medición por la palabra de alguien.
+  String get gateTitle;
+  String get gateBody;
+  String get gateCommand;
+  String get gateNotRun;
+  String get gateRunning;
+  String get gateGreen;
+  String get gateRed;
+
+  /// Verde, pero sobre un árbol que ya no es este.
+  String get gateStale;
+  String get gateRun;
+  String gateWhen(int minutes);
+  String get chipTestsUnrun;
+  String get chipTestsRunning;
+  String get chipTestsGreen;
+  String get chipTestsRed;
+  String get chipTestsStale;
+
   /// El título de la hoja donde se firma.
   String get planSignTitle;
 
@@ -742,6 +764,41 @@ class NexusStringsEs extends NexusStrings {
       hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
   @override
   String planSignBranch(String branch) => 'Para la rama «$branch»';
+  @override
+  String get gateTitle => 'Las pruebas del repo';
+  @override
+  String get gateBody =>
+      'Lo declara el propio repositorio en un «.nexus-pruebas», y lo único que lo pone '
+      'en verde es el código de salida: aquí no hay forma de afirmar que pasó. Se '
+      'ofrece y no se lanza solo — tarda lo que tarde y se come la máquina.';
+  @override
+  String get gateCommand => 'El comando';
+  @override
+  String get gateNotRun => 'SIN CORRER';
+  @override
+  String get gateRunning => 'CORRIENDO';
+  @override
+  String get gateGreen => 'VERDE';
+  @override
+  String get gateRed => 'ROJO';
+  @override
+  String get gateStale => 'VERDE, PERO EL ÁRBOL CAMBIÓ DESPUÉS';
+  @override
+  String get gateRun => 'Correr';
+  @override
+  String gateWhen(int minutes) => minutes < 60
+      ? 'hace $minutes min'
+      : 'hace ${minutes ~/ 60} h ${minutes % 60} min';
+  @override
+  String get chipTestsUnrun => 'PRUEBAS SIN CORRER';
+  @override
+  String get chipTestsRunning => 'PRUEBAS…';
+  @override
+  String get chipTestsGreen => 'PRUEBAS · VERDE';
+  @override
+  String get chipTestsRed => 'PRUEBAS · ROJO';
+  @override
+  String get chipTestsStale => 'VERDE · CAMBIÓ DESPUÉS';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -1115,7 +1172,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get runTitle => 'Correr la app';
   @override
-  String get runNoConfigs => 'Este proyecto no declara configuraciones en .vscode/launch.json';
+  String get runNoConfigs =>
+      'Este proyecto no declara configuraciones en .vscode/launch.json';
   @override
   String get runChooseDevice => 'Elige un dispositivo';
   @override
@@ -1142,7 +1200,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
   @override
-  String get e2eNoRuns => 'Todavía no hay corridas. Las que lances desde aquí aparecerán con su proyecto.';
+  String get e2eNoRuns =>
+      'Todavía no hay corridas. Las que lances desde aquí aparecerán con su proyecto.';
   @override
   String get e2eRun => 'Correr';
   @override
@@ -1166,23 +1225,21 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eDeleteTest => 'Borrar la prueba';
   @override
-  String get e2eDeleteTestAsk => 'Borra el archivo del repo. Se recupera con git.';
+  String get e2eDeleteTestAsk =>
+      'Borra el archivo del repo. Se recupera con git.';
   @override
   String get e2eSee => 'Ver';
   @override
   String get e2eRunningTitle => 'Corriendo';
   @override
-  String get e2eStartDevice =>
-      'Arrancar un emulador';
+  String get e2eStartDevice => 'Arrancar un emulador';
   @override
-  String get e2eStarting =>
-      'Arrancando el emulador…';
+  String get e2eStarting => 'Arrancando el emulador…';
   @override
   String get e2eNotInstalled =>
       'La app no está instalada en ese dispositivo. Maestro no la instala: córrela primero con ▶.';
   @override
-  String get runAuto =>
-      'Recargar sola al terminar cada encargo';
+  String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -1858,6 +1915,41 @@ class NexusStringsEn extends NexusStrings {
       hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
   @override
   String planSignBranch(String branch) => 'For the «$branch» branch';
+  @override
+  String get gateTitle => "The repo's tests";
+  @override
+  String get gateBody =>
+      'The repository itself declares it in a «.nexus-pruebas», and the only thing that '
+      'turns it green is the exit code: there is no way to assert it passed from here. '
+      'It is offered, never launched on its own — it takes what it takes.';
+  @override
+  String get gateCommand => 'The command';
+  @override
+  String get gateNotRun => 'NOT RUN';
+  @override
+  String get gateRunning => 'RUNNING';
+  @override
+  String get gateGreen => 'GREEN';
+  @override
+  String get gateRed => 'RED';
+  @override
+  String get gateStale => 'GREEN, BUT THE TREE CHANGED AFTERWARDS';
+  @override
+  String get gateRun => 'Run';
+  @override
+  String gateWhen(int minutes) => minutes < 60
+      ? '$minutes min ago'
+      : '${minutes ~/ 60} h ${minutes % 60} min ago';
+  @override
+  String get chipTestsUnrun => 'TESTS NOT RUN';
+  @override
+  String get chipTestsRunning => 'TESTS…';
+  @override
+  String get chipTestsGreen => 'TESTS · GREEN';
+  @override
+  String get chipTestsRed => 'TESTS · RED';
+  @override
+  String get chipTestsStale => 'GREEN · CHANGED AFTER';
 
   @override
   String get planSignTitle => 'Sign the plan';
@@ -2231,7 +2323,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get runTitle => 'Run the app';
   @override
-  String get runNoConfigs => 'This project declares no configurations in .vscode/launch.json';
+  String get runNoConfigs =>
+      'This project declares no configurations in .vscode/launch.json';
   @override
   String get runChooseDevice => 'Pick a device';
   @override
@@ -2258,7 +2351,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eNone => 'This project has no tests in .maestro/';
   @override
-  String get e2eNoRuns => 'No runs yet. The ones you launch here will show up with their project.';
+  String get e2eNoRuns =>
+      'No runs yet. The ones you launch here will show up with their project.';
   @override
   String get e2eRun => 'Run';
   @override
@@ -2282,17 +2376,16 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eDeleteTest => 'Delete the test';
   @override
-  String get e2eDeleteTestAsk => 'Deletes the file from the repo. Recoverable with git.';
+  String get e2eDeleteTestAsk =>
+      'Deletes the file from the repo. Recoverable with git.';
   @override
   String get e2eSee => 'Open';
   @override
   String get e2eRunningTitle => 'Running';
   @override
-  String get e2eStartDevice =>
-      "Start an emulator";
+  String get e2eStartDevice => "Start an emulator";
   @override
-  String get e2eStarting =>
-      "Starting the emulator…";
+  String get e2eStarting => "Starting the emulator…";
   @override
   String get e2eNotInstalled =>
       "The app is not installed on that device. Maestro will not install it: run it first with ▶.";

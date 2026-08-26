@@ -1,0 +1,6 @@
+# El gate de este repo: lo que tiene que pasar antes de publicar nada.
+#
+# Una sola línea a propósito. Un gate de varios comandos tiene varios códigos de salida y
+# entonces «verde» deja de ser un número; encadenar con «&&» deja la decisión de qué
+# cuenta como pasar aquí, que es donde se sabe.
+flutter analyze && flutter test
