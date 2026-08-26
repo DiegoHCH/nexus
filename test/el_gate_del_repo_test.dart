@@ -198,7 +198,7 @@ void main() {
     tearDown(() => conGit.deleteSync(recursive: true));
 
     test('recién corrido, el verde cubre lo que hay', () async {
-      final huella = await git.snapshot(conGit.path);
+      final huella = await git.huellaDelArbol(conGit.path);
       final hecho = await fuente.correr(
         cuenta.path,
         await fuente.leer(cuenta.path, conGit.path, rama: 'develop'),
@@ -206,14 +206,14 @@ void main() {
       );
 
       expect(hecho.resultado, ResultadoDelGate.verde);
-      expect(hecho.cubre(await git.snapshot(conGit.path)), isTrue);
+      expect(hecho.cubre(await git.huellaDelArbol(conGit.path)), isTrue);
     });
 
     test('y deja de cubrir en cuanto se toca un archivo', () async {
       await fuente.correr(
         cuenta.path,
         await fuente.leer(cuenta.path, conGit.path, rama: 'develop'),
-        huella: await git.snapshot(conGit.path),
+        huella: await git.huellaDelArbol(conGit.path),
       );
 
       File('${conGit.path}/algo.txt').writeAsStringSync('uno\ndos\n');
@@ -226,27 +226,28 @@ void main() {
         rama: 'develop',
       );
       expect(leido.resultado, ResultadoDelGate.verde);
-      expect(leido.cubre(await git.snapshot(conGit.path)), isFalse);
+      expect(leido.cubre(await git.huellaDelArbol(conGit.path)), isFalse);
     });
 
-    test('un archivo nuevo también lo invalida', () async {
+    test('un archivo nuevo sin añadir también lo invalida', () async {
       await fuente.correr(
         cuenta.path,
         await fuente.leer(cuenta.path, conGit.path, rama: 'develop'),
-        huella: await git.snapshot(conGit.path),
+        huella: await git.huellaDelArbol(conGit.path),
       );
 
-      // Un `git diff` no enseña lo que git todavía no sigue, así que este es justo el
-      // caso que se escaparía de una comprobación hecha con el diff.
+      // **El caso que casi se escapa.** `git stash create` no incluye lo que git todavía
+      // no sigue, así que con la huella hecha solo con él, un archivo nuevo dejaba el
+      // verde intacto — y escribir archivos nuevos es justo lo que hace un asistente.
+      // Sin añadir a propósito: añadirlo lo metería en el stash y probaría otra cosa.
       File('${conGit.path}/nuevo.dart').writeAsStringSync('void main() {}\n');
-      await enElRepo(['add', 'nuevo.dart']);
 
       final leido = await fuente.leer(
         cuenta.path,
         conGit.path,
         rama: 'develop',
       );
-      expect(leido.cubre(await git.snapshot(conGit.path)), isFalse);
+      expect(leido.cubre(await git.huellaDelArbol(conGit.path)), isFalse);
     });
 
     test('sin huella no se afirma que cubre', () async {
@@ -262,7 +263,7 @@ void main() {
         rama: 'develop',
       );
       expect(leido.resultado, ResultadoDelGate.verde);
-      expect(leido.cubre(await git.snapshot(conGit.path)), isFalse);
+      expect(leido.cubre(await git.huellaDelArbol(conGit.path)), isFalse);
     });
   });
 }

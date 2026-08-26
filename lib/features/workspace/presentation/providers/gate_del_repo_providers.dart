@@ -13,7 +13,7 @@ final gateDelRepoDataSourceProvider = Provider<GateDelRepoDataSource>(
 /// archivos mientras la corrida está guardada, y esto es lo que hace que el verde deje de
 /// valer sin que nadie tenga que acordarse de invalidarlo.
 final huellaDelArbolProvider = FutureProvider.family<String?, String>(
-  (ref, carpeta) => const GitDataSource().snapshot(carpeta),
+  (ref, carpeta) => const GitDataSource().huellaDelArbol(carpeta),
 );
 
 /// El gate de una carpeta en una rama, y el botón para correrlo.
@@ -50,6 +50,22 @@ class GateDelRepoController extends AsyncNotifier<GateDelRepo> {
     // gate que genera código se quedaría enseñando «cambió después» nada más terminar.
     ref.invalidate(huellaDelArbolProvider(donde.carpeta));
     state = AsyncData(resultado);
+  }
+
+  /// Deja escrito por qué se publica sin volver a correr el gate.
+  ///
+  /// La huella se toma **ahora**, no la de la corrida: lo que se está justificando es
+  /// publicar *este* árbol, y atarlo a otro dejaría el permiso valiendo para cambios que
+  /// nadie ha visto todavía.
+  Future<void> publicarIgual(String motivo) async {
+    final gate = state.value;
+    if (gate == null) return;
+    final huella = await ref.read(huellaDelArbolProvider(donde.carpeta).future);
+    state = AsyncData(
+      await ref
+          .read(gateDelRepoDataSourceProvider)
+          .publicarIgual(donde.configDir, gate, motivo: motivo, huella: huella),
+    );
   }
 }
 

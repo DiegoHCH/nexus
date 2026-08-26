@@ -72,9 +72,9 @@ abstract final class AjustesConGanchos {
       final grupos = <Object?>[];
       for (final grupo in _lista(evento.value)) {
         final mapa = _mapa(grupo);
-        final dentro = _lista(mapa['hooks'])
-            .where((h) => !esNuestra(_mapa(h)['command'], gancho))
-            .toList();
+        final dentro = _lista(
+          mapa['hooks'],
+        ).where((h) => !esNuestra(_mapa(h)['command'], gancho)).toList();
         // El grupo entero desaparece si lo único que tenía era nuestro. Si tenía más
         // —alguien metió dos ganchos en la misma entrada— se conserva con el resto.
         if (dentro.isEmpty) continue;

@@ -158,7 +158,9 @@ class HooksDataSource {
   ) async {
     final archivo = _ajustes(configDir);
     // Sin archivo no hay nada malformado: es una cuenta que todavía no configuró nada.
-    if (!archivo.existsSync()) return (ajustes: <String, Object?>{}, error: null);
+    if (!archivo.existsSync()) {
+      return (ajustes: <String, Object?>{}, error: null);
+    }
     try {
       final crudo = await archivo.readAsString();
       if (crudo.trim().isEmpty) {
@@ -166,7 +168,10 @@ class HooksDataSource {
       }
       final decodificado = jsonDecode(crudo);
       if (decodificado is! Map) {
-        return (ajustes: null, error: 'El settings.json de esa cuenta no es un objeto');
+        return (
+          ajustes: null,
+          error: 'El settings.json de esa cuenta no es un objeto',
+        );
       }
       return (ajustes: decodificado.cast<String, Object?>(), error: null);
     } on FormatException {
