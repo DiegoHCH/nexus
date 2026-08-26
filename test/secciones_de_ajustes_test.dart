@@ -34,18 +34,11 @@ class _SinMaquina extends EmuladoresDataSource {
   const _SinMaquina();
 
   @override
-  Future<
-    ({
-      List<Emulador> emuladores,
-      List<DispositivoConectado> dispositivos,
-      String? error,
-    })
-  >
-  listar() async => (
-    emuladores: const <Emulador>[],
-    dispositivos: const <DispositivoConectado>[],
-    error: null,
-  );
+  Future<({List<Emulador> emuladores, String? error})> listar() async =>
+      (emuladores: const <Emulador>[], error: null);
+
+  @override
+  Future<List<DispositivoConectado>> listarDispositivos() async => const [];
 }
 
 void main() {

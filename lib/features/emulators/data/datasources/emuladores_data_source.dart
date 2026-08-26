@@ -14,59 +14,45 @@ import 'package:nexus/features/emulators/domain/usecases/comando_de_emuladores.d
 class EmuladoresDataSource {
   const EmuladoresDataSource();
 
-  /// El catálogo con su estado, **y los teléfonos que haya enchufados**.
+  /// El catálogo de emuladores con su estado.
   ///
-  /// Los dos en una sola llamada porque se enseñan juntos: dos providers harían
-  /// que «Comprobar» refrescara media pantalla, y un físico que se desenchufa
-  /// mientras un emulador arranca dejaría la lista contándose una historia
-  /// distinta en cada mitad.
+  /// **Separado de [listarDispositivos] por una razón medida**: pedir las dos
+  /// cosas juntas costaba 8 segundos y 7 eran de los teléfonos. Los tiempos, en
+  /// esta máquina:
   ///
-  /// El estado de cada plataforma se pide **en paralelo y tolerando el fallo de
-  /// una**: con el SDK de Android a medio instalar, `adb` revienta mientras
-  /// `simctl` contesta bien, y quedarse sin lista entera por eso sería peor que
-  /// enseñar los de iOS.
-  Future<
-    ({
-      List<Emulador> emuladores,
-      List<DispositivoConectado> dispositivos,
-      String? error,
-    })
-  >
-  listar() async {
+  /// | | |
+  /// |---|---|
+  /// | `flutter devices --machine` | **7048 ms** |
+  /// | `flutter emulators` | 902 ms |
+  /// | `simctl list --json` | 271 ms |
+  /// | `adb devices` | 14 ms |
+  ///
+  /// `flutter devices` tarda porque sondea cada aparato de verdad —incluido
+  /// despertar un iPhone por la red— y eso no se puede acelerar. Lo que sí se
+  /// puede es no hacer esperar por ello a lo que la pantalla viene a enseñar: así
+  /// los emuladores están en ~1,2 s y los teléfonos aparecen detrás.
+  Future<({List<Emulador> emuladores, String? error})> listar() async {
     final flutter = await _flutter();
     if (flutter == null) {
       return (
         emuladores: const <Emulador>[],
-        dispositivos: const <DispositivoConectado>[],
         error:
             'No se encontró Flutter. Se buscó en el PATH de la app, en las rutas '
             'de siempre y en tu shell de login.',
       );
     }
 
-    // **En serie y no en paralelo**, aunque en paralelo parezca más listo: dos
-    // `flutter` a la vez se pelean por el lock del SDK y el segundo imprime
-    // «Waiting for another flutter command to release the startup lock…». No
-    // falla —espera y contesta— pero no se gana nada, porque el trabajo se
-    // serializa igual dentro del propio Flutter. Y sí se pierde: ese aviso en
-    // stderr fue lo que rompió el parseo del JSON la primera vez.
     final catalogoBruto = await _correr(flutter, ['emulators']);
-    final dispositivosBruto = await _correr(flutter, ['devices', '--machine']);
-
     if (catalogoBruto == null) {
       return (
         emuladores: const <Emulador>[],
-        dispositivos: dispositivosBruto == null
-            ? const <DispositivoConectado>[]
-            // **Solo `stdout`.** El JSON está ahí, y pegarle el `stderr` detrás
-            // es exactamente lo que rompía esto.
-            : ComandoDeEmuladores.leerDispositivos(dispositivosBruto.salida),
         error: 'Flutter no contestó al pedirle los emuladores',
       );
     }
 
     final catalogo = ComandoDeEmuladores.leerTabla(catalogoBruto.salida);
-    // Los dos a la vez: el de Android son varios procesos y el de iOS uno lento.
+    // Estos dos sí en paralelo: son de plataformas distintas y no comparten
+    // ningún lock. El de Android son varios procesos cortos y el de iOS uno.
     final (avds, ios) = await (_avdsArriba(), _hayIosArriba()).wait;
 
     return (
@@ -75,19 +61,29 @@ class EmuladoresDataSource {
         avdsArriba: avds,
         iosArriba: ios,
       ),
-      dispositivos: dispositivosBruto == null
-          ? const <DispositivoConectado>[]
-          : ComandoDeEmuladores.leerDispositivos(dispositivosBruto.salida),
       error: null,
     );
   }
 
-  /// Arranca uno. `null` si salió bien; el motivo si no.
+  /// Los teléfonos de verdad enchufados. **Los 7 segundos viven aquí.**
   ///
-  /// **El veredicto sale de la salida y no del código de salida**, porque
-  /// `flutter emulators --launch` sale con 0 aunque no encuentre el emulador. Ver
-  /// [ComandoDeEmuladores.resultadoDeLanzar].
-  ///
+  /// Se queda con `flutter devices --machine` a pesar del coste, y no con
+  /// `adb devices` más `devicectl` —que juntos son 130 ms— por el identificador:
+  /// `devicectl` devuelve el UUID de CoreDevice
+  /// (`5B1BD75F-2EC3-…`) y no el UDID que pide `-d`
+  /// (`00008030-000C390C1AC0C02E`). Enseñar un id que no sirve para lo que se
+  /// dice que sirve es peor que tardar.
+  Future<List<DispositivoConectado>> listarDispositivos() async {
+    final flutter = await _flutter();
+    if (flutter == null) return const [];
+
+    final bruto = await _correr(flutter, ['devices', '--machine']);
+    if (bruto == null) return const [];
+
+    // **Solo `stdout`.** Pegarle el `stderr` detrás es lo que rompía esto.
+    return ComandoDeEmuladores.leerDispositivos(bruto.salida);
+  }
+
   /// **El comando dispara y vuelve en ~1 s, pero el emulador tarda ~20 s en
   /// existir**, así que después de lanzarlo hay que esperar a que aparezca. Sin
   /// esto la pantalla refrescaba la lista justo al volver el comando —cuando el

@@ -43,22 +43,19 @@ class _Falsa extends EmuladoresDataSource {
   Completer<void>? esperaEnElSegundoListado;
 
   @override
-  Future<
-    ({
-      List<Emulador> emuladores,
-      List<DispositivoConectado> dispositivos,
-      String? error,
-    })
-  >
-  listar() async {
+  Future<({List<Emulador> emuladores, String? error})> listar() async {
     vecesListado++;
-    if (vecesListado == 2) await esperaEnElSegundoListado?.future;
+    // La sección refresca al abrirse, así que el primer listado que ve una
+    // prueba es el de arranque y el segundo el de después de actuar.
+    if (vecesListado == 3) await esperaEnElSegundoListado?.future;
     return (
-      emuladores: vecesListado >= 2 ? _traslanzar ?? _emuladores : _emuladores,
-      dispositivos: dispositivos,
+      emuladores: vecesListado >= 3 ? _traslanzar ?? _emuladores : _emuladores,
       error: errorAlListar,
     );
   }
+
+  @override
+  Future<List<DispositivoConectado>> listarDispositivos() async => dispositivos;
 
   /// Lo que devuelve la lista a partir del segundo intento, para simular que el
   /// emulador ya arrancó.
@@ -243,13 +240,16 @@ void main() {
     await tester.pump();
 
     // El lanzamiento ya volvió, pero la lista nueva aún no. Aquí es donde se veía
-    // el parpadeo: la fila tiene que seguir ocupada.
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    // el parpadeo, y lo que lo delata es el **botón**: si aparece «Arrancar», la
+    // lista vieja se ha colado. Los indicadores son dos ahora —el de la fila y el
+    // del refresco en la cabecera— y contarlos sería fijar una decoración.
+    expect(find.byType(CircularProgressIndicator), findsWidgets);
     expect(
       find.text(strings.emulatorsLaunch),
       findsNothing,
       reason: 'la lista vieja se está colando en el hueco del refresco',
     );
+    expect(find.text(strings.emulatorsColdBoot), findsNothing);
 
     falsa.esperaEnElSegundoListado!.complete();
     await tester.pumpAndSettle();

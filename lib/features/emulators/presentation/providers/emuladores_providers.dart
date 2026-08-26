@@ -6,29 +6,36 @@ final emuladoresDataSourceProvider = Provider<EmuladoresDataSource>(
   (ref) => const EmuladoresDataSource(),
 );
 
-/// Lo que hay en la máquina ahora mismo.
+/// Los emuladores de la máquina y su estado.
 ///
-/// **`autoDispose`, y esa palabra es el arreglo de un fallo visto en vivo.** Sin
-/// ella un `FutureProvider` calcula una vez y guarda el resultado mientras viva
-/// el `ProviderScope`, o sea toda la sesión de la app: se abría Ajustes con los
-/// emuladores apagados, se arrancaba uno **por fuera**, y la sección seguía
-/// diciendo «Arrancar» con el punto gris. Lo reportado fue «está arriba el
-/// emulador y no está el punto en verde», que no se parece a un problema de
-/// caché.
+/// **Sin `autoDispose`, y eso es el arreglo de un fallo reportado**: con él, cada
+/// vez que se salía de la sección y se volvía la lista desaparecía para cargarse
+/// otra vez, y son ~1,2 s de pantalla vacía cada visita. Guardando el valor, al
+/// volver está puesto **al instante** y el refresco pasa por detrás.
 ///
-/// Con `autoDispose` el estado se tira al cerrar la sección y se vuelve a
-/// preguntar al abrirla, que es lo que la pantalla promete: lo que hay **ahora**.
-/// Es el mismo criterio que ya usa `McpPermissions` para leer el archivo en cada
-/// encargo en vez de cachearlo — un servidor instalado con la app abierta tiene
-/// que entrar en el siguiente sin pedir un reinicio que nadie adivina.
+/// Que se guarde no significa que se crea: la sección pide un refresco cada vez
+/// que se abre. Lo que cambia es que mientras llega se enseña lo último que se
+/// supo en vez de nada — el estado viejo de un emulador es una aproximación
+/// razonable de un segundo; una pantalla en blanco no es aproximación de nada.
 ///
-/// Cuesta un `flutter emulators`, un `flutter devices` y un par de `adb`. Se
-/// paga: la alternativa es una lista que miente.
+/// El intento anterior fue `autoDispose`, y venía de arreglar lo contrario: un
+/// `FutureProvider` normal calcula una vez y no vuelve a preguntar, así que
+/// arrancar un emulador por fuera dejaba la lista mintiendo para siempre. Las dos
+/// cosas se arreglan juntas guardando el valor **y** refrescando al abrir; con
+/// una sola de las dos se elige entre mentir o parpadear.
 final emuladoresProvider =
-    FutureProvider.autoDispose<
-      ({
-        List<Emulador> emuladores,
-        List<DispositivoConectado> dispositivos,
-        String? error,
-      })
-    >((ref) => ref.watch(emuladoresDataSourceProvider).listar());
+    FutureProvider<({List<Emulador> emuladores, String? error})>(
+      (ref) => ref.watch(emuladoresDataSourceProvider).listar(),
+    );
+
+/// Los teléfonos de verdad enchufados.
+///
+/// **Aparte y no en el mismo provider, porque cuesta seis veces más**: son ~7 s
+/// de `flutter devices --machine` contra ~1,2 s de todo lo demás. Juntos hacían
+/// esperar por un iPhone a quien venía a arrancar un emulador.
+///
+/// Aquí también se guarda el valor: al volver a la sección los teléfonos siguen
+/// puestos, y solo la primera visita de la sesión los ve aparecer con retraso.
+final dispositivosProvider = FutureProvider<List<DispositivoConectado>>(
+  (ref) => ref.watch(emuladoresDataSourceProvider).listarDispositivos(),
+);

@@ -25,6 +25,22 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
   String? _ocupado;
   String? _error;
 
+  @override
+  void initState() {
+    super.initState();
+    // **Al abrir, se vuelve a preguntar.** El valor guardado hace que la lista
+    // esté puesta al instante; esto hace que no sea vieja. Sin lo primero la
+    // pantalla parpadea en cada visita, sin lo segundo miente.
+    //
+    // Después del primer fotograma: invalidar un provider mientras se construye
+    // el widget que lo mira es modificarlo durante el build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(emuladoresProvider);
+      ref.invalidate(dispositivosProvider);
+    });
+  }
+
   Future<void> _lanzar(Emulador emulador, {bool frio = false}) async {
     setState(() {
       _ocupado = emulador.id;
@@ -84,6 +100,15 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
     final colors = context.colors;
     final strings = context.strings;
     final lista = ref.watch(emuladoresProvider);
+    final fisicos = ref.watch(dispositivosProvider);
+
+    // **`.value` y no el patrón de `AsyncData`**: al invalidar, Riverpod deja
+    // el estado en «cargando **con** lo de antes», y eso es exactamente lo que se
+    // quiere enseñar. Mirando solo `AsyncData` se vaciaba la pantalla en cada
+    // refresco, que es el fallo que se reportó — «cada vez que salgo a otra vista
+    // y vuelvo, vuelven a desaparecer para cargar».
+    final valor = lista.value;
+    final refrescando = lista.isLoading || fisicos.isLoading;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -96,12 +121,25 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
                 style: NexusTypography.label.copyWith(color: colors.faint),
               ),
             ),
-            OutlinedButton(
-              onPressed: _ocupado != null
-                  ? null
-                  : () => ref.invalidate(emuladoresProvider),
-              child: Text(strings.emulatorsRefresh),
-            ),
+            if (refrescando)
+              SizedBox(
+                width: 14,
+                height: 14,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: colors.faint,
+                ),
+              )
+            else
+              OutlinedButton(
+                onPressed: _ocupado != null
+                    ? null
+                    : () {
+                        ref.invalidate(emuladoresProvider);
+                        ref.invalidate(dispositivosProvider);
+                      },
+                child: Text(strings.emulatorsRefresh),
+              ),
           ],
         ),
         const SizedBox(height: NexusSpacing.s2),
@@ -111,66 +149,73 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
         ),
         const SizedBox(height: NexusSpacing.s5),
 
-        switch (lista) {
-          AsyncData(:final value) => Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // El error de la herramienta va **arriba y literal**: «No se
-              // encontró Flutter…» dice qué hacer, y taparlo con un «no se pudo»
-              // obliga a abrir la terminal para averiguarlo.
-              if (value.error case final mensaje?)
-                Text(
-                  mensaje,
-                  style: NexusTypography.mono.copyWith(color: colors.err),
-                )
-              else if (value.emuladores.isEmpty)
-                Text(
-                  strings.emulatorsEmpty,
-                  style: NexusTypography.mono.copyWith(color: colors.faint),
-                )
-              else
-                for (final emulador in value.emuladores)
-                  _FilaDeEmulador(
-                    emulador: emulador,
-                    ocupado: _ocupado == emulador.id,
-                    apagado: _ocupado != null,
-                    onLanzar: () => _lanzar(emulador),
-                    onLanzarEnFrio: () => _lanzar(emulador, frio: true),
-                    onCerrar: () => _cerrar(emulador),
-                  ),
+        if (valor == null)
+          // Solo la primera vez de la sesión: después siempre hay algo puesto.
+          Text(
+            strings.emulatorsRefresh,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          )
+        else if (valor.error case final mensaje?)
+          // El error de la herramienta va **literal**: «No se encontró Flutter…»
+          // dice qué hacer, y taparlo con un «no se pudo» obliga a abrir la
+          // terminal para averiguarlo.
+          Text(mensaje, style: NexusTypography.mono.copyWith(color: colors.err))
+        else if (valor.emuladores.isEmpty)
+          Text(
+            strings.emulatorsEmpty,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          )
+        else ...[
+          for (final emulador in valor.emuladores)
+            _FilaDeEmulador(
+              emulador: emulador,
+              ocupado: _ocupado == emulador.id,
+              apagado: _ocupado != null,
+              onLanzar: () => _lanzar(emulador),
+              onLanzarEnFrio: () => _lanzar(emulador, frio: true),
+              onCerrar: () => _cerrar(emulador),
+            ),
 
-              // **Los teléfonos de verdad, en su propio grupo y sin botón.**
-              //
-              // Aparte porque el verbo no es el mismo: un emulador se arranca y
-              // se cierra, y uno de estos ya está — lo único que se puede hacer
-              // con él es usarlo. Mezclarlos en la misma lista obligaría a poner
-              // un botón apagado en la mitad de las filas, que es enseñar un
-              // control que nunca sirve.
-              //
-              // Y sí valen, aunque no tengan botón: son la respuesta a «¿sobre
-              // qué puedo correr esto?», y el id que llevan debajo es el que pide
-              // `-d`.
-              if (value.dispositivos.isNotEmpty) ...[
-                const SizedBox(height: NexusSpacing.s5),
+          // **Los teléfonos de verdad, en su propio grupo y sin botón.**
+          //
+          // Aparte porque el verbo no es el mismo: un emulador se arranca y se
+          // cierra, y uno de estos ya está — lo único que se puede hacer con él
+          // es usarlo. Mezclarlos obligaría a poner un botón apagado en la mitad
+          // de las filas, que es enseñar un control que nunca sirve.
+          //
+          // Y llegan más tarde a propósito: cuestan seis veces más que todo lo
+          // de arriba. La cabecera se pinta ya con su indicador para que no
+          // aparezcan de golpe sin avisar.
+          if (fisicos.value case final lista? when lista.isNotEmpty) ...[
+            const SizedBox(height: NexusSpacing.s5),
+            Text(
+              strings.emulatorsConnected,
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+            const SizedBox(height: NexusSpacing.s2),
+            for (final dispositivo in lista)
+              _FilaDeDispositivo(dispositivo: dispositivo),
+          ] else if (fisicos.isLoading) ...[
+            const SizedBox(height: NexusSpacing.s5),
+            Row(
+              children: [
                 Text(
                   strings.emulatorsConnected,
                   style: NexusTypography.label.copyWith(color: colors.faint),
                 ),
-                const SizedBox(height: NexusSpacing.s2),
-                for (final dispositivo in value.dispositivos)
-                  _FilaDeDispositivo(dispositivo: dispositivo),
+                const SizedBox(width: NexusSpacing.s3),
+                SizedBox(
+                  width: 12,
+                  height: 12,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 1.5,
+                    color: colors.faint,
+                  ),
+                ),
               ],
-            ],
-          ),
-          AsyncError() => Text(
-            strings.emulatorsEmpty,
-            style: NexusTypography.mono.copyWith(color: colors.warn),
-          ),
-          _ => Text(
-            strings.emulatorsRefresh,
-            style: NexusTypography.mono.copyWith(color: colors.faint),
-          ),
-        },
+            ),
+          ],
+        ],
 
         if (_error case final mensaje?) ...[
           const SizedBox(height: NexusSpacing.s3),
