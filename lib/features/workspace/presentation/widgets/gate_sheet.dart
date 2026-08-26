@@ -43,10 +43,12 @@ class _HojaState extends ConsumerState<_Hoja> {
   /// El controlador lo posee la hoja y no el `build`, como en la de firmar: uno creado al
   /// dibujar se usa después de morir.
   final _motivo = TextEditingController();
+  final _salida = TextEditingController();
 
   @override
   void dispose() {
     _motivo.dispose();
+    _salida.dispose();
     super.dispose();
   }
 
@@ -71,10 +73,19 @@ class _HojaState extends ConsumerState<_Hoja> {
       ),
       // El verde que ya no cubre se dice entero, no se degrada a un color: es la
       // diferencia entre «pasó» y «pasó antes de lo que acabas de escribir».
-      final g when g.resultado == ResultadoDelGate.verde =>
-        g.cubre(huella)
-            ? (strings.gateGreen, colors.ok)
-            : (strings.gateStale, colors.warn),
+      //
+      // Y el declarado nunca se pinta de verde. Puede ser igual de cierto y no es lo
+      // mismo: uno es un número y el otro la palabra de alguien.
+      final g when g.resultado == ResultadoDelGate.verde && !g.cubre(huella) =>
+        (strings.gateStale, colors.warn),
+      final g when g.resultado == ResultadoDelGate.verde && !g.quien.medido => (
+        strings.gateDeclared,
+        colors.mute,
+      ),
+      final g when g.resultado == ResultadoDelGate.verde => (
+        strings.gateGreen,
+        colors.ok,
+      ),
       _ => (strings.gateNotRun, colors.faint),
     };
 
@@ -152,6 +163,54 @@ class _HojaState extends ConsumerState<_Hoja> {
               ),
             ],
           ),
+
+          // Declarar, **solo cuando el gate no cubre lo que hay**. Con un verde medido y
+          // vigente no hay nada que declarar, y ofrecerlo ahí sería invitar a sustituir
+          // una medición que ya existe por una afirmación.
+          if (gate != null && gate.comando != null && !gate.cubre(huella)) ...[
+            const SizedBox(height: NexusSpacing.s5),
+            Text(
+              strings.gateDeclareTitle,
+              style: NexusTypography.label.copyWith(color: colors.mute),
+            ),
+            const SizedBox(height: NexusSpacing.s2),
+            TextField(
+              controller: _salida,
+              minLines: 2,
+              maxLines: 4,
+              style: NexusTypography.mono.copyWith(color: colors.ink),
+              decoration: InputDecoration(
+                isDense: true,
+                hintText: strings.gateDeclareHint,
+                hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+                enabledBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.rule),
+                  borderRadius: BorderRadius.circular(NexusRadius.sm),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderSide: BorderSide(color: colors.accent),
+                  borderRadius: BorderRadius.circular(NexusRadius.sm),
+                ),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const ValueKey('declarar-el-gate'),
+                // Sin salida no se registra nada, y por eso el botón no la pide dos
+                // veces: es lo único que separa esto de un botón que pone verde.
+                onPressed: corriendo
+                    ? null
+                    : () => ref
+                          .read(gateDelRepoProvider(donde).notifier)
+                          .declarar(_salida.text),
+                child: Text(
+                  strings.gateDeclareAction,
+                  style: NexusTypography.label.copyWith(color: colors.mute),
+                ),
+              ),
+            ),
+          ],
 
           // Publicar igual, **solo sobre un verde que ya no cubre**. No aparece con el
           // gate sin correr ni en rojo, y no por ahorrar sitio: ahí no hay una caducidad

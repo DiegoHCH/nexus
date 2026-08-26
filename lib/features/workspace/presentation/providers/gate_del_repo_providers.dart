@@ -52,6 +52,21 @@ class GateDelRepoController extends AsyncNotifier<GateDelRepo> {
     state = AsyncData(resultado);
   }
 
+  /// Registra que el gate lo corrió una persona, con la salida que pegó.
+  ///
+  /// La huella se toma **ahora**, como al correrlo: lo que se está declarando es que este
+  /// árbol pasa, y atarlo a otro dejaría la afirmación cubriendo cambios que nadie vio.
+  Future<void> declarar(String salida) async {
+    final gate = state.value;
+    if (gate == null || gate.comando == null) return;
+    final huella = await ref.read(huellaDelArbolProvider(donde.carpeta).future);
+    state = AsyncData(
+      await ref
+          .read(gateDelRepoDataSourceProvider)
+          .declarar(donde.configDir, gate, salida: salida, huella: huella),
+    );
+  }
+
   /// Deja escrito por qué se publica sin volver a correr el gate.
   ///
   /// La huella se toma **ahora**, no la de la corrida: lo que se está justificando es

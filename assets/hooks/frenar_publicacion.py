@@ -23,7 +23,11 @@ Y decide así:
 - **Sin correr** → se deniega, y no hay excusa que valga. No hay nada que justificar:
   hay algo que hacer, y son dos minutos menos que discutirlo.
 - **Rojo** → se deniega. Un rojo no es una caducidad, es una respuesta.
-- **Verde que cubre el árbol de ahora** → pasa, sin decir nada.
+- **Verde medido que cubre el árbol de ahora** → pasa, sin decir nada.
+- **Verde declarado** —lo corrió una persona y pegó la salida— → pasa, pero se le dice al
+  modelo que lo escriba en el cuerpo del PR. Quien revise tiene derecho a saber que ahí
+  hay la palabra de alguien y no un código de salida; el marco los distingue en todas
+  partes y este es el sitio donde más importa.
 - **Verde que ya no cubre** → se deniega, salvo que en Nexus se haya escrito un motivo
   para publicar igual. Es la única puerta con llave, y la llave deja constancia.
 
@@ -273,6 +277,13 @@ def main() -> None:
 
     huella = _huella(carpeta)
     if huella and corrida.get("huella") == huella:
+        if corrida.get("quien") == "persona":
+            _pasar_con_contexto(
+                "El gate de este PR está **declarado**, no medido: lo corrió una persona "
+                "y pegó la salida, y Nexus no lo ejecutó. Dilo en el cuerpo del PR bajo "
+                "«Verificación», porque quien revise no puede distinguirlo del verde de "
+                "una corrida real."
+            )
         return
 
     # Verde que ya no cubre lo que hay. Es lo único que se puede saltar, y solo con un

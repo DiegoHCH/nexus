@@ -19,6 +19,7 @@ class LaCorrida {
     this.firmado,
     this.gateVerde,
     this.gateCorrio,
+    this.gateDeclarado = false,
     this.cierres = const [],
   });
 
@@ -31,6 +32,13 @@ class LaCorrida {
   /// Cuándo corrió el gate por última vez, y si salió verde.
   final DateTime? gateCorrio;
   final bool? gateVerde;
+
+  /// Si ese verde lo midió un proceso o lo afirmó una persona.
+  ///
+  /// **El informe los distingue**, y es la mitad de para qué existe el informe: un verde
+  /// medido y uno declarado pueden ser los dos ciertos y no valen lo mismo, y quien lee
+  /// esto después no tiene forma de saberlo si aquí dicen lo mismo.
+  final bool gateDeclarado;
 
   /// Todos, del más antiguo al más reciente. Una rama se cierra más de una vez: el PR
   /// vuelve con observaciones y lo que sigue es otra corrida del mismo trabajo.
@@ -132,6 +140,7 @@ class LaCorrida {
       if (plan case final p? when p.trim().isNotEmpty)
         strings.corridaSummaryPlan(p.trim()),
       switch (gateVerde) {
+        true when gateDeclarado => strings.corridaSummaryGateDeclared,
         true => strings.corridaSummaryGateGreen,
         false => strings.corridaSummaryGateRed,
         null => strings.corridaSummaryGateNever,

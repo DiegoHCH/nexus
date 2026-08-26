@@ -40,6 +40,7 @@ final laCorridaProvider = Provider.family<LaCorrida, DondeMirar>((ref, donde) {
       ResultadoDelGate.rojo => false,
       _ => null,
     },
+    gateDeclarado: gate != null && !gate.quien.medido,
     cierres: cierres,
   );
 });
@@ -135,6 +136,7 @@ final todasLasCorridasProvider =
               ResultadoDelGate.rojo => false,
               _ => null,
             },
+            gateDeclarado: !gate.quien.medido,
             cierres: susCierres,
           ),
           huerfana:
