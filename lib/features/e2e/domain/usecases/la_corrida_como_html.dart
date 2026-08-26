@@ -19,7 +19,12 @@ abstract final class LaCorridaComoHtml {
     required int terminados,
     required bool viva,
     required bool fallo,
+    int? total,
   }) {
+    // **El total va aparte y no se deduce de la lista.** Con una lista vacía
+    // —lo que pasaba al abrir el informe de una corrida guardada— el encabezado
+    // decía «8/0», que es una cuenta imposible y se lee como un fallo nuestro.
+    final cuantos = total ?? pasos.length;
     final filas = estados == null
         // Sin emparejamiento posible —`runFlow`, un bucle— se enseña la salida y
         // no un estado inventado.
@@ -74,7 +79,7 @@ abstract final class LaCorridaComoHtml {
 <header>
   <h1>${_escapa(flow)}</h1>
   <span class="estado ${viva ? 'viva' : (fallo ? 'mal' : 'bien')}">$estado</span>
-  <span class="estado">$terminados/${pasos.length}</span>
+  <span class="estado">$terminados/$cuantos</span>
 </header>
 ${filas.isEmpty ? '' : '<ol>\n$filas\n</ol>'}
 ${lineas.isEmpty ? '' : '<h2>salida</h2><pre>${_escapa(lineas.join('\n'))}</pre>'}

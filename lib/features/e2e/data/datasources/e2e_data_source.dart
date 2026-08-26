@@ -8,6 +8,7 @@ import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/lector_de_corridas.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -330,21 +331,48 @@ class E2eDataSource {
     }
     if (leido is! Map) return;
 
+    final flow = '${leido['flow'] ?? ''}';
+    final terminados = (leido['terminados'] as num?)?.toInt() ?? 0;
+    final fallo = leido['fallo'] == true;
+    final pasos = [
+      for (final p in (leido['pasosDelFlow'] as List?) ?? const []) '$p',
+    ];
+    final total = (leido['pasos'] as num?)?.toInt() ?? pasos.length;
+
     final html = LaCorridaComoHtml.escribe(
-      flow: '${leido['flow'] ?? ''}',
-      // Del registro no salen las líneas del YAML, solo cuántas eran: se enseña
-      // la salida, que es lo que hay guardado y lo que se lee cuando algo falló.
-      pasos: const [],
-      estados: null,
+      flow: flow,
+      pasos: pasos,
+      // Los mismos estados que en vivo, calculados igual: una corrida terminada
+      // es una en marcha quieta. Los registros de antes de guardar los nombres no
+      // traen pasos, y entonces se enseña solo la salida — que sigue siendo verdad.
+      estados: pasos.isEmpty
+          ? null
+          : PasosDeUnaPrueba.estados(
+              cuantosPasos: pasos.length,
+              terminados: terminados,
+              viva: false,
+              fallo: fallo,
+            ),
       lineas: [
         for (final l in (leido['lineas'] as List?) ?? const []) '$l',
       ],
-      terminados: (leido['terminados'] as num?)?.toInt() ?? 0,
+      terminados: terminados,
+      total: total,
       viva: false,
-      fallo: leido['fallo'] == true,
+      fallo: fallo,
     );
 
-    final pagina = registro.replaceAll(RegExp(r'\.json$'), '.html');
+    // El nombre del archivo es **el título de la ventana**, así que lleva el flow
+    // y la hora en vez del sello de tiempo entero: «welcome_to_login 09-35» dice
+    // qué es de un vistazo y `2026-08-26T09-35-40.375012` no.
+    final hora = registro.split('/').last.replaceAll(RegExp(r'\.json$'), '');
+    final corta = RegExp(r'T(\d{2})-(\d{2})').firstMatch(hora);
+    final pagina =
+        '${registro.substring(0, registro.lastIndexOf('/'))}/'
+        // Con guion y no con dos puntos: en macOS un `:` en un nombre de archivo
+        // se le enseña al usuario como `/`, así que «09:35» aparecería como
+        // «09/35» y parecería otra carpeta.
+        '$flow ${corta == null ? hora : '${corta.group(1)}h${corta.group(2)}'}.html';
     try {
       File(pagina).writeAsStringSync(html);
     } on FileSystemException {

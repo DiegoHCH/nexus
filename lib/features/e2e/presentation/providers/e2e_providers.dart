@@ -268,6 +268,10 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             'flow': actual.flow,
             'cuando': ctx.cuando.toIso8601String(),
             'pasos': actual.pasos.length,
+            // **Los nombres y no solo cuántos.** Sin ellos, el informe de una
+            // corrida guardada no tenía qué pintar y solo podía enseñar la salida
+            // cruda: los pasos con su ✓ son justo lo que se va a mirar.
+            'pasosDelFlow': actual.pasos,
             'terminados': actual.terminados,
             'fallo': actual.fallo,
             'dispositivo': ctx.dispositivo,
