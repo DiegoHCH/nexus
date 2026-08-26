@@ -176,6 +176,26 @@ class E2eDataSource {
     }
   }
 
+  /// Borra **la prueba**: su archivo `.yaml` del repo.
+  ///
+  /// Distinto de [borrar], que se lleva artefactos reproducibles. Esto toca
+  /// código del usuario, y se ofrece porque **está en git**: se recupera con un
+  /// `git checkout` y quien lo borra desde aquí sabe lo que hace. Lo que no se
+  /// hace es borrarlo sin decir eso primero — la pantalla lo avisa.
+  ///
+  /// Un flow que no está en git se pierde de verdad, y eso no lo puede saber esta
+  /// función: quien la llama tiene la información del repo, no ella.
+  Future<String?> borrarPrueba(String ruta) async {
+    final archivo = File(ruta);
+    if (!archivo.existsSync()) return null;
+    try {
+      archivo.deleteSync();
+      return null;
+    } on FileSystemException catch (e) {
+      return e.message;
+    }
+  }
+
   /// Cuánto ocupa una carpeta, para poder decirlo antes de borrar.
   int bytesDe(String carpeta) {
     final dir = Directory(carpeta);

@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
-import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/presentation/widgets/prueba_en_marcha_page.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
@@ -53,11 +54,13 @@ class PruebasSheet extends ConsumerWidget {
           ),
           const SizedBox(height: NexusSpacing.s4),
 
-          // **Lo que corre ahora, arriba y sin tener que buscarlo.** Es lo único
-          // de esta pantalla que cambia solo, y por eso va primero.
+          // **Lo que corre no se pinta aquí, se avisa.** La vista de una prueba
+          // en marcha es su propia pantalla —ver [PruebaEnMarchaPage]— porque se
+          // mira mientras avanza y compartir sitio con una lista que no cambia la
+          // dejaba en un rincón. Aquí solo queda la puerta.
           if (enMarcha != null) ...[
-            _EnMarcha(prueba: enMarcha),
-            const SizedBox(height: NexusSpacing.s5),
+            _AvisoDeQueCorre(prueba: enMarcha),
+            const SizedBox(height: NexusSpacing.s4),
           ],
 
           Flexible(
@@ -78,141 +81,60 @@ class PruebasSheet extends ConsumerWidget {
   }
 }
 
-/// La prueba que corre, paso a paso.
-class _EnMarcha extends ConsumerWidget {
-  const _EnMarcha({required this.prueba});
+/// Que hay una corriendo, y por dónde va. La vista está en otra pantalla.
+class _AvisoDeQueCorre extends StatelessWidget {
+  const _AvisoDeQueCorre({required this.prueba});
 
   final PruebaEnMarcha prueba;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final estados = prueba.estados;
 
     return Container(
-      padding: const EdgeInsets.all(NexusSpacing.s4),
+      padding: const EdgeInsets.symmetric(
+        horizontal: NexusSpacing.s4,
+        vertical: NexusSpacing.s3,
+      ),
       decoration: BoxDecoration(
         color: colors.void_.withValues(alpha: 0.5),
         border: Border.all(color: prueba.viva ? colors.accent : colors.rule),
         borderRadius: BorderRadius.circular(NexusRadius.sm),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              if (prueba.viva)
-                SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 1.5,
-                    color: colors.accent,
-                  ),
-                )
-              else
-                Icon(
-                  prueba.fallo ? Icons.close : Icons.check,
-                  size: 14,
-                  color: prueba.fallo ? colors.err : colors.ok,
-                ),
-              const SizedBox(width: NexusSpacing.s3),
-              Expanded(
-                child: Text(
-                  prueba.flow,
-                  style: NexusTypography.data.copyWith(color: colors.ink),
-                ),
-              ),
-              Text(
-                '${prueba.terminados}/${prueba.pasos.length}',
-                style: NexusTypography.mono.copyWith(color: colors.faint),
-              ),
-              if (prueba.viva)
-                TextButton(
-                  style: _apretado,
-                  onPressed: ref.read(pruebaEnMarchaProvider.notifier).parar,
-                  child: Text(strings.e2eStop),
-                ),
-            ],
-          ),
-          const SizedBox(height: NexusSpacing.s3),
-
-          // **Los pasos del YAML con su símbolo, o la salida en plano.**
-          //
-          // Se degrada y no miente: si lo ejecutado no cuadra con las líneas del
-          // archivo —`runFlow`, un bucle— [PasosDeUnaPrueba.estados] devuelve
-          // `null` y aquí se enseña lo que Maestro imprimió, que sigue siendo
-          // verdad.
-          if (estados == null)
-            _Salida(lineas: prueba.lineas)
-          else
-            for (final (i, paso) in prueba.pasos.indexed)
-              _FilaDePaso(texto: paso, estado: estados[i]),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilaDePaso extends StatelessWidget {
-  const _FilaDePaso({required this.texto, required this.estado});
-
-  final String texto;
-  final EstadoDePaso estado;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final (icono, color) = switch (estado) {
-      EstadoDePaso.hecho => (Icons.check, colors.ok),
-      EstadoDePaso.enCurso => (Icons.autorenew, colors.accent),
-      EstadoDePaso.fallado => (Icons.close, colors.err),
-      EstadoDePaso.pendiente => (Icons.remove, colors.rule),
-    };
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 1),
       child: Row(
         children: [
-          Icon(icono, size: 12, color: color),
+          if (prueba.viva)
+            SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.5,
+                color: colors.accent,
+              ),
+            )
+          else
+            Icon(
+              prueba.fallo ? Icons.close : Icons.check,
+              size: 14,
+              color: prueba.fallo ? colors.err : colors.ok,
+            ),
           const SizedBox(width: NexusSpacing.s3),
           Expanded(
             child: Text(
-              texto,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: NexusTypography.mono.copyWith(
-                // Lo pendiente en gris y lo hecho legible: la lista se lee de un
-                // barrido sin contar iconos.
-                color: estado == EstadoDePaso.pendiente
-                    ? colors.faint
-                    : colors.ink,
-              ),
+              '${prueba.flow} · ${prueba.terminados}/${prueba.pasos.length}',
+              style: NexusTypography.data.copyWith(color: colors.ink),
             ),
+          ),
+          TextButton(
+            style: _apretado,
+            onPressed: () => PruebaEnMarchaPage.abrir(context),
+            child: Text(strings.e2eSee),
           ),
         ],
       ),
     );
   }
-}
-
-class _Salida extends StatelessWidget {
-  const _Salida({required this.lineas});
-
-  final List<String> lineas;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    constraints: const BoxConstraints(maxHeight: 160),
-    child: SingleChildScrollView(
-      reverse: true,
-      child: SelectableText(
-        lineas.join('\n'),
-        style: NexusTypography.mono.copyWith(color: context.colors.faint),
-      ),
-    ),
-  );
 }
 
 final _apretado = TextButton.styleFrom(
@@ -233,7 +155,9 @@ class _Lanzadera extends ConsumerStatefulWidget {
 }
 
 class _LanzaderaState extends ConsumerState<_Lanzadera> {
+  String? _dispositivo;
   String? _error;
+  String? _confirmandoBorrado;
 
   /// Los dispositivos sobre los que se puede correr: **encendidos y nada más**.
   ///
@@ -246,10 +170,29 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     for (final d in ref.watch(dispositivosProvider).value ?? const []) d.id,
   ];
 
+  /// Cuál se usa: el elegido, o el único que haya.
+  ///
+  /// **Elegir hace falta de verdad**: con el Redmi enchufado y un emulador
+  /// arriba hay dos, y coger el primero era decidir por el usuario en silencio —
+  /// exactamente lo que reportó al no poder elegir. Con uno solo no se pregunta,
+  /// que sería una pregunta con una sola respuesta.
+  String? get _elegido {
+    final hay = _dispositivos;
+    if (_dispositivo case final elegido? when hay.contains(elegido)) {
+      return elegido;
+    }
+    return hay.length == 1 ? hay.single : null;
+  }
+
   Future<void> _lanzar(Prueba prueba) async {
     final dispositivos = _dispositivos;
     if (dispositivos.isEmpty) {
       setState(() => _error = context.strings.e2eNoDevice);
+      return;
+    }
+    final donde = _elegido;
+    if (donde == null) {
+      setState(() => _error = context.strings.e2eDevice);
       return;
     }
     setState(() => _error = null);
@@ -259,14 +202,31 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
         .lanzar(
           prueba: prueba,
           proyecto: widget.proyecto,
-          // El primero encendido. Elegir dispositivo es una pregunta más, y para
-          // una prueba de humo el que haya sirve; cuando importe, aquí va un
-          // selector como el de correr la app.
-          deviceId: dispositivos.first,
+          deviceId: donde,
           perfil: 'local',
         );
     if (!mounted) return;
-    if (error != null) setState(() => _error = error);
+    if (error != null) {
+      setState(() => _error = error);
+      return;
+    }
+    // Y se abre su vista: es lo que se va a mirar durante el próximo medio
+    // minuto, y hacerlo buscar el botón después de lanzar sería raro.
+    await PruebaEnMarchaPage.abrir(context);
+  }
+
+  Future<void> _borrar(Prueba prueba) async {
+    // Dos toques y no una modal: el primero pide confirmación en la propia fila,
+    // el segundo borra. Una modal para un archivo que git recupera es más
+    // ceremonia que riesgo.
+    if (_confirmandoBorrado != prueba.ruta) {
+      setState(() => _confirmandoBorrado = prueba.ruta);
+      return;
+    }
+    await ref.read(e2eDataSourceProvider).borrarPrueba(prueba.ruta);
+    ref.invalidate(pruebasProvider(widget.proyecto));
+    if (!mounted) return;
+    setState(() => _confirmandoBorrado = null);
   }
 
   @override
@@ -275,38 +235,87 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     final strings = context.strings;
     final pruebas = ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
-
-    if (pruebas.isEmpty) {
-      return Text(
-        strings.e2eNone,
-        style: NexusTypography.mono.copyWith(color: colors.faint),
-      );
-    }
+    final dispositivos = _dispositivos;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        for (final prueba in pruebas)
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 3),
-            child: Row(
-              children: [
-                Icon(Icons.description_outlined, size: 13, color: colors.faint),
-                const SizedBox(width: NexusSpacing.s3),
-                Expanded(
-                  child: Text(
-                    prueba.nombre,
-                    style: NexusTypography.data.copyWith(color: colors.ink),
-                  ),
-                ),
-                TextButton(
-                  style: _apretado,
-                  onPressed: corriendo ? null : () => _lanzar(prueba),
-                  child: Text(strings.e2eRun),
-                ),
-              ],
+        // **De qué proyecto son estas pruebas.** El historial ya lo decía y la
+        // lista no, así que se leía como si fueran de nadie. Un `.maestro/` es de
+        // su repo y de ninguno más.
+        Text(
+          widget.proyecto.split('/').last,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+
+        if (pruebas.isEmpty)
+          Text(
+            strings.e2eNone,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          )
+        else ...[
+          // El dispositivo, y solo cuando hay más de uno que elegir.
+          if (dispositivos.length > 1) ...[
+            SelectorCompacto(
+              valor: _elegido,
+              opciones: dispositivos,
+              pista: strings.e2eDevice,
+              onElegir: (v) => setState(() => _dispositivo = v),
             ),
-          ),
+            const SizedBox(height: NexusSpacing.s3),
+          ],
+
+          for (final prueba in pruebas)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 3),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.description_outlined,
+                    size: 13,
+                    color: colors.faint,
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Expanded(
+                    child: Text(
+                      prueba.nombre,
+                      style: NexusTypography.data.copyWith(color: colors.ink),
+                    ),
+                  ),
+                  // **Un icono y no dos palabras**, con la advertencia en su
+                  // tooltip. Con «Borrar la prueba» escrito y la frase del aviso
+                  // al lado, la fila desbordaba 235 px y el botón se salía de la
+                  // hoja: el toque no llegaba a ningún sitio. Lo destapó una
+                  // prueba de widget, porque a ojo el botón simplemente no estaba.
+                  //
+                  // Al pedir confirmación se pone rojo y cambia el tooltip: el
+                  // mismo botón dice qué va a hacer sin ocupar una línea.
+                  IconButton(
+                    onPressed: () => _borrar(prueba),
+                    tooltip: _confirmandoBorrado == prueba.ruta
+                        ? strings.e2eDeleteTestAsk
+                        : strings.e2eDeleteTest,
+                    iconSize: 14,
+                    splashRadius: 14,
+                    padding: const EdgeInsets.symmetric(horizontal: 4),
+                    constraints: const BoxConstraints(),
+                    visualDensity: VisualDensity.compact,
+                    color: _confirmandoBorrado == prueba.ruta
+                        ? colors.err
+                        : colors.faint,
+                    icon: const Icon(Icons.delete_outline),
+                  ),
+                  TextButton(
+                    style: _apretado,
+                    onPressed: corriendo ? null : () => _lanzar(prueba),
+                    child: Text(strings.e2eRun),
+                  ),
+                ],
+              ),
+            ),
+        ],
+
         if (_error case final mensaje?) ...[
           const SizedBox(height: NexusSpacing.s2),
           Text(

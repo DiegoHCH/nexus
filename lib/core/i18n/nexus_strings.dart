@@ -340,6 +340,11 @@ abstract class NexusStrings {
   String get e2eRunningNow;
   String get e2eUnknown;
   String get e2eNoDevice;
+  String get e2eDevice;
+  String get e2eDeleteTest;
+  String get e2eDeleteTestAsk;
+  String get e2eSee;
+  String get e2eRunningTitle;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1081,6 +1086,16 @@ class NexusStringsEs extends NexusStrings {
   String get e2eUnknown => 'sin saber';
   @override
   String get e2eNoDevice => 'Hace falta un dispositivo encendido';
+  @override
+  String get e2eDevice => 'Dónde correrla';
+  @override
+  String get e2eDeleteTest => 'Borrar la prueba';
+  @override
+  String get e2eDeleteTestAsk => 'Borra el archivo del repo. Se recupera con git.';
+  @override
+  String get e2eSee => 'Ver';
+  @override
+  String get e2eRunningTitle => 'Corriendo';
   @override
   String get runAuto =>
       'Recargar sola al terminar cada encargo';
@@ -2134,6 +2149,16 @@ class NexusStringsEn extends NexusStrings {
   String get e2eUnknown => 'unknown';
   @override
   String get e2eNoDevice => 'A running device is needed';
+  @override
+  String get e2eDevice => 'Where to run it';
+  @override
+  String get e2eDeleteTest => 'Delete the test';
+  @override
+  String get e2eDeleteTestAsk => 'Deletes the file from the repo. Recoverable with git.';
+  @override
+  String get e2eSee => 'Open';
+  @override
+  String get e2eRunningTitle => 'Running';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override

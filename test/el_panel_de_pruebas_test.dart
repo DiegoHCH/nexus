@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
+import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
@@ -14,21 +15,23 @@ import 'package:nexus/features/emulators/presentation/providers/emuladores_provi
 
 /// El panel de pruebas: lanzar, ver correr, y el historial.
 class _Maquina extends EmuladoresDataSource {
-  const _Maquina({this.encendido = true});
+  const _Maquina({this.encendidos = 1});
 
-  final bool encendido;
+  /// Cuántos hay arriba. Con dos hay que elegir; con uno, no.
+  final int encendidos;
 
   @override
   Future<({List<Emulador> emuladores, String? error})> listar() async => (
     emuladores: [
-      Emulador(
-        id: 'Medium',
-        nombre: 'Medium',
-        fabricante: 'Generic',
-        plataforma: PlataformaEmulador.android,
-        corriendo: encendido,
-        deviceId: encendido ? 'emulator-5554' : null,
-      ),
+      for (var i = 0; i < 2; i++)
+        Emulador(
+          id: 'Emu$i',
+          nombre: 'Emu$i',
+          fabricante: 'Generic',
+          plataforma: PlataformaEmulador.android,
+          corriendo: i < encendidos,
+          deviceId: i < encendidos ? 'emulator-555$i' : null,
+        ),
     ],
     error: null,
   );
@@ -45,6 +48,12 @@ class _Borrados extends E2eDataSource {
   @override
   Future<String?> borrar(String carpeta) async {
     borrados.add(carpeta);
+    return null;
+  }
+
+  @override
+  Future<String?> borrarPrueba(String ruta) async {
+    borrados.add(ruta);
     return null;
   }
 }
@@ -72,14 +81,14 @@ Future<void> _abrir(
   List<Prueba> pruebas = const [Prueba(ruta: '/casa/tienda/.maestro/login.yaml', nombre: 'login')],
   List<CorridaDePrueba>? corridas,
   PruebaEnMarcha? enMarcha,
-  bool dispositivoEncendido = true,
+  int encendidos = 1,
   List<String>? borrados,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         emuladoresDataSourceProvider.overrideWithValue(
-          _Maquina(encendido: dispositivoEncendido),
+          _Maquina(encendidos: encendidos),
         ),
         if (borrados != null)
           e2eDataSourceProvider.overrideWithValue(_Borrados(borrados)),
@@ -135,7 +144,7 @@ void main() {
     ) async {
       // `maestro test --device` contra un emulador apagado falla: ofrecerlo sería
       // ofrecer ese fallo, así que se dice antes.
-      await _abrir(tester, dispositivoEncendido: false);
+      await _abrir(tester, encendidos: 0);
       await tester.tap(find.text(strings.e2eRun));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -155,59 +164,6 @@ void main() {
         find.widgetWithText(TextButton, strings.e2eRun),
       );
       expect(boton.onPressed, isNull);
-    });
-  });
-
-  group('la vista en vivo', () {
-    testWidgets('los pasos salen con su estado y la cuenta', (tester) async {
-      await _abrir(
-        tester,
-        enMarcha: const PruebaEnMarcha(
-          flow: 'login',
-          pasos: ['launchApp', 'tapOn: entrar', 'assertVisible: hola'],
-          terminados: 1,
-        ),
-      );
-
-      // Los tres pasos del YAML, no la redacción de Maestro.
-      expect(find.text('launchApp'), findsOneWidget);
-      expect(find.text('tapOn: entrar'), findsOneWidget);
-      expect(find.text('assertVisible: hola'), findsOneWidget);
-      // Y la cuenta, que dice dónde va sin contar iconos.
-      expect(find.text('1/3'), findsOneWidget);
-      expect(find.text(strings.e2eStop), findsOneWidget);
-    });
-
-    testWidgets('**si lo ejecutado no cuadra, enseña la salida en plano**', (
-      tester,
-    ) async {
-      // Pasa con `runFlow` y con los bucles: los pasos impresos no son las líneas
-      // del archivo. Degradarse es mejor que pintar un estado inventado.
-      await _abrir(
-        tester,
-        enMarcha: const PruebaEnMarcha(
-          flow: 'login',
-          pasos: ['launchApp'],
-          terminados: 9,
-          lineas: ['Launch app... COMPLETED', 'Tap on... COMPLETED'],
-        ),
-      );
-
-      expect(find.byType(SelectableText), findsOneWidget);
-      expect(find.textContaining('Launch app'), findsOneWidget);
-    });
-
-    testWidgets('terminada no ofrece cortar', (tester) async {
-      await _abrir(
-        tester,
-        enMarcha: const PruebaEnMarcha(
-          flow: 'login',
-          pasos: ['launchApp'],
-          terminados: 1,
-          viva: false,
-        ),
-      );
-      expect(find.text(strings.e2eStop), findsNothing);
     });
   });
 
@@ -264,6 +220,95 @@ void main() {
       // **Nunca el `.yaml`**: lo que se borra aquí es reproducible, el flow es
       // código del usuario y vive en git.
       expect(borrados, ['/donde/sea/login']);
+    });
+  });
+
+  group('elegir dónde correrla', () {
+    testWidgets('con dos encendidos hay que elegir, y se ofrece', (
+      tester,
+    ) async {
+      // **Lo que se reportó**: con el Redmi enchufado y un emulador arriba había
+      // dos, y coger el primero era decidir por el usuario en silencio.
+      await _abrir(tester, encendidos: 2);
+
+      expect(find.byType(SelectorCompacto), findsOneWidget);
+      expect(find.text(strings.e2eDevice), findsOneWidget);
+    });
+
+    testWidgets('con uno solo no se pregunta', (tester) async {
+      // Una pregunta con una sola respuesta no es una pregunta.
+      await _abrir(tester);
+      expect(find.byType(SelectorCompacto), findsNothing);
+    });
+
+    testWidgets('sin elegir con dos, se pide en vez de adivinar', (
+      tester,
+    ) async {
+      await _abrir(tester, encendidos: 2);
+      await tester.tap(find.text(strings.e2eRun));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text(strings.e2eDevice), findsWidgets);
+    });
+  });
+
+  group('de quién son las pruebas', () {
+    testWidgets('la lista dice de qué proyecto es', (tester) async {
+      // El historial ya lo decía y la lista no, así que se leía como si las
+      // pruebas fueran de nadie.
+      await _abrir(tester);
+      expect(find.text('tienda'), findsOneWidget);
+    });
+  });
+
+  group('borrar una prueba', () {
+    testWidgets('el primer toque avisa de que borra del repo', (tester) async {
+      // Es código del usuario: se ofrece porque git lo recupera, y eso se dice
+      // antes y no después.
+      final borrados = <String>[];
+      await _abrir(tester, borrados: borrados);
+
+      await tester.tap(find.byTooltip(strings.e2eDeleteTest));
+      await tester.pump();
+
+      // La advertencia va en el tooltip del mismo botón: dice qué va a hacer sin
+      // ocupar una línea, y con dos palabras escritas la fila desbordaba.
+      expect(find.byTooltip(strings.e2eDeleteTestAsk), findsOneWidget);
+      expect(borrados, isEmpty, reason: 'borró al primer toque');
+    });
+
+    testWidgets('el segundo borra el archivo, y solo ese', (tester) async {
+      final borrados = <String>[];
+      await _abrir(tester, borrados: borrados);
+
+      await tester.tap(find.byTooltip(strings.e2eDeleteTest));
+      await tester.pump();
+      await tester.tap(find.byTooltip(strings.e2eDeleteTestAsk));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(borrados, ['/casa/tienda/.maestro/login.yaml']);
+    });
+  });
+
+  group('la prueba corriendo vive en otra vista', () {
+    testWidgets('la hoja solo avisa, con su puerta', (tester) async {
+      // La vista de una prueba en marcha se mira mientras avanza; compartir sitio
+      // con una lista que no cambia la dejaba en un rincón.
+      await _abrir(
+        tester,
+        enMarcha: const PruebaEnMarcha(
+          flow: 'login',
+          pasos: ['launchApp', 'tapOn: x'],
+          terminados: 1,
+        ),
+      );
+
+      expect(find.textContaining('login · 1/2'), findsOneWidget);
+      expect(find.text(strings.e2eSee), findsOneWidget);
+      // Los pasos ya no se pintan aquí.
+      expect(find.text('launchApp'), findsNothing);
     });
   });
 }
