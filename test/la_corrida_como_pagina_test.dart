@@ -27,8 +27,12 @@ void main() {
     expect(html, contains('class="hecho"'));
     expect(html, contains('class="fallo"'));
     expect(html, contains('class="espera"'));
-    expect(html, contains('>11<'));
-    expect(html, contains('>13<'));
+    // **1, 2, 3 y no la línea del archivo.** Se probó con la línea del `.yaml` y
+    // salían 12, 22, 27: eso no se lee como una lista de pasos, se lee como un
+    // error. La línea sigue estando, en el `title` de la fila.
+    expect(html, contains('>1<'));
+    expect(html, contains('>3<'));
+    expect(html, contains('title="línea 11"'));
   });
 
   test('**el total va aparte, o sale una cuenta imposible**', () {
@@ -199,6 +203,8 @@ void main() {
       fallo: false,
     );
     expect(html, contains('id: toolbar'));
-    expect(html, contains('>34<'));
+    // El paso es el primero, aunque esté en la línea 34.
+    expect(html, contains('>1<'));
+    expect(html, contains('title="línea 34"'));
   });
 }

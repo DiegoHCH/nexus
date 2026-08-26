@@ -54,14 +54,18 @@ class E2eDataSource {
   ///
   /// **Existe porque no se puede depender de que Maestro escriba la suya.** Se
   /// midió: dentro de la app, la carpeta del flow con su `commands.json` no
-  /// aparece —el log queda completo, 103 líneas idénticas a las de una corrida
-  /// que sí la escribe, y esa carpeta se crea después de la última línea, al
-  /// salir el proceso—. La misma llamada desde una shell y desde una prueba la
-  /// escribe siempre. No se dio con el motivo.
+  /// aparece —el log queda completo, idéntico al de una corrida que sí la
+  /// escribe, y esa carpeta se crea después de la última línea, al salir el
+  /// proceso—. La misma llamada desde una shell y desde una prueba la escribe
+  /// siempre. No se dio con el motivo.
   ///
   /// Lo que sí se sabe con certeza es lo que pasó, porque Nexus lo ha leído paso
   /// a paso de la salida mientras corría. Así que se anota aquí y el historial
   /// deja de depender de un archivo ajeno que a veces no llega.
+  ///
+  /// **La ruta del proyecto va dentro del registro**, no solo en el nombre de la
+  /// carpeta: esa lleva el nombre legible de la app y dos proyectos pueden
+  /// llamarse igual. La atribución sale del dato.
   Future<void> anotaLaCorrida({
     required String raiz,
     required String perfil,
@@ -69,13 +73,19 @@ class E2eDataSource {
     required Map<String, Object?> corrida,
   }) async {
     final dir = Directory(
-      '$raiz/$perfil/${DondeVivenLasCorridas.carpetaDe(proyecto)}/corridas',
+      DondeVivenLasCorridas.de(raiz: raiz, proyecto: proyecto),
     );
     try {
       dir.createSync(recursive: true);
-      final cuando = corrida['cuando'] as String? ?? '';
-      File('${dir.path}/${cuando.replaceAll(':', '-')}.json')
-          .writeAsStringSync(jsonEncode(corrida));
+      final cuando =
+          DateTime.tryParse('${corrida['cuando'] ?? ''}') ?? DateTime.now();
+      final nombre = DondeVivenLasCorridas.nombreDelRegistro(
+        flow: '${corrida['flow'] ?? 'prueba'}',
+        cuando: cuando,
+      );
+      File('${dir.path}/$nombre.json').writeAsStringSync(
+        jsonEncode({...corrida, 'proyecto': proyecto, 'perfil': perfil}),
+      );
     } on FileSystemException {
       // Sin poder anotar, la corrida ya pasó igual: se pierde del historial y no
       // se pierde nada más.
@@ -84,32 +94,24 @@ class E2eDataSource {
 
   /// Las corridas que lanzó Nexus, de los registros que dejó.
   ///
-  /// **De nuestros archivos y no de los de Maestro**, por lo dicho en
-  /// [anotaLaCorrida]. El árbol sigue siendo el índice: el perfil y el proyecto
-  /// están en la ruta, sin interpretar nada.
+  /// Un nivel de carpetas —una por app— y los registros dentro. El proyecto sale
+  /// **del registro** y no de la carpeta, por lo dicho en [anotaLaCorrida].
   Future<List<CorridaDePrueba>> propias(String raiz) async {
     final base = Directory(raiz);
     if (!base.existsSync()) return const [];
 
     final corridas = <CorridaDePrueba>[];
-    for (final perfil in _carpetas(base)) {
-      for (final proyecto in _carpetas(perfil)) {
-        final dir = Directory('${proyecto.path}/corridas');
-        if (!dir.existsSync()) continue;
-        final quien = DondeVivenLasCorridas.proyectoDe(
-          proyecto.path.split('/').last,
-        );
+    for (final app in _carpetas(base)) {
+      // La casa de Maestro dentro de una app es su ruido, no una corrida nuestra.
+      if (app.path.split('/').last.startsWith('.')) continue;
 
-        for (final archivo in _archivosJson(dir)) {
-          if (LectorDeCorridas.leerRegistro(
-                archivo.readAsStringSync(),
-                carpeta: archivo.path,
-                perfil: perfil.path.split('/').last,
-                proyecto: quien,
-              )
-              case final corrida?) {
-            corridas.add(corrida);
-          }
+      for (final archivo in _archivosJson(app)) {
+        if (LectorDeCorridas.leerRegistro(
+              archivo.readAsStringSync(),
+              carpeta: archivo.path,
+            )
+            case final corrida?) {
+          corridas.add(corrida);
         }
       }
     }
@@ -288,8 +290,27 @@ class E2eDataSource {
     required String flow,
     required String html,
     required bool primeraVez,
+    required String raizDeLaVentana,
   }) async {
-    final ruta = '${Directory.systemTemp.path}/nexus-prueba-$flow.html';
+    // **Carpeta propia y no el temporal del sistema**, y esto era un fallo de
+    // verdad: el visor vigila la *carpeta* del archivo, y en `/var/folders/…/T/`
+    // escriben decenas de procesos. Cada evento ajeno cancelaba y reprogramaba su
+    // recarga —el aplazamiento es de 0,25 s y se reinicia con cada evento— así que
+    // se posponía casi indefinidamente. Se veía exactamente así: los pasos
+    // congelados en el segundo, todos en visto de golpe al final, y la etiqueta
+    // diciendo «Corriendo» medio minuto después de acabar.
+    //
+    // Con una carpeta que solo escribimos nosotros, cada escritura es un evento y
+    // la recarga llega en su cuarto de segundo.
+    // Oculta y aparte: es un archivo de trabajo, no algo que mirar en el Finder.
+    // Y su propia carpeta arregla la recarga —ver el comentario de arriba—.
+    final carpeta = Directory('$raizDeLaVentana/.ventana');
+    try {
+      carpeta.createSync(recursive: true);
+    } on FileSystemException {
+      return;
+    }
+    final ruta = '${carpeta.path}/$flow.html';
     try {
       File(ruta).writeAsStringSync(html);
     } on FileSystemException {

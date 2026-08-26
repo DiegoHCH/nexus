@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
@@ -15,10 +16,23 @@ final e2eDataSourceProvider = Provider<E2eDataSource>(
   (ref) => const E2eDataSource(),
 );
 
-/// Dónde guarda Nexus lo suyo. Se pregunta una vez.
-final raizDePruebasProvider = FutureProvider<String>(
-  (ref) => E2eDataSource.raiz(),
-);
+/// Dónde guarda Nexus las corridas.
+///
+/// **En la carpeta de documentos del usuario, en `test/`.** Antes iban a
+/// Application Support, donde nadie las ve; ahí van al lado de lo que escribe
+/// Claude y se pueden abrir y borrar sin la app.
+///
+/// Si todavía no hay carpeta de documentos elegida se cae a la de soporte, por lo
+/// mismo que la lista de documentos empieza vacía: **escribir en el disco del
+/// usuario en un sitio que él no ha elegido es exactamente lo que no se hace
+/// aquí.**
+final raizDePruebasProvider = FutureProvider<String>((ref) async {
+  final documentos = ref.watch(artifactsFolderProvider);
+  if (documentos != null && documentos.isNotEmpty) {
+    return '$documentos/${DondeVivenLasCorridas.carpeta}';
+  }
+  return E2eDataSource.raiz();
+});
 
 /// Las pruebas de un proyecto. Familia por carpeta: un `.maestro/` es de su repo
 /// y de ninguno más.
@@ -144,11 +158,9 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     if (state?.viva ?? false) return 'Ya hay una prueba corriendo';
 
     final raiz = await ref.read(raizDePruebasProvider.future);
-    final salida = DondeVivenLasCorridas.paraLanzar(
-      raiz: raiz,
-      perfil: perfil,
-      proyecto: proyecto,
-    );
+    // Maestro escribe su propio ruido en `.maestro/tests` dentro de esta carpeta,
+    // que empieza por punto y no estorba a lo que sí se mira.
+    final salida = DondeVivenLasCorridas.de(raiz: raiz, proyecto: proyecto);
 
     // El YAML se lee ahora: es lo que se pinta, y leerlo después sería pintar los
     // pasos de una versión que igual ya cambió.
@@ -260,6 +272,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             fallo: actual.fallo,
           ),
           primeraVez: !_ventanaAbierta,
+          raizDeLaVentana: _contexto?.raiz ?? await ref.read(raizDePruebasProvider.future),
         );
     _ventanaAbierta = true;
   }

@@ -43,7 +43,8 @@ abstract final class LaCorridaComoHtml {
         // no un estado inventado.
         ? ''
         : [
-            for (final (i, paso) in pasos.indexed) _fila(paso, estados[i]),
+            for (final (i, paso) in pasos.indexed)
+              _fila(paso, estados[i], i + 1),
           ].join('\n');
 
     return '''
@@ -138,7 +139,13 @@ abstract final class LaCorridaComoHtml {
     return '<span class="chapa bien">✓ Finalizada</span>';
   }
 
-  static String _fila(PasoDelFlow paso, EstadoDePaso estado) {
+  /// [orden] es **el número que se enseña: 1, 2, 3…** y no la línea del archivo.
+  ///
+  /// Se probó con la línea del `.yaml` y no servía: salían 12, 22, 27 y eso no se
+  /// lee como una lista de pasos, se lee como un error. La línea sigue estando y
+  /// va en el `title` de la fila, que es donde no molesta y sigue sirviendo para
+  /// ir a buscarla.
+  static String _fila(PasoDelFlow paso, EstadoDePaso estado, int orden) {
     final clase = switch (estado) {
       EstadoDePaso.hecho => 'hecho',
       EstadoDePaso.enCurso => 'curso',
@@ -159,9 +166,9 @@ abstract final class LaCorridaComoHtml {
         ? ''
         : '\n<span class="detalle">${_escapa(paso.detalle.join('\n'))}</span>';
 
-    return '<li class="$clase">'
+    return '<li class="$clase" title="línea ${paso.linea}">'
         '<span class="marca">$marca</span>'
-        '<span class="num">${paso.linea}</span>'
+        '<span class="num">$orden</span>'
         '<span class="guion">–</span>'
         '<span class="texto">${_escapa(paso.texto)}$detalle</span>'
         '</li>';

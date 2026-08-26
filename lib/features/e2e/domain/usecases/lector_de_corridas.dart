@@ -102,8 +102,6 @@ abstract final class LectorDeCorridas {
   static CorridaDePrueba? leerRegistro(
     String json, {
     required String carpeta,
-    required String perfil,
-    required String proyecto,
   }) {
     final Object? leido;
     try {
@@ -129,8 +127,10 @@ abstract final class LectorDeCorridas {
           : hechos >= pasos && pasos > 0
           ? ComoAcabo.bien
           : ComoAcabo.vayaUstedASaber,
-      perfil: perfil,
-      proyecto: proyecto,
+      // **Del registro y no de la ruta.** La carpeta lleva el nombre legible de
+      // la app, que dos proyectos pueden compartir; la ruta entera está aquí.
+      perfil: leido['perfil'] as String?,
+      proyecto: leido['proyecto'] as String?,
       dispositivo: leido['dispositivo'] as String?,
       pasos: pasos,
       pasosBien: fallo ? (hechos - 1).clamp(0, pasos) : hechos,
