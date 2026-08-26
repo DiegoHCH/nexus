@@ -88,11 +88,26 @@ class EmuladoresDataSource {
   /// `flutter emulators --launch` sale con 0 aunque no encuentre el emulador. Ver
   /// [ComandoDeEmuladores.resultadoDeLanzar].
   ///
-  /// No espera el arranque: el comando dispara y vuelve en ~1 s. Por eso Nexus no
-  /// tiene que sostener ningún proceso, y por eso el emulador sobrevive a cerrar
-  /// la app — que es lo que se quiere: cerrar Nexus no puede costarte la sesión
-  /// de pruebas.
-  Future<String?> lanzar(Emulador emulador, {bool frio = false}) async {
+  /// **El comando dispara y vuelve en ~1 s, pero el emulador tarda ~20 s en
+  /// existir**, así que después de lanzarlo hay que esperar a que aparezca. Sin
+  /// esto la pantalla refrescaba la lista justo al volver el comando —cuando el
+  /// emulador todavía no estaba arriba— y la fila volvía a decir «Arrancar» con
+  /// el emulador abriéndose delante de tus ojos. Visto en vivo, y es la clase de
+  /// fallo que hace desconfiar de la pantalla entera.
+  ///
+  /// Se espera aquí y no en el widget a propósito: así el indicador de la fila
+  /// cubre el arranque de verdad —está girando porque *está* arrancando— y las
+  /// pruebas de la pantalla no heredan ningún plazo, porque sustituyen esto.
+  ///
+  /// Lo que **no** se hace es sostener el proceso: el emulador es hijo del
+  /// toolchain y sobrevive a cerrar la app. Cerrar Nexus no puede costarte la
+  /// sesión de pruebas.
+  Future<String?> lanzar(
+    Emulador emulador, {
+    bool frio = false,
+    Duration cada = const Duration(seconds: 2),
+    int intentos = 45,
+  }) async {
     final flutter = await _flutter();
     if (flutter == null) return 'No se encontró Flutter';
 
@@ -107,9 +122,34 @@ class EmuladoresDataSource {
 
     // Aquí sí van los dos juntos: el veredicto se lee por líneas y el motivo
     // puede llegar por cualquiera de las dos. Es lo contrario del JSON.
-    return ComandoDeEmuladores.resultadoDeLanzar(
+    final veredicto = ComandoDeEmuladores.resultadoDeLanzar(
       '${salida.salida}\n${salida.error}',
-    ).error;
+    );
+    if (veredicto.error != null) return veredicto.error;
+
+    // Se comprueba **antes** de esperar: uno que ya estaba arriba no cuesta ni
+    // un plazo.
+    for (var intento = 0; intento < intentos; intento++) {
+      if (await _estaArriba(emulador)) return null;
+      await Future<void>.delayed(cada);
+    }
+
+    // Noventa segundos y no aparece. No es un fallo del lanzamiento —puede
+    // seguir arrancando— así que se dice eso y no «no se pudo».
+    return 'Se lanzó, pero todavía no aparece arrancado';
+  }
+
+  /// Si un emulador concreto ya está arriba.
+  ///
+  /// Pregunta solo por su plataforma: esperar a un simulador de iOS no tiene por
+  /// qué costar los `adb` de Android ni al revés.
+  Future<bool> _estaArriba(Emulador emulador) async {
+    if (emulador.plataforma == PlataformaEmulador.ios) return _hayIosArriba();
+
+    final avds = await _avdsArriba();
+    return avds.keys.any(
+      (avd) => avd == emulador.id || avd == emulador.nombre,
+    );
   }
 
   /// Cierra uno. `null` si salió bien.

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -30,6 +32,10 @@ class _Falsa extends EmuladoresDataSource {
   final cerrados = <String>[];
   String? errorAlLanzar;
 
+  /// Si se pone, `lanzar` no vuelve hasta que alguien lo complete. Sirve para
+  /// mirar la fila **mientras** arranca, que es la mitad que se rompió en vivo.
+  Completer<void>? esperaEnLanzar;
+
   @override
   Future<
     ({
@@ -45,8 +51,14 @@ class _Falsa extends EmuladoresDataSource {
   );
 
   @override
-  Future<String?> lanzar(Emulador emulador, {bool frio = false}) async {
+  Future<String?> lanzar(
+    Emulador emulador, {
+    bool frio = false,
+    Duration cada = const Duration(seconds: 2),
+    int intentos = 45,
+  }) async {
     lanzados.add((id: emulador.id, frio: frio));
+    await esperaEnLanzar?.future;
     return errorAlLanzar;
   }
 
@@ -170,6 +182,30 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No se encontró ese emulador'), findsOneWidget);
+  });
+
+  testWidgets('mientras arranca, la fila enseña el indicador y no un botón', (
+    tester,
+  ) async {
+    // **El fallo visto en vivo.** El comando de lanzar vuelve en ~1 s pero el
+    // emulador tarda ~20 s en existir, así que la espera vive dentro de `lanzar`
+    // y la fila tiene que estar girando todo ese rato. Antes volvía enseguida a
+    // «en frío + Arrancar» con el emulador abriéndose en pantalla, que es la
+    // clase de cosa que hace desconfiar de la lista entera.
+    final falsa = _Falsa([_android])..esperaEnLanzar = Completer<void>();
+    await _montar(tester, falsa);
+
+    await tester.tap(find.text(strings.emulatorsLaunch));
+    await tester.pump();
+
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.text(strings.emulatorsLaunch), findsNothing);
+    expect(find.text(strings.emulatorsColdBoot), findsNothing);
+
+    falsa.esperaEnLanzar!.complete();
+    await tester.pumpAndSettle();
+
+    expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
   testWidgets('los teléfonos enchufados salen aparte y sin botón', (
