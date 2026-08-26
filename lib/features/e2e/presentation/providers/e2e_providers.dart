@@ -11,6 +11,8 @@ import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -424,6 +426,10 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             viva: actual.viva,
             fallo: actual.fallo,
             capturas: _capturas,
+            // **El motivo, traducido.** El resto de la página está en español a
+            // pelo —deuda que viene de antes— pero esto no se suma a ella: el
+            // controlador sí puede leer `stringsProvider`, así que se lee.
+            diagnostico: _diagnostico(actual),
           ),
           primeraVez: !_ventanaAbierta,
           raizDeLaVentana: _contexto?.raiz ?? await ref.read(raizDePruebasProvider.future),
@@ -469,6 +475,24 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           },
         );
     ref.invalidate(corridasDePruebaProvider);
+  }
+
+  /// Qué frase explica este fallo, si es de los reconocibles.
+  ///
+  /// Solo cuando la corrida **ya acabó y acabó mal**: en marcha no hay nada que
+  /// explicar todavía, y en una que va bien el texto sería ruido rojo.
+  String? _diagnostico(PruebaEnMarcha prueba) {
+    if (prueba.viva || !prueba.fallo) return null;
+
+    final strings = ref.read(stringsProvider);
+    return switch (PorQueSeCayoLaCorrida.de(
+      [prueba.salida, ...prueba.ruido].join('\n'),
+    )) {
+      PorQueSeCayo.driverNoSeInstala => strings.e2eDriverBlocked,
+      PorQueSeCayo.sinPermisoParaTocar => strings.e2eNoTapPermission,
+      PorQueSeCayo.appNoInstalada => strings.e2eAppMissing,
+      null => null,
+    };
   }
 
   /// Volver a traer la ventana al frente, para el botón «Ver».

@@ -32,6 +32,7 @@ abstract final class LaCorridaComoHtml {
     required bool fallo,
     int? total,
     Map<String, String> capturas = const {},
+    String? diagnostico,
   }) {
     // **El total va aparte y no se deduce de la lista.** Con una lista vacía
     // —lo que pasaba al abrir el informe de una corrida guardada— el encabezado
@@ -134,6 +135,13 @@ abstract final class LaCorridaComoHtml {
   .toma{display:block;max-width:100%;height:auto;margin:6px 0 4px;
         border:1px solid var(--line);border-radius:6px}
 
+  /* El motivo, cuando se reconoce. Va arriba y no al final: es lo primero que se
+     busca, y ahora mismo compite con veinte líneas de traza que no dicen nada. */
+  .motivo{margin:10px 14px 0;padding:8px 10px;font-size:12px;line-height:1.5;
+          color:var(--ink);border-radius:6px;
+          background:color-mix(in srgb,var(--err) 16%,transparent);
+          border:1px solid color-mix(in srgb,var(--err) 35%,transparent)}
+
   h2{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
      color:var(--faint);margin:14px 14px 4px;font-family:var(--sans)}
   pre{margin:0;padding:0 14px 12px;white-space:pre-wrap;word-break:break-word;
@@ -145,6 +153,7 @@ abstract final class LaCorridaComoHtml {
     ${_chapa(viva: viva, fallo: fallo)}
     ${viva ? '<a class="parar" href="$esquema://parar" title="Detener"><span></span></a>' : ''}
   </header>
+  ${diagnostico == null ? '' : '<p class="motivo">${_escapa(diagnostico)}</p>'}
   ${filas.isEmpty ? '' : '<ol>\n$filas\n</ol>'}
   ${lineas.isEmpty ? '' : '<h2>salida · $cuenta</h2><pre>${_escapa(lineas.join('\n'))}</pre>'}
 </div>

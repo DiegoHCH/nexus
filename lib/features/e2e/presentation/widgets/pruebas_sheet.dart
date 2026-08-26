@@ -9,6 +9,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
@@ -786,7 +787,16 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                 style: _apretado,
                 onPressed: () => ref
                     .read(e2eDataSourceProvider)
-                    .abreElInforme(corrida.carpeta),
+                    .abreElInforme(
+                      corrida.carpeta,
+                      explica: (por) => switch (por) {
+                        PorQueSeCayo.driverNoSeInstala =>
+                          strings.e2eDriverBlocked,
+                        PorQueSeCayo.sinPermisoParaTocar =>
+                          strings.e2eNoTapPermission,
+                        PorQueSeCayo.appNoInstalada => strings.e2eAppMissing,
+                      },
+                    ),
                 child: Text(strings.e2eSee),
               ),
               TextButton(

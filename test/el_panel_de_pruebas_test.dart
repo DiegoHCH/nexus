@@ -10,6 +10,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/e2e/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
@@ -89,7 +90,10 @@ class _Borrados extends E2eDataSource {
   }) async => instalada;
 
   @override
-  Future<void> abreElInforme(String registro) async => borrados.add('ver:$registro');
+  Future<void> abreElInforme(
+    String registro, {
+    String Function(PorQueSeCayo)? explica,
+  }) async => borrados.add('ver:$registro');
 
   @override
   Future<void> pintaLaCorrida({
