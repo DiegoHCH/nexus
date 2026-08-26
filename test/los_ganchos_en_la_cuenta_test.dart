@@ -69,12 +69,13 @@ void main() {
 
     // Sin el bit de ejecución el CLI dice «permission denied» en cada turno, y nadie
     // relaciona eso con la pantalla de Superpoderes.
-    final modo = await Process.run('stat', [
-      '-f',
-      '%Lp',
-      gancho.rutaEn(cuenta.path),
-    ]);
-    expect((modo.stdout as String).trim(), '755');
+    // **Se pregunta al sistema de archivos, no a `stat`.** `stat -f %Lp` es
+    // sintaxis de BSD: en el runner de Linux del CI, `-f` significa
+    // `--file-system` y devuelve `File: "…"` en vez del modo, así que esta prueba
+    // fallaba allí y en ningún otro sitio — tenía develop entero en rojo. Sin
+    // proceso no hay dialecto que valga.
+    final modo = File(gancho.rutaEn(cuenta.path)).statSync().mode & 0x1FF;
+    expect(modo.toRadixString(8), '755');
   });
 
   test('la entrada lleva el matcher y el timeout del catálogo', () async {
