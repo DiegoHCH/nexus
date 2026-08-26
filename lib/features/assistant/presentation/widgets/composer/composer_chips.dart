@@ -415,8 +415,14 @@ class _GateChip extends ConsumerWidget {
     final (etiqueta, avisa) = switch (gate.resultado) {
       ResultadoDelGate.corriendo => (strings.chipGateRunning, false),
       ResultadoDelGate.rojo => (strings.chipGateRed, true),
-      ResultadoDelGate.verde when gate.cubre(huella) => (
+      ResultadoDelGate.verde when gate.cubre(huella) && gate.quien.medido => (
         strings.chipGateGreen,
+        false,
+      ),
+      // Declarado y vigente: ni verde ni aviso. Es cierto y no está medido, y la barra
+      // tiene que poder decir eso sin gritar y sin mentir.
+      ResultadoDelGate.verde when gate.cubre(huella) => (
+        strings.chipGateDeclared,
         false,
       ),
       ResultadoDelGate.verde => (strings.chipGateStale, true),
@@ -429,8 +435,12 @@ class _GateChip extends ConsumerWidget {
         onTap: () => GateSheet.open(context, donde),
         child: _Chip(
           icon: switch (gate.resultado) {
-            ResultadoDelGate.verde when gate.cubre(huella) =>
+            ResultadoDelGate.verde
+                when gate.cubre(huella) && gate.quien.medido =>
               Icons.check_circle_outline,
+            // Una persona dando fe, no una medición.
+            ResultadoDelGate.verde when gate.cubre(huella) =>
+              Icons.how_to_reg_outlined,
             ResultadoDelGate.rojo => Icons.error_outline,
             _ => Icons.science_outlined,
           },

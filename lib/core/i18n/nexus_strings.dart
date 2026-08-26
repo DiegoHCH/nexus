@@ -141,6 +141,11 @@ abstract class NexusStrings {
   /// Verde, pero sobre un árbol que ya no es este.
   String get gateStale;
   String get gateRun;
+  String get gateDeclared;
+  String get gateDeclareTitle;
+  String get gateDeclareHint;
+  String get gateDeclareAction;
+  String get chipGateDeclared;
   String gateWhen(int minutes);
   String get chipGateUnrun;
   String get chipGateRunning;
@@ -240,6 +245,10 @@ abstract class NexusStrings {
   String get corridaSummaryStillOpen;
   String corridaSummaryPlan(String plan);
   String get corridaSummaryGateGreen;
+
+  /// Verde por la palabra de una persona, no por un exit code. Se dice distinto en todas
+  /// partes: mezclarlos convierte el gate en un adorno.
+  String get corridaSummaryGateDeclared;
   String get corridaSummaryGateRed;
   String get corridaSummaryGateNever;
   String corridaSummaryTotal(String duration);
@@ -851,6 +860,16 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get gateRun => 'Correr';
   @override
+  String get gateDeclared => 'DECLARADO';
+  @override
+  String get gateDeclareTitle => 'Lo corrí yo';
+  @override
+  String get gateDeclareHint => 'Pega aquí la salida';
+  @override
+  String get gateDeclareAction => 'Registrar lo que corrí';
+  @override
+  String get chipGateDeclared => 'GATE · DECLARADO';
+  @override
   String gateWhen(int minutes) => minutes < 60
       ? 'hace $minutes min'
       : 'hace ${minutes ~/ 60} h ${minutes % 60} min';
@@ -912,6 +931,9 @@ class NexusStringsEs extends NexusStrings {
   String corridaSummaryPlan(String plan) => 'Lo que se acordó: $plan';
   @override
   String get corridaSummaryGateGreen => 'El gate: verde.';
+  @override
+  String get corridaSummaryGateDeclared =>
+      'El gate: declarado — lo corrió una persona, no lo midió Nexus.';
   @override
   String get corridaSummaryGateRed => 'El gate: en rojo la última vez.';
   @override
@@ -2134,6 +2156,16 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get gateRun => 'Run';
   @override
+  String get gateDeclared => 'DECLARED';
+  @override
+  String get gateDeclareTitle => 'I ran it myself';
+  @override
+  String get gateDeclareHint => 'Paste the output here';
+  @override
+  String get gateDeclareAction => 'Record what I ran';
+  @override
+  String get chipGateDeclared => 'GATE · DECLARED';
+  @override
   String gateWhen(int minutes) => minutes < 60
       ? '$minutes min ago'
       : '${minutes ~/ 60} h ${minutes % 60} min ago';
@@ -2196,6 +2228,9 @@ class NexusStringsEn extends NexusStrings {
   String corridaSummaryPlan(String plan) => 'What was agreed: $plan';
   @override
   String get corridaSummaryGateGreen => 'The gate: green.';
+  @override
+  String get corridaSummaryGateDeclared =>
+      'The gate: declared — a person ran it, Nexus did not measure it.';
   @override
   String get corridaSummaryGateRed => 'The gate: red the last time.';
   @override

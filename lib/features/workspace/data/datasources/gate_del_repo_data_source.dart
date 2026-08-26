@@ -47,6 +47,27 @@ class PublicarIgual {
   final DateTime? cuando;
 }
 
+/// Quién dice que el gate salió como salió.
+///
+/// **Es la distinción que sostiene todo lo demás.** Un exit code es una medición; la
+/// palabra de alguien es una afirmación. Las dos pueden ser ciertas y no valen lo mismo, y
+/// mezclarlas en un solo «verde» convierte el gate en un adorno: en cuanto se puede
+/// afirmar que pasó, se afirma.
+///
+/// Existen las dos porque la alternativa era peor. Sin poder declarar, quien corre las
+/// pruebas en su terminal —que es medio mundo— se encuentra el freno del PR cerrado con
+/// el gate en verde delante de los ojos, y lo que hace entonces es desinstalar el gancho.
+enum QuienCorrioElGate {
+  /// Nexus lo lanzó y se quedó con el código de salida. La evidencia es el número.
+  elAgente,
+
+  /// Una persona lo corrió por su cuenta y pegó la salida. Queda **declarado**, y en el
+  /// informe se lee distinto de verde en todas partes.
+  laPersona;
+
+  bool get medido => this == elAgente;
+}
+
 /// El gate de una carpeta en una rama: qué comando es, cómo salió y sobre qué árbol.
 ///
 /// **Verde es un número, no una afirmación.** Lo único que pone esto en verde es el código
@@ -64,6 +85,7 @@ class GateDelRepo {
     this.salida,
     this.aviso,
     this.aunque,
+    this.quien = QuienCorrioElGate.elAgente,
   });
 
   final String carpeta;
@@ -77,6 +99,10 @@ class GateDelRepo {
 
   final ResultadoDelGate resultado;
   final DateTime? cuando;
+
+  /// Quién lo corrió. Por defecto el agente: es lo que había antes de que se pudiera
+  /// declarar, y una corrida vieja sin esta clave se midió de verdad.
+  final QuienCorrioElGate quien;
 
   /// El árbol sobre el que corrió, para poder saber si lo verde sigue cubriendo lo que hay.
   ///
@@ -94,6 +120,9 @@ class GateDelRepo {
 
   /// El motivo escrito para publicar sin volver a correrlo, si lo hay.
   final PublicarIgual? aunque;
+
+  /// Verde, medido, y cubriendo el árbol de ahora. Lo único que se enseña como verde.
+  bool get verdeMedido => resultado == ResultadoDelGate.verde && quien.medido;
 
   /// Si lo verde cubre el árbol que hay ahora mismo.
   ///
@@ -115,6 +144,7 @@ class GateDelRepo {
     String? aviso,
     PublicarIgual? aunque,
     bool sinAunque = false,
+    QuienCorrioElGate? quien,
   }) => GateDelRepo(
     carpeta: carpeta,
     rama: rama,
@@ -125,6 +155,7 @@ class GateDelRepo {
     salida: salida ?? this.salida,
     aviso: aviso ?? this.aviso,
     aunque: sinAunque ? null : (aunque ?? this.aunque),
+    quien: quien ?? this.quien,
   );
 }
 
@@ -215,6 +246,9 @@ class GateDelRepoDataSource {
       },
       huella: suya['huella'] as String?,
       salida: suya['salida'] as String?,
+      quien: suya['quien'] == 'persona'
+          ? QuienCorrioElGate.laPersona
+          : QuienCorrioElGate.elAgente,
       aunque: switch (suya['aunque']) {
         final Map a when (a['motivo'] as String?)?.trim().isNotEmpty ?? false =>
           PublicarIgual(
@@ -299,6 +333,9 @@ class GateDelRepoDataSource {
       // Una medición nueva deja sin sentido la justificación de la anterior: se va con
       // ella en vez de quedarse esperando a coincidir otra vez con el árbol.
       sinAunque: true,
+      // Correrlo lo mide, aunque antes estuviera declarado: una medición gana siempre a
+      // una afirmación, y en ese orden.
+      quien: QuienCorrioElGate.elAgente,
       resultado: codigo == 0 ? ResultadoDelGate.verde : ResultadoDelGate.rojo,
       cuando: DateTime.now().toUtc(),
       huella: huella,
@@ -308,6 +345,37 @@ class GateDelRepoDataSource {
     );
     await guardar(configDir, resultado);
     return resultado;
+  }
+
+  /// Registra que el gate lo corrió una persona, con la salida que pegó.
+  ///
+  /// **La salida es obligatoria y no es burocracia.** Es lo único que separa esto de un
+  /// botón que pone el gate en verde: sin nada que enseñar, declarar sería sustituir una
+  /// medición por un clic, y entonces el gate deja de medir nada en dos días.
+  ///
+  /// La huella se toma igual que al correrlo, así que un declarado también deja de cubrir
+  /// en cuanto se toca un archivo. Lo que cambia es quién lo dice, no cuánto dura.
+  Future<GateDelRepo> declarar(
+    String configDir,
+    GateDelRepo gate, {
+    required String salida,
+    required String? huella,
+  }) async {
+    final texto = salida.trim();
+    if (texto.isEmpty) return gate;
+
+    final declarado = gate.copyWith(
+      sinAunque: true,
+      quien: QuienCorrioElGate.laPersona,
+      resultado: ResultadoDelGate.verde,
+      cuando: DateTime.now().toUtc(),
+      huella: huella,
+      salida: texto.length > topeDeSalida
+          ? texto.substring(texto.length - topeDeSalida)
+          : texto,
+    );
+    await guardar(configDir, declarado);
+    return declarado;
   }
 
   /// Guarda **sin pisar las demás ramas**, por lo mismo que la firma del plan: otra
@@ -336,6 +404,9 @@ class GateDelRepoDataSource {
           'cuando': gate.cuando!.millisecondsSinceEpoch ~/ 1000,
         if (gate.huella != null) 'huella': gate.huella,
         if (gate.salida != null) 'salida': gate.salida,
+        // Solo cuando lo dijo una persona: así una marca sin la clave es lo que siempre
+        // fue, una medición, y no hay que migrar nada.
+        if (!gate.quien.medido) 'quien': 'persona',
         if (gate.aunque case final aunque?)
           'aunque': {
             'motivo': aunque.motivo,
