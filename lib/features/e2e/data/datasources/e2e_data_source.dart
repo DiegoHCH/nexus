@@ -214,15 +214,39 @@ class E2eDataSource {
     }
   }
 
+  /// La página que se le escribe a una corrida guardada, al lado de su registro.
+  ///
+  /// Derivada del registro y no inventada: así **quien borra la corrida sabe qué
+  /// página se lleva con ella** sin tener que buscarla.
+  static String paginaDe(String registro) =>
+      '${registro.replaceAll(RegExp(r'\.json$'), '')}.html';
+
   /// Borra lo que dejó una corrida.
   ///
   /// **Solo artefactos, nunca el `.yaml`.** Lo que se borra aquí es reproducible;
   /// el flow es código del usuario y vive en git.
-  Future<String?> borrar(String carpeta) async {
-    final dir = Directory(carpeta);
-    if (!dir.existsSync()) return null;
+  ///
+  /// **Dos formas, porque una corrida deja dos cosas distintas**: las nuestras son
+  /// un registro `.json` suelto, las de Maestro una carpeta con su `commands.json`
+  /// dentro. Esto solo sabía borrar carpetas, y `Directory(ruta).existsSync()` con
+  /// un archivo da `false`: se salía por «no hay nada que borrar» devolviendo
+  /// `null`, que quien llama lee como éxito. Resultado: **borrar una corrida
+  /// lanzada por Nexus no hacía nada** y la fila volvía al refrescar la lista. No
+  /// daba error en ningún sitio, que es lo que lo hizo durar.
+  Future<String?> borrar(String ruta) async {
     try {
-      dir.deleteSync(recursive: true);
+      final carpeta = Directory(ruta);
+      if (carpeta.existsSync()) {
+        carpeta.deleteSync(recursive: true);
+        return null;
+      }
+      final registro = File(ruta);
+      if (!registro.existsSync()) return null;
+      registro.deleteSync();
+      // Y su página, que es derivada del registro: sin él no lleva a ninguna
+      // parte y quedaría ocupando sitio sin que nada la enseñe.
+      final pagina = File(paginaDe(ruta));
+      if (pagina.existsSync()) pagina.deleteSync();
       return null;
     } on FileSystemException catch (e) {
       return e.message;
@@ -413,17 +437,15 @@ class E2eDataSource {
       fallo: fallo,
     );
 
-    // El nombre del archivo es **el título de la ventana**, así que lleva el flow
-    // y la hora en vez del sello de tiempo entero: «welcome_to_login 09-35» dice
-    // qué es de un vistazo y `2026-08-26T09-35-40.375012` no.
-    final hora = registro.split('/').last.replaceAll(RegExp(r'\.json$'), '');
-    final corta = RegExp(r'T(\d{2})-(\d{2})').firstMatch(hora);
-    final pagina =
-        '${registro.substring(0, registro.lastIndexOf('/'))}/'
-        // Con guion y no con dos puntos: en macOS un `:` en un nombre de archivo
-        // se le enseña al usuario como `/`, así que «09:35» aparecería como
-        // «09/35» y parecería otra carpeta.
-        '$flow ${corta == null ? hora : '${corta.group(1)}h${corta.group(2)}'}.html';
+    // El nombre del archivo es **el título de la ventana**, y el del registro ya
+    // dice exactamente lo que hace falta: «welcome_to_login 2026-08-26 09h3507».
+    // Así que la página es el mismo nombre con otra extensión.
+    //
+    // Antes esto recomponía el nombre buscando un `T09-35` con una expresión
+    // regular, del formato de sello de tiempo anterior. Al pasar los registros a
+    // un nombre legible ese patrón dejó de casar y la página salía con el flow
+    // repetido: «welcome_to_login welcome_to_login 2026-08-26 09h3507.html».
+    final pagina = paginaDe(registro);
     try {
       File(pagina).writeAsStringSync(html);
     } on FileSystemException {
@@ -462,19 +484,64 @@ class E2eDataSource {
     }
   }
 
-  /// Cuánto ocupa una carpeta, para poder decirlo antes de borrar.
-  int bytesDe(String carpeta) {
-    final dir = Directory(carpeta);
-    if (!dir.existsSync()) return 0;
-    var total = 0;
+  /// ¿Está ese archivo en git?
+  ///
+  /// **Es lo que decide si borrar una prueba se puede deshacer**, y por eso se
+  /// pregunta en vez de suponerlo: el aviso del panel prometía «se recupera con
+  /// git» siempre, y con un flow recién escrito y sin commitear eso es falso justo
+  /// en el momento en que más importa.
+  ///
+  /// `null` es «no se pudo saber» —sin git, o fuera de un repositorio— y entonces
+  /// el aviso no promete nada en ninguna dirección. Decir «no está en git» porque
+  /// no hay git sería inventarse la respuesta.
+  Future<bool?> estaEnGit(String ruta) async {
+    final corte = ruta.lastIndexOf('/');
+    if (corte < 0) return null;
+
     try {
+      final r = await Process.run(
+        'git',
+        ['-C', ruta.substring(0, corte), 'ls-files', '--error-unmatch', '--', ruta],
+        runInShell: false,
+        environment: ClaudeEnvironment.forTools(),
+      );
+      // 0 lo conoce, 1 no lo conoce, 128 no hay repositorio. Solo las dos
+      // primeras son una respuesta.
+      return switch (r.exitCode) {
+        0 => true,
+        1 => false,
+        _ => null,
+      };
+    } on ProcessException {
+      return null;
+    }
+  }
+
+  /// Cuánto ocupa una corrida, para poder decirlo antes de borrar.
+  ///
+  /// Un registro nuestro o una carpeta de Maestro, por lo mismo que [borrar]: con
+  /// un archivo, el `Directory` de antes daba `0`. Y un tamaño que sale `0`
+  /// **cuando sí ocupa** es peor que no enseñarlo, porque se lee como «esto no
+  /// pesa nada, bórralo tranquilo».
+  int bytesDe(String ruta) {
+    try {
+      final registro = File(ruta);
+      if (registro.existsSync()) {
+        final pagina = File(paginaDe(ruta));
+        return registro.lengthSync() +
+            (pagina.existsSync() ? pagina.lengthSync() : 0);
+      }
+
+      final dir = Directory(ruta);
+      if (!dir.existsSync()) return 0;
+      var total = 0;
       for (final e in dir.listSync(recursive: true, followLinks: false)) {
         if (e is File) total += e.lengthSync();
       }
-    } on FileSystemException {
       return total;
+    } on FileSystemException {
+      return 0;
     }
-    return total;
   }
 
   /// Lanzar un binario y quedarse con lo que dijo.
