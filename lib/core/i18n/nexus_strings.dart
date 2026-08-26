@@ -166,6 +166,31 @@ abstract class NexusStrings {
   String get skillsOwnHint;
   String get skillsCreate;
 
+  // Superpoderes: los ganchos que Nexus reparte.
+  //
+  // Se nombran por lo que **hacen**, no por su archivo: quien mira esta pantalla decide
+  // si quiere ese efecto, y `inyectar_reglas.py` no dice cuál es.
+  String get superpowersHooks;
+  String get hooksExplainer;
+  String get hooksNotInstalled;
+  String get hooksHalf;
+  String get hooksOutdated;
+  String get hooksUpToDate;
+  String get hooksInstall;
+  String get hooksUpdate;
+  String get hooksRemove;
+  String get hooksInjectRules;
+  String get hooksInjectRulesWhat;
+  String get hooksRequirePlan;
+  String get hooksRequirePlanWhat;
+
+  /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
+  /// instalar, así que queda en el idioma que hubiera entonces.
+  String get hooksInjectingStatus;
+
+  /// El interruptor del plan, encendido en una cuenta que no tiene el gancho.
+  String get planRequireNoHook;
+
   // Superpoderes: plugins y marketplaces.
   String get superpowersPlugins;
   String get pluginsExplainer;
@@ -776,6 +801,47 @@ class NexusStringsEs extends NexusStrings {
   String get skillsOwnHint => 'cómo se llama';
   @override
   String get skillsCreate => 'Crear y abrir';
+  @override
+  String get superpowersHooks => 'Ganchos';
+  @override
+  String get hooksExplainer =>
+      'Un gancho no lo decide el modelo: lo ejecuta el CLI en un momento exacto, así '
+      'que es lo único que puede poner una regla delante de una edición o negarla. Va '
+      'en la cuenta —nunca dentro de un repo, que lo heredaría todo el equipo— y cada '
+      'uno solo actúa donde se le pide.';
+  @override
+  String get hooksNotInstalled => 'Sin instalar';
+  @override
+  String get hooksHalf => 'A medias: el CLI no lo llama';
+  @override
+  String get hooksOutdated => 'Hay una versión más nueva';
+  @override
+  String get hooksUpToDate => 'Al día';
+  @override
+  String get hooksInstall => 'Instalar';
+  @override
+  String get hooksUpdate => 'Actualizar';
+  @override
+  String get hooksRemove => 'Quitar';
+  @override
+  String get hooksInjectRules => 'La regla de la capa, antes de cada edición';
+  @override
+  String get hooksInjectRulesWhat =>
+      'Le pone delante la regla del archivo que va a tocar, justo cuando va a tocarlo. '
+      'Lo enciende un «.nexus-reglas» en la raíz del proyecto; en una carpeta sin él no '
+      'hace nada.';
+  @override
+  String get hooksRequirePlan => 'Nada se escribe sin un plan firmado';
+  @override
+  String get hooksRequirePlanWhat =>
+      'Deniega la edición mientras la carpeta no tenga un plan firmado y vigente. Lo '
+      'enciende el martillo de Permisos, carpeta por carpeta.';
+  @override
+  String get hooksInjectingStatus => 'Cargando las reglas de la capa…';
+  @override
+  String get planRequireNoHook =>
+      'Esta cuenta no tiene el gancho: ponlo en Superpoderes → Ganchos o esto no '
+      'deniega nada';
   @override
   String get superpowersPlugins => 'Plugins';
   @override
@@ -1848,6 +1914,47 @@ class NexusStringsEn extends NexusStrings {
   String get skillsOwnHint => 'what it is called';
   @override
   String get skillsCreate => 'Create and open';
+  @override
+  String get superpowersHooks => 'Hooks';
+  @override
+  String get hooksExplainer =>
+      'A hook is not something the model decides on: the CLI runs it at an exact '
+      'moment, so it is the only thing that can put a rule in front of an edit or deny '
+      'it. It lives on the account — never inside a repo, where the whole team would '
+      'inherit it — and each one only acts where you ask it to.';
+  @override
+  String get hooksNotInstalled => 'Not installed';
+  @override
+  String get hooksHalf => 'Half installed: the CLI never calls it';
+  @override
+  String get hooksOutdated => 'A newer version is available';
+  @override
+  String get hooksUpToDate => 'Up to date';
+  @override
+  String get hooksInstall => 'Install';
+  @override
+  String get hooksUpdate => 'Update';
+  @override
+  String get hooksRemove => 'Remove';
+  @override
+  String get hooksInjectRules => 'The layer rule, before every edit';
+  @override
+  String get hooksInjectRulesWhat =>
+      'Puts the rule for the file it is about to touch in front of it, right when it '
+      'is about to touch it. A «.nexus-reglas» at the root of the project turns it on; '
+      'in a folder without one it does nothing.';
+  @override
+  String get hooksRequirePlan => 'Nothing gets written without a signed plan';
+  @override
+  String get hooksRequirePlanWhat =>
+      'Denies the edit while the folder has no signed, valid plan. The gavel in '
+      'Permissions turns it on, folder by folder.';
+  @override
+  String get hooksInjectingStatus => 'Loading the layer rules…';
+  @override
+  String get planRequireNoHook =>
+      'This account does not have the hook: add it in Superpowers → Hooks or this '
+      'denies nothing';
   @override
   String get superpowersPlugins => 'Plugins';
   @override

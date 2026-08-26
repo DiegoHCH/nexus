@@ -18,7 +18,7 @@ void main() {
   late Directory repo;
   late Directory cuenta;
   const fuente = PlanFirmadoDataSource();
-  final hook = File('tool/hooks/exigir_plan.py').absolute.path;
+  final hook = File('assets/hooks/exigir_plan.py').absolute.path;
 
   setUp(() {
     repo = Directory.systemTemp.createTempSync('proyecto');

@@ -31,7 +31,7 @@ void main() {
   late Directory repo;
   late Directory cuenta;
   const fuente = PlanFirmadoDataSource();
-  final hook = File('tool/hooks/exigir_plan.py').absolute.path;
+  final hook = File('assets/hooks/exigir_plan.py').absolute.path;
 
   setUp(() {
     repo = Directory.systemTemp.createTempSync('proyecto');
@@ -104,6 +104,38 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  /// Pulsa «Firmar» y **espera a que la escritura haya ocurrido**.
+  ///
+  /// `tester.tap` vuelve cuando el gesto se despacha, no cuando el archivo está en disco:
+  /// firmar es asíncrono. Sin esperar, la prueba le preguntaba al hook antes de que la
+  /// firma existiera y fallaba **una de cada cinco veces** —medido— con un mensaje que
+  /// acusaba a la app de escribir algo que el hook no entiende, que es justo lo contrario
+  /// de lo que estaba pasando. Un test que acusa al código correcto es peor que ninguno.
+  ///
+  /// Se sondea el disco en vez de dormir un rato fijo: dormir es la misma apuesta con
+  /// otra cara, y en una máquina cargada vuelve a perder.
+  Future<void> pulsarFirmar(WidgetTester tester, {required bool escribe}) async {
+    await tester.runAsync(() async {
+      await tester.tap(find.byKey(const ValueKey('firmar-el-plan')));
+      if (!escribe) {
+        // Cuando no debe firmar no hay nada que esperar, pero sí hay que darle margen
+        // para firmar mal: seguir al instante haría pasar la prueba sin comprobar nada.
+        await Future<void>.delayed(const Duration(milliseconds: 150));
+        return;
+      }
+      final limite = DateTime.now().add(const Duration(seconds: 5));
+      while (DateTime.now().isBefore(limite)) {
+        await Future<void>.delayed(const Duration(milliseconds: 10));
+        // **Vigente y no «hay algo escrito».** Al refirmar ya hay un plan en el disco
+        // —el caducado— así que esperar a que exista uno vuelve al instante y deja la
+        // carrera igual que estaba.
+        final leido = await fuente.leer(cuenta.path, repo.path);
+        if (leido != null && leido.vigenteEn(DateTime.now())) break;
+      }
+    });
+    await tester.pumpAndSettle();
+  }
+
   testWidgets('firmar en la hoja deja escribir al hook', (tester) async {
     // La carpeta exige plan y no hay ninguno: el punto de partida real.
     await tester.runAsync(
@@ -123,12 +155,7 @@ void main() {
       find.byType(TextField),
       'mover la validación al dominio',
     );
-    // El `runAsync` también aquí: firmar escribe un archivo, y el `await` de esa
-    // escritura tampoco vuelve bajo el reloj falso.
-    await tester.runAsync(
-      () => tester.tap(find.byKey(const ValueKey('firmar-el-plan'))),
-    );
-    await tester.pumpAndSettle();
+    await pulsarFirmar(tester, escribe: true);
 
     expect(
       await elHookDejaEscribirEn(tester),
@@ -154,12 +181,7 @@ void main() {
 
     await abrirLaHoja(tester);
     await tester.enterText(find.byType(TextField), '   ');
-    // El `runAsync` también aquí: firmar escribe un archivo, y el `await` de esa
-    // escritura tampoco vuelve bajo el reloj falso.
-    await tester.runAsync(
-      () => tester.tap(find.byKey(const ValueKey('firmar-el-plan'))),
-    );
-    await tester.pumpAndSettle();
+    await pulsarFirmar(tester, escribe: false);
 
     // Ni firma ni cierra: si cerrara, quien lo pulsó se iría creyendo que firmó
     // y se encontraría la denegación en la primera edición.
@@ -186,12 +208,7 @@ void main() {
     expect(find.text('lo de ayer'), findsOneWidget);
 
     // Y refirmar sin tocar nada tiene que valer: la fecha la pone la app.
-    // El `runAsync` también aquí: firmar escribe un archivo, y el `await` de esa
-    // escritura tampoco vuelve bajo el reloj falso.
-    await tester.runAsync(
-      () => tester.tap(find.byKey(const ValueKey('firmar-el-plan'))),
-    );
-    await tester.pumpAndSettle();
+    await pulsarFirmar(tester, escribe: true);
     expect(await elHookDejaEscribirEn(tester), isTrue);
   });
 
