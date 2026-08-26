@@ -121,7 +121,10 @@ abstract class NexusStrings {
   String get planUnsigned;
 
   /// Firmado y vigente, con lo que le queda.
-  String planValidFor(int minutes);
+  String planValidFor(int hours, int minutes);
+
+  /// Para qué rama es esta firma. La firma es de la tarea, y una tarea es una rama.
+  String planSignBranch(String branch);
 
   /// El título de la hoja donde se firma.
   String get planSignTitle;
@@ -735,7 +738,10 @@ class NexusStringsEs extends NexusStrings {
   String get planUnsigned => 'PLAN SIN FIRMAR';
 
   @override
-  String planValidFor(int minutes) => 'PLAN · $minutes MIN';
+  String planValidFor(int hours, int minutes) =>
+      hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
+  @override
+  String planSignBranch(String branch) => 'Para la rama «$branch»';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -745,7 +751,7 @@ class NexusStringsEs extends NexusStrings {
 
   @override
   String get planSignBody =>
-      'Esta carpeta no deja escribir sin un plan firmado. Mientras no lo esté, el asistente puede leer y contestar, pero cualquier edición se le deniega — y se le dice por qué. La firma caduca en una hora: un permiso que no caduca deja de ser una decisión.';
+      'Esta carpeta no deja escribir sin un plan firmado. Mientras no lo esté, el asistente puede leer y contestar, pero cualquier edición se le deniega — y se le dice por qué. La firma es de esta rama y caduca en ocho horas: un permiso que no caduca deja de ser una decisión, y uno que caduca cada hora deja de leerse.';
 
   @override
   String get planSignAction => 'Firmar';
@@ -1848,7 +1854,10 @@ class NexusStringsEn extends NexusStrings {
   String get planUnsigned => 'PLAN NOT SIGNED';
 
   @override
-  String planValidFor(int minutes) => 'PLAN · $minutes MIN';
+  String planValidFor(int hours, int minutes) =>
+      hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
+  @override
+  String planSignBranch(String branch) => 'For the «$branch» branch';
 
   @override
   String get planSignTitle => 'Sign the plan';
@@ -1858,7 +1867,7 @@ class NexusStringsEn extends NexusStrings {
 
   @override
   String get planSignBody =>
-      'This folder will not allow writing without a signed plan. Until it is, the assistant can read and answer, but any edit is denied — and it is told why. The signature expires in an hour: a permission that never expires stops being a decision.';
+      'This folder will not allow writing without a signed plan. Until it is, the assistant can read and answer, but any edit is denied — and it is told why. The signature belongs to this branch and expires in eight hours: a permission that never expires stops being a decision, and one that expires every hour stops being read.';
 
   @override
   String get planSignAction => 'Sign';

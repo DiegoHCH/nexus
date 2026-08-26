@@ -15,32 +15,51 @@ cuenta —es de quien lo instala, no se hereda— y lo enciende la carpeta.
 
 La marca es un JSON en `<CLAUDE_CONFIG_DIR>/nexus-planes/<carpeta>.json`:
 
-    {"carpeta": "/ruta/del/proyecto", "exige": true,
-     "plan": "qué se va a hacer", "firmado": 1756…, "vale": 3600}
+    {"carpeta": "/ruta/del/proyecto", "exige": true, "vale": 28800,
+     "ramas": {"feat/algo": {"plan": "qué se va a hacer", "firmado": 1756…}}}
 
 La carpeta va **dentro** y se compara resuelta: codificarla en el nombre del archivo hizo
 que `/var` y `/private/var` fueran dos carpetas distintas, y el gate dejó pasar sin decir
 nada.
 
+**La exigencia es de la carpeta y la firma es de la rama**, y esa división no es un
+detalle de implementación: son dos decisiones de plazos distintos. Que un proyecto pida
+plan se decide una vez; qué se va a hacer se decide por tarea, y una tarea es una rama.
+Con una sola firma por carpeta, cambiar de rama para atender una urgencia borraba el plan
+de lo que estabas haciendo, y al volver había que firmar otra vez algo que seguía siendo
+verdad.
+
 - `exige: false` o sin archivo → no se pide nada.
-- `plan` vacío o `firmado` caducado → se deniega y se dice qué falta.
+- sin entrada para la rama actual, `plan` vacío o `firmado` caducado → se deniega.
 
 Caduca a propósito, y con el mismo criterio que la frase de escritura de Nexus: un permiso
-que no caduca deja de ser una decisión y pasa a ser un ajuste que alguien puso una vez.
+que no caduca deja de ser una decisión y pasa a ser un ajuste que alguien puso una vez. La
+jornada y no la hora porque el plazo tiene que durar lo que dura una tarea: con una hora,
+dos días de trabajo se firmaban dieciséis veces y la firma se convierte en un trámite.
+
+Formato viejo —la firma suelta en la raíz del archivo, sin `ramas`— se lee como **sin
+firmar**: `exige` se respeta y se pide firmar una vez más. Heredarla en todas las ramas
+sería justo el fallo que esto viene a arreglar.
 """
 
 from __future__ import annotations
 
 import json
 import os
+import subprocess
 import sys
 import time
 
 EVENTO = "PreToolUse"
 
-# Cuánto vale una firma si la marca no dice otra cosa. Una hora: lo que dura una tarea
-# antes de que «lo que iba a hacer» ya no sea lo que se está haciendo.
-VALE_POR = 3600
+# Cuánto vale una firma si la marca no dice otra cosa. Una jornada: lo que dura una tarea
+# antes de que «lo que iba a hacer» ya no sea lo que se está haciendo. Al día siguiente se
+# vuelve a firmar, que es cuando de verdad suele haber cambiado.
+VALE_POR = 28800
+
+# La clave donde va la firma de una carpeta que no está en un repositorio. Lleva dos
+# puntos porque git los prohíbe en un nombre de rama: así no puede chocar nunca con una.
+SIN_RAMA = ":sin-rama"
 
 
 def _marca(raiz: str) -> dict | None:
@@ -97,6 +116,43 @@ def _marca(raiz: str) -> dict | None:
         actual = padre
 
 
+def _rama(raiz: str) -> str:
+    """En qué rama está esa carpeta, **con la misma regla que usa la app**.
+
+    Este es el punto donde los dos lados se pueden desalinear sin que nada falle: si la
+    app guarda la firma bajo un nombre y esto busca otro, el gate deniega para siempre y
+    el motivo es invisible. Por eso la regla es la de `GitDataSource.read` copiada
+    literalmente —`--abbrev-ref`, y el commit corto con `HEAD` suelta— y hay una prueba
+    que ejecuta los dos lados sobre el mismo repo para que no se separen.
+
+    Se pregunta a git y no se lee `.git/HEAD` a mano por lo de siempre: el caso raro —un
+    worktree, un submódulo— lo resuelve git y no un parser nuestro.
+
+    Y se llama **solo si la carpeta exige plan**. En las demás este hook tiene que costar
+    lo más parecido a nada: corre en cada edición.
+    """
+
+    def git(*args: str) -> str:
+        try:
+            hecho = subprocess.run(
+                ["git", "-C", raiz, *args],
+                capture_output=True,
+                text=True,
+                timeout=5,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return ""
+        return hecho.stdout.strip() if hecho.returncode == 0 else ""
+
+    if not git("rev-parse", "--show-toplevel"):
+        return SIN_RAMA
+    rama = git("rev-parse", "--abbrev-ref", "HEAD")
+    if rama and rama != "HEAD":
+        return rama
+    # `HEAD` suelta: git contesta literalmente «HEAD», que no distingue un commit de otro.
+    return git("rev-parse", "--short", "HEAD") or SIN_RAMA
+
+
 def _denegar(motivo: str) -> None:
     print(
         json.dumps(
@@ -127,10 +183,18 @@ def main() -> None:
     if marca is None or not marca.get("exige"):
         return
 
-    plan = str(marca.get("plan") or "").strip()
+    rama = _rama(raiz)
+    ramas = marca.get("ramas")
+    firma = ramas.get(rama) if isinstance(ramas, dict) else None
+    if not isinstance(firma, dict):
+        firma = {}
+
+    donde = "esta carpeta" if rama == SIN_RAMA else f"la rama «{rama}»"
+
+    plan = str(firma.get("plan") or "").strip()
     if not plan:
         _denegar(
-            "Esta carpeta exige un plan firmado antes de escribir, y no hay ninguno. "
+            f"No hay plan firmado para {donde}, y aquí no se escribe sin uno. "
             "La firma no se pone en el chat: se firma en Nexus, en el chip del "
             "compositor que dice PLAN SIN FIRMAR. Escribir «firmado» aquí no vale, "
             "y pedir permiso tampoco — hasta que esa firma exista, esto seguirá "
@@ -138,20 +202,21 @@ def main() -> None:
         )
         return
 
-    firmado = marca.get("firmado")
+    firmado = firma.get("firmado")
     vale = marca.get("vale") or VALE_POR
     if not isinstance(firmado, (int, float)):
         _denegar(
-            "El plan de esta carpeta no dice cuándo se firmó, así que no se puede "
+            f"El plan de {donde} no dice cuándo se firmó, así que no se puede "
             "saber si sigue valiendo. Vuelve a firmarlo."
         )
         return
 
     edad = time.time() - firmado
     if edad > vale:
-        minutos = int(edad // 60)
+        horas = int(edad // 3600)
+        cuanto = f"{horas} horas" if horas else f"{int(edad // 60)} minutos"
         _denegar(
-            f"El plan de esta carpeta se firmó hace {minutos} minutos y ya caducó. "
+            f"El plan de {donde} se firmó hace {cuanto} y ya caducó. "
             "Un permiso que no caduca deja de ser una decisión: fírmalo otra vez, o "
             "cámbialo si lo que estás haciendo ya no es lo que decía."
         )

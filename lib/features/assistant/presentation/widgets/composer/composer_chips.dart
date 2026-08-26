@@ -55,6 +55,14 @@ class ComposerChips extends ConsumerWidget {
     final repos = paired == null
         ? const <String>[]
         : ref.watch(reposInsideProvider(paired.path)).value ?? const [];
+    // La rama con la que se firma el plan: la del sitio donde va a correr el encargo, que
+    // es de donde el hook la va a sacar. Con la carpeta emparejada es la misma que la de
+    // arriba —mismo proveedor, misma clave— y sin emparejar sigue habiendo carpeta, así
+    // que se resuelve igual en vez de darla por perdida.
+    final dondeCorre = paired?.workingDirectory ?? folderPath;
+    final ramaDelPlan = dondeCorre == null
+        ? null
+        : ref.watch(gitInfoProvider(dondeCorre)).value?.branch;
 
     return Row(
       children: [
@@ -254,24 +262,18 @@ class ComposerChips extends ConsumerWidget {
         // nada: un chip apagado en todas las conversaciones enseñaría un
         // mecanismo que casi nadie enciende, y el sitio se paga en atención.
         if (folderPath case final carpeta?)
-          if (ref
-                  .watch(
-                    planFirmadoProvider(
-                      dondeMirar(
-                        carpeta: carpeta,
-                        perfil: paired?.claudeProfile,
-                      ),
-                    ),
-                  )
-                  .value
-              case final plan? when plan.exige)
-            _PlanChip(
-              plan: plan,
-              donde: dondeMirar(
+          // La rama es la del sitio donde va a trabajar Claude, que es de donde el hook
+          // la va a sacar: si aquí se firmara bajo otra, la firma existiría y el gate
+          // seguiría denegando sin que nada explicara por qué.
+          if (dondeMirar(
                 carpeta: carpeta,
                 perfil: paired?.claudeProfile,
-              ),
-            ),
+                rama: ramaDelPlan,
+              )
+              case final donde)
+            if (ref.watch(planFirmadoProvider(donde)).value
+                case final plan? when plan.exige)
+              _PlanChip(plan: plan, donde: donde),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
@@ -307,7 +309,9 @@ class _PlanChipState extends State<_PlanChip> {
   @override
   void initState() {
     super.initState();
-    // Medio minuto: se enseñan minutos, así que más fino sería trabajo que no se ve.
+    // Medio minuto: el minuto es la unidad más fina que se enseña, así que más a menudo
+    // sería trabajo que no se ve. Y sigue haciendo falta con una firma de ocho horas: lo
+    // que importa del contador es el final, no el principio.
     _reloj = Timer.periodic(
       const Duration(seconds: 30),
       (_) => setState(() {}),
@@ -340,7 +344,10 @@ class _PlanChipState extends State<_PlanChip> {
               ? Icons.assignment_turned_in_outlined
               : Icons.assignment_late_outlined,
           label: vigente
-              ? strings.planValidFor((resta?.inMinutes ?? 0) + 1)
+              ? strings.planValidFor(
+                  resta?.inHours ?? 0,
+                  ((resta?.inMinutes ?? 0) % 60) + 1,
+                )
               : strings.planUnsigned,
           warn: !vigente,
         ),
