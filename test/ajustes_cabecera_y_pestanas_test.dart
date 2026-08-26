@@ -73,6 +73,7 @@ void main() {
         'history',
         'stats',
         'superpowers',
+        'emulators',
         'appearance',
         'language',
         'help',

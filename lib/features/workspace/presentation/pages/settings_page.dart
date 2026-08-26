@@ -7,6 +7,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/stats/presentation/widgets/stats_section.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/superpowers_section.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/emulators/presentation/widgets/emuladores_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/appearance_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/help_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/history_section.dart';
@@ -127,6 +128,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           _Section.history => const HistorySection(),
                           _Section.stats => const StatsSection(),
                           _Section.superpowers => const SuperpowersSection(),
+                          _Section.emulators => const EmuladoresSection(),
                           _Section.appearance => const AppearanceSection(),
                           _Section.language => const LanguageSection(),
                           _Section.help => const HelpSection(),
@@ -271,6 +273,7 @@ enum _Section {
   history,
   stats,
   superpowers,
+  emulators,
   appearance,
   language,
   help;
@@ -282,6 +285,7 @@ enum _Section {
     _Section.history => strings.sectionHistory,
     _Section.stats => strings.sectionStats,
     _Section.superpowers => strings.sectionSuperpowers,
+    _Section.emulators => strings.sectionEmulators,
     _Section.appearance => strings.sectionAppearance,
     _Section.language => strings.sectionLanguage,
     _Section.help => strings.sectionHelp,
