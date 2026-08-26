@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/workspace/data/datasources/marcas_por_rama.dart';
 
 /// El plan firmado de una carpeta **en una rama**, tal como lo lee el hook que deniega las
 /// escrituras.
@@ -24,12 +25,6 @@ class PlanFirmado {
     this.firmado,
     this.vale = const Duration(hours: 8),
   });
-
-  /// Dónde va la firma de una carpeta que no está en un repositorio.
-  ///
-  /// Con dos puntos porque git los prohíbe en un nombre de rama: así esta clave no puede
-  /// chocar nunca con una rama de verdad. El hook usa la misma constante.
-  static const sinRama = ':sin-rama';
 
   final String carpeta;
 
@@ -61,7 +56,7 @@ class PlanFirmado {
   final Duration vale;
 
   /// La clave bajo la que vive esta firma dentro del archivo.
-  String get claveDeRama => rama == null || rama!.isEmpty ? sinRama : rama!;
+  String get claveDeRama => MarcasPorRama.clave(rama);
 
   /// Si ahora mismo se puede escribir en esta carpeta.
   bool vigenteEn(DateTime ahora) {
@@ -160,10 +155,9 @@ class PlanFirmadoDataSource {
     // Un archivo por carpeta, con un nombre estable derivado de ella para no acumular
     // uno nuevo por cada firma. Que el nombre sea legible ayuda a mirar la carpeta y
     // entender qué hay, que es lo contrario de un hash.
-    final nombre = _resuelta(plan.carpeta)
-        .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-    final archivo = File('${dir.path}/$nombre.json');
+    final archivo = File(
+      '${dir.path}/${MarcasPorRama.nombre(plan.carpeta)}.json',
+    );
 
     final ramas = <String, Object?>{};
     if (archivo.existsSync()) {
@@ -228,6 +222,16 @@ class PlanFirmadoDataSource {
       },
     );
   }
+
+  /// Todas las carpetas y ramas que tienen una firma anotada.
+  Future<Set<({String carpeta, String? rama})>> carpetasYRamas(
+    String configDir,
+  ) => MarcasPorRama.claves(_dir(configDir));
+
+  /// Se lleva la firma de esa rama, dejando lo de la carpeta —si exige plan, cada cuánto
+  /// caduca— donde estaba. La usa la limpieza de corridas huérfanas.
+  Future<void> borrar(String configDir, String carpeta, String? rama) =>
+      MarcasPorRama.borrar(_dir(configDir), carpeta, rama);
 
   static String _resuelta(String ruta) {
     if (ruta.isEmpty) return ruta;

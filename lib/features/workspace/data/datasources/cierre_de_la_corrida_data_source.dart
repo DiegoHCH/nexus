@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/workspace/data/datasources/marcas_por_rama.dart';
 
 /// Cómo terminó una tarea. Son tres y no dos porque **lo que se mide cambia en cada una**.
 enum ComoTermino {
@@ -80,8 +81,6 @@ class Cierre {
 class CierreDeLaCorridaDataSource {
   const CierreDeLaCorridaDataSource();
 
-  static const _sinRama = ':sin-rama';
-
   Directory _dir(String configDir) => Directory('$configDir/nexus-cierres');
 
   /// Todos los cierres de esa rama, del más antiguo al más reciente.
@@ -93,7 +92,7 @@ class CierreDeLaCorridaDataSource {
     final guardado = await _guardado(configDir, carpeta);
     final ramas = guardado?['ramas'];
     if (ramas is! Map) return const [];
-    final suyos = ramas[_clave(rama)];
+    final suyos = ramas[MarcasPorRama.clave(rama)];
     if (suyos is! List) return const [];
     return [for (final crudo in suyos) ?Cierre.fromJson(crudo)]
       ..sort((a, b) => a.cuando.compareTo(b.cuando));
@@ -113,7 +112,7 @@ class CierreDeLaCorridaDataSource {
     if (limpia.isEmpty) return leer(configDir, carpeta, rama: rama);
 
     final dir = _dir(configDir)..createSync(recursive: true);
-    final archivo = File('${dir.path}/${_nombre(carpeta)}.json');
+    final archivo = File('${dir.path}/${MarcasPorRama.nombre(carpeta)}.json');
 
     final guardado = await _guardado(configDir, carpeta);
     final ramas = <String, Object?>{};
@@ -126,8 +125,8 @@ class CierreDeLaCorridaDataSource {
       narrativa: limpia,
       cuando: DateTime.now().toUtc(),
     );
-    final anteriores = ramas[_clave(rama)];
-    ramas[_clave(rama)] = [
+    final anteriores = ramas[MarcasPorRama.clave(rama)];
+    ramas[MarcasPorRama.clave(rama)] = [
       if (anteriores is List) ...anteriores,
       nuevo.toJson(),
     ];
@@ -142,7 +141,9 @@ class CierreDeLaCorridaDataSource {
     String configDir,
     String carpeta,
   ) async {
-    final archivo = File('${_dir(configDir).path}/${_nombre(carpeta)}.json');
+    final archivo = File(
+      '${_dir(configDir).path}/${MarcasPorRama.nombre(carpeta)}.json',
+    );
     if (!archivo.existsSync()) return null;
     try {
       final leido = jsonDecode(await archivo.readAsString());
@@ -154,19 +155,12 @@ class CierreDeLaCorridaDataSource {
     }
   }
 
-  static String _clave(String? rama) =>
-      rama == null || rama.isEmpty ? _sinRama : rama;
+  /// Todas las carpetas y ramas que tienen algún cierre anotado.
+  Future<Set<({String carpeta, String? rama})>> carpetasYRamas(
+    String configDir,
+  ) => MarcasPorRama.claves(_dir(configDir));
 
-  /// El mismo criterio que el plan y el gate: la carpeta resuelta, en un nombre legible.
-  static String _nombre(String carpeta) {
-    var ruta = carpeta;
-    try {
-      ruta = Directory(carpeta).resolveSymbolicLinksSync();
-    } on FileSystemException {
-      // Puede no existir todavía; se compara la ruta tal cual.
-    }
-    return ruta
-        .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-  }
+  /// Se lleva los cierres de esa rama. La usa la limpieza de corridas huérfanas.
+  Future<void> borrar(String configDir, String carpeta, String? rama) =>
+      MarcasPorRama.borrar(_dir(configDir), carpeta, rama);
 }

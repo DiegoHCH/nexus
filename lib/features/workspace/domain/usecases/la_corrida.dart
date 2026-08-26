@@ -89,6 +89,21 @@ class LaCorrida {
     return fin.difference(inicio);
   }
 
+  /// La última vez que esta corrida dio señales de vida.
+  ///
+  /// Para poder ordenar una lista por lo que se tocó hace menos, que es lo que uno busca
+  /// cuando abre una lista de tareas. La fecha de arranque ordenaría por lo que se empezó
+  /// antes, y una corrida vieja que sigue viva quedaría enterrada.
+  DateTime? get ultimaSenal {
+    final fechas = [
+      ?firmado,
+      ?gateCorrio,
+      if (cierres.isNotEmpty) cierres.last.cuando,
+    ];
+    if (fechas.isEmpty) return null;
+    return fechas.reduce((a, b) => a.isAfter(b) ? a : b);
+  }
+
   /// Cuánto lleva abierta, para poder decirlo mientras dura.
   Duration? llevaEn(DateTime ahora) {
     final inicio = empezo;

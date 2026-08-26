@@ -10,6 +10,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 import 'package:nexus/features/emulators/presentation/widgets/emuladores_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/appearance_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/help_section.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings/corridas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/history_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/language_section.dart';
 import 'package:nexus/features/remote/presentation/pages/mobile_section.dart';
@@ -126,6 +127,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           _Section.permissions => const PermissionsSection(),
                           _Section.mobile => const MobileSection(),
                           _Section.history => const HistorySection(),
+                          _Section.corridas => const CorridasSection(),
                           _Section.stats => const StatsSection(),
                           _Section.superpowers => const SuperpowersSection(),
                           _Section.emulators => const EmuladoresSection(),
@@ -271,6 +273,7 @@ enum _Section {
   permissions,
   mobile,
   history,
+  corridas,
   stats,
   superpowers,
   emulators,
@@ -283,6 +286,7 @@ enum _Section {
     _Section.permissions => strings.sectionPermissions,
     _Section.mobile => strings.sectionMobile,
     _Section.history => strings.sectionHistory,
+    _Section.corridas => strings.sectionCorridas,
     _Section.stats => strings.sectionStats,
     _Section.superpowers => strings.sectionSuperpowers,
     _Section.emulators => strings.sectionEmulators,

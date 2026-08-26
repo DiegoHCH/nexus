@@ -251,6 +251,19 @@ abstract class NexusStrings {
   String durationMinutes(int minutes);
   String durationHoursMinutes(int hours, int minutes);
 
+  // La lista de corridas, en Ajustes.
+  String get sectionCorridas;
+  String get corridasExplainer;
+  String get corridasNone;
+  String get corridasOpenTag;
+  String get corridasClosedTag;
+  String get corridasNoProdTag;
+  String get corridasCancelledTag;
+  String get corridasOrphanTag;
+  String corridasOrphansFound(int count);
+  String get corridasClean;
+  String get corridasCleanAll;
+
   /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
   /// instalar, así que queda en el idioma que hubiera entonces.
   String get hooksInjectingStatus;
@@ -919,6 +932,32 @@ class NexusStringsEs extends NexusStrings {
   @override
   String durationHoursMinutes(int hours, int minutes) =>
       minutes == 0 ? '$hours h' : '$hours h $minutes min';
+  @override
+  String get sectionCorridas => 'Corridas';
+  @override
+  String get corridasExplainer =>
+      'Cada rama con su tarea: lo que se acordó, cómo salió el gate y cuánto llevó. Una '
+      'corrida sola no se compara con nada; diez seguidas empiezan a decir algo.';
+  @override
+  String get corridasNone => 'Todavía no hay ninguna en esta cuenta.';
+  @override
+  String get corridasOpenTag => 'ABIERTA';
+  @override
+  String get corridasClosedTag => 'CERRADA';
+  @override
+  String get corridasNoProdTag => 'SIN PROD';
+  @override
+  String get corridasCancelledTag => 'CANCELADA';
+  @override
+  String get corridasOrphanTag => 'SIN RAMA';
+  @override
+  String corridasOrphansFound(int count) => count == 1
+      ? 'Una se quedó sin su rama.'
+      : '$count se quedaron sin su rama.';
+  @override
+  String get corridasClean => 'Quitar';
+  @override
+  String get corridasCleanAll => 'Quitar las huérfanas';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -2166,6 +2205,31 @@ class NexusStringsEn extends NexusStrings {
   @override
   String durationHoursMinutes(int hours, int minutes) =>
       minutes == 0 ? '$hours h' : '$hours h $minutes min';
+  @override
+  String get sectionCorridas => 'Runs';
+  @override
+  String get corridasExplainer =>
+      'Every branch with its task: what was agreed, how the gate came out, and how long '
+      'it took. One run compares to nothing; ten in a row start to say something.';
+  @override
+  String get corridasNone => 'None on this account yet.';
+  @override
+  String get corridasOpenTag => 'OPEN';
+  @override
+  String get corridasClosedTag => 'CLOSED';
+  @override
+  String get corridasNoProdTag => 'NO SHIP';
+  @override
+  String get corridasCancelledTag => 'CANCELLED';
+  @override
+  String get corridasOrphanTag => 'NO BRANCH';
+  @override
+  String corridasOrphansFound(int count) =>
+      count == 1 ? 'One lost its branch.' : '$count lost their branch.';
+  @override
+  String get corridasClean => 'Remove';
+  @override
+  String get corridasCleanAll => 'Remove the orphans';
 
   @override
   String get planSignTitle => 'Sign the plan';
