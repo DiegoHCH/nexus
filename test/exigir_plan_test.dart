@@ -32,9 +32,30 @@ void main() {
       File('${cuenta.path}/nexus-planes/la-de-la-prueba.json')
         ..createSync(recursive: true);
 
-  void marcar(Map<String, Object?> contenido) => marca().writeAsStringSync(
-    jsonEncode({'carpeta': repo.path, ...contenido}),
-  );
+  /// El archivo tal como lo escribe la app: la exigencia arriba y la firma **dentro de
+  /// su rama**.
+  ///
+  /// Las pruebas siguen escribiendo el plan en llano —`{'exige': true, 'plan': …}`— y
+  /// esto lo coloca donde vive. Así cada una habla de lo suyo y no del formato, que se
+  /// comprueba entero contra la app en `la_app_y_el_hook_se_entienden`.
+  ///
+  /// Sin rama porque estas carpetas temporales no son repositorios, que es el caso que
+  /// el hook resuelve con la clave reservada.
+  Map<String, Object?> conFirma(String carpeta, Map<String, Object?> campos) {
+    final firma = <String, Object?>{};
+    for (final clave in ['plan', 'firmado']) {
+      if (campos.containsKey(clave)) firma[clave] = campos[clave];
+    }
+    return {
+      'carpeta': carpeta,
+      for (final e in campos.entries)
+        if (e.key != 'plan' && e.key != 'firmado') e.key: e.value,
+      if (firma.isNotEmpty) 'ramas': {':sin-rama': firma},
+    };
+  }
+
+  void marcar(Map<String, Object?> contenido) =>
+      marca().writeAsStringSync(jsonEncode(conFirma(repo.path, contenido)));
 
   int ahora() => DateTime.now().millisecondsSinceEpoch ~/ 1000;
 
@@ -44,7 +65,7 @@ void main() {
     final nombre = carpeta.replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-');
     File('${cuenta.path}/nexus-planes/$nombre.json')
       ..createSync(recursive: true)
-      ..writeAsStringSync(jsonEncode({'carpeta': carpeta, ...contenido}));
+      ..writeAsStringSync(jsonEncode(conFirma(carpeta, contenido)));
   }
 
   /// El motivo por el que denegó, o `null` si dejó pasar.
@@ -155,7 +176,7 @@ void main() {
 
     final motivo = await alIntentarEscribir();
     expect(motivo, contains('caduc'));
-    expect(motivo, contains('120'), reason: 'no dice cuánto hace que se firmó');
+    expect(motivo, contains('2 horas'), reason: 'no dice cuánto hace que se firmó');
   });
 
   test('un plan en blanco no cuenta como firmado', () async {

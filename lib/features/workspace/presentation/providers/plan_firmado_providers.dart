@@ -6,12 +6,15 @@ final planFirmadoDataSourceProvider = Provider<PlanFirmadoDataSource>(
   (ref) => const PlanFirmadoDataSource(),
 );
 
-/// La carpeta y la cuenta con la que se mira su plan.
+/// La carpeta, la cuenta y la rama con las que se mira su plan.
 ///
-/// Van juntas porque el plan vive **en la cuenta**: la misma carpeta abierta con dos
-/// cuentas distintas tiene dos planes, y eso es correcto — el gate es de quien lo
+/// La cuenta va aquí porque el plan vive **en la cuenta**: la misma carpeta abierta con
+/// dos cuentas distintas tiene dos planes, y eso es correcto — el gate es de quien lo
 /// enciende, no del proyecto.
-typedef DondeMirar = ({String carpeta, String configDir});
+///
+/// Y la rama porque la firma es de la tarea, no del proyecto. `null` es una carpeta sin
+/// repositorio, que también es un caso real: la carpeta suelta de documentos.
+typedef DondeMirar = ({String carpeta, String configDir, String? rama});
 
 /// El plan de una carpeta, o `null` si esa carpeta no tiene marca.
 ///
@@ -26,7 +29,7 @@ class PlanFirmadoController extends AsyncNotifier<PlanFirmado?> {
   @override
   Future<PlanFirmado?> build() => ref
       .read(planFirmadoDataSourceProvider)
-      .leer(donde.configDir, donde.carpeta);
+      .leer(donde.configDir, donde.carpeta, rama: donde.rama);
 
   /// Enciende o apaga la exigencia de plan para esta carpeta.
   ///
@@ -36,9 +39,13 @@ class PlanFirmadoController extends AsyncNotifier<PlanFirmado?> {
   Future<void> exigir(bool valor) async {
     final actual = state.value;
     await _guardar(
-      (actual ?? PlanFirmado(carpeta: donde.carpeta, exige: valor)).copyWith(
-        exige: valor,
-      ),
+      (actual ??
+              PlanFirmado(
+                carpeta: donde.carpeta,
+                rama: donde.rama,
+                exige: valor,
+              ))
+          .copyWith(exige: valor),
     );
   }
 
@@ -48,7 +55,12 @@ class PlanFirmadoController extends AsyncNotifier<PlanFirmado?> {
     final limpio = plan.trim();
     if (limpio.isEmpty) return;
     await _guardar(
-      (state.value ?? PlanFirmado(carpeta: donde.carpeta, exige: true))
+      (state.value ??
+              PlanFirmado(
+                carpeta: donde.carpeta,
+                rama: donde.rama,
+                exige: true,
+              ))
           .copyWith(exige: true, plan: limpio, firmado: DateTime.now().toUtc()),
     );
   }
@@ -75,7 +87,12 @@ final planFirmadoProvider =
 /// `CLAUDE_CONFIG_DIR`, y sin perfil elegido eso no es vacío sino la cuenta de fábrica.
 /// Calcularlo aparte aquí es cómo la pantalla acabaría diciendo «sin plan» sobre una
 /// carpeta que el hook ve firmada.
-DondeMirar dondeMirar({required String carpeta, String? perfil}) => (
+DondeMirar dondeMirar({
+  required String carpeta,
+  String? perfil,
+  String? rama,
+}) => (
   carpeta: carpeta,
   configDir: ClaudeEnvironment.forProfile(perfil)['CLAUDE_CONFIG_DIR'] ?? '',
+  rama: rama,
 );

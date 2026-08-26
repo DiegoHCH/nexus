@@ -105,7 +105,8 @@ void main() {
         carpeta: repo.path,
         exige: true,
         plan: 'lo de ayer',
-        firmado: DateTime.now().toUtc().subtract(const Duration(hours: 2)),
+        // Ayer de verdad: la firma vale una jornada, así que dos horas ya no caducan.
+        firmado: DateTime.now().toUtc().subtract(const Duration(hours: 9)),
       ),
       dejaEscribir: false,
     );
@@ -126,8 +127,8 @@ void main() {
   });
 
   test('lo escrito se vuelve a leer igual', () async {
-    // Ida y vuelta por la app: si `toJson` y `fromJson` no se corresponden, la pantalla
-    // enseñaría un estado y el hook aplicaría otro.
+    // Ida y vuelta por la app: si lo que escribe y lo que lee no se corresponden, la
+    // pantalla enseñaría un estado y el hook aplicaría otro.
     final original = PlanFirmado(
       carpeta: repo.path,
       exige: true,

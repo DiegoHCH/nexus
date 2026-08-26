@@ -43,7 +43,9 @@ void main() {
     cuenta.deleteSync(recursive: true);
   });
 
-  DondeMirar donde() => (carpeta: repo.path, configDir: cuenta.path);
+  // Sin rama: la carpeta de la prueba no es un repositorio, que es el caso que el hook
+  // resuelve con la clave reservada. Lo de trabajar por rama tiene su propio archivo.
+  DondeMirar donde() => (carpeta: repo.path, configDir: cuenta.path, rama: null);
 
   /// `true` si el hook dejaría escribir en el repo ahora mismo.
   Future<bool> preguntarAlHook() async {
@@ -199,7 +201,7 @@ void main() {
           carpeta: repo.path,
           exige: true,
           plan: 'lo de ayer',
-          firmado: DateTime.now().toUtc().subtract(const Duration(hours: 3)),
+          firmado: DateTime.now().toUtc().subtract(const Duration(hours: 9)),
         ),
       ),
     );

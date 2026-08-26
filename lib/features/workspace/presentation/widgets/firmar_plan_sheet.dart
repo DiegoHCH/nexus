@@ -96,6 +96,16 @@ class _HojaState extends ConsumerState<_Hoja> {
             strings.planSignTitle,
             style: NexusTypography.lead.copyWith(color: colors.ink),
           ),
+          // La rama, cuando la hay. Es lo que decide **dónde** va esta firma, así que
+          // verla antes de escribir evita el caso feo: firmar creyendo que estás en la
+          // rama de la tarea y descubrirlo por una denegación.
+          if (widget.donde.rama case final rama? when rama.isNotEmpty) ...[
+            const SizedBox(height: NexusSpacing.s2),
+            Text(
+              strings.planSignBranch(rama),
+              style: NexusTypography.label.copyWith(color: colors.accent),
+            ),
+          ],
           const SizedBox(height: NexusSpacing.s3),
           Text(
             strings.planSignBody,
