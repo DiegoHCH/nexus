@@ -33,7 +33,7 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
     final error = await ref
         .read(emuladoresDataSourceProvider)
         .lanzar(emulador, frio: frio);
-    ref.invalidate(emuladoresProvider);
+    await _refrescar();
     if (!mounted) return;
     setState(() {
       _ocupado = null;
@@ -47,12 +47,36 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
       _error = null;
     });
     final error = await ref.read(emuladoresDataSourceProvider).cerrar(emulador);
-    ref.invalidate(emuladoresProvider);
+    await _refrescar();
     if (!mounted) return;
     setState(() {
       _ocupado = null;
       _error = error;
     });
+  }
+
+  /// Vuelve a preguntar **y espera la respuesta** antes de que nadie suelte la
+  /// fila.
+  ///
+  /// `invalidate` a secas no valía: dispara el refresco y sigue, así que al
+  /// limpiar `_ocupado` justo detrás se pintaba la lista **vieja** un instante —
+  /// el emulador ya arrancado apareciendo en gris con su botón de «Arrancar»
+  /// antes de ponerse verde—. Se vio en vivo: «alcanza a mostrar de nuevo el
+  /// estado gris con los botones pero después cambió».
+  ///
+  /// Un parpadeo así es peor que una espera un poco más larga: la espera se
+  /// entiende, y un estado que se contradice a sí mismo hace desconfiar de toda
+  /// la pantalla.
+  Future<void> _refrescar() async {
+    try {
+      // `invalidate` y luego esperar el futuro nuevo, en vez de `refresh`: hace
+      // lo mismo y no deja un resultado sin usar que el analizador reprocha.
+      ref.invalidate(emuladoresProvider);
+      await ref.read(emuladoresProvider.future);
+    } on Exception {
+      // Si el refresco falla, el propio provider ya lo cuenta en su `AsyncError`.
+      // Aquí solo importaba no soltar la fila antes de tiempo.
+    }
   }
 
   @override

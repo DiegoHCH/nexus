@@ -36,6 +36,12 @@ class _Falsa extends EmuladoresDataSource {
   /// mirar la fila **mientras** arranca, que es la mitad que se rompió en vivo.
   Completer<void>? esperaEnLanzar;
 
+  /// Cuántas veces se ha pedido la lista, y una espera para la segunda. Con eso
+  /// se puede mirar la pantalla en el hueco entre «ya lanzó» y «ya tengo la
+  /// lista nueva», que es donde se colaba el parpadeo.
+  var vecesListado = 0;
+  Completer<void>? esperaEnElSegundoListado;
+
   @override
   Future<
     ({
@@ -44,11 +50,20 @@ class _Falsa extends EmuladoresDataSource {
       String? error,
     })
   >
-  listar() async => (
-    emuladores: _emuladores,
-    dispositivos: dispositivos,
-    error: errorAlListar,
-  );
+  listar() async {
+    vecesListado++;
+    if (vecesListado == 2) await esperaEnElSegundoListado?.future;
+    return (
+      emuladores: vecesListado >= 2 ? _traslanzar ?? _emuladores : _emuladores,
+      dispositivos: dispositivos,
+      error: errorAlListar,
+    );
+  }
+
+  /// Lo que devuelve la lista a partir del segundo intento, para simular que el
+  /// emulador ya arrancó.
+  List<Emulador>? _traslanzar;
+  set traslanzar(List<Emulador> lista) => _traslanzar = lista;
 
   @override
   Future<String?> lanzar(
@@ -205,6 +220,42 @@ void main() {
     falsa.esperaEnLanzar!.complete();
     await tester.pumpAndSettle();
 
+    expect(find.byType(CircularProgressIndicator), findsNothing);
+  });
+
+  testWidgets('la fila no vuelve a gris entre lanzar y tener la lista nueva', (
+    tester,
+  ) async {
+    // **El segundo fallo visto en vivo**, y más sutil que el primero: «alcanza a
+    // mostrar de nuevo el estado gris con los botones pero después cambió».
+    //
+    // Pasaba por soltar la fila con un `invalidate` a secas, que dispara el
+    // refresco y sigue: en el hueco hasta que llega la lista nueva se pintaba la
+    // **vieja**, con el emulador ya arrancado en gris y ofreciendo «Arrancar».
+    final falsa = _Falsa([_android])
+      ..traslanzar = [
+        _android.conEstado(corriendo: true, deviceId: 'emulator-5554'),
+      ]
+      ..esperaEnElSegundoListado = Completer<void>();
+    await _montar(tester, falsa);
+
+    await tester.tap(find.text(strings.emulatorsLaunch));
+    await tester.pump();
+
+    // El lanzamiento ya volvió, pero la lista nueva aún no. Aquí es donde se veía
+    // el parpadeo: la fila tiene que seguir ocupada.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(
+      find.text(strings.emulatorsLaunch),
+      findsNothing,
+      reason: 'la lista vieja se está colando en el hueco del refresco',
+    );
+
+    falsa.esperaEnElSegundoListado!.complete();
+    await tester.pumpAndSettle();
+
+    // Y al aterrizar, directamente el estado bueno.
+    expect(find.text(strings.emulatorsClose), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
   });
 
