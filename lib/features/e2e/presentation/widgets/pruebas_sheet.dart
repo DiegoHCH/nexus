@@ -7,6 +7,7 @@ import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
@@ -168,15 +169,28 @@ Future<String?> _loQueFaltaParaCorrer(
   WidgetRef ref,
   NexusStrings strings, {
   required Prueba prueba,
+  required String proyecto,
   required String? donde,
 }) async {
   if (ref.read(dondeCorrerProvider).isEmpty) return strings.e2eNoDevice;
   if (donde == null) return strings.e2eDevice;
 
+  final yaml = await File(prueba.ruta).readAsString().catchError((_) => '');
+
+  // **Una variable que falta se dice aquí.** Si no, Maestro escribe el literal
+  // `\${G66_EMAIL}` en el campo del correo y la prueba muere tres pasos después, en
+  // un sitio que no tiene nada que ver con la causa. Solo los nombres: un mensaje
+  // de error no es sitio para un valor.
+  final credenciales = await ref.read(credencialesProvider(proyecto).future);
+  final faltan = LasVariablesDelProyecto.faltan(
+    yaml: yaml,
+    tiene: credenciales.claves,
+  );
+  if (faltan.isNotEmpty) return strings.e2eMissingVars(faltan.join(', '));
+
   // Solo se para cuando se sabe que **no** está: `null` es «no se pudo
   // comprobar» —un iPhone, sin adb— y ahí no se bloquea nada. Negarse por no
   // saber sería peor que dejar fallar a Maestro.
-  final yaml = await File(prueba.ruta).readAsString().catchError((_) => '');
   if (PasosDeUnaPrueba.appIdDe(yaml) case final appId?) {
     final instalada = await ref
         .read(e2eDataSourceProvider)
@@ -264,6 +278,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       ref,
       context.strings,
       prueba: prueba,
+      proyecto: widget.proyecto,
       donde: donde,
     );
     if (!mounted) return;
@@ -331,6 +346,23 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
           widget.proyecto.split('/').last,
           style: NexusTypography.label.copyWith(color: colors.faint),
         ),
+        // **Cuántas credenciales hay cargadas, sin enseñar ninguna.** Es la
+        // diferencia entre saber que el `.env.local` se leyó y suponerlo: si no se
+        // dice, un archivo mal puesto se descubre en el fallo de la prueba.
+        if (ref.watch(credencialesProvider(widget.proyecto)).value
+            case final credenciales?
+            when credenciales.claves.isNotEmpty) ...[
+          const SizedBox(height: 2),
+          Text(
+            strings.e2eVarsLoaded(credenciales.claves.length),
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+          if (credenciales.enGit == true)
+            Text(
+              strings.e2eEnvInGit,
+              style: NexusTypography.mono.copyWith(color: colors.warn),
+            ),
+        ],
         const SizedBox(height: NexusSpacing.s2),
 
         if (pruebas.isEmpty)
@@ -639,6 +671,7 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
       ref,
       strings,
       prueba: prueba,
+      proyecto: proyecto,
       donde: donde,
     );
     if (!mounted) return;
