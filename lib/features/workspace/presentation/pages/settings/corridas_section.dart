@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/workspace/data/datasources/cierre_de_la_corrida_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/corrida_providers.dart';
@@ -25,6 +26,12 @@ class CorridasSection extends ConsumerStatefulWidget {
 
 class _CorridasSectionState extends ConsumerState<CorridasSection> {
   String? _cuenta;
+
+  /// La fila que está pidiendo confirmación para borrarse.
+  ///
+  /// Dos pulsaciones y no un diálogo: un diálogo para cada borrado convierte limpiar diez
+  /// huérfanas en diez ventanas. Y la huérfana no lo pide — ahí no hay nada que perder.
+  String? _confirmando;
 
   @override
   Widget build(BuildContext context) {
@@ -114,11 +121,19 @@ class _CorridasSectionState extends ConsumerState<CorridasSection> {
                 for (final fila in corridas)
                   _Fila(
                     fila: fila,
-                    alQuitar: fila.huerfana
-                        ? () => ref
-                              .read(limpiarCorridasProvider.notifier)
-                              .borrar(actual, fila.carpeta, fila.corrida.rama)
-                        : null,
+                    confirmando:
+                        _confirmando == '${fila.carpeta}@${fila.corrida.rama}',
+                    alQuitar: () {
+                      final clave = '${fila.carpeta}@${fila.corrida.rama}';
+                      if (fila.huerfana || _confirmando == clave) {
+                        ref
+                            .read(limpiarCorridasProvider.notifier)
+                            .borrar(actual, fila.carpeta, fila.corrida.rama);
+                        setState(() => _confirmando = null);
+                        return;
+                      }
+                      setState(() => _confirmando = clave);
+                    },
                   ),
               ],
             ),
@@ -129,10 +144,15 @@ class _CorridasSectionState extends ConsumerState<CorridasSection> {
 }
 
 class _Fila extends StatelessWidget {
-  const _Fila({required this.fila, this.alQuitar});
+  const _Fila({
+    required this.fila,
+    required this.alQuitar,
+    this.confirmando = false,
+  });
 
   final CorridaEnLaLista fila;
-  final VoidCallback? alQuitar;
+  final VoidCallback alQuitar;
+  final bool confirmando;
 
   @override
   Widget build(BuildContext context) {
@@ -199,6 +219,18 @@ class _Fila extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                   style: NexusTypography.mono.copyWith(color: colors.faint),
                 ),
+                // Los tramos, cuando se pudieron medir. Es el desglose que hace útil la
+                // columna del total: dos tareas de tres horas no son la misma si en una
+                // el gate se corrió al final.
+                if (corrida.construyendo case final construyendo?)
+                  if (corrida.cerrando case final cerrando?)
+                    Text(
+                      strings.corridasStretches(
+                        _enLlano(construyendo, strings),
+                        _enLlano(cerrando, strings),
+                      ),
+                      style: NexusTypography.mono.copyWith(color: colors.rule2),
+                    ),
               ],
             ),
           ),
@@ -220,19 +252,27 @@ class _Fila extends StatelessWidget {
               style: NexusTypography.mono.copyWith(color: colors.mute),
             ),
           ),
-          if (alQuitar case final quitar?)
-            IconButton(
-              onPressed: quitar,
-              icon: Icon(Icons.close, size: 14, color: colors.faint),
-              splashRadius: 14,
-              tooltip: strings.corridasClean,
-            )
-          else
-            const SizedBox(width: NexusSpacing.s5),
+          IconButton(
+            onPressed: alQuitar,
+            icon: Icon(
+              Icons.close,
+              size: 14,
+              color: confirmando ? colors.err : colors.faint,
+            ),
+            splashRadius: 14,
+            tooltip: confirmando
+                ? strings.corridasConfirmRemove
+                : strings.corridasClean,
+          ),
         ],
       ),
     );
   }
+
+  static String _enLlano(Duration cuanto, NexusStrings strings) =>
+      cuanto.inHours > 0
+      ? strings.durationHoursMinutes(cuanto.inHours, cuanto.inMinutes % 60)
+      : strings.durationMinutes(cuanto.inMinutes);
 
   static String _corta(String ruta) {
     final home = Platform.environment['HOME'];

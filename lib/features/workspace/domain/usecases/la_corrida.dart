@@ -20,6 +20,7 @@ class LaCorrida {
     this.gateVerde,
     this.gateCorrio,
     this.gateDeclarado = false,
+    this.revisionPedida,
     this.cierres = const [],
   });
 
@@ -39,6 +40,12 @@ class LaCorrida {
   /// medido y uno declarado pueden ser los dos ciertos y no valen lo mismo, y quien lee
   /// esto después no tiene forma de saberlo si aquí dicen lo mismo.
   final bool gateDeclarado;
+
+  /// Cuándo se pidió la última revisión del diff contra las reglas de su capa.
+  ///
+  /// **Sin resultado a propósito.** Una revisión no tiene verde: devuelve hallazgos, y
+  /// decidir si valen es de quien los lee. Lo que el informe puede decir es si se pidió.
+  final DateTime? revisionPedida;
 
   /// Todos, del más antiguo al más reciente. Una rama se cierra más de una vez: el PR
   /// vuelve con observaciones y lo que sigue es otra corrida del mismo trabajo.
@@ -106,6 +113,7 @@ class LaCorrida {
     final fechas = [
       ?firmado,
       ?gateCorrio,
+      ?revisionPedida,
       if (cierres.isNotEmpty) cierres.last.cuando,
     ];
     if (fechas.isEmpty) return null;
@@ -145,6 +153,10 @@ class LaCorrida {
         false => strings.corridaSummaryGateRed,
         null => strings.corridaSummaryGateNever,
       },
+      if (revisionPedida != null)
+        strings.corridaSummaryReviewed
+      else
+        strings.corridaSummaryNotReviewed,
       if (total case final t?)
         strings.corridaSummaryTotal(_enLlano(t, strings))
       else
