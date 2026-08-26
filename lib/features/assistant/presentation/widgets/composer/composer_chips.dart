@@ -13,7 +13,7 @@ import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/data/datasources/gate_del_repo_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
-import 'package:nexus/features/workspace/presentation/widgets/pruebas_sheet.dart';
+import 'package:nexus/features/workspace/presentation/widgets/gate_sheet.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/firmar_plan_sheet.dart';
 
@@ -293,7 +293,7 @@ class ComposerChips extends ConsumerWidget {
               case final donde)
             if (ref.watch(gateDelRepoProvider(donde)).value case final gate?
                 when gate.comando != null)
-              _PruebasChip(gate: gate, donde: donde),
+              _GateChip(gate: gate, donde: donde),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
@@ -381,8 +381,8 @@ class _PlanChipState extends State<_PlanChip> {
 /// **Un verde caducado no se enseña como verde.** Es la única mentira que este chip puede
 /// contar y la más cara: alguien mira la barra, lee «verde» y publica algo que el gate no
 /// vio nunca. Así que en cuanto el árbol cambia, lo dice.
-class _PruebasChip extends ConsumerWidget {
-  const _PruebasChip({required this.gate, required this.donde});
+class _GateChip extends ConsumerWidget {
+  const _GateChip({required this.gate, required this.donde});
 
   final GateDelRepo gate;
   final DondeMirar donde;
@@ -393,20 +393,20 @@ class _PruebasChip extends ConsumerWidget {
     final huella = ref.watch(huellaDelArbolProvider(donde.carpeta)).value;
 
     final (etiqueta, avisa) = switch (gate.resultado) {
-      ResultadoDelGate.corriendo => (strings.chipTestsRunning, false),
-      ResultadoDelGate.rojo => (strings.chipTestsRed, true),
+      ResultadoDelGate.corriendo => (strings.chipGateRunning, false),
+      ResultadoDelGate.rojo => (strings.chipGateRed, true),
       ResultadoDelGate.verde when gate.cubre(huella) => (
-        strings.chipTestsGreen,
+        strings.chipGateGreen,
         false,
       ),
-      ResultadoDelGate.verde => (strings.chipTestsStale, true),
-      ResultadoDelGate.sinCorrer => (strings.chipTestsUnrun, false),
+      ResultadoDelGate.verde => (strings.chipGateStale, true),
+      ResultadoDelGate.sinCorrer => (strings.chipGateUnrun, false),
     };
 
     return Tooltip(
       message: gate.comando ?? '',
       child: GestureDetector(
-        onTap: () => PruebasSheet.open(context, donde),
+        onTap: () => GateSheet.open(context, donde),
         child: _Chip(
           icon: switch (gate.resultado) {
             ResultadoDelGate.verde when gate.cubre(huella) =>

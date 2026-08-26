@@ -11,11 +11,16 @@ import 'package:nexus/features/workspace/presentation/providers/plan_firmado_pro
 
 /// El gate del repositorio: qué comando es, cómo salió y el botón para correrlo.
 ///
+/// **Se llama gate y no «pruebas» a propósito.** En esta app «Pruebas» ya son las de
+/// Maestro sobre la interfaz, y son otra cosa: aquellas se miran mientras pasan, esto es
+/// una puerta que se abre o no. Dos cosas con el mismo nombre en la misma barra es cómo
+/// alguien acaba corriendo la que no era.
+///
 /// **Se ofrece, no se lanza.** Nada aquí ocurre por iniciativa propia: un gate tarda
 /// minutos y consume la máquina, así que correrlo es una decisión de quien está delante.
 /// Lo que sí hace la pantalla es no dejar que el estado se lea mal — un verde de antes de
 /// los últimos cambios se dice que no cubre, en vez de enseñarse como verde a secas.
-class PruebasSheet {
+class GateSheet {
   static void open(BuildContext context, DondeMirar donde) =>
       showModalBottomSheet<void>(
         context: context,
@@ -25,13 +30,29 @@ class PruebasSheet {
       );
 }
 
-class _Hoja extends ConsumerWidget {
+class _Hoja extends ConsumerStatefulWidget {
   const _Hoja({required this.donde});
 
   final DondeMirar donde;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Hoja> createState() => _HojaState();
+}
+
+class _HojaState extends ConsumerState<_Hoja> {
+  /// El controlador lo posee la hoja y no el `build`, como en la de firmar: uno creado al
+  /// dibujar se usa después de morir.
+  final _motivo = TextEditingController();
+
+  @override
+  void dispose() {
+    _motivo.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final donde = widget.donde;
     final colors = context.colors;
     final strings = context.strings;
     final gate = ref.watch(gateDelRepoProvider(donde)).value;
@@ -131,6 +152,66 @@ class _Hoja extends ConsumerWidget {
               ),
             ],
           ),
+
+          // Publicar igual, **solo sobre un verde que ya no cubre**. No aparece con el
+          // gate sin correr ni en rojo, y no por ahorrar sitio: ahí no hay una caducidad
+          // que justificar. Un botón que existiera siempre convertiría la puerta en un
+          // trámite de dos clics.
+          if (gate != null &&
+              gate.resultado == ResultadoDelGate.verde &&
+              !gate.cubre(huella)) ...[
+            const SizedBox(height: NexusSpacing.s5),
+            Text(
+              strings.gateAnywayTitle,
+              style: NexusTypography.label.copyWith(color: colors.warn),
+            ),
+            const SizedBox(height: NexusSpacing.s2),
+            if (gate.aunque case final aunque?
+                when aunque.huella != null && aunque.huella == huella)
+              Text(
+                strings.gateAnywayWritten(aunque.motivo),
+                style: NexusTypography.mono.copyWith(color: colors.mute),
+              )
+            else
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _motivo,
+                      style: NexusTypography.body.copyWith(color: colors.ink),
+                      decoration: InputDecoration(
+                        isDense: true,
+                        hintText: strings.gateAnywayHint,
+                        hintStyle: NexusTypography.mono.copyWith(
+                          color: colors.rule2,
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: colors.rule),
+                          borderRadius: BorderRadius.circular(NexusRadius.sm),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderSide: BorderSide(color: colors.accent),
+                          borderRadius: BorderRadius.circular(NexusRadius.sm),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  TextButton(
+                    key: const ValueKey('publicar-igual'),
+                    onPressed: () => ref
+                        .read(gateDelRepoProvider(donde).notifier)
+                        .publicarIgual(_motivo.text),
+                    child: Text(
+                      strings.gateAnywayAction,
+                      style: NexusTypography.label.copyWith(
+                        color: colors.accent,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+          ],
 
           if (gate?.salida case final salida?
               when salida.trim().isNotEmpty) ...[
