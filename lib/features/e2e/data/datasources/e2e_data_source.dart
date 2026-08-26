@@ -8,6 +8,7 @@ import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/lector_de_corridas.dart';
 import 'package:path_provider/path_provider.dart';
@@ -179,11 +180,27 @@ class E2eDataSource {
   ///
   /// `--no-ansi` no es opcional: sin él la salida es un redibujado de terminal y
   /// no líneas, y de esas líneas vive la vista en vivo.
+  /// Las variables del proyecto, de su `.env.local`.
+  ///
+  /// Se lee **en el momento de usarlas** y no se guarda en ningún estado de la app:
+  /// un valor que no está en memoria más tiempo del necesario no puede acabar en un
+  /// volcado ni en un mensaje de error por accidente.
+  Map<String, String> variablesDe(String proyecto) {
+    final archivo = File('$proyecto/${LasVariablesDelProyecto.archivo}');
+    if (!archivo.existsSync()) return const {};
+    try {
+      return LasVariablesDelProyecto.leer(archivo.readAsStringSync());
+    } on FileSystemException {
+      return const {};
+    }
+  }
+
   Future<Process?> lanzar({
     required String flow,
     required String proyecto,
     required String deviceId,
     required String salida,
+    Map<String, String> variables = const {},
   }) async {
     final maestro = await HerramientaExterna.donde(
       'maestro',
@@ -196,15 +213,12 @@ class E2eDataSource {
     try {
       return await Process.start(
         maestro,
-        [
-          '--device',
-          deviceId,
-          'test',
-          '--no-ansi',
-          '--debug-output',
-          salida,
-          flow,
-        ],
+        argumentosDe(
+          deviceId: deviceId,
+          salida: salida,
+          flow: flow,
+          variables: variables,
+        ),
         workingDirectory: proyecto,
         environment: ClaudeEnvironment.forTools(),
         includeParentEnvironment: false,
@@ -220,6 +234,40 @@ class E2eDataSource {
   /// página se lleva con ella** sin tener que buscarla.
   static String paginaDe(String registro) =>
       '${registro.replaceAll(RegExp(r'\.json$'), '')}.html';
+
+  /// Con qué se llama a Maestro.
+  ///
+  /// **Aparte para poder comprobarlo.** Lo que importa aquí no es el proceso sino
+  /// el orden y, sobre todo, qué acaba en el `argv`: los valores de `-e` son
+  /// visibles con `ps`, así que la prueba que dice «solo llegan las variables de
+  /// esta prueba» tiene que poder existir.
+  ///
+  /// `--no-ansi` no es opcional: sin él la salida es un redibujado de terminal y no
+  /// líneas, y de esas líneas vive la vista en vivo.
+  static List<String> argumentosDe({
+    required String deviceId,
+    required String salida,
+    required String flow,
+    Map<String, String> variables = const {},
+  }) => [
+    '--device',
+    deviceId,
+    'test',
+    '--no-ansi',
+    // **`-e` y no el entorno del proceso**, porque no hay otra forma. Se midió: con
+    // la variable puesta en el entorno del proceso, un
+    // `assertTrue: \${SECRETO == "zanahoria"}` **falla**; con
+    // `-e SECRETO=zanahoria` pasa. Maestro no lee el entorno.
+    //
+    // La consecuencia se asume: estos valores quedan en el `argv` y se ven con
+    // `ps`. No ensancha el círculo de confianza —quien puede leer el `argv` puede
+    // leer el `.env.local`— pero por eso llegan ya filtradas a las que este flow
+    // usa, y no el archivo entero.
+    for (final v in variables.entries) ...['-e', '${v.key}=${v.value}'],
+    '--debug-output',
+    salida,
+    flow,
+  ];
 
   /// Borra lo que dejó una corrida.
   ///
