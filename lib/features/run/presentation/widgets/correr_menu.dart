@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
@@ -253,7 +254,7 @@ class _PanelState extends ConsumerState<_Panel> {
             children: [
               Expanded(
                 flex: 2,
-                child: _Elegir(
+                child: SelectorCompacto(
                   // **La recordada, si sigue existiendo.** Se guarda el nombre y
                   // no un índice: los índices bailan al añadir una configuración
                   // al `launch.json`, y ese día estarías corriendo otro entorno
@@ -271,9 +272,12 @@ class _PanelState extends ConsumerState<_Panel> {
               ),
               const SizedBox(width: NexusSpacing.s2),
               Expanded(
-                child: _Elegir(
+                child: SelectorCompacto(
                   valor: _dispositivo,
                   opciones: _dispositivosDisponibles(),
+                  // El nombre delante y el id detrás, por lo mismo que en el
+                  // panel de pruebas: un id no dice cuál es cuál.
+                  etiqueta: _comoSeLlama,
                   pista: strings.runChooseDevice,
                   onElegir: (v) => setState(() => _dispositivo = v),
                 ),
@@ -310,6 +314,20 @@ class _PanelState extends ConsumerState<_Panel> {
     );
   }
 
+  /// Cómo se llama un dispositivo, para poder elegirlo.
+  ///
+  /// El nombre sale de las mismas dos listas que dan los ids, así que no hay una
+  /// tercera fuente que pueda contradecirlas.
+  String _comoSeLlama(String id) {
+    for (final e in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
+      if (e.deviceId == id) return '${e.nombre} · $id';
+    }
+    for (final d in ref.read(dispositivosProvider).value ?? const []) {
+      if (d.id == id) return '${d.nombre} · $id';
+    }
+    return id;
+  }
+
   /// Lo que hay para correr: emuladores **arrancados** y teléfonos enchufados.
   ///
   /// Un emulador apagado no aparece a propósito: `flutter run -d` sobre algo que
@@ -320,68 +338,6 @@ class _PanelState extends ConsumerState<_Panel> {
       if (e.corriendo && e.deviceId != null) e.deviceId!,
     for (final d in ref.watch(dispositivosProvider).value ?? const []) d.id,
   ];
-}
-
-class _Elegir extends StatelessWidget {
-  const _Elegir({
-    required this.valor,
-    required this.opciones,
-    required this.pista,
-    required this.onElegir,
-  });
-
-  final String? valor;
-  final List<String> opciones;
-  final String pista;
-  final void Function(String) onElegir;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-
-    return Container(
-      // `s2` y no `s3`: con el relleno mayor, el `DropdownButton` con
-      // `isExpanded` desbordaba su propia fila por 0,9 px al abrir el menú —lo
-      // justo para pintar la franja amarilla de aviso encima de la barra—. Es una
-      // rareza de la medida interna de Material y se arregla dándole holgura, no
-      // peleándose con ella.
-      padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s2),
-      decoration: BoxDecoration(
-        color: colors.void_.withValues(alpha: 0.5),
-        border: Border.all(color: colors.rule),
-        borderRadius: BorderRadius.circular(NexusRadius.sm),
-      ),
-      child: DropdownButtonHideUnderline(
-        child: DropdownButton<String>(
-          value: valor,
-          isExpanded: true,
-          isDense: true,
-          dropdownColor: colors.deep,
-          focusColor: Colors.transparent,
-          hint: Text(
-            pista,
-            style: NexusTypography.mono.copyWith(color: colors.faint),
-          ),
-          icon: Icon(Icons.expand_more, size: 14, color: colors.faint),
-          items: [
-            for (final opcion in opciones)
-              DropdownMenuItem(
-                value: opcion,
-                child: Text(
-                  opcion,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NexusTypography.data.copyWith(color: colors.ink),
-                ),
-              ),
-          ],
-          onChanged: (v) {
-            if (v != null) onElegir(v);
-          },
-        ),
-      ),
-    );
-  }
 }
 
 /// Una app corriendo, con lo que se le puede pedir.

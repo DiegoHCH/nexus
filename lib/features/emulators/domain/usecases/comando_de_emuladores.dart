@@ -236,6 +236,38 @@ abstract final class ComandoDeEmuladores {
     }
   }
 
+  /// Los nombres comerciales de los iPhone enchufados, por UDID.
+  ///
+  /// De `xcrun devicectl list devices --json-output`, que trae
+  /// `hardwareProperties.marketingName` —«iPhone 11»— y, lo que importa,
+  /// **el mismo `udid` que reporta `flutter devices`**. Sin ese udid habría que
+  /// adivinar cuál es cuál en cuanto hubiera dos iPhone, y con uno solo funcionar
+  /// por casualidad.
+  ///
+  /// `flutter devices` los llama a todos «iPhone», que es lo que hacía imposible
+  /// distinguirlos.
+  static Map<String, String> nombresDeIos(String json) {
+    try {
+      final leido = jsonDecode(json);
+      if (leido is! Map) return const {};
+      final dispositivos = (leido['result'] as Map?)?['devices'];
+      if (dispositivos is! List) return const {};
+
+      return {
+        for (final d in dispositivos)
+          if (d is Map)
+            if ((d['hardwareProperties'] as Map?) case final hw?)
+              if (hw['udid'] case final String udid)
+                if (hw['marketingName'] case final String nombre)
+                  if (nombre.isNotEmpty) udid: nombre,
+      };
+    } on FormatException {
+      // Sin Xcode o sin dispositivos, `devicectl` no da JSON. Que no se sepa el
+      // nombre no puede costar la lista.
+      return const {};
+    }
+  }
+
   /// Cómo se cierra uno de Android: por su dispositivo, no por su nombre.
   static List<String> argumentosDeCerrarAndroid(String deviceId) => [
     '-s',

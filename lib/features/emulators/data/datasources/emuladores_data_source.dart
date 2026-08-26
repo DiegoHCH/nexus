@@ -81,7 +81,92 @@ class EmuladoresDataSource {
     if (bruto == null) return const [];
 
     // **Solo `stdout`.** Pegarle el `stderr` detrás es lo que rompía esto.
-    return ComandoDeEmuladores.leerDispositivos(bruto.salida);
+    return _conNombresDeVerdad(
+      ComandoDeEmuladores.leerDispositivos(bruto.salida),
+    );
+  }
+
+  /// Cambia los nombres que reporta Flutter por los que entiende una persona.
+  ///
+  /// **Porque los de Flutter no sirven para elegir.** Un Android sale con su
+  /// código de modelo —`24069PC21G`— y todos los iPhone salen llamados «iPhone»,
+  /// así que con dos aparatos enchufados no hay forma de saber cuál es cuál. Se
+  /// reportó tal cual: «aparecen así y no sé cuál es cuál».
+  ///
+  /// Cada plataforma lo sabe por su lado y las dos son rápidas: `getprop
+  /// ro.product.marketname` da «POCO F6» en 72 ms, y `devicectl` da «iPhone 11»
+  /// en 116. Si alguna no contesta se queda el nombre de antes: un nombre pobre
+  /// es mejor que ninguno.
+  Future<List<DispositivoConectado>> _conNombresDeVerdad(
+    List<DispositivoConectado> dispositivos,
+  ) async {
+    if (dispositivos.isEmpty) return dispositivos;
+
+    final nombresIos = dispositivos.any(
+          (d) => d.plataforma == PlataformaEmulador.ios,
+        )
+        ? await _nombresDeIos()
+        : const <String, String>{};
+
+    final adb = dispositivos.any((d) => d.plataforma == PlataformaEmulador.android)
+        ? await _adb()
+        : null;
+
+    return [
+      for (final d in dispositivos)
+        DispositivoConectado(
+          id: d.id,
+          nombre: switch (d.plataforma) {
+            PlataformaEmulador.ios => nombresIos[d.id] ?? d.nombre,
+            PlataformaEmulador.android =>
+              await _nombreAndroid(adb, d.id) ?? d.nombre,
+          },
+          plataforma: d.plataforma,
+        ),
+    ];
+  }
+
+  Future<String?> _nombreAndroid(String? adb, String id) async {
+    if (adb == null) return null;
+    final salida = await _correr(adb, [
+      '-s',
+      id,
+      'shell',
+      'getprop',
+      'ro.product.marketname',
+    ]);
+    final nombre = salida?.salida.trim();
+    return nombre == null || nombre.isEmpty ? null : nombre;
+  }
+
+  Future<Map<String, String>> _nombresDeIos() async {
+    // `devicectl` escribe el JSON en un archivo y no por stdout, así que hay que
+    // darle uno temporal y leerlo.
+    final destino =
+        '${Directory.systemTemp.path}/nexus-devicectl-'
+        '${DateTime.now().microsecondsSinceEpoch}.json';
+    final r = await _correr('/usr/bin/xcrun', [
+      'devicectl',
+      'list',
+      'devices',
+      '--json-output',
+      destino,
+    ]);
+    if (r == null) return const {};
+
+    final archivo = File(destino);
+    if (!archivo.existsSync()) return const {};
+    try {
+      return ComandoDeEmuladores.nombresDeIos(archivo.readAsStringSync());
+    } on FileSystemException {
+      return const {};
+    } finally {
+      try {
+        archivo.deleteSync();
+      } on FileSystemException {
+        // Un temporal que no se puede borrar no es motivo para no dar nombres.
+      }
+    }
   }
 
   /// **El comando dispara y vuelve en ~1 s, pero el emulador tarda ~20 s en

@@ -175,8 +175,13 @@ void main() {
     await tester.tap(find.text(strings.runChooseDevice).last);
     await tester.pumpAndSettle();
 
-    expect(find.text('emulator-5554'), findsWidgets);
-    expect(find.text('Small_Phone'), findsNothing);
+    // El id sigue estando —es lo que pide `-d`— pero **con su nombre delante**:
+    // un id no dice cuál es cuál.
+    expect(find.textContaining('emulator-5554'), findsWidgets);
+    expect(find.textContaining('Medium Phone API 36.1'), findsWidgets);
+    // Y el apagado no se ofrece, ni por id ni por nombre.
+    expect(find.textContaining('Small_Phone'), findsNothing);
+    expect(find.textContaining('Small Phone'), findsNothing);
   });
 
   testWidgets('correr está apagado hasta elegir las dos cosas', (tester) async {
