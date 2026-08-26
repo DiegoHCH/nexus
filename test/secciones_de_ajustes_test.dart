@@ -2,9 +2,6 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
-import 'package:nexus/features/emulators/domain/entities/emulador.dart';
-import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -22,25 +19,6 @@ import 'support/screen_harness.dart';
 // No comprueba contenido a propósito. Comprueba que se pulsa la pestaña y **la
 // sección se construye sin lanzar**, que es lo único que un cambio de archivos
 // puede romper y lo único que ninguna otra prueba miraba.
-/// **Emuladores es la única sección que habla con procesos al construirse**, y
-/// aquí eso no vale: `flutter emulators` y `adb` tardarían segundos y su plazo de
-/// espera deja un `Timer` vivo cuando el árbol ya se tiró —«A Timer is still
-/// pending even after the widget tree was disposed»—. Así que se le pone una
-/// puerta de mentira.
-///
-/// Se sustituye el data source y no el provider de la lista para que lo que se
-/// prueba siga siendo el montaje de verdad: la sección pide, recibe y pinta.
-class _SinMaquina extends EmuladoresDataSource {
-  const _SinMaquina();
-
-  @override
-  Future<({List<Emulador> emuladores, String? error})> listar() async =>
-      (emuladores: const <Emulador>[], error: null);
-
-  @override
-  Future<List<DispositivoConectado>> listarDispositivos() async => const [];
-}
-
 void main() {
   late Directory support;
 
@@ -55,7 +33,6 @@ void main() {
         workspaceControllerProvider.overrideWith(
           () => FixedWorkspace(workspaceWith()),
         ),
-        emuladoresDataSourceProvider.overrideWithValue(const _SinMaquina()),
       ],
     );
 

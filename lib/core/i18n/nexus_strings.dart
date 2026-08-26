@@ -311,6 +311,20 @@ abstract class NexusStrings {
   String get emulatorsRefresh;
   String get emulatorsEmpty;
   String get emulatorsConnected;
+
+  // Correr la app
+  String get runTitle;
+  String get runNoConfigs;
+  String get runChooseDevice;
+  String get runStart;
+  String get runStop;
+  String get runReload;
+  String get runRestart;
+  String get runCompiling;
+  String get runRunning;
+  String get runStopping;
+  String get runNoProject;
+  String get runLogs;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1002,6 +1016,31 @@ class NexusStringsEs extends NexusStrings {
   String get emulatorsEmpty => 'No hay ninguno en esta máquina.';
   @override
   String get emulatorsConnected => 'Enchufados';
+
+  @override
+  String get runTitle => 'Correr la app';
+  @override
+  String get runNoConfigs => 'Este proyecto no declara configuraciones en .vscode/launch.json';
+  @override
+  String get runChooseDevice => 'Elige un dispositivo';
+  @override
+  String get runStart => 'Correr';
+  @override
+  String get runStop => 'Parar';
+  @override
+  String get runReload => 'Recargar';
+  @override
+  String get runRestart => 'Reiniciar';
+  @override
+  String get runCompiling => 'Compilando';
+  @override
+  String get runRunning => 'corriendo';
+  @override
+  String get runStopping => 'parando';
+  @override
+  String get runNoProject => 'Sin proyecto no hay nada que correr';
+  @override
+  String get runLogs => 'Registro';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -2002,6 +2041,31 @@ class NexusStringsEn extends NexusStrings {
   String get emulatorsEmpty => 'None on this machine.';
   @override
   String get emulatorsConnected => 'Plugged in';
+
+  @override
+  String get runTitle => 'Run the app';
+  @override
+  String get runNoConfigs => 'This project declares no configurations in .vscode/launch.json';
+  @override
+  String get runChooseDevice => 'Pick a device';
+  @override
+  String get runStart => 'Run';
+  @override
+  String get runStop => 'Stop';
+  @override
+  String get runReload => 'Reload';
+  @override
+  String get runRestart => 'Restart';
+  @override
+  String get runCompiling => 'Compiling';
+  @override
+  String get runRunning => 'running';
+  @override
+  String get runStopping => 'stopping';
+  @override
+  String get runNoProject => 'No project, nothing to run';
+  @override
+  String get runLogs => 'Log';
   @override
   String get channelTitle => 'The phone channel';
   @override

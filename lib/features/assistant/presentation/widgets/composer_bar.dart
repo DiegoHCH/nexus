@@ -2,6 +2,8 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_chips.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_menus.dart';
+import 'package:nexus/features/emulators/presentation/widgets/dispositivos_menu.dart';
+import 'package:nexus/features/run/presentation/widgets/correr_menu.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/usage_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -173,6 +175,10 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
               const SizedBox(height: NexusSpacing.s3),
               _Controls(
                 folder: folder,
+                // `workingDirectory` y no `path`: con una raíz de varios repos,
+                // el proyecto que se corre es el repo elegido y no la carpeta de
+                // arriba, que es donde no hay `launch.json`.
+                proyecto: folder?.workingDirectory ?? widget.folderPath,
                 workspace: workspace,
                 meter: widget.meter,
                 voiceActive: widget.voiceActive,
@@ -289,6 +295,7 @@ class _Field extends StatelessWidget {
 class _Controls extends ConsumerWidget {
   const _Controls({
     required this.folder,
+    required this.proyecto,
     required this.workspace,
     required this.meter,
     required this.voiceActive,
@@ -299,6 +306,13 @@ class _Controls extends ConsumerWidget {
   /// La carpeta de esta conversación: de ella salen la cuenta, el modelo y el
   /// esfuerzo, porque los tres se deciden por carpeta.
   final PairedFolder? folder;
+
+  /// La carpeta de trabajo, para las configuraciones de arranque.
+  ///
+  /// **La de trabajo y no la emparejada**, que con una raíz de varios repos no
+  /// son la misma: lo que se corre es el repo elegido. Es el mismo criterio con
+  /// el que el compositor decide qué rama enseñar.
+  final String? proyecto;
   final Workspace workspace;
   final SessionMeter meter;
   final bool voiceActive;
@@ -376,6 +390,15 @@ class _Controls extends ConsumerWidget {
             color: voiceActive ? colors.accent : colors.faint,
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
+        // **Los dispositivos, aquí y no solo en Ajustes.** Arrancar un emulador
+        // se hace a media faena; irse a Ajustes para eso es salirse de la
+        // conversación. Va junto al micrófono porque son la misma clase de cosa:
+        // herramientas de la sesión, no estado del proyecto —eso es la fila de
+        // arriba.
+        const DispositivosMenu(),
+        // Correr la app va justo al lado de los dispositivos porque son los dos
+        // pasos del mismo gesto: encender dónde, y lanzar qué.
+        CorrerMenu(proyecto: proyecto),
         const Spacer(),
         ModelMenu(folder: folder, meter: meter),
         const SizedBox(width: NexusSpacing.s3),
