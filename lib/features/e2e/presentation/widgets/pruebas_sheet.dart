@@ -312,6 +312,15 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
     final dispositivos = _dispositivos;
 
+    // **Se le pregunta a git por todas, y ahora, no al confirmar.** Preguntando en
+    // el toque, el primer fotograma enseña «borra el archivo del repo» y el
+    // siguiente lo cambia por «se pierde»: un aviso que cambia de promesa después
+    // de que lo hayas leído es exactamente lo que un aviso no puede hacer. Es el
+    // mismo fallo del parpadeo gris de los emuladores, con otra cara.
+    final enGit = {
+      for (final p in pruebas) p.ruta: ref.watch(estaEnGitProvider(p.ruta)).value,
+    };
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -400,8 +409,26 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                   // mismo botón dice qué va a hacer sin ocupar una línea.
                   IconButton(
                     onPressed: () => _borrar(prueba),
+                    // **El aviso lo decide git, no una suposición.** Antes
+                    // prometía «se recupera con git» siempre, y con un flow
+                    // recién escrito y sin commitear eso es falso justo cuando
+                    // más importa.
+                    //
+                    // Mientras se comprueba, y cuando no se puede saber —sin git,
+                    // o fuera de un repositorio—, el aviso no promete nada en
+                    // ninguna dirección: los dos casos llegan aquí como `null` y
+                    // eso está bien, porque de los dos la respuesta honesta es la
+                    // misma.
                     tooltip: _confirmandoBorrado == prueba.ruta
-                        ? strings.e2eDeleteTestAsk
+                        ? switch (enGit[prueba.ruta]) {
+                            true => strings.e2eDeleteTestAsk,
+                            false => strings.e2eDeleteTestAskLost,
+                            // Mientras se comprueba, y cuando no se puede saber
+                            // —sin git, o fuera de un repositorio—, no se promete
+                            // nada en ninguna dirección: de los dos casos la
+                            // respuesta honesta es la misma.
+                            null => strings.e2eDeleteTestAskPlain,
+                          }
                         : strings.e2eDeleteTest,
                     iconSize: 14,
                     splashRadius: 14,

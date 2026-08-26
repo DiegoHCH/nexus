@@ -484,6 +484,39 @@ class E2eDataSource {
     }
   }
 
+  /// ¿Está ese archivo en git?
+  ///
+  /// **Es lo que decide si borrar una prueba se puede deshacer**, y por eso se
+  /// pregunta en vez de suponerlo: el aviso del panel prometía «se recupera con
+  /// git» siempre, y con un flow recién escrito y sin commitear eso es falso justo
+  /// en el momento en que más importa.
+  ///
+  /// `null` es «no se pudo saber» —sin git, o fuera de un repositorio— y entonces
+  /// el aviso no promete nada en ninguna dirección. Decir «no está en git» porque
+  /// no hay git sería inventarse la respuesta.
+  Future<bool?> estaEnGit(String ruta) async {
+    final corte = ruta.lastIndexOf('/');
+    if (corte < 0) return null;
+
+    try {
+      final r = await Process.run(
+        'git',
+        ['-C', ruta.substring(0, corte), 'ls-files', '--error-unmatch', '--', ruta],
+        runInShell: false,
+        environment: ClaudeEnvironment.forTools(),
+      );
+      // 0 lo conoce, 1 no lo conoce, 128 no hay repositorio. Solo las dos
+      // primeras son una respuesta.
+      return switch (r.exitCode) {
+        0 => true,
+        1 => false,
+        _ => null,
+      };
+    } on ProcessException {
+      return null;
+    }
+  }
+
   /// Cuánto ocupa una corrida, para poder decirlo antes de borrar.
   ///
   /// Un registro nuestro o una carpeta de Maestro, por lo mismo que [borrar]: con

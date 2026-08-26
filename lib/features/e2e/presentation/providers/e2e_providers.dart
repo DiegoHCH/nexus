@@ -79,6 +79,13 @@ final corridasDePruebaProvider = FutureProvider<List<CorridaDePrueba>>((
     ..sort((a, b) => b.cuando.compareTo(a.cuando));
 });
 
+/// Si un flow está en git, que es lo que decide si borrarlo se puede deshacer.
+///
+/// Familia por ruta: se pregunta una vez por archivo y no en cada repintado.
+final estaEnGitProvider = FutureProvider.family<bool?, String>(
+  (ref, ruta) => ref.watch(e2eDataSourceProvider).estaEnGit(ruta),
+);
+
 /// Lo que ocupan las corridas de cada proyecto.
 ///
 /// **En un proveedor y no en el widget** porque medirlo recorre el disco, y

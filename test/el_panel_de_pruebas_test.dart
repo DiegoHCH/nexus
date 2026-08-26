@@ -54,12 +54,18 @@ class _Maquina extends EmuladoresDataSource {
 }
 
 class _Borrados extends E2eDataSource {
-  const _Borrados(this.borrados, {this.instalada});
+  const _Borrados(this.borrados, {this.instalada, this.enGit});
 
   final List<String> borrados;
 
   /// Qué contesta la comprobación de instalación: `null` es «no se pudo saber».
   final bool? instalada;
+
+  /// Y la de git, con el mismo `null` de «no se pudo saber».
+  final bool? enGit;
+
+  @override
+  Future<bool?> estaEnGit(String ruta) async => enGit;
 
   @override
   Future<bool?> estaInstalada({
@@ -146,6 +152,7 @@ Future<void> _abrir(
   bool conIphone = false,
   List<String>? borrados,
   bool? instalada,
+  bool? enGit,
   List<String>? lanzados,
 }) async {
   await tester.pumpWidget(
@@ -155,7 +162,7 @@ Future<void> _abrir(
           _Maquina(encendidos: encendidos, conIphone: conIphone),
         ),
         e2eDataSourceProvider.overrideWithValue(
-          _Borrados(borrados ?? [], instalada: instalada),
+          _Borrados(borrados ?? [], instalada: instalada, enGit: enGit),
         ),
         pruebasProvider('/casa/tienda').overrideWith((ref) async => pruebas),
         corridasDePruebaProvider.overrideWith(
@@ -352,9 +359,10 @@ void main() {
   group('borrar una prueba', () {
     testWidgets('el primer toque avisa de que borra del repo', (tester) async {
       // Es código del usuario: se ofrece porque git lo recupera, y eso se dice
-      // antes y no después.
+      // antes y no después. `enGit: true` porque **la frase ya depende de git**:
+      // el aviso que se promete es este solo cuando el archivo está commiteado.
       final borrados = <String>[];
-      await _abrir(tester, borrados: borrados);
+      await _abrir(tester, borrados: borrados, enGit: true);
 
       await tester.tap(find.byTooltip(strings.e2eDeleteTest));
       await tester.pump();
@@ -367,7 +375,7 @@ void main() {
 
     testWidgets('el segundo borra el archivo, y solo ese', (tester) async {
       final borrados = <String>[];
-      await _abrir(tester, borrados: borrados);
+      await _abrir(tester, borrados: borrados, enGit: true);
 
       await tester.tap(find.byTooltip(strings.e2eDeleteTest));
       await tester.pump();
@@ -652,5 +660,40 @@ void main() {
 
     expect(find.byIcon(Icons.replay), findsOneWidget);
     expect(tester.takeException(), isNull);
+  });
+
+  group('el aviso al borrar una prueba', () {
+    /// El aviso vive en el tooltip del botón, y solo al pedir confirmación.
+    Future<void> pedirConfirmacion(WidgetTester tester) async {
+      await tester.tap(find.byIcon(Icons.delete_outline));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+    }
+
+    testWidgets('si está en git, dice que se recupera', (tester) async {
+      await _abrir(tester, enGit: true);
+      await pedirConfirmacion(tester);
+
+      expect(find.byTooltip(strings.e2eDeleteTestAsk), findsOneWidget);
+    });
+
+    testWidgets('si no está, dice que se pierde', (tester) async {
+      // Este es el caso por el que existe la comprobación: un flow recién escrito
+      // y sin commitear. Prometerle «se recupera con git» era mentirle justo
+      // cuando más importa.
+      await _abrir(tester, enGit: false);
+      await pedirConfirmacion(tester);
+
+      expect(find.byTooltip(strings.e2eDeleteTestAskLost), findsOneWidget);
+    });
+
+    testWidgets('si no se puede saber, no promete nada', (tester) async {
+      // Sin git o fuera de un repositorio. Decir «esto se pierde» sin tener ni
+      // idea es el mismo error que la promesa de antes, con el signo cambiado.
+      await _abrir(tester);
+      await pedirConfirmacion(tester);
+
+      expect(find.byTooltip(strings.e2eDeleteTestAskPlain), findsOneWidget);
+    });
   });
 }
