@@ -136,9 +136,13 @@ void main() {
         capturas: unaCaptura,
       );
 
-      // Dentro de la fila del paso que la tomó, no en un montón al final.
-      final fila = html.substring(html.indexOf('Take screenshot login_form'));
-      expect(fila, contains('<img class="toma" src="data:image/png;base64,AAAA"'));
+      // Justo detrás del paso que la tomó, no en un montón al final. En su propia
+      // línea y no dentro del texto: dentro arranca en la columna del texto y no
+      // hay forma de centrarla respecto a la tarjeta.
+      final tras = html.substring(html.indexOf('Take screenshot login_form'));
+      expect(tras, contains('<li class="toma"><img src="data:image/png;base64,AAAA"'));
+      // Y la que centra: márgenes automáticos, con la imagen como bloque.
+      expect(html, contains('li.toma img{display:block;margin:0 auto'));
     });
 
     test('un paso que no toma capturas no lleva ninguna', () {
