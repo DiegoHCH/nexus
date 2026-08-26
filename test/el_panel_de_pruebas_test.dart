@@ -198,9 +198,16 @@ class _EnMarchaFija extends PruebaEnMarchaController {
   PruebaEnMarcha? build() => _valor;
 }
 
-/// Un paso cualquiera. El número no importa en estas pruebas: lo que se mira es
-/// la hoja, y los números tienen su propia prueba en el lector.
+/// Un paso cualquiera del archivo. El número no importa en estas pruebas: lo que
+/// se mira es la hoja, y los números tienen su propia prueba en el lector.
 PasoDelFlow _paso(String texto) => PasoDelFlow(linea: 1, texto: texto);
+
+/// Una línea de salida de un paso ya terminado, como la escribe Maestro.
+///
+/// **El avance se cuenta de la salida y no de un número que se pasa**, así que
+/// aquí hay que darle salida de verdad: era `terminados: 1` y ahora es la línea que
+/// produce ese 1. Es más largo de escribir y es lo mismo que ve la app.
+String _hecho(String texto) => '$texto... COMPLETED\n';
 
 /// Tocar algo que va a leer del disco, y esperar de verdad.
 ///
@@ -251,7 +258,10 @@ void main() {
       // driver.
       await _abrir(
         tester,
-        enMarcha: PruebaEnMarcha(flow: 'login', pasos: [_paso('launchApp')]),
+        enMarcha: PruebaEnMarcha(
+          flow: 'login',
+          delFlow: [_paso('launchApp')],
+        ),
       );
 
       final boton = tester.widget<TextButton>(
@@ -395,8 +405,8 @@ void main() {
         tester,
         enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: [_paso('launchApp'), _paso('tapOn: x')],
-          terminados: 1,
+          delFlow: [_paso('launchApp'), _paso('tapOn: x')],
+          salida: _hecho('Launch app "com.ejemplo"'),
         ),
       );
 
@@ -432,8 +442,8 @@ void main() {
         tester,
         enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: [_paso('launchApp')],
-          terminados: 1,
+          delFlow: [_paso('launchApp')],
+          salida: _hecho('Launch app "com.ejemplo"'),
           viva: false,
         ),
         corridas: [_corrida()],
@@ -447,8 +457,7 @@ void main() {
         tester,
         enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: [_paso('launchApp')],
-          terminados: 0,
+          delFlow: [_paso('launchApp')],
         ),
       );
       expect(find.textContaining('login · 0/1'), findsOneWidget);

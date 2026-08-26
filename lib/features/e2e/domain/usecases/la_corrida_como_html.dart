@@ -25,8 +25,7 @@ abstract final class LaCorridaComoHtml {
 
   static String escribe({
     required String flow,
-    required List<PasoDelFlow> pasos,
-    required List<EstadoDePaso>? estados,
+    required List<PasoParaPintar> pasos,
     required List<String> lineas,
     required int terminados,
     required bool viva,
@@ -38,14 +37,23 @@ abstract final class LaCorridaComoHtml {
     // decía «8/0», que es una cuenta imposible y se lee como un fallo nuestro.
     final cuantos = total ?? pasos.length;
 
-    final filas = estados == null
-        // Sin emparejamiento posible —`runFlow`, un bucle— se enseña la salida y
-        // no un estado inventado.
-        ? ''
-        : [
-            for (final (i, paso) in pasos.indexed)
-              _fila(paso, estados[i], i + 1),
-          ].join('\n');
+    // **El total es una estimación y se dice.** Sale de contar los pasos del
+    // `.yaml`, y el archivo no sabe cuántos se van a ejecutar de verdad: un
+    // `runFlow` o un bucle ejecutan más. Mientras cuadre se enseña «3 de 8»; en
+    // cuanto lo ejecutado lo pasa, el denominador es falso y se quita en vez de
+    // enseñar «11 de 8», que es una cuenta imposible y se lee como un fallo
+    // nuestro. Es el mismo criterio que dejó de decir «8/0».
+    final cuenta = terminados > cuantos
+        ? '$terminados'
+        : '$terminados de $cuantos';
+
+    // **Ya no hay caso de rendirse.** Antes, cuando los pasos impresos no cuadraban
+    // con los del archivo, esto se quedaba vacío y solo se enseñaba la salida cruda.
+    // Los pasos vienen ahora de la propia salida —ver `PasosDeUnaPrueba.paraPintar`—
+    // así que no hay nada que emparejar y no hay nada que degradar.
+    final filas = [
+      for (final (i, paso) in pasos.indexed) _fila(paso, i + 1),
+    ].join('\n');
 
     return '''
 <!doctype html>
@@ -133,7 +141,7 @@ abstract final class LaCorridaComoHtml {
     ${viva ? '<a class="parar" href="$esquema://parar" title="Detener"><span></span></a>' : ''}
   </header>
   ${filas.isEmpty ? '' : '<ol>\n$filas\n</ol>'}
-  ${lineas.isEmpty ? '' : '<h2>salida · $terminados de $cuantos</h2><pre>${_escapa(lineas.join('\n'))}</pre>'}
+  ${lineas.isEmpty ? '' : '<h2>salida · $cuenta</h2><pre>${_escapa(lineas.join('\n'))}</pre>'}
 </div>
 </body></html>
 ''';
@@ -157,8 +165,8 @@ abstract final class LaCorridaComoHtml {
   /// lee como una lista de pasos, se lee como un error. La línea sigue estando y
   /// va en el `title` de la fila, que es donde no molesta y sigue sirviendo para
   /// ir a buscarla.
-  static String _fila(PasoDelFlow paso, EstadoDePaso estado, int orden) {
-    final clase = switch (estado) {
+  static String _fila(PasoParaPintar paso, int orden) {
+    final clase = switch (paso.estado) {
       EstadoDePaso.hecho => 'hecho',
       EstadoDePaso.enCurso => 'curso',
       EstadoDePaso.fallado => 'fallo',
@@ -166,7 +174,7 @@ abstract final class LaCorridaComoHtml {
     };
     // **El símbolo cuenta el estado sin leer nada**: gris de espera, el indicador
     // girando en el color de acento mientras se ejecuta, y un visto al acabar.
-    final marca = switch (estado) {
+    final marca = switch (paso.estado) {
       EstadoDePaso.hecho => '✓',
       EstadoDePaso.enCurso =>
         '<span class="gira" style="color:var(--acento)"></span>',
@@ -178,7 +186,11 @@ abstract final class LaCorridaComoHtml {
         ? ''
         : '\n<span class="detalle">${_escapa(paso.detalle.join('\n'))}</span>';
 
-    return '<li class="$clase" title="línea ${paso.linea}">'
+    // El `title` solo cuando se sabe de qué línea salió: los ejecutados vienen de
+    // la prosa de Maestro y no lo dicen.
+    final donde = paso.linea == null ? '' : ' title="línea ${paso.linea}"';
+
+    return '<li class="$clase"$donde>'
         '<span class="marca">$marca</span>'
         '<span class="num">$orden</span>'
         '<span class="guion">–</span>'

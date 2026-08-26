@@ -392,47 +392,74 @@ class E2eDataSource {
     final flow = '${leido['flow'] ?? ''}';
     final terminados = (leido['terminados'] as num?)?.toInt() ?? 0;
     final fallo = leido['fallo'] == true;
-    // **Dos formatos, porque los registros viejos existen.** Antes se guardaba
-    // una lista de cadenas; ahora, objetos con su número de línea y su detalle. Un
-    // registro viejo se lee igual y se queda sin número: enseñarlo a medias es
-    // mejor que no enseñarlo.
-    final pasos = <PasoDelFlow>[];
-    var n = 0;
-    for (final crudo in (leido['pasosDelFlow'] as List?) ?? const []) {
-      n++;
-      if (crudo is Map) {
-        pasos.add(
-          PasoDelFlow(
-            linea: (crudo['n'] as num?)?.toInt() ?? n,
-            texto: '${crudo['t'] ?? ''}',
-            detalle: [for (final d in (crudo['d'] as List?) ?? const []) '$d'],
-          ),
-        );
-      } else {
-        pasos.add(PasoDelFlow(linea: n, texto: '$crudo'));
+    final total = (leido['pasos'] as num?)?.toInt() ?? 0;
+
+    final crudas = [
+      for (final l in (leido['ruido'] as List?) ?? const []) '$l',
+    ];
+
+    final List<PasoParaPintar> pasos;
+    final List<String> lineas;
+
+    if (leido['salida'] case final String salida when salida.isNotEmpty) {
+      // **Lo nuevo: se guarda la salida y se relee.** Los pasos salen de ella con
+      // la misma función que en vivo, así que el informe enseña exactamente lo que
+      // se vio correr —y no una lista del YAML que podía diferir—.
+      pasos = PasosDeUnaPrueba.deLaSalida(salida);
+      lineas = [
+        for (final l in salida.split('\n'))
+          if (l.trim().isNotEmpty) l.trimRight(),
+        ...crudas,
+      ];
+    } else {
+      // **Los registros viejos siguen abriéndose.** Guardaban los pasos del YAML y
+      // una cuenta, así que se reconstruyen como se hacía antes: emparejando por
+      // posición, con su degradación incluida. Un informe de ayer que se abre a
+      // medias es mejor que uno que no se abre.
+      final delFlow = <PasoDelFlow>[];
+      var n = 0;
+      for (final crudo in (leido['pasosDelFlow'] as List?) ?? const []) {
+        n++;
+        if (crudo is Map) {
+          delFlow.add(
+            PasoDelFlow(
+              linea: (crudo['n'] as num?)?.toInt() ?? n,
+              texto: '${crudo['t'] ?? ''}',
+              detalle: [for (final d in (crudo['d'] as List?) ?? const []) '$d'],
+            ),
+          );
+        } else {
+          delFlow.add(PasoDelFlow(linea: n, texto: '$crudo'));
+        }
       }
+
+      final estados = PasosDeUnaPrueba.estados(
+        cuantosPasos: delFlow.length,
+        terminados: terminados,
+        viva: false,
+        fallo: fallo,
+      );
+      pasos = [
+        for (final (i, paso) in delFlow.indexed)
+          PasoParaPintar(
+            texto: paso.texto,
+            estado: estados?[i] ?? EstadoDePaso.pendiente,
+            detalle: paso.detalle,
+            linea: paso.linea,
+          ),
+      ];
+      lineas = [
+        for (final l in (leido['lineas'] as List?) ?? const []) '$l',
+        ...crudas,
+      ];
     }
-    final total = (leido['pasos'] as num?)?.toInt() ?? pasos.length;
 
     final html = LaCorridaComoHtml.escribe(
       flow: flow,
       pasos: pasos,
-      // Los mismos estados que en vivo, calculados igual: una corrida terminada
-      // es una en marcha quieta. Los registros de antes de guardar los nombres no
-      // traen pasos, y entonces se enseña solo la salida — que sigue siendo verdad.
-      estados: pasos.isEmpty
-          ? null
-          : PasosDeUnaPrueba.estados(
-              cuantosPasos: pasos.length,
-              terminados: terminados,
-              viva: false,
-              fallo: fallo,
-            ),
-      lineas: [
-        for (final l in (leido['lineas'] as List?) ?? const []) '$l',
-      ],
+      lineas: lineas,
       terminados: terminados,
-      total: total,
+      total: total == 0 ? pasos.length : total,
       viva: false,
       fallo: fallo,
     );
