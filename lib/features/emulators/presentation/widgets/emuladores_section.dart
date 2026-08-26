@@ -114,6 +114,28 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
                     onLanzarEnFrio: () => _lanzar(emulador, frio: true),
                     onCerrar: () => _cerrar(emulador),
                   ),
+
+              // **Los teléfonos de verdad, en su propio grupo y sin botón.**
+              //
+              // Aparte porque el verbo no es el mismo: un emulador se arranca y
+              // se cierra, y uno de estos ya está — lo único que se puede hacer
+              // con él es usarlo. Mezclarlos en la misma lista obligaría a poner
+              // un botón apagado en la mitad de las filas, que es enseñar un
+              // control que nunca sirve.
+              //
+              // Y sí valen, aunque no tengan botón: son la respuesta a «¿sobre
+              // qué puedo correr esto?», y el id que llevan debajo es el que pide
+              // `-d`.
+              if (value.dispositivos.isNotEmpty) ...[
+                const SizedBox(height: NexusSpacing.s5),
+                Text(
+                  strings.emulatorsConnected,
+                  style: NexusTypography.label.copyWith(color: colors.faint),
+                ),
+                const SizedBox(height: NexusSpacing.s2),
+                for (final dispositivo in value.dispositivos)
+                  _FilaDeDispositivo(dispositivo: dispositivo),
+              ],
             ],
           ),
           AsyncError() => Text(
@@ -134,6 +156,52 @@ class _EmuladoresSectionState extends ConsumerState<EmuladoresSection> {
           ),
         ],
       ],
+    );
+  }
+}
+
+/// Un teléfono enchufado. Sin botón a propósito: ver [_FilaDeEmulador] arriba.
+class _FilaDeDispositivo extends StatelessWidget {
+  const _FilaDeDispositivo({required this.dispositivo});
+
+  final DispositivoConectado dispositivo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 5),
+      child: Row(
+        children: [
+          // El punto va siempre encendido: si está en la lista, está enchufado.
+          // No hay estado intermedio que enseñar.
+          Container(
+            width: 7,
+            height: 7,
+            margin: const EdgeInsets.only(right: NexusSpacing.s3),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: colors.ok),
+          ),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  dispositivo.nombre,
+                  style: NexusTypography.data.copyWith(color: colors.ink),
+                ),
+                Text(
+                  // El id detrás porque es lo que hace falta para `-d`, y en
+                  // Android el nombre es el código de modelo —`24069PC21G`— que
+                  // no dice nada por sí solo.
+                  '${dispositivo.plataforma.name} · ${dispositivo.id}',
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

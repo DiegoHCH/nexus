@@ -166,6 +166,72 @@ emulator-5554	offline
     });
   });
 
+  group('los teléfonos enchufados', () {
+    // `flutter devices --machine` de esta máquina, recortado a lo que se usa.
+    const json = '''
+[
+  {"name":"24069PC21G","id":"36c56d94","isSupported":true,
+   "targetPlatform":"android-arm64","emulator":false,"sdk":"Android 16 (API 36)"},
+  {"name":"sdk gphone64 arm64","id":"emulator-5554","isSupported":true,
+   "targetPlatform":"android-arm64","emulator":true,"sdk":"Android 16 (API 36)"},
+  {"name":"iPhone","id":"00008030-000C390C1AC0C02E","isSupported":true,
+   "targetPlatform":"ios","emulator":false,"sdk":"iOS 26.1"},
+  {"name":"macOS","id":"macos","isSupported":true,
+   "targetPlatform":"darwin","emulator":false,"sdk":"macOS 26.5.2"},
+  {"name":"Chrome","id":"chrome","isSupported":true,
+   "targetPlatform":"web-javascript","emulator":false,"sdk":"Google Chrome"}
+]''';
+
+    test('salen los dos teléfonos y nada más', () {
+      final leidos = ComandoDeEmuladores.leerDispositivos(json);
+
+      // El emulador se descarta porque ya está en la otra lista; macOS y Chrome
+      // porque `flutter devices` los ofrece como dispositivos —lo son, para
+      // Flutter— y en una lista de teléfonos no pintan nada.
+      expect(leidos.map((d) => d.id), [
+        '36c56d94',
+        '00008030-000C390C1AC0C02E',
+      ]);
+      expect(leidos.first.plataforma, PlataformaEmulador.android);
+      expect(leidos.last.plataforma, PlataformaEmulador.ios);
+    });
+
+    test('la plataforma viene con arquitectura y hay que aguantarla', () {
+      // `flutter devices` dice `android-arm64`, no `android`: es otra palabra que
+      // la de `flutter emulators`, y por eso hay dos formas de leerla.
+      expect(PlataformaEmulador.desde('android-arm64'), isNull);
+      expect(
+        PlataformaEmulador.desdeObjetivo('android-arm64'),
+        PlataformaEmulador.android,
+      );
+      expect(PlataformaEmulador.desdeObjetivo('darwin'), isNull);
+      expect(PlataformaEmulador.desdeObjetivo('web-javascript'), isNull);
+    });
+
+    test('un aviso pegado DETRÁS del JSON no vacía la lista', () {
+      // **La regresión.** Con dos `flutter` a la vez, uno imprime en stderr
+      // «Waiting for another flutter command to release the startup lock…», y
+      // juntar stdout con stderr dejaba eso pegado al final del JSON: `jsonDecode`
+      // lanzaba y la lista salía vacía. Visto en la app como «no reconoce los
+      // dispositivos físicos», que no se parece a un problema de parseo.
+      const sucio =
+          '$json\nWaiting for another flutter command to release the startup lock...';
+
+      expect(ComandoDeEmuladores.leerDispositivos(sucio).length, 2);
+    });
+
+    test('y un aviso por delante tampoco', () {
+      const sucio = 'Resolving dependencies...\n$json';
+      expect(ComandoDeEmuladores.leerDispositivos(sucio).length, 2);
+    });
+
+    test('sin JSON no hay lista, y no revienta', () {
+      expect(ComandoDeEmuladores.leerDispositivos('nada de nada'), isEmpty);
+      expect(ComandoDeEmuladores.leerDispositivos('[roto'), isEmpty);
+      expect(ComandoDeEmuladores.leerDispositivos(''), isEmpty);
+    });
+  });
+
   group('el cruce de catálogo y estado', () {
     final catalogo = ComandoDeEmuladores.leerTabla(tablaReal);
 

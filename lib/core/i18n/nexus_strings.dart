@@ -310,6 +310,7 @@ abstract class NexusStrings {
   String get emulatorsColdBoot;
   String get emulatorsRefresh;
   String get emulatorsEmpty;
+  String get emulatorsConnected;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -999,6 +1000,8 @@ class NexusStringsEs extends NexusStrings {
   String get emulatorsRefresh => 'Comprobar';
   @override
   String get emulatorsEmpty => 'No hay ninguno en esta máquina.';
+  @override
+  String get emulatorsConnected => 'Enchufados';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -1997,6 +2000,8 @@ class NexusStringsEn extends NexusStrings {
   String get emulatorsRefresh => 'Check';
   @override
   String get emulatorsEmpty => 'None on this machine.';
+  @override
+  String get emulatorsConnected => 'Plugged in';
   @override
   String get channelTitle => 'The phone channel';
   @override

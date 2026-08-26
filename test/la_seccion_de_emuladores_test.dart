@@ -16,9 +16,14 @@ import 'package:nexus/features/emulators/presentation/widgets/emuladores_section
 /// funcione: eso ya está probado contra las salidas reales en
 /// `los_emuladores_de_la_maquina_test.dart`.
 class _Falsa extends EmuladoresDataSource {
-  _Falsa(this._emuladores, {this.errorAlListar});
+  _Falsa(
+    this._emuladores, {
+    this.errorAlListar,
+    this.dispositivos = const [],
+  });
 
   final List<Emulador> _emuladores;
+  final List<DispositivoConectado> dispositivos;
   final String? errorAlListar;
 
   final lanzados = <({String id, bool frio})>[];
@@ -26,8 +31,18 @@ class _Falsa extends EmuladoresDataSource {
   String? errorAlLanzar;
 
   @override
-  Future<({List<Emulador> emuladores, String? error})> listar() async =>
-      (emuladores: _emuladores, error: errorAlListar);
+  Future<
+    ({
+      List<Emulador> emuladores,
+      List<DispositivoConectado> dispositivos,
+      String? error,
+    })
+  >
+  listar() async => (
+    emuladores: _emuladores,
+    dispositivos: dispositivos,
+    error: errorAlListar,
+  );
 
   @override
   Future<String?> lanzar(Emulador emulador, {bool frio = false}) async {
@@ -155,6 +170,36 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('No se encontró ese emulador'), findsOneWidget);
+  });
+
+  testWidgets('los teléfonos enchufados salen aparte y sin botón', (
+    tester,
+  ) async {
+    await _montar(
+      tester,
+      _Falsa(
+        [_android],
+        dispositivos: const [
+          DispositivoConectado(
+            id: '36c56d94',
+            nombre: '24069PC21G',
+            plataforma: PlataformaEmulador.android,
+          ),
+        ],
+      ),
+    );
+
+    expect(find.text(strings.emulatorsConnected), findsOneWidget);
+    expect(find.text('24069PC21G'), findsOneWidget);
+    // El id debajo, que es lo que pide `-d`.
+    expect(find.textContaining('36c56d94'), findsOneWidget);
+    // Un solo «Arrancar»: el del emulador. El teléfono no se arranca, ya está.
+    expect(find.text(strings.emulatorsLaunch), findsOneWidget);
+  });
+
+  testWidgets('sin teléfonos enchufados no hay grupo vacío', (tester) async {
+    await _montar(tester, _Falsa([_android]));
+    expect(find.text(strings.emulatorsConnected), findsNothing);
   });
 
   testWidgets('una máquina sin emuladores lo dice', (tester) async {

@@ -192,6 +192,50 @@ abstract final class ComandoDeEmuladores {
     return emulador.conEstado(corriendo: false);
   }
 
+  /// Los teléfonos de verdad que hay enchufados, de `flutter devices --machine`.
+  ///
+  /// Se filtra por **dos** condiciones y las dos hacen falta:
+  ///
+  /// - `emulator: false`, que descarta el emulador que ya sale en la otra lista.
+  /// - la plataforma, que descarta `darwin` y `web-javascript`. `flutter devices`
+  ///   ofrece macOS y Chrome como dispositivos —lo son, para Flutter— y en una
+  ///   lista de teléfonos no pintan nada.
+  ///
+  /// El JSON se recorta **entre el primer `[` y el último `]`**, y las dos
+  /// puntas hacen falta:
+  ///
+  /// - Por delante, porque Flutter puede escupir un aviso antes del JSON.
+  /// - Por detrás, porque puede escupirlo **después**. Ahí se fue un rato: con
+  ///   dos `flutter` a la vez, uno imprime «Waiting for another flutter command
+  ///   to release the startup lock…» y si eso queda pegado al JSON, `jsonDecode`
+  ///   lanza y la lista sale vacía sin decir por qué. Se ve como «no reconoce
+  ///   los dispositivos físicos», que no se parece a un problema de parseo.
+  static List<DispositivoConectado> leerDispositivos(String salida) {
+    final desde = salida.indexOf('[');
+    final hasta = salida.lastIndexOf(']');
+    if (desde < 0 || hasta < desde) return const [];
+
+    try {
+      final leido = jsonDecode(salida.substring(desde, hasta + 1));
+      if (leido is! List) return const [];
+
+      return [
+        for (final entrada in leido)
+          if (entrada is Map)
+            if (entrada['emulator'] != true)
+              if (PlataformaEmulador.desdeObjetivo('${entrada['targetPlatform']}')
+                  case final plataforma?)
+                DispositivoConectado(
+                  id: '${entrada['id']}',
+                  nombre: '${entrada['name'] ?? entrada['id']}',
+                  plataforma: plataforma,
+                ),
+      ];
+    } on FormatException {
+      return const [];
+    }
+  }
+
   /// Cómo se cierra uno de Android: por su dispositivo, no por su nombre.
   static List<String> argumentosDeCerrarAndroid(String deviceId) => [
     '-s',

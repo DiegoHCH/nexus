@@ -8,11 +8,27 @@ final emuladoresDataSourceProvider = Provider<EmuladoresDataSource>(
 
 /// Lo que hay en la máquina ahora mismo.
 ///
-/// **Se relee y no se guarda**, por el mismo motivo que la lista de documentos:
-/// el usuario puede cerrar un emulador desde su propia ventana, y una copia
-/// cacheada estaría mintiendo justo cuando importa —al mirar si arrancar o
-/// cerrar—. Cuesta un `flutter emulators` y un par de `adb`, así que se paga.
+/// **`autoDispose`, y esa palabra es el arreglo de un fallo visto en vivo.** Sin
+/// ella un `FutureProvider` calcula una vez y guarda el resultado mientras viva
+/// el `ProviderScope`, o sea toda la sesión de la app: se abría Ajustes con los
+/// emuladores apagados, se arrancaba uno **por fuera**, y la sección seguía
+/// diciendo «Arrancar» con el punto gris. Lo reportado fue «está arriba el
+/// emulador y no está el punto en verde», que no se parece a un problema de
+/// caché.
+///
+/// Con `autoDispose` el estado se tira al cerrar la sección y se vuelve a
+/// preguntar al abrirla, que es lo que la pantalla promete: lo que hay **ahora**.
+/// Es el mismo criterio que ya usa `McpPermissions` para leer el archivo en cada
+/// encargo en vez de cachearlo — un servidor instalado con la app abierta tiene
+/// que entrar en el siguiente sin pedir un reinicio que nadie adivina.
+///
+/// Cuesta un `flutter emulators`, un `flutter devices` y un par de `adb`. Se
+/// paga: la alternativa es una lista que miente.
 final emuladoresProvider =
-    FutureProvider<({List<Emulador> emuladores, String? error})>(
-      (ref) => ref.watch(emuladoresDataSourceProvider).listar(),
-    );
+    FutureProvider.autoDispose<
+      ({
+        List<Emulador> emuladores,
+        List<DispositivoConectado> dispositivos,
+        String? error,
+      })
+    >((ref) => ref.watch(emuladoresDataSourceProvider).listar());

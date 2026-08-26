@@ -13,6 +13,16 @@ enum PlataformaEmulador {
     'ios' => PlataformaEmulador.ios,
     _ => null,
   };
+
+  /// La plataforma tal como la nombra `flutter devices`, que **no es la misma
+  /// palabra**: ahí un móvil Android es `android-arm64` y un iPhone es `ios`, y
+  /// además aparecen `darwin` y `web-javascript`, que no son teléfonos.
+  static PlataformaEmulador? desdeObjetivo(String objetivo) {
+    final texto = objetivo.toLowerCase();
+    if (texto.startsWith('android')) return PlataformaEmulador.android;
+    if (texto.startsWith('ios')) return PlataformaEmulador.ios;
+    return null;
+  }
 }
 
 /// Un emulador de Android o un simulador de iOS, con si está arriba.
@@ -60,4 +70,28 @@ class Emulador {
     corriendo: corriendo,
     deviceId: deviceId,
   );
+}
+
+/// Un teléfono de verdad enchufado al Mac.
+///
+/// **Aparte de [Emulador] y no un campo suyo**, porque el verbo no es el mismo:
+/// un emulador se arranca y se cierra; uno de estos ya está, y lo único que se
+/// puede hacer con él es usarlo. Meterlos en la misma lista con un botón apagado
+/// sería enseñar un botón que nunca sirve.
+class DispositivoConectado {
+  const DispositivoConectado({
+    required this.id,
+    required this.nombre,
+    required this.plataforma,
+  });
+
+  /// Lo que entiende `-d`: el número de serie en Android, el UDID en iOS.
+  final String id;
+
+  /// Como se llama a sí mismo. En Android suele ser el código de modelo
+  /// —`24069PC21G`— y no el nombre comercial: es lo que reporta el aparato, y
+  /// traducirlo pediría una tabla de modelos que caduca sola.
+  final String nombre;
+
+  final PlataformaEmulador plataforma;
 }

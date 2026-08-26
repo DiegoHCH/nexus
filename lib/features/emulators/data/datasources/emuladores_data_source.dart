@@ -14,33 +14,58 @@ import 'package:nexus/features/emulators/domain/usecases/comando_de_emuladores.d
 class EmuladoresDataSource {
   const EmuladoresDataSource();
 
-  /// El catálogo con su estado. `null` si no se encuentra Flutter, que es lo
-  /// único sin lo que aquí no hay nada que hacer.
+  /// El catálogo con su estado, **y los teléfonos que haya enchufados**.
+  ///
+  /// Los dos en una sola llamada porque se enseñan juntos: dos providers harían
+  /// que «Comprobar» refrescara media pantalla, y un físico que se desenchufa
+  /// mientras un emulador arranca dejaría la lista contándose una historia
+  /// distinta en cada mitad.
   ///
   /// El estado de cada plataforma se pide **en paralelo y tolerando el fallo de
   /// una**: con el SDK de Android a medio instalar, `adb` revienta mientras
   /// `simctl` contesta bien, y quedarse sin lista entera por eso sería peor que
   /// enseñar los de iOS.
-  Future<({List<Emulador> emuladores, String? error})> listar() async {
+  Future<
+    ({
+      List<Emulador> emuladores,
+      List<DispositivoConectado> dispositivos,
+      String? error,
+    })
+  >
+  listar() async {
     final flutter = await _flutter();
     if (flutter == null) {
       return (
         emuladores: const <Emulador>[],
+        dispositivos: const <DispositivoConectado>[],
         error:
             'No se encontró Flutter. Se buscó en el PATH de la app, en las rutas '
             'de siempre y en tu shell de login.',
       );
     }
 
-    final salida = await _correr(flutter, ['emulators']);
-    if (salida == null) {
+    // **En serie y no en paralelo**, aunque en paralelo parezca más listo: dos
+    // `flutter` a la vez se pelean por el lock del SDK y el segundo imprime
+    // «Waiting for another flutter command to release the startup lock…». No
+    // falla —espera y contesta— pero no se gana nada, porque el trabajo se
+    // serializa igual dentro del propio Flutter. Y sí se pierde: ese aviso en
+    // stderr fue lo que rompió el parseo del JSON la primera vez.
+    final catalogoBruto = await _correr(flutter, ['emulators']);
+    final dispositivosBruto = await _correr(flutter, ['devices', '--machine']);
+
+    if (catalogoBruto == null) {
       return (
         emuladores: const <Emulador>[],
+        dispositivos: dispositivosBruto == null
+            ? const <DispositivoConectado>[]
+            // **Solo `stdout`.** El JSON está ahí, y pegarle el `stderr` detrás
+            // es exactamente lo que rompía esto.
+            : ComandoDeEmuladores.leerDispositivos(dispositivosBruto.salida),
         error: 'Flutter no contestó al pedirle los emuladores',
       );
     }
 
-    final catalogo = ComandoDeEmuladores.leerTabla(salida);
+    final catalogo = ComandoDeEmuladores.leerTabla(catalogoBruto.salida);
     // Los dos a la vez: el de Android son varios procesos y el de iOS uno lento.
     final (avds, ios) = await (_avdsArriba(), _hayIosArriba()).wait;
 
@@ -50,6 +75,9 @@ class EmuladoresDataSource {
         avdsArriba: avds,
         iosArriba: ios,
       ),
+      dispositivos: dispositivosBruto == null
+          ? const <DispositivoConectado>[]
+          : ComandoDeEmuladores.leerDispositivos(dispositivosBruto.salida),
       error: null,
     );
   }
@@ -77,7 +105,11 @@ class EmuladoresDataSource {
     );
     if (salida == null) return 'Flutter no contestó al lanzar el emulador';
 
-    return ComandoDeEmuladores.resultadoDeLanzar(salida).error;
+    // Aquí sí van los dos juntos: el veredicto se lee por líneas y el motivo
+    // puede llegar por cualquiera de las dos. Es lo contrario del JSON.
+    return ComandoDeEmuladores.resultadoDeLanzar(
+      '${salida.salida}\n${salida.error}',
+    ).error;
   }
 
   /// Cierra uno. `null` si salió bien.
@@ -141,11 +173,11 @@ class EmuladoresDataSource {
     if (devices == null) return const {};
 
     final arriba = <String, String>{};
-    for (final id in ComandoDeEmuladores.idsDeEmuladorEnAdb(devices)) {
+    for (final id in ComandoDeEmuladores.idsDeEmuladorEnAdb(devices.salida)) {
       final nombre = await _correr(adb, ['-s', id, 'emu', 'avd', 'name']);
       if (nombre == null) continue;
       // Contesta el nombre y luego un `OK`: solo vale la primera línea.
-      final limpio = nombre.trim().split('\n').first.trim();
+      final limpio = nombre.salida.trim().split('\n').first.trim();
       if (limpio.isNotEmpty) arriba[limpio] = id;
     }
     return arriba;
@@ -159,13 +191,20 @@ class EmuladoresDataSource {
       'booted',
       '--json',
     ]);
-    return salida == null ? false : ComandoDeEmuladores.hayIosArriba(salida);
+    return salida == null
+        ? false
+        : ComandoDeEmuladores.hayIosArriba(salida.salida);
   }
 
   /// `null` cuando el proceso no llegó a contestar. Un código de salida distinto
   /// de cero **no** es `null`: `flutter emulators` puede salir mal y haber
   /// impreso algo útil, y ese texto es lo que se le enseña al usuario.
-  Future<String?> _correr(
+  ///
+  /// **Las dos salidas separadas y no pegadas**, y esto costó un fallo real:
+  /// juntarlas mete el «Waiting for another flutter command…» de stderr detrás
+  /// del JSON de stdout, y entonces no hay JSON. Quien parsea decide qué mira —
+  /// el JSON solo stdout, un veredicto por líneas las dos.
+  Future<({String salida, String error})?> _correr(
     String binario,
     List<String> argumentos, {
     Duration tope = const Duration(seconds: 90),
@@ -177,8 +216,7 @@ class EmuladoresDataSource {
         environment: ClaudeEnvironment.forTools(),
         includeParentEnvironment: false,
       ).timeout(tope);
-      final salida = '${resultado.stdout}${resultado.stderr}';
-      return salida;
+      return (salida: '${resultado.stdout}', error: '${resultado.stderr}');
     } on ProcessException {
       return null;
     } on Exception {
