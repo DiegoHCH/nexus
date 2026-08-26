@@ -14,7 +14,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late Directory repo;
   late Directory cuenta;
-  final hook = File('tool/hooks/exigir_plan.py').absolute.path;
+  final hook = File('assets/hooks/exigir_plan.py').absolute.path;
 
   setUp(() {
     repo = Directory.systemTemp.createTempSync('proyecto');
