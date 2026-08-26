@@ -48,8 +48,20 @@ class CorrerMenu extends ConsumerWidget {
       itemBuilder: (context) => [
         PopupMenuItem<void>(
           enabled: false,
+          // Relleno propio en vez del de fábrica: el del `PopupMenuItem` son 16
+          // a cada lado que no se descuentan del ancho que se le pide, y el panel
+          // desbordaba por menos de un píxel — suficiente para pintar la franja
+          // amarilla de aviso encima de la barra.
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s3,
+            vertical: NexusSpacing.s2,
+          ),
           child: SizedBox(
-            width: 380,
+            // **Ancho y bajo, no cuadrado.** Con 380 los dos desplegables y el
+            // botón se apilaban y el panel salía casi cuadrado, que en una barra
+            // de compositor se ve como una caja pegada encima. A 620 caben en una
+            // sola línea y el panel se lee como lo que es: una barra.
+            width: 620,
             child: _Panel(proyecto: proyecto),
           ),
         ),
@@ -209,31 +221,42 @@ class _PanelState extends ConsumerState<_Panel> {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           )
         else ...[
-          _Elegir(
-            // **La recordada, si sigue existiendo.** Se guarda el nombre y no un
-            // índice: los índices bailan al añadir una configuración al
-            // `launch.json`, y ese día estarías corriendo otro entorno sin
-            // enterarte. Si el nombre ya no está, no se ofrece y hay que elegir.
-            valor: _elegida(configs),
-            opciones: [for (final c in configs) c.nombre],
-            pista: strings.runTitle,
-            onElegir: (v) {
-              setState(() => _config = v);
-              ref
-                  .read(configsPorDefectoProvider.notifier)
-                  .elegir(proyecto, v);
-            },
-          ),
-          const SizedBox(height: NexusSpacing.s2),
-          _Elegir(
-            valor: _dispositivo,
-            opciones: _dispositivosDisponibles(),
-            pista: strings.runChooseDevice,
-            onElegir: (v) => setState(() => _dispositivo = v),
-          ),
-          const SizedBox(height: NexusSpacing.s3),
+          // Los dos desplegables y el botón **en una línea**. Apilados hacían
+          // del panel un cuadrado; en fila se lee como una barra, que es lo que
+          // es. El de la configuración pesa el doble porque sus nombres son
+          // largos —«Global66 (ci + mock PayIn Colombia)»— y el del dispositivo
+          // cabe en un identificador.
           Row(
+            crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              Expanded(
+                flex: 2,
+                child: _Elegir(
+                  // **La recordada, si sigue existiendo.** Se guarda el nombre y
+                  // no un índice: los índices bailan al añadir una configuración
+                  // al `launch.json`, y ese día estarías corriendo otro entorno
+                  // sin enterarte. Si el nombre ya no está, no se ofrece.
+                  valor: _elegida(configs),
+                  opciones: [for (final c in configs) c.nombre],
+                  pista: strings.runTitle,
+                  onElegir: (v) {
+                    setState(() => _config = v);
+                    ref
+                        .read(configsPorDefectoProvider.notifier)
+                        .elegir(proyecto, v);
+                  },
+                ),
+              ),
+              const SizedBox(width: NexusSpacing.s2),
+              Expanded(
+                child: _Elegir(
+                  valor: _dispositivo,
+                  opciones: _dispositivosDisponibles(),
+                  pista: strings.runChooseDevice,
+                  onElegir: (v) => setState(() => _dispositivo = v),
+                ),
+              ),
+              const SizedBox(width: NexusSpacing.s3),
               if (_ocupado)
                 SizedBox(
                   width: 14,
@@ -295,7 +318,12 @@ class _Elegir extends StatelessWidget {
     final colors = context.colors;
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s3),
+      // `s2` y no `s3`: con el relleno mayor, el `DropdownButton` con
+      // `isExpanded` desbordaba su propia fila por 0,9 px al abrir el menú —lo
+      // justo para pintar la franja amarilla de aviso encima de la barra—. Es una
+      // rareza de la medida interna de Material y se arregla dándole holgura, no
+      // peleándose con ella.
+      padding: const EdgeInsets.symmetric(horizontal: NexusSpacing.s2),
       decoration: BoxDecoration(
         color: colors.void_.withValues(alpha: 0.5),
         border: Border.all(color: colors.rule),
@@ -489,7 +517,9 @@ class _Registro extends ConsumerWidget {
     return Container(
       margin: const EdgeInsets.only(top: NexusSpacing.s2, left: 19),
       padding: const EdgeInsets.all(NexusSpacing.s2),
-      constraints: const BoxConstraints(maxHeight: 150),
+      // Más bajo que antes: con el panel ancho caben las mismas líneas en menos
+      // alto, y un registro alto vuelve a hacer del panel un cuadrado.
+      constraints: const BoxConstraints(maxHeight: 120),
       decoration: BoxDecoration(
         color: colors.void_.withValues(alpha: 0.6),
         border: Border.all(color: colors.rule),
