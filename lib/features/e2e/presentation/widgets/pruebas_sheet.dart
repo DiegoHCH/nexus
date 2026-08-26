@@ -344,6 +344,17 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     final pruebas = ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
     final dispositivos = _dispositivos;
+    final buscando = ref.watch(buscandoDispositivosProvider);
+
+    // **Un botón no ofrece lo que no puede pasar.** Antes Correr estaba siempre
+    // activo y el «hace falta un dispositivo encendido» llegaba **después** de
+    // tocarlo, que es enterarse tarde de algo que ya se sabía. Se apaga también
+    // mientras se busca: ahí tampoco se sabe, y encenderlo para apagarlo medio
+    // segundo después es peor que esperar ese medio segundo.
+    //
+    // Con varios encendidos y ninguno elegido sí se deja tocar: ahí la respuesta
+    // útil no es un botón muerto, es la frase que dice que elijas.
+    final sePuedeCorrer = !corriendo && !buscando && dispositivos.isNotEmpty;
 
     // **Se le pregunta a git por todas, y ahora, no al confirmar.** Preguntando en
     // el toque, el primer fotograma enseña «borra el archivo del repo» y el
@@ -514,10 +525,35 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                         : colors.faint,
                     icon: const Icon(Icons.delete_outline),
                   ),
-                  TextButton(
-                    style: _apretado,
-                    onPressed: corriendo ? null : () => _lanzar(prueba),
-                    child: Text(strings.e2eRun),
+                  // **El botón dice por qué no se puede.** Apagarlo sin más
+                  // cambia un problema por otro: un botón muerto y sin motivo
+                  // deja al usuario mirándolo. Mientras se busca lleva el
+                  // indicador girando en el sitio de la palabra —está ocupado,
+                  // no roto— y cuando ya se sabe que no hay ninguno, el motivo
+                  // va en su tooltip.
+                  //
+                  // El `Tooltip` envuelve al botón y no es una propiedad suya
+                  // porque un `TextButton` apagado no atiende punteros: el
+                  // tooltip tiene que estar fuera para que se vea justo cuando
+                  // más falta hace.
+                  Tooltip(
+                    message: buscando
+                        ? strings.e2eSearchingDevices
+                        : (dispositivos.isEmpty ? strings.e2eNoDevice : ''),
+                    child: TextButton(
+                      style: _apretado,
+                      onPressed: sePuedeCorrer ? () => _lanzar(prueba) : null,
+                      child: buscando
+                          ? SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: colors.faint,
+                              ),
+                            )
+                          : Text(strings.e2eRun),
+                    ),
                   ),
                 ],
               ),
@@ -747,7 +783,11 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
     final colors = context.colors;
     final strings = context.strings;
     final corrida = widget.corrida;
-    final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
+    // Por lo mismo que arriba: sin dónde correr, repetir tampoco puede pasar.
+    final sePuedeCorrer =
+        !(ref.watch(pruebaEnMarchaProvider)?.viva ?? false) &&
+        !ref.watch(buscandoDispositivosProvider) &&
+        ref.watch(dondeCorrerProvider).isNotEmpty;
 
     final (icono, color, etiqueta) = switch (corrida.comoAcabo) {
       ComoAcabo.bien => (Icons.check, colors.ok, strings.e2ePassed),
@@ -813,8 +853,14 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                         ),
                       )
                     : IconButton(
-                        onPressed: corriendo ? null : _repetir,
-                        tooltip: strings.e2eRepeat,
+                        onPressed: sePuedeCorrer ? _repetir : null,
+                        // Un icono apagado dice todavía menos que un botón
+                        // apagado, así que su tooltip lleva el motivo.
+                        tooltip: sePuedeCorrer
+                            ? strings.e2eRepeat
+                            : (ref.watch(buscandoDispositivosProvider)
+                                  ? strings.e2eSearchingDevices
+                                  : strings.e2eNoDevice),
                         iconSize: 14,
                         splashRadius: 14,
                         padding: const EdgeInsets.symmetric(horizontal: 4),

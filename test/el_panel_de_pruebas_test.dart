@@ -295,17 +295,21 @@ void main() {
       expect(find.text(strings.e2eNone), findsOneWidget);
     });
 
-    testWidgets('sin dispositivo encendido se explica y no se lanza', (
+    testWidgets('sin dispositivo encendido, el botón no deja ni tocarlo', (
       tester,
     ) async {
-      // `maestro test --device` contra un emulador apagado falla: ofrecerlo sería
-      // ofrecer ese fallo, así que se dice antes.
+      // **Antes esta prueba tocaba el botón y esperaba la explicación.** Eso era
+      // enterarse tarde de algo que ya se sabía: `maestro test --device` contra un
+      // emulador apagado falla, así que el botón no puede ofrecerlo. Ahora está
+      // apagado y el motivo va en su tooltip, que es lo que evita el otro problema
+      // —un botón muerto sin explicación—.
       await _abrir(tester, encendidos: 0);
-      await tester.tap(find.text(strings.e2eRun));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text(strings.e2eNoDevice), findsOneWidget);
+      final boton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, strings.e2eRun),
+      );
+      expect(boton.onPressed, isNull);
+      expect(find.byTooltip(strings.e2eNoDevice), findsOneWidget);
     });
 
     testWidgets('con una corriendo no se puede lanzar otra', (tester) async {
@@ -628,9 +632,13 @@ void main() {
       expect(find.byIcon(Icons.replay), findsNothing);
     });
 
-    testWidgets('sin nada encendido lo explica en la propia fila', (
+    testWidgets('sin nada encendido, repetir tampoco se deja tocar', (
       tester,
     ) async {
+      // **Antes esto tocaba el icono y esperaba la explicación en la fila.** Igual
+      // que en la lista de arriba, eso era enterarse tarde: sin dónde correr,
+      // repetir no puede pasar. Un icono apagado dice todavía menos que un botón
+      // apagado, así que el motivo va en su tooltip.
       final lanzados = <String>[];
       await _abrir(
         tester,
@@ -639,11 +647,11 @@ void main() {
         corridas: [_corrida(dispositivo: 'emulator-5550')],
       );
 
-      await tester.tap(find.byIcon(Icons.replay));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text(strings.e2eNoDevice), findsOneWidget);
+      final icono = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.replay),
+      );
+      expect(icono.onPressed, isNull);
+      expect(icono.tooltip, strings.e2eNoDevice);
       expect(lanzados, isEmpty);
     });
   });
