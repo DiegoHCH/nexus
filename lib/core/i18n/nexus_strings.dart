@@ -393,6 +393,8 @@ abstract class NexusStrings {
   String get e2eDevice;
   String get e2eDeleteTest;
   String get e2eDeleteTestAsk;
+  String get e2eDeleteTestAskLost;
+  String get e2eDeleteTestAskPlain;
   String get e2eSee;
   String get e2eRunningTitle;
   String get e2eStartDevice;
@@ -1232,6 +1234,11 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eDeleteTestAsk =>
       'Borra el archivo del repo. Se recupera con git.';
+  @override
+  String get e2eDeleteTestAskLost =>
+      'Este archivo no está en git: si lo borras, se pierde.';
+  @override
+  String get e2eDeleteTestAskPlain => 'Borra el archivo del repo.';
   @override
   String get e2eSee => 'Ver';
   @override
@@ -2396,6 +2403,11 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eDeleteTestAsk =>
       'Deletes the file from the repo. Recoverable with git.';
+  @override
+  String get e2eDeleteTestAskLost =>
+      'This file is not in git: deleting it loses it.';
+  @override
+  String get e2eDeleteTestAskPlain => 'Deletes the file from the repo.';
   @override
   String get e2eSee => 'Open';
   @override
