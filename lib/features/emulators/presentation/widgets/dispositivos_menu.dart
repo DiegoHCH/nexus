@@ -41,6 +41,10 @@ class DispositivosMenu extends ConsumerWidget {
     return PopupMenuButton<void>(
       color: colors.deep,
       tooltip: '',
+      // Igual que el de correr: sin `constraints`, Material recorta cualquier
+      // ancho a 280. El desborde de 9 px que apretó estos botones era contra ese
+      // límite y no contra los 360 que este panel creía tener.
+      constraints: const BoxConstraints(minWidth: 420, maxWidth: 420),
       // Al desplegar se vuelve a preguntar. El panel enseña lo último que se supo
       // mientras llega, así que esto no cuesta una pantalla en blanco.
       onOpened: () {
@@ -51,11 +55,9 @@ class DispositivosMenu extends ConsumerWidget {
         PopupMenuItem<void>(
           enabled: false,
           child: SizedBox(
-            // 360 y no 320: con 320 la fila de un emulador apagado —punto,
-            // nombre, «en frío» y «Arrancar»— iba justa incluso con los botones
-            // apretados, y una fila que va justa desborda con el primer nombre
-            // largo.
-            width: 360,
+            // 420, y ahora de verdad: el ancho lo fija `constraints` arriba, y
+            // esto solo tiene que coincidir con él.
+            width: 420,
             child: const DispositivosPanel(compacto: true),
           ),
         ),

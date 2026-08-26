@@ -246,6 +246,14 @@ class _DispositivosPanelState extends ConsumerState<DispositivosPanel> {
 /// desbordaban el panel del compositor por 9 px, y eso lo destapó una prueba de
 /// widget y no la vista: en Ajustes hay sitio de sobra y no se veía.
 ///
+/// Nota sobre ese número, porque el diagnóstico de entonces era incompleto: los
+/// 9 px eran contra **280**, no contra los 360 que el panel creía tener. Material
+/// recorta cualquier menú a `_kMenuMaxWidth` si no se le pasan `constraints`, y
+/// hasta que se descubrió, el panel medía 280 dijera lo que dijera su `SizedBox`.
+/// Con el ancho de verdad ya cabrían las palabras; se quedan apretados igual
+/// porque en un HUD donde un punto de estado mide 7 px, el área de un botón de
+/// formulario web se ve enorme.
+///
 /// Apretarlos no es solo para que caber: en un HUD con tipografía mono y filas de
 /// 7 px de punto, el área de toque de un botón de formulario web se ve enorme.
 final _botonApretado = TextButton.styleFrom(

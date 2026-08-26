@@ -40,6 +40,12 @@ class CorrerMenu extends ConsumerWidget {
     return PopupMenuButton<void>(
       color: colors.deep,
       tooltip: '',
+      // **Sin esto el panel no puede pasar de 280 px.** Es el
+      // `_kMenuMaxWidth` de Material —cinco pasos de 56— y recorta en silencio
+      // lo que se le pida: un `SizedBox` de 620 se quedaba en 280 y salía un
+      // desplegable con «Global66…» y otro con «E». Y explica los desbordes de 9
+      // y 71 px de antes: eran contra 280, no contra el ancho que yo creía.
+      constraints: const BoxConstraints(minWidth: 620, maxWidth: 620),
       onOpened: () {
         if (proyecto case final p?) ref.invalidate(configsProvider(p));
         ref.invalidate(emuladoresProvider);
@@ -548,9 +554,16 @@ class _Registro extends ConsumerWidget {
 /// Una acción sobre la corrida: icono con su nombre en el tooltip.
 ///
 /// **Iconos y no palabras, y eso lo decidió una prueba**: «Recargar»,
-/// «Reiniciar» y «Parar» en la misma fila desbordaban el panel por 71 px, con el
-/// nombre del entorno al lado. Con tres acciones no hay ancho que alcance, y
-/// esconder una detrás de un menú sería peor: son las tres que se usan.
+/// «Reiniciar» y «Parar» en la misma fila desbordaban por 71 px, con el nombre
+/// del entorno al lado.
+///
+/// Aquel «no hay ancho que alcance» era falso y conviene dejarlo escrito: el
+/// panel medía **280** porque Material recorta ahí cualquier menú sin
+/// `constraints`, no los 380 que yo creía. Con el ancho de verdad las palabras
+/// caben. Se quedan los iconos porque son cuatro acciones —recargar, reiniciar,
+/// registro, parar— y cuatro palabras en una fila con el nombre del entorno
+/// convierten la fila en un párrafo; además es lo que hace la barra de la que se
+/// copia esto.
 ///
 /// El nombre no se pierde, se mueve al tooltip — y ahí sigue estando para quien
 /// use un lector de pantalla, porque `IconButton` lo anuncia.
