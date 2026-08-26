@@ -10,7 +10,10 @@ import 'package:nexus/features/assistant/presentation/providers/assistant_contro
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/plan_firmado_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/data/datasources/gate_del_repo_data_source.dart';
+import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
+import 'package:nexus/features/workspace/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/firmar_plan_sheet.dart';
 
@@ -271,9 +274,26 @@ class ComposerChips extends ConsumerWidget {
                 rama: ramaDelPlan,
               )
               case final donde)
-            if (ref.watch(planFirmadoProvider(donde)).value
-                case final plan? when plan.exige)
+            if (ref.watch(planFirmadoProvider(donde)).value case final plan?
+                when plan.exige)
               _PlanChip(plan: plan, donde: donde),
+        // Las pruebas, **solo donde el repo las declara**. Misma regla que el plan y que
+        // las reglas por capa: el mecanismo está siempre, lo enciende el proyecto.
+        //
+        // Y se miran en `dondeCorre` y no en la carpeta emparejada, que es la diferencia
+        // con el plan de arriba: el `.nexus-pruebas` vive en el repo donde va a correr el
+        // comando. La marca del plan, en cambio, está en la carpeta y cubre lo de dentro
+        // — el hook sube buscándola. Parecen la misma clave y no lo son.
+        if (dondeCorre case final carpeta?)
+          if (dondeMirar(
+                carpeta: carpeta,
+                perfil: paired?.claudeProfile,
+                rama: ramaDelPlan,
+              )
+              case final donde)
+            if (ref.watch(gateDelRepoProvider(donde)).value case final gate?
+                when gate.comando != null)
+              _PruebasChip(gate: gate, donde: donde),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
@@ -350,6 +370,52 @@ class _PlanChipState extends State<_PlanChip> {
                 )
               : strings.planUnsigned,
           warn: !vigente,
+        ),
+      ),
+    );
+  }
+}
+
+/// El gate del repo en la barra: cómo salió, o que nadie lo ha corrido.
+///
+/// **Un verde caducado no se enseña como verde.** Es la única mentira que este chip puede
+/// contar y la más cara: alguien mira la barra, lee «verde» y publica algo que el gate no
+/// vio nunca. Así que en cuanto el árbol cambia, lo dice.
+class _PruebasChip extends ConsumerWidget {
+  const _PruebasChip({required this.gate, required this.donde});
+
+  final GateDelRepo gate;
+  final DondeMirar donde;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = context.strings;
+    final huella = ref.watch(huellaDelArbolProvider(donde.carpeta)).value;
+
+    final (etiqueta, avisa) = switch (gate.resultado) {
+      ResultadoDelGate.corriendo => (strings.chipTestsRunning, false),
+      ResultadoDelGate.rojo => (strings.chipTestsRed, true),
+      ResultadoDelGate.verde when gate.cubre(huella) => (
+        strings.chipTestsGreen,
+        false,
+      ),
+      ResultadoDelGate.verde => (strings.chipTestsStale, true),
+      ResultadoDelGate.sinCorrer => (strings.chipTestsUnrun, false),
+    };
+
+    return Tooltip(
+      message: gate.comando ?? '',
+      child: GestureDetector(
+        onTap: () => PruebasSheet.open(context, donde),
+        child: _Chip(
+          icon: switch (gate.resultado) {
+            ResultadoDelGate.verde when gate.cubre(huella) =>
+              Icons.check_circle_outline,
+            ResultadoDelGate.rojo => Icons.error_outline,
+            _ => Icons.science_outlined,
+          },
+          label: etiqueta,
+          warn: avisa,
         ),
       ),
     );
