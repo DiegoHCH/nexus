@@ -326,6 +326,20 @@ abstract class NexusStrings {
   String get runNoProject;
   String get runLogs;
   String get runAuto;
+
+  // Pruebas de la app
+  String get e2eTitle;
+  String get e2eNone;
+  String get e2eNoRuns;
+  String get e2eRun;
+  String get e2eStop;
+  String get e2eDelete;
+  String get e2eUnattributed;
+  String get e2ePassed;
+  String get e2eFailed;
+  String get e2eRunningNow;
+  String get e2eUnknown;
+  String get e2eNoDevice;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1042,6 +1056,31 @@ class NexusStringsEs extends NexusStrings {
   String get runNoProject => 'Sin proyecto no hay nada que correr';
   @override
   String get runLogs => 'Registro';
+
+  @override
+  String get e2eTitle => 'Pruebas de la app';
+  @override
+  String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
+  @override
+  String get e2eNoRuns => 'Todavía no hay corridas. Las que lances desde aquí aparecerán con su proyecto.';
+  @override
+  String get e2eRun => 'Correr';
+  @override
+  String get e2eStop => 'Cortar';
+  @override
+  String get e2eDelete => 'Borrar';
+  @override
+  String get e2eUnattributed => 'Sin proyecto';
+  @override
+  String get e2ePassed => 'pasó';
+  @override
+  String get e2eFailed => 'falló';
+  @override
+  String get e2eRunningNow => 'corriendo';
+  @override
+  String get e2eUnknown => 'sin saber';
+  @override
+  String get e2eNoDevice => 'Hace falta un dispositivo encendido';
   @override
   String get runAuto =>
       'Recargar sola al terminar cada encargo';
@@ -2070,6 +2109,31 @@ class NexusStringsEn extends NexusStrings {
   String get runNoProject => 'No project, nothing to run';
   @override
   String get runLogs => 'Log';
+
+  @override
+  String get e2eTitle => 'App tests';
+  @override
+  String get e2eNone => 'This project has no tests in .maestro/';
+  @override
+  String get e2eNoRuns => 'No runs yet. The ones you launch here will show up with their project.';
+  @override
+  String get e2eRun => 'Run';
+  @override
+  String get e2eStop => 'Stop';
+  @override
+  String get e2eDelete => 'Delete';
+  @override
+  String get e2eUnattributed => 'No project';
+  @override
+  String get e2ePassed => 'passed';
+  @override
+  String get e2eFailed => 'failed';
+  @override
+  String get e2eRunningNow => 'running';
+  @override
+  String get e2eUnknown => 'unknown';
+  @override
+  String get e2eNoDevice => 'A running device is needed';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override

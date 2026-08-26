@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_chips.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_menus.dart';
 import 'package:nexus/features/emulators/presentation/widgets/dispositivos_menu.dart';
+import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
+import 'package:nexus/features/e2e/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/run/presentation/widgets/correr_menu.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/usage_menu.dart';
 import 'package:flutter/services.dart';
@@ -399,6 +401,9 @@ class _Controls extends ConsumerWidget {
         // Correr la app va justo al lado de los dispositivos porque son los dos
         // pasos del mismo gesto: encender dónde, y lanzar qué.
         CorrerMenu(proyecto: proyecto),
+        // Y las pruebas, el tercer paso del mismo gesto: enciendes dónde, lanzas
+        // qué, y compruebas que sigue funcionando.
+        _BotonDePruebas(proyecto: proyecto),
         const Spacer(),
         ModelMenu(folder: folder, meter: meter),
         const SizedBox(width: NexusSpacing.s3),
@@ -422,4 +427,50 @@ class _NoScrollbar extends MaterialScrollBehavior {
     Widget child,
     ScrollableDetails details,
   ) => child;
+}
+
+/// El icono que abre las pruebas.
+///
+/// **Un sheet y no un menú desplegable**, al contrario que los dispositivos y el
+/// correr: una prueba corriendo se mira un rato —ocho pasos, medio minuto— y un
+/// popover se cierra al primer clic fuera. Es el mismo motivo por el que los
+/// documentos abren en sheet.
+class _BotonDePruebas extends ConsumerWidget {
+  const _BotonDePruebas({required this.proyecto});
+
+  final String? proyecto;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
+
+    return Stack(
+      clipBehavior: Clip.none,
+      children: [
+        IconButton(
+          onPressed: () => PruebasSheet.open(context, proyecto: proyecto),
+          tooltip: context.strings.e2eTitle,
+          iconSize: 15,
+          splashRadius: 15,
+          color: corriendo ? colors.accent : colors.faint,
+          icon: const Icon(Icons.checklist_rtl),
+        ),
+        if (corriendo)
+          Positioned(
+            top: 2,
+            right: 2,
+            child: Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: colors.accent,
+                shape: BoxShape.circle,
+                border: Border.all(color: colors.void_, width: 1),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
 }

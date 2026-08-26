@@ -53,6 +53,18 @@ abstract final class HerramientaExterna {
     '/usr/local/bin/adb',
   ];
 
+  /// Donde deja Maestro su binario.
+  ///
+  /// Su instalador lo pone en `~/.maestro/bin` y añade ese directorio **editando
+  /// el perfil de la shell**, que una app de escritorio no lee — ya está en el
+  /// PATH que monta [ClaudeEnvironment.forTools], pero quien lo instaló por el
+  /// tap de Homebrew lo tiene en otro sitio.
+  static List<String> candidatosDeMaestro(String home) => [
+    if (home.isNotEmpty) '$home/.maestro/bin/maestro',
+    '/opt/homebrew/bin/maestro',
+    '/usr/local/bin/maestro',
+  ];
+
   /// La ruta del binario, o `null` si no está en ningún sitio conocido.
   ///
   /// [existe] y [preguntaAlShell] entran como parámetros para poder probar el
