@@ -89,6 +89,32 @@ class _Borrados extends E2eDataSource {
     borrados.add(ruta);
     return null;
   }
+
+  /// Un tamaño fijo por corrida: lo que se comprueba es que el grupo lo sume y lo
+  /// enseñe, no cómo se mide —eso tiene su propia prueba contra el disco.
+  @override
+  int bytesDe(String ruta) => 2048;
+}
+
+/// Un controlador que apunta los lanzamientos en vez de lanzar.
+class _Lanzamientos extends PruebaEnMarchaController {
+  _Lanzamientos(this.lanzados);
+
+  final List<String> lanzados;
+
+  @override
+  PruebaEnMarcha? build() => null;
+
+  @override
+  Future<String?> lanzar({
+    required Prueba prueba,
+    required String proyecto,
+    required String deviceId,
+    required String perfil,
+  }) async {
+    lanzados.add('${prueba.nombre}@$deviceId');
+    return null;
+  }
 }
 
 CorridaDePrueba _corrida({
@@ -98,6 +124,7 @@ CorridaDePrueba _corrida({
   int pasos = 8,
   int bien = 8,
   String carpeta = '/donde/sea/login',
+  String? dispositivo,
 }) => CorridaDePrueba(
   carpeta: carpeta,
   flow: flow,
@@ -106,6 +133,7 @@ CorridaDePrueba _corrida({
   proyecto: proyecto,
   pasos: pasos,
   pasosBien: bien,
+  dispositivo: dispositivo,
 );
 
 Future<void> _abrir(
@@ -118,6 +146,7 @@ Future<void> _abrir(
   bool conIphone = false,
   List<String>? borrados,
   bool? instalada,
+  List<String>? lanzados,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -134,6 +163,8 @@ Future<void> _abrir(
         ),
         if (enMarcha != null)
           pruebaEnMarchaProvider.overrideWith(() => _EnMarchaFija(enMarcha)),
+        if (lanzados != null)
+          pruebaEnMarchaProvider.overrideWith(() => _Lanzamientos(lanzados)),
       ],
       child: MaterialApp(
         theme: NexusTheme.dark(),
@@ -163,6 +194,22 @@ class _EnMarchaFija extends PruebaEnMarchaController {
 /// Un paso cualquiera. El número no importa en estas pruebas: lo que se mira es
 /// la hoja, y los números tienen su propia prueba en el lector.
 PasoDelFlow _paso(String texto) => PasoDelFlow(linea: 1, texto: texto);
+
+/// Tocar algo que va a leer del disco, y esperar de verdad.
+///
+/// **`runAsync` no es opcional aquí.** `testWidgets` corre en tiempo falso y ahí
+/// la E/S real no completa nunca: repetir una corrida lee el `.yaml` de la prueba
+/// antes de lanzar —para saber el `appId` y avisar si la app no está instalada— y
+/// sin esto ese `await` se queda colgado, el lanzamiento no llega, y la prueba
+/// falla diciendo que no se lanzó nada. Que es lo que pasó.
+Future<void> _tocarYEsperar(WidgetTester tester, Finder que) async {
+  await tester.runAsync(() async {
+    await tester.tap(que);
+    await tester.pump();
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+  });
+  await tester.pump();
+}
 
 void main() {
   const strings = NexusStringsEs();
@@ -441,5 +488,169 @@ void main() {
 
       expect(find.textContaining('emulator-5550'), findsWidgets);
     });
+  });
+
+  group('repetir una corrida', () {
+    testWidgets('la vuelve a correr donde corrió, si sigue encendido', (
+      tester,
+    ) async {
+      // Con dos encendidos y ninguno elegido, la lista de arriba no puede lanzar
+      // —no va a decidir por el usuario—. Repetir sí sabe dónde: en el de la
+      // corrida. Eso es lo que se comprueba aquí.
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        encendidos: 2,
+        lanzados: lanzados,
+        corridas: [_corrida(dispositivo: 'emulator-5551')],
+      );
+
+      await _tocarYEsperar(tester, find.byIcon(Icons.replay));
+
+      expect(lanzados, ['login@emulator-5551']);
+    });
+
+    testWidgets('si ese dispositivo ya no está, usa el que haya', (
+      tester,
+    ) async {
+      // Un `emulator-5554` de hace tres días no es el mismo emulador: se
+      // comprueba contra lo que hay ahora en vez de pasárselo a Maestro.
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        lanzados: lanzados,
+        corridas: [_corrida(dispositivo: 'emulator-9999')],
+      );
+
+      await _tocarYEsperar(tester, find.byIcon(Icons.replay));
+
+      expect(lanzados, ['login@emulator-5550']);
+    });
+
+    testWidgets('si la prueba ya no está en el repo, lo dice y no lanza', (
+      tester,
+    ) async {
+      // El caso que había que resolver antes de ofrecer el botón: repetir una
+      // corrida de la semana pasada con el flow borrado. Se dice aquí, no se
+      // falla dentro de Maestro con un «file not found».
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        pruebas: const [],
+        lanzados: lanzados,
+        corridas: [_corrida(dispositivo: 'emulator-5550')],
+      );
+
+      await tester.tap(find.byIcon(Icons.replay));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text(strings.e2eFlowGone), findsOneWidget);
+      expect(lanzados, isEmpty);
+    });
+
+    testWidgets('sin proyecto atribuido no se ofrece repetir', (tester) async {
+      // Sin saber en qué repo vive el flow, el botón solo podría contestar «no sé
+      // de dónde salió esto», y eso es peor que no ofrecerlo.
+      await _abrir(tester, corridas: [_corrida(proyecto: null)]);
+      expect(find.byIcon(Icons.replay), findsNothing);
+    });
+
+    testWidgets('sin nada encendido lo explica en la propia fila', (
+      tester,
+    ) async {
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        encendidos: 0,
+        lanzados: lanzados,
+        corridas: [_corrida(dispositivo: 'emulator-5550')],
+      );
+
+      await tester.tap(find.byIcon(Icons.replay));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(find.text(strings.e2eNoDevice), findsOneWidget);
+      expect(lanzados, isEmpty);
+    });
+  });
+
+  group('borrar las corridas de un proyecto', () {
+    testWidgets('el grupo dice cuántas hay y cuánto ocupan', (tester) async {
+      // Es lo que hace falta para decidir si borrarlas: un grupo de corridas con
+      // capturas son decenas de megas y nada lo decía.
+      await _abrir(
+        tester,
+        corridas: [
+          _corrida(carpeta: '/donde/sea/uno'),
+          _corrida(carpeta: '/donde/sea/dos'),
+        ],
+      );
+
+      expect(find.text(strings.e2eRunsSize(2, '4 kB')), findsOneWidget);
+    });
+
+    testWidgets('pide confirmación antes de llevárselas', (tester) async {
+      final borrados = <String>[];
+      await _abrir(
+        tester,
+        borrados: borrados,
+        corridas: [_corrida(carpeta: '/donde/sea/uno')],
+      );
+
+      await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
+      await tester.pump();
+
+      expect(borrados, isEmpty, reason: 'borró al primer toque');
+    });
+
+    testWidgets('al segundo toque se lleva las de ese proyecto y no las otras', (
+      tester,
+    ) async {
+      final borrados = <String>[];
+      await _abrir(
+        tester,
+        borrados: borrados,
+        corridas: [
+          _corrida(proyecto: '/casa/otra', carpeta: '/donde/sea/ajena'),
+          _corrida(carpeta: '/donde/sea/uno'),
+          _corrida(carpeta: '/donde/sea/dos'),
+        ],
+      );
+
+      // Los grupos van ordenados por proyecto: «otra» antes que «tienda».
+      final sweep = find.byIcon(Icons.delete_sweep_outlined);
+      await tester.tap(sweep.at(1));
+      await tester.pump();
+      await tester.tap(sweep.at(1));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 100));
+
+      expect(borrados, ['/donde/sea/uno', '/donde/sea/dos']);
+    });
+  });
+
+  testWidgets('la fila con sus tres acciones no desborda en estrecho', (
+    tester,
+  ) async {
+    // Esta fila ya desbordó tres veces —9 px, 71 px, 235 px— y la última dejó el
+    // botón fuera de la hoja, sin que se notara a ojo. Repetir entró como icono
+    // por eso: «Ver» y «Borrar» escritos más una tercera palabra es justo lo que
+    // no cabe. Se comprueba en estrecho, que es donde se rompe.
+    tester.view.physicalSize = const Size(760, 1400);
+    tester.view.devicePixelRatio = 2.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
+    await _abrir(
+      tester,
+      corridas: [
+        _corrida(flow: 'un_nombre_de_prueba_bastante_largo_de_verdad'),
+      ],
+    );
+
+    expect(find.byIcon(Icons.replay), findsOneWidget);
+    expect(tester.takeException(), isNull);
   });
 }
