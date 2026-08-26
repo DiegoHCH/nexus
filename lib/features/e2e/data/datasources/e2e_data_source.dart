@@ -10,6 +10,7 @@ import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/domain/usecases/lector_de_corridas.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -485,7 +486,15 @@ class E2eDataSource {
   /// Una corrida terminada es una en marcha quieta, así que se mira igual: se
   /// escribe su página al lado de su registro y se abre el visor. No hacía falta
   /// una segunda forma de enseñar lo mismo.
-  Future<void> abreElInforme(String registro) async {
+  /// [explica] traduce el motivo del fallo, si se reconoce.
+  ///
+  /// **Se recibe en vez de leerse**: un data source no lee proveedores, y los
+  /// textos son del idioma elegido. Quien llama —una pantalla— sí tiene los dos, así
+  /// que la traducción entra por la puerta en vez de que esto se salte una capa.
+  Future<void> abreElInforme(
+    String registro, {
+    String Function(PorQueSeCayo)? explica,
+  }) async {
     final archivo = File(registro);
     if (!archivo.existsSync()) return;
 
@@ -573,6 +582,12 @@ class E2eDataSource {
       // Las capturas de aquella corrida, si su carpeta sigue estando. Un registro
       // viejo no la guarda y entonces no hay imágenes: el informe se abre igual.
       capturas: capturasDe(leido['artefactos'] as String?),
+      diagnostico: !fallo || explica == null
+          ? null
+          : switch (PorQueSeCayoLaCorrida.de(lineas.join('\n'))) {
+              final PorQueSeCayo por => explica(por),
+              null => null,
+            },
     );
 
     // El nombre del archivo es **el título de la ventana**, y el del registro ya
