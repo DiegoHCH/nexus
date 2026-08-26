@@ -10,6 +10,7 @@ import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final e2eDataSourceProvider = Provider<E2eDataSource>(
@@ -76,6 +77,75 @@ final corridasDePruebaProvider = FutureProvider<List<CorridaDePrueba>>((
   // Lo último arriba: lo que acabas de correr es lo que vas a querer mirar.
   return [...propias, ...ajenas]
     ..sort((a, b) => b.cuando.compareTo(a.cuando));
+});
+
+/// Si un flow está en git, que es lo que decide si borrarlo se puede deshacer.
+///
+/// Familia por ruta: se pregunta una vez por archivo y no en cada repintado.
+final estaEnGitProvider = FutureProvider.family<bool?, String>(
+  (ref, ruta) => ref.watch(e2eDataSourceProvider).estaEnGit(ruta),
+);
+
+/// Lo que ocupan las corridas de cada proyecto.
+///
+/// **En un proveedor y no en el widget** porque medirlo recorre el disco, y
+/// hacerlo dentro de un `build` era volver a recorrerlo en cada repintado.
+final tamanoPorProyectoProvider = FutureProvider<Map<String, int>>((ref) async {
+  final ds = ref.watch(e2eDataSourceProvider);
+  final corridas = await ref.watch(corridasDePruebaProvider.future);
+
+  final total = <String, int>{};
+  for (final corrida in corridas) {
+    final clave = corrida.proyecto ?? '';
+    total[clave] = (total[clave] ?? 0) + ds.bytesDe(corrida.carpeta);
+  }
+  return total;
+});
+
+/// Sobre qué se puede correr: **lo encendido y nada más**.
+///
+/// Un `maestro test --device` contra un emulador apagado falla, así que ofrecerlo
+/// sería ofrecer ese fallo.
+///
+/// **Vive en un proveedor y no dentro del panel** porque hay dos sitios que
+/// lanzan: la lista de pruebas del proyecto y el historial, cuando se repite una
+/// corrida. Con la lista de dispositivos calculada en cada uno, lo que pasa a
+/// continuación está escrito: uno de los dos se queda sin un criterio que el otro
+/// sí tiene, y nadie se entera hasta que falla en el sitio raro.
+final dondeCorrerProvider = Provider<List<({String id, String nombre})>>((ref) {
+  return [
+    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+      if (e.corriendo && e.deviceId != null)
+        (id: e.deviceId!, nombre: e.nombre),
+    for (final d in ref.watch(dispositivosProvider).value ?? const [])
+      (id: d.id, nombre: d.nombre),
+  ];
+});
+
+/// El que eligió el usuario, si eligió.
+class DispositivoElegido extends Notifier<String?> {
+  @override
+  String? build() => null;
+
+  void elige(String? id) => state = id;
+}
+
+final dispositivoElegidoProvider =
+    NotifierProvider<DispositivoElegido, String?>(DispositivoElegido.new);
+
+/// El que se va a usar de verdad: el elegido, o el único que haya.
+///
+/// **Con uno solo no se pregunta**, que sería una pregunta con una sola
+/// respuesta; con dos, elegir hace falta de verdad y coger el primero sería
+/// decidir por el usuario en silencio.
+///
+/// Y el elegido se comprueba contra lo que hay ahora: un emulador que se apagó
+/// sigue guardado en el estado y lanzar ahí es un fallo con el aviso puesto.
+final elDispositivoProvider = Provider<String?>((ref) {
+  final hay = [for (final d in ref.watch(dondeCorrerProvider)) d.id];
+  final elegido = ref.watch(dispositivoElegidoProvider);
+  if (elegido != null && hay.contains(elegido)) return elegido;
+  return hay.length == 1 ? hay.single : null;
 });
 
 /// Una prueba corriendo ahora mismo.
