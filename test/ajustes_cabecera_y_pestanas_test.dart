@@ -71,6 +71,7 @@ void main() {
         'permissions',
         'mobile',
         'history',
+        'corridas',
         'stats',
         'superpowers',
         'emulators',

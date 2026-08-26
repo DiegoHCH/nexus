@@ -130,6 +130,23 @@ class GitDataSource {
     return GitChanges(diff: diff, newFiles: nuevos);
   }
 
+  /// Si esa rama sigue existiendo en ese repositorio.
+  ///
+  /// Se usa para saber qué corridas quedaron huérfanas: una rama borrada deja su plan, su
+  /// gate y su cierre anotados en la cuenta para siempre, y esa lista se ensucia sola.
+  ///
+  /// Se pregunta por la referencia local y no por `git branch`, que también lista las
+  /// remotas según cómo esté configurado: lo que decide si la corrida sigue viva es que la
+  /// rama esté **aquí**, que es donde se trabajaba.
+  Future<bool> ramaExiste(String folderPath, String rama) async =>
+      await _run(folderPath, [
+        'rev-parse',
+        '--verify',
+        '--quiet',
+        'refs/heads/$rama',
+      ]) !=
+      null;
+
   /// Una huella del árbol **completo y estable**, para poder decir si una corrida del
   /// gate sigue cubriendo lo que hay.
   ///

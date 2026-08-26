@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/features/workspace/data/datasources/marcas_por_rama.dart';
 
 /// Cómo quedó el gate de un repositorio la última vez que corrió.
 ///
@@ -143,8 +144,6 @@ class GateDelRepoDataSource {
   /// falló; el principio de un gate largo son cientos de líneas de nada.
   static const topeDeSalida = 4000;
 
-  static const _sinRama = ':sin-rama';
-
   Directory _dir(String configDir) => Directory('$configDir/nexus-pruebas');
 
   /// El comando que declara el repo, o `null` si no declara ninguno.
@@ -198,7 +197,7 @@ class GateDelRepoDataSource {
     final guardado = await _guardado(configDir, carpeta);
     final ramas = guardado?['ramas'];
     if (ramas is! Map) return vacio;
-    final suya = ramas[rama == null || rama.isEmpty ? _sinRama : rama];
+    final suya = ramas[MarcasPorRama.clave(rama)];
     if (suya is! Map) return vacio;
 
     return vacio.copyWith(
@@ -315,7 +314,9 @@ class GateDelRepoDataSource {
   /// ventana puede haber corrido el gate de otra rama de la misma carpeta.
   Future<void> guardar(String configDir, GateDelRepo gate) async {
     final dir = _dir(configDir)..createSync(recursive: true);
-    final archivo = File('${dir.path}/${_nombre(gate.carpeta)}.json');
+    final archivo = File(
+      '${dir.path}/${MarcasPorRama.nombre(gate.carpeta)}.json',
+    );
 
     final ramas = <String, Object?>{};
     final guardado = await _guardado(configDir, gate.carpeta);
@@ -323,9 +324,7 @@ class GateDelRepoDataSource {
       ramas.addAll((guardado!['ramas'] as Map).cast<String, Object?>());
     }
 
-    final clave = gate.rama == null || gate.rama!.isEmpty
-        ? _sinRama
-        : gate.rama!;
+    final clave = MarcasPorRama.clave(gate.rama);
     if (!gate.resultado.corrio) {
       ramas.remove(clave);
     } else {
@@ -356,7 +355,9 @@ class GateDelRepoDataSource {
     String configDir,
     String carpeta,
   ) async {
-    final archivo = File('${_dir(configDir).path}/${_nombre(carpeta)}.json');
+    final archivo = File(
+      '${_dir(configDir).path}/${MarcasPorRama.nombre(carpeta)}.json',
+    );
     if (!archivo.existsSync()) return null;
     try {
       final leido = jsonDecode(await archivo.readAsString());
@@ -368,17 +369,12 @@ class GateDelRepoDataSource {
     }
   }
 
-  /// El mismo criterio que la marca del plan: la carpeta resuelta, en un nombre legible.
-  /// Mirar la carpeta de la cuenta y entender qué hay es lo contrario de un hash.
-  static String _nombre(String carpeta) {
-    var ruta = carpeta;
-    try {
-      ruta = Directory(carpeta).resolveSymbolicLinksSync();
-    } on FileSystemException {
-      // La carpeta puede no existir todavía; se compara la ruta tal cual.
-    }
-    return ruta
-        .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')
-        .replaceAll(RegExp(r'^-|-$'), '');
-  }
+  /// Todas las carpetas y ramas que tienen alguna corrida anotada.
+  Future<Set<({String carpeta, String? rama})>> carpetasYRamas(
+    String configDir,
+  ) => MarcasPorRama.claves(_dir(configDir));
+
+  /// Se lleva la corrida de esa rama. La usa la limpieza de corridas huérfanas.
+  Future<void> borrar(String configDir, String carpeta, String? rama) =>
+      MarcasPorRama.borrar(_dir(configDir), carpeta, rama);
 }
