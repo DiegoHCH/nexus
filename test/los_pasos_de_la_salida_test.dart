@@ -135,4 +135,71 @@ void main() {
       expect(pasos.every((p) => p.estado == EstadoDePaso.hecho), isTrue);
     });
   });
+
+  group('un paso que revienta', () {
+    /// La salida de una corrida real en un móvil físico, tal como llegó. El `tap`
+    /// murió por permisos de MIUI y **Maestro no imprimió ningún estado**: le pegó la
+    /// excepción al anuncio, en la misma línea.
+    const deVerdad =
+        'Running on 36c56d94\n'
+        ' > Flow welcome_to_login\n'
+        'Launch app "com.global66.cards.ci"... COMPLETED\n'
+        'Assert that id: btn_go_to_register is visible... COMPLETED\n'
+        'Assert that id: btn_go_to_login is visible... COMPLETED\n'
+        "Tap on id: btn_go_to_login...maestro.android.DeviceCallFailedException: "
+        "'tap' failed: INTERNAL - Injecting input events requires the caller "
+        '(or the source of the instrumentation, if any) to have the '
+        'INJECT_EVENTS permission.\n'
+        '  error-type=java.lang.SecurityException\n'
+        '    at maestro.android.AndroidDeviceConnectionModelKt.orThrow'
+        '(AndroidDeviceConnectionModel.kt:79)\n';
+
+    test('se marca fallado, no se descarta', () {
+      // Antes esta línea no acababa en `COMPLETED`, `FAILED` ni `...`, así que se
+      // tiraba entera: el paso que había fallado salía sin marca y los siguientes se
+      // caían al texto del archivo. La etiqueta decía «Error» y la lista no decía
+      // dónde.
+      final pasos = PasosDeUnaPrueba.deLaSalida(deVerdad);
+
+      expect(pasos.length, 4);
+      expect(pasos[3].texto, 'Tap on id: btn_go_to_login');
+      expect(pasos[3].estado, EstadoDePaso.fallado);
+    });
+
+    test('el motivo se enseña con el paso', () {
+      // Es lo único que se busca cuando algo se rompe.
+      final pasos = PasosDeUnaPrueba.deLaSalida(deVerdad);
+
+      expect(pasos[3].detalle.single, contains('INJECT_EVENTS'));
+    });
+
+    test('los tres anteriores siguen en verde', () {
+      final pasos = PasosDeUnaPrueba.deLaSalida(deVerdad);
+      expect(
+        pasos.take(3).every((p) => p.estado == EstadoDePaso.hecho),
+        isTrue,
+      );
+    });
+
+    test('la traza no se cuela como pasos sueltos', () {
+      // `error-type=…` y los `at maestro.…` no llevan tres puntos, así que no pasan
+      // el filtro. Siguen estando en la salida cruda, que es donde se leen.
+      final pasos = PasosDeUnaPrueba.deLaSalida(deVerdad);
+      expect(pasos.where((p) => p.texto.startsWith('at ')), isEmpty);
+      expect(pasos.where((p) => p.texto.contains('error-type')), isEmpty);
+    });
+
+    test('lo que falta del archivo se sigue enseñando detrás', () {
+      final pasos = PasosDeUnaPrueba.paraPintar(
+        salida: deVerdad,
+        delFlow: [
+          for (var i = 0; i < 8; i++) PasoDelFlow(linea: i + 3, texto: 'paso $i'),
+        ],
+      );
+
+      expect(pasos.length, 8);
+      expect(pasos[3].estado, EstadoDePaso.fallado);
+      expect(pasos[4].estado, EstadoDePaso.pendiente);
+    });
+  });
 }

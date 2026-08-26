@@ -165,29 +165,50 @@ abstract final class PasosDeUnaPrueba {
       final linea = cruda.trim();
       if (linea.isEmpty || _noEsUnPaso(linea)) continue;
 
-      final (texto, estado) = switch (linea) {
+      final (texto, estado, detalle) = switch (linea) {
         _ when linea.endsWith('COMPLETED') => (
           _sinSufijo(linea, 'COMPLETED'),
           EstadoDePaso.hecho,
+          const <String>[],
         ),
         _ when linea.endsWith('FAILED') => (
           _sinSufijo(linea, 'FAILED'),
           EstadoDePaso.fallado,
+          const <String>[],
         ),
         _ when linea.endsWith('ERROR') => (
           _sinSufijo(linea, 'ERROR'),
           EstadoDePaso.fallado,
+          const <String>[],
         ),
         // Sin resultado todavía: es el anuncio, el paso que corre ahora.
         _ when linea.endsWith('...') => (
           _sinPuntos(linea),
           EstadoDePaso.enCurso,
+          const <String>[],
         ),
-        _ => (null, EstadoDePaso.pendiente),
+        // **Un paso que revienta no recibe ninguna de las tres.** Maestro le pega
+        // la excepción al anuncio, en la misma línea y sin salto:
+        //
+        // ```
+        // Tap on id: btn...maestro.android.DeviceCallFailedException: 'tap' failed
+        // ```
+        //
+        // Esto se descartaba por no acabar en `COMPLETED`, `FAILED` ni `...`, así
+        // que **el paso que había fallado se quedaba sin marca** y los siguientes
+        // se caían al texto del archivo. Se vio en un móvil real: la etiqueta decía
+        // «Error» y la lista no señalaba dónde.
+        //
+        // Lo que va detrás de los puntos es el motivo, y se enseña con el paso: es
+        // lo único que se busca cuando algo se rompe.
+        _ when linea.contains('...') => _reventado(linea),
+        _ => (null, EstadoDePaso.pendiente, const <String>[]),
       };
       if (texto == null || texto.isEmpty) continue;
 
-      pasos.add(PasoParaPintar(texto: texto, estado: estado));
+      pasos.add(
+        PasoParaPintar(texto: texto, estado: estado, detalle: detalle),
+      );
     }
     return pasos;
   }
@@ -205,6 +226,22 @@ abstract final class PasosDeUnaPrueba {
       linea.startsWith('[Passed]') ||
       linea.startsWith('[Failed]') ||
       RegExp(r'^\d+/\d+ Flow').hasMatch(linea);
+
+  /// Un paso cortado por una excepción: el nombre, y el motivo como detalle.
+  ///
+  /// Se corta por el **primer** `...`. Un nombre de paso con tres puntos dentro
+  /// saldría recortado, y eso es aceptable: se seguiría diciendo que ese paso
+  /// falló y por qué, que es lo que hace falta. Callarse el fallo, no.
+  static (String?, EstadoDePaso, List<String>) _reventado(String linea) {
+    final corte = linea.indexOf('...');
+    final texto = linea.substring(0, corte).trimRight();
+    final motivo = linea.substring(corte + 3).trim();
+    return (
+      texto,
+      EstadoDePaso.fallado,
+      motivo.isEmpty ? const <String>[] : [motivo],
+    );
+  }
 
   static String _sinSufijo(String linea, String sufijo) =>
       _sinPuntos(linea.substring(0, linea.length - sufijo.length).trimRight());
