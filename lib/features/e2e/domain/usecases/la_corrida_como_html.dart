@@ -31,6 +31,7 @@ abstract final class LaCorridaComoHtml {
     required bool viva,
     required bool fallo,
     int? total,
+    Map<String, String> capturas = const {},
   }) {
     // **El total va aparte y no se deduce de la lista.** Con una lista vacía
     // —lo que pasaba al abrir el informe de una corrida guardada— el encabezado
@@ -52,7 +53,7 @@ abstract final class LaCorridaComoHtml {
     // Los pasos vienen ahora de la propia salida —ver `PasosDeUnaPrueba.paraPintar`—
     // así que no hay nada que emparejar y no hay nada que degradar.
     final filas = [
-      for (final (i, paso) in pasos.indexed) _fila(paso, i + 1),
+      for (final (i, paso) in pasos.indexed) _fila(paso, i + 1, capturas),
     ].join('\n');
 
     return '''
@@ -128,6 +129,10 @@ abstract final class LaCorridaComoHtml {
   .punto{display:inline-block;width:5px;height:5px;border-radius:50%;
          background:currentColor;vertical-align:middle}
   .detalle{color:var(--ink)}
+  /* La captura, acotada: la ventana es estrecha y una pantalla de móvil son 1080
+     px de ancho. Con `max-width` cabe sin desbordar y sin deformarse. */
+  .toma{display:block;max-width:100%;height:auto;margin:6px 0 4px;
+        border:1px solid var(--line);border-radius:6px}
 
   h2{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
      color:var(--faint);margin:14px 14px 4px;font-family:var(--sans)}
@@ -165,7 +170,11 @@ abstract final class LaCorridaComoHtml {
   /// lee como una lista de pasos, se lee como un error. La línea sigue estando y
   /// va en el `title` de la fila, que es donde no molesta y sigue sirviendo para
   /// ir a buscarla.
-  static String _fila(PasoParaPintar paso, int orden) {
+  static String _fila(
+    PasoParaPintar paso,
+    int orden,
+    Map<String, String> capturas,
+  ) {
     final clase = switch (paso.estado) {
       EstadoDePaso.hecho => 'hecho',
       EstadoDePaso.enCurso => 'curso',
@@ -186,6 +195,12 @@ abstract final class LaCorridaComoHtml {
         ? ''
         : '\n<span class="detalle">${_escapa(paso.detalle.join('\n'))}</span>';
 
+    // **La captura se pinta debajo del paso que la tomó.** El nombre lo dice el
+    // propio paso —«Take screenshot login_form»— y el archivo es `login_form.png`,
+    // así que casan sin heurística. Un montón de imágenes al final obligaría a
+    // adivinar cuál es de cuál.
+    final imagen = _captura(paso, capturas);
+
     // El `title` solo cuando se sabe de qué línea salió: los ejecutados vienen de
     // la prosa de Maestro y no lo dicen.
     final donde = paso.linea == null ? '' : ' title="línea ${paso.linea}"';
@@ -194,8 +209,25 @@ abstract final class LaCorridaComoHtml {
         '<span class="marca">$marca</span>'
         '<span class="num">$orden</span>'
         '<span class="guion">–</span>'
-        '<span class="texto">${_escapa(paso.texto)}$detalle</span>'
+        '<span class="texto">${_escapa(paso.texto)}$detalle$imagen</span>'
         '</li>';
+  }
+
+  /// La captura de este paso, si la hay y si el paso es de tomar una.
+  ///
+  /// Solo se busca en los pasos ejecutados que Maestro nombra «Take screenshot X»:
+  /// en el texto del `.yaml` sería `takeScreenshot: X`, y ese paso todavía no ha
+  /// corrido, así que no hay nada que enseñar.
+  static String _captura(PasoParaPintar paso, Map<String, String> capturas) {
+    if (capturas.isEmpty) return '';
+
+    final m = RegExp(r'^Take screenshot (.+)$').firstMatch(paso.texto.trim());
+    if (m == null) return '';
+
+    final fuente = capturas[m.group(1)!.trim()];
+    if (fuente == null) return '';
+
+    return '\n<img class="toma" src="$fuente" alt="">';
   }
 
   /// Lo que imprime Maestro y lo que escribe alguien en un `.yaml` acaban aquí

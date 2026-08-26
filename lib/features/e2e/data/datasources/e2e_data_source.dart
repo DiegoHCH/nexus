@@ -53,16 +53,18 @@ class E2eDataSource {
 
   /// Deja constancia de una corrida, en un archivo nuestro.
   ///
-  /// **Existe porque no se puede depender de que Maestro escriba la suya.** Se
-  /// midió: dentro de la app, la carpeta del flow con su `commands.json` no
-  /// aparece —el log queda completo, idéntico al de una corrida que sí la
-  /// escribe, y esa carpeta se crea después de la última línea, al salir el
-  /// proceso—. La misma llamada desde una shell y desde una prueba la escribe
-  /// siempre. No se dio con el motivo.
+  /// **Existe porque el historial no debe depender de un archivo ajeno.** Lo que
+  /// pasó lo sabe Nexus con certeza: lo ha leído paso a paso de la salida mientras
+  /// corría, así que se anota aquí y punto.
   ///
-  /// Lo que sí se sabe con certeza es lo que pasó, porque Nexus lo ha leído paso
-  /// a paso de la salida mientras corría. Así que se anota aquí y el historial
-  /// deja de depender de un archivo ajeno que a veces no llega.
+  /// Aquí había antes un párrafo que decía, como hecho medido, que la carpeta del
+  /// flow de Maestro «no aparece dentro de la app» y que «no se dio con el motivo».
+  /// **Era falso**, y conviene que quede escrito porque un comentario así hace que
+  /// nadie vuelva a mirar: la carpeta se escribe siempre. Lo que pasaba es que yo
+  /// la buscaba en `~/.maestro/tests`, el sitio por defecto —el que deja de usarse
+  /// justo porque le pasamos `--debug-output`—. Maestro añade `.maestro/tests`
+  /// **dentro** de la ruta que se le da, y ahí estaban todas. Ver
+  /// [carpetaDeArtefactos].
   ///
   /// **La ruta del proyecto va dentro del registro**, no solo en el nombre de la
   /// carpeta: esa lleva el nombre legible de la app y dos proyectos pueden
@@ -226,6 +228,64 @@ class E2eDataSource {
     } on ProcessException {
       return null;
     }
+  }
+
+  /// Dónde dejó Maestro los artefactos de la corrida que acaba de terminar.
+  ///
+  /// **Maestro añade `.maestro/tests/<fecha_hora>/` dentro de la ruta que se le
+  /// da**, así que la carpeta exacta no se sabe al lanzar: la elige él. Se busca
+  /// después, y es fiable porque solo corre una prueba a la vez —así que la más
+  /// reciente que contenga este flow es la nuestra—.
+  ///
+  /// Se intentó primero leerla de la salida, que Maestro la imprime:
+  /// `==== Debug output (logs & screenshots) ====`. No sirve: **solo la imprime
+  /// cuando la corrida falla.** En una que pasa no aparece esa línea.
+  String? carpetaDeArtefactos({required String salida, required String flow}) {
+    final tests = Directory('$salida/${DondeVivenLasCorridas.loQueAnadeMaestro}');
+    if (!tests.existsSync()) return null;
+
+    Directory? masReciente;
+    for (final fecha in _carpetas(tests)) {
+      if (!Directory('${fecha.path}/$flow').existsSync()) continue;
+      // Por nombre y no por fecha en disco: el nombre es la hora que puso Maestro
+      // y ordena igual, sin depender de qué toque los archivos después.
+      if (masReciente == null ||
+          fecha.path.split('/').last.compareTo(
+                masReciente.path.split('/').last,
+              ) >
+              0) {
+        masReciente = fecha;
+      }
+    }
+    return masReciente == null ? null : '${masReciente.path}/$flow';
+  }
+
+  /// Las capturas de una corrida, **ya embebidas** para poder pintarlas.
+  ///
+  /// Devuelve `nombre -> data:` porque la página es autocontenida y el visor solo
+  /// tiene permiso de lectura sobre la carpeta del propio archivo: una imagen
+  /// referenciada fuera de ahí saldría como un hueco en blanco.
+  ///
+  /// La clave es el nombre sin extensión, que es **el mismo que dice el paso**
+  /// —`Take screenshot login_form` ↔ `login_form.png`— y por eso cada captura
+  /// puede pintarse debajo del paso que la tomó en vez de en un montón al final.
+  Map<String, String> capturasDe(String? carpeta) {
+    if (carpeta == null) return const {};
+
+    final capturas = <String, String>{};
+    for (final ruta in _capturasEn('$carpeta/takeScreenshot')) {
+      final nombre = ruta
+          .split('/')
+          .last
+          .replaceAll(RegExp(r'\.png$', caseSensitive: false), '');
+      try {
+        capturas[nombre] =
+            'data:image/png;base64,${base64Encode(File(ruta).readAsBytesSync())}';
+      } on FileSystemException {
+        continue;
+      }
+    }
+    return capturas;
   }
 
   /// La página que se le escribe a una corrida guardada, al lado de su registro.
@@ -510,6 +570,9 @@ class E2eDataSource {
       total: total == 0 ? pasos.length : total,
       viva: false,
       fallo: fallo,
+      // Las capturas de aquella corrida, si su carpeta sigue estando. Un registro
+      // viejo no la guarda y entonces no hay imágenes: el informe se abre igual.
+      capturas: capturasDe(leido['artefactos'] as String?),
     );
 
     // El nombre del archivo es **el título de la ventana**, y el del registro ya

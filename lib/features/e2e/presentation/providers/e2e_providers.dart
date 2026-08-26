@@ -247,9 +247,21 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   /// Si la ventana de esta corrida ya está abierta.
   var _ventanaAbierta = false;
 
+  /// Las capturas que dejó, ya embebidas, **y solo cuando ha terminado**.
+  ///
+  /// Embebidas pesan: una pantalla de móvil son unos 90 kB de PNG y en base64
+  /// crece un tercio. La página se reescribe en cada trozo de salida —decenas de
+  /// veces por corrida— y meterlas ahí sería escribir eso decenas de veces para
+  /// enseñar una imagen que solo se mira al acabar.
+  Map<String, String> _capturas = const {};
+
   /// Con qué se lanzó, para poder anotarlo al terminar.
   ({String raiz, String perfil, String proyecto, String dispositivo, DateTime cuando})?
   _contexto;
+
+  /// Dónde dejó Maestro los artefactos, para poder guardarlo en el registro y que
+  /// el informe de mañana encuentre las mismas capturas.
+  String? _artefactos;
 
   @override
   PruebaEnMarcha? build() {
@@ -286,6 +298,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     // pasos de una versión que igual ya cambió.
     final yaml = await _leer(prueba.ruta);
     _ventanaAbierta = false;
+    _capturas = const {};
     _contexto = (
       raiz: raiz,
       perfil: perfil,
@@ -342,6 +355,11 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           viva: false,
           salioMal: codigo != 0,
         );
+        // Las capturas, ahora que la corrida acabó y existen en disco.
+        final ds = ref.read(e2eDataSourceProvider);
+        _artefactos = ds.carpetaDeArtefactos(salida: salida, flow: actual.flow);
+        _capturas = ds.capturasDe(_artefactos);
+
         unawaited(_pinta());
         unawaited(_dejaConstancia());
       }),
@@ -405,6 +423,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             total: actual.delFlow.length,
             viva: actual.viva,
             fallo: actual.fallo,
+            capturas: _capturas,
           ),
           primeraVez: !_ventanaAbierta,
           raizDeLaVentana: _contexto?.raiz ?? await ref.read(raizDePruebasProvider.future),
@@ -443,6 +462,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             // significaba que el informe podía enseñar algo distinto de lo que se
             // vio correr.
             'salida': _acotada(actual.salida),
+            'artefactos': _artefactos,
             'ruido': actual.ruido.length > 50
                 ? actual.ruido.sublist(actual.ruido.length - 50)
                 : actual.ruido,
