@@ -3,20 +3,37 @@ import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 
 /// La corrida escrita como página, que es lo que se ve en la ventana aparte.
+/// Los pasos y sus estados **eran dos listas paralelas** y ahora son una sola cosa,
+/// porque los ejecutados vienen ya con su estado desde la salida de Maestro.
+///
+/// Este ayudante las junta como las juntaba el renderizador, así que estas pruebas
+/// siguen diciendo lo mismo que decían.
+List<PasoParaPintar> _pasos(
+  List<PasoDelFlow> delFlow,
+  List<EstadoDePaso> estados,
+) => [
+  for (final (i, p) in delFlow.indexed)
+    PasoParaPintar(
+      texto: p.texto,
+      estado: i < estados.length ? estados[i] : EstadoDePaso.pendiente,
+      detalle: p.detalle,
+      linea: p.linea,
+    ),
+];
+
 void main() {
   test('cada paso lleva la clase de su estado', () {
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [
+      pasos: _pasos([
         PasoDelFlow(linea: 11, texto: 'uno'),
         PasoDelFlow(linea: 12, texto: 'dos'),
         PasoDelFlow(linea: 13, texto: 'tres'),
-      ],
-      estados: const [
+      ], [
         EstadoDePaso.hecho,
         EstadoDePaso.fallado,
         EstadoDePaso.pendiente,
-      ],
+      ]),
       lineas: const [],
       terminados: 2,
       viva: false,
@@ -41,8 +58,7 @@ void main() {
     // como un fallo nuestro, y lo era.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: const [],
-      estados: null,
+      pasos: _pasos([], const []),
       lineas: const ['Launch app... COMPLETED'],
       terminados: 8,
       total: 8,
@@ -59,11 +75,10 @@ void main() {
   test('sin total se usa el número de pasos, que es lo de en vivo', () {
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [
+      pasos: _pasos([
         PasoDelFlow(linea: 1, texto: 'uno'),
         PasoDelFlow(linea: 2, texto: 'dos'),
-      ],
-      estados: const [EstadoDePaso.hecho, EstadoDePaso.enCurso],
+      ], [EstadoDePaso.hecho, EstadoDePaso.enCurso]),
       lineas: const ['Launch app... COMPLETED'],
       terminados: 1,
       viva: true,
@@ -77,8 +92,7 @@ void main() {
     // Maestro, acaban dentro de esta página.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [PasoDelFlow(linea: 1, texto: 'assertVisible: "<b>hola</b>"')],
-      estados: const [EstadoDePaso.hecho],
+      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'assertVisible: "<b>hola</b>"')], [EstadoDePaso.hecho]),
       lineas: const ['algo & otro <cosa>'],
       terminados: 1,
       viva: false,
@@ -93,8 +107,7 @@ void main() {
   test('sin salida no se pinta su sección vacía', () {
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
-      estados: const [EstadoDePaso.hecho],
+      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -108,8 +121,7 @@ void main() {
     // hueco en blanco.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
-      estados: const [EstadoDePaso.hecho],
+      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -123,8 +135,7 @@ void main() {
     String pagina({required bool viva, required bool fallo}) =>
         LaCorridaComoHtml.escribe(
           flow: 'login',
-          pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
-          estados: const [EstadoDePaso.hecho],
+          pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
           lineas: const [],
           terminados: 1,
           viva: viva,
@@ -171,11 +182,10 @@ void main() {
   test('la fila en curso se sombrea, para decir dónde va', () {
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [
+      pasos: _pasos([
         PasoDelFlow(linea: 1, texto: 'uno'),
         PasoDelFlow(linea: 2, texto: 'dos'),
-      ],
-      estados: const [EstadoDePaso.hecho, EstadoDePaso.enCurso],
+      ], [EstadoDePaso.hecho, EstadoDePaso.enCurso]),
       lineas: const [],
       terminados: 1,
       viva: true,
@@ -189,14 +199,13 @@ void main() {
     // Un `tapOn:` a secas no dice nada; el `id:` de debajo es todo el contenido.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [
+      pasos: _pasos([
         PasoDelFlow(
           linea: 34,
           texto: 'tapOn:',
           detalle: ['    id: toolbar'],
         ),
-      ],
-      estados: const [EstadoDePaso.hecho],
+      ], [EstadoDePaso.hecho]),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -215,8 +224,7 @@ void main() {
     // `inline-flex`, así que el fallo solo aparecía en la lista.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
-      estados: const [EstadoDePaso.enCurso],
+      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
       lineas: const [],
       terminados: 0,
       viva: true,
@@ -232,8 +240,7 @@ void main() {
     // con acento, y el texto se queda en tinta plena en todos los estados.
     final html = LaCorridaComoHtml.escribe(
       flow: 'login',
-      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
-      estados: const [EstadoDePaso.enCurso],
+      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
       lineas: const [],
       terminados: 0,
       viva: true,

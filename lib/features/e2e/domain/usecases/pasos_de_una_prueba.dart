@@ -21,6 +21,30 @@ class PasoDelFlow {
   final List<String> detalle;
 }
 
+/// Un paso listo para pintar: qué dice, cómo va, y su detalle si lo tiene.
+///
+/// **Sirve para los dos orígenes**: los ejecutados vienen de la salida de Maestro
+/// en prosa y sin detalle, los pendientes del YAML tal como están escritos. Una
+/// sola forma porque quien los pinta no tiene por qué saber de dónde salió cada
+/// uno.
+class PasoParaPintar {
+  const PasoParaPintar({
+    required this.texto,
+    required this.estado,
+    this.detalle = const [],
+    this.linea,
+  });
+
+  final String texto;
+  final EstadoDePaso estado;
+  final List<String> detalle;
+
+  /// La línea del `.yaml`, **cuando se sabe**. Los pendientes vienen del archivo y
+  /// la traen; los ejecutados vienen de la prosa de Maestro, que no dice de qué
+  /// línea salió cada uno. `null` es eso: no se sabe, y no se inventa.
+  final int? linea;
+}
+
 abstract final class PasosDeUnaPrueba {
   /// Qué app declara el flow, de su cabecera.
   ///
@@ -85,17 +109,13 @@ abstract final class PasosDeUnaPrueba {
 
   /// Cuántos pasos ha terminado Maestro, contando líneas de su salida.
   ///
-  /// **Una línea de estado solo aparece cuando el paso termina**, así que esto es
-  /// la cuenta de los acabados. De ahí sale gratis cuál está en curso: el
-  /// siguiente.
+  /// Se conserva para leer los **registros viejos**, que guardaban líneas y una
+  /// cuenta. Lo que corre ahora sale de [deLaSalida], que además sabe cuál está en
+  /// curso.
   ///
-  /// La salida real, con `--no-ansi`:
-  /// ```
-  /// Running on Medium_Phone_API_36.1
-  ///  > Flow welcome_to_login
-  /// Launch app "com.ejemplo"... COMPLETED
-  /// Assert that id: btn is visible... COMPLETED
-  /// ```
+  /// Aquí decía que «una línea de estado solo aparece cuando el paso termina». Es
+  /// falso, y se midió: Maestro anuncia el paso **al empezarlo** y le pega el
+  /// resultado después, en la misma línea. Ver [deLaSalida].
   static ({int terminados, bool fallo}) avance(Iterable<String> lineas) {
     var terminados = 0;
     var fallo = false;
@@ -108,6 +128,117 @@ abstract final class PasosDeUnaPrueba {
       }
     }
     return (terminados: terminados, fallo: fallo);
+  }
+
+  /// Los pasos que Maestro dice haber ejecutado, leídos de su salida.
+  ///
+  /// **La salida trae el plan real y en prosa**, que es más de lo que dice el
+  /// archivo. Medido con marcas de tiempo, un `--no-ansi` escribe así:
+  ///
+  /// ```
+  /// 29.76s  'Launch app "com.ejemplo"...'
+  /// 44.94s  ' COMPLETED\nAssert that id: btn is visible...'
+  /// 58.80s  ' COMPLETED\n'
+  /// ```
+  ///
+  /// Dos cosas que decidieron este diseño:
+  ///
+  /// **El anuncio del paso llega sin salto de línea**, quince segundos antes de su
+  /// resultado. Ahí está el paso en curso, con su nombre. Un lector que espere un
+  /// `\n` se lo guarda en el buffer hasta que el paso acaba, y entonces no hay
+  /// forma de enseñar cuál corre — que es exactamente lo que pasaba.
+  ///
+  /// **El resultado y el anuncio del siguiente vienen pegados** en el mismo trozo,
+  /// así que no se puede procesar trozo a trozo: se acumula el texto entero y se
+  /// vuelve a leer. Es idempotente, y con esto no hay estado incremental que
+  /// desincronizar.
+  ///
+  /// Emparejar por texto con el YAML es imposible —«Assert that id: btn is
+  /// visible» no se parece a `extendedWaitUntil:`— y por eso antes se emparejaba
+  /// por posición y se degradaba a `null` cuando no cuadraba. Leyendo la salida no
+  /// hay nada que emparejar: `runFlow` y los bucles emiten más líneas y se pintan
+  /// más pasos.
+  static List<PasoParaPintar> deLaSalida(String salida) {
+    final pasos = <PasoParaPintar>[];
+
+    for (final cruda in salida.split('\n')) {
+      final linea = cruda.trim();
+      if (linea.isEmpty || _noEsUnPaso(linea)) continue;
+
+      final (texto, estado) = switch (linea) {
+        _ when linea.endsWith('COMPLETED') => (
+          _sinSufijo(linea, 'COMPLETED'),
+          EstadoDePaso.hecho,
+        ),
+        _ when linea.endsWith('FAILED') => (
+          _sinSufijo(linea, 'FAILED'),
+          EstadoDePaso.fallado,
+        ),
+        _ when linea.endsWith('ERROR') => (
+          _sinSufijo(linea, 'ERROR'),
+          EstadoDePaso.fallado,
+        ),
+        // Sin resultado todavía: es el anuncio, el paso que corre ahora.
+        _ when linea.endsWith('...') => (
+          _sinPuntos(linea),
+          EstadoDePaso.enCurso,
+        ),
+        _ => (null, EstadoDePaso.pendiente),
+      };
+      if (texto == null || texto.isEmpty) continue;
+
+      pasos.add(PasoParaPintar(texto: texto, estado: estado));
+    }
+    return pasos;
+  }
+
+  /// Lo que Maestro escribe que no es un paso.
+  ///
+  /// Una lista y no una regla, porque los nombres de paso son abiertos —«Launch
+  /// app», «Assert that», «Tap on», «Run flow»…— y no hay forma de reconocerlos por
+  /// su forma. Ojo con `Waiting for flows to complete...`: **acaba en tres puntos
+  /// igual que el anuncio de un paso**, así que sin esta lista se pintaría como uno.
+  static bool _noEsUnPaso(String linea) =>
+      linea.startsWith('Running on') ||
+      linea.startsWith('>') ||
+      linea.startsWith('Waiting for') ||
+      linea.startsWith('[Passed]') ||
+      linea.startsWith('[Failed]') ||
+      RegExp(r'^\d+/\d+ Flow').hasMatch(linea);
+
+  static String _sinSufijo(String linea, String sufijo) =>
+      _sinPuntos(linea.substring(0, linea.length - sufijo.length).trimRight());
+
+  static String _sinPuntos(String linea) => linea.endsWith('...')
+      ? linea.substring(0, linea.length - 3).trimRight()
+      : linea;
+
+  /// Lo que se pinta: lo que ya pasó, y lo que el archivo dice que falta.
+  ///
+  /// **Las dos fuentes, cada una para lo que sabe.** La salida sabe la verdad de lo
+  /// ejecutado pero no el futuro; el archivo sabe lo que falta pero no lo que de
+  /// verdad se ejecutó. Enseñar solo la salida quitaba la lista de lo que viene
+  /// —que es la mitad de para qué se mira— y enseñar solo el archivo es lo que
+  /// obligaba a mentir o a rendirse.
+  ///
+  /// Cuando lo ejecutado pasa de lo que dice el archivo —un `runFlow`, un bucle— no
+  /// queda nada pendiente que añadir y la lista es toda de la salida. Sin caso
+  /// especial y sin degradarse.
+  static List<PasoParaPintar> paraPintar({
+    required String salida,
+    required List<PasoDelFlow> delFlow,
+  }) {
+    final corridos = deLaSalida(salida);
+    return [
+      ...corridos,
+      for (var i = corridos.length; i < delFlow.length; i++)
+        PasoParaPintar(
+          texto: delFlow[i].texto,
+          estado: EstadoDePaso.pendiente,
+          detalle: delFlow[i].detalle,
+          linea: delFlow[i].linea,
+        ),
+    ];
   }
 
   /// El estado de cada paso, emparejando **por posición**.

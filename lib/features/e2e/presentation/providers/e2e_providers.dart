@@ -152,37 +152,63 @@ final elDispositivoProvider = Provider<String?>((ref) {
 class PruebaEnMarcha {
   const PruebaEnMarcha({
     required this.flow,
-    required this.pasos,
-    this.terminados = 0,
-    this.lineas = const [],
+    required this.delFlow,
+    this.salida = '',
+    this.ruido = const [],
     this.viva = true,
-    this.fallo = false,
+    this.salioMal = false,
     this.error,
   });
 
   final String flow;
 
-  /// Los pasos del YAML, con su número y sus argumentos, para poder pintarlos
-  /// como están escritos.
-  final List<PasoDelFlow> pasos;
+  /// Los pasos del `.yaml`. **Solo para saber lo que falta** y para estimar el
+  /// total: lo que de verdad se ejecutó lo dice [salida].
+  final List<PasoDelFlow> delFlow;
 
-  final int terminados;
+  /// La salida de Maestro **tal cual, sin trocear**.
+  ///
+  /// Se guarda el texto entero y se vuelve a leer en cada trozo. No es pereza: el
+  /// anuncio de un paso llega **sin salto de línea** y su resultado viene pegado al
+  /// anuncio del siguiente, así que procesar trozo a trozo pedía un estado
+  /// incremental que se desincroniza. Releer es idempotente.
+  final String salida;
 
-  /// La salida cruda, que es a lo que se degrada la vista cuando los pasos
-  /// impresos no cuadran con el archivo.
-  final List<String> lineas;
+  /// El `stderr`, aparte. Ahí sale lo del driver cuando no se puede instalar, y
+  /// **no puede entrar en el parseo de pasos**: una línea suya que acabara en tres
+  /// puntos se pintaría como un paso que nunca existió.
+  final List<String> ruido;
 
   final bool viva;
-  final bool fallo;
+
+  /// Que el proceso **salió con código distinto de cero**. Va aparte y no se
+  /// deduce de la salida: Maestro puede fallar sin que ningún paso lo diga —y al
+  /// revés, sale con 0 cuando la app no está instalada—, así que las dos señales
+  /// son necesarias y ninguna sustituye a la otra.
+  final bool salioMal;
+
   final String? error;
 
-  /// El estado de cada paso, o `null` si ya no se puede emparejar.
-  List<EstadoDePaso>? get estados => PasosDeUnaPrueba.estados(
-    cuantosPasos: pasos.length,
-    terminados: terminados,
-    viva: viva,
-    fallo: fallo,
-  );
+  /// Lo que se pinta: lo ejecutado en prosa, lo que falta como está escrito.
+  List<PasoParaPintar> get pasos =>
+      PasosDeUnaPrueba.paraPintar(salida: salida, delFlow: delFlow);
+
+  int get terminados => pasos
+      .where(
+        (p) => p.estado == EstadoDePaso.hecho || p.estado == EstadoDePaso.fallado,
+      )
+      .length;
+
+  /// Si esto acabó mal, por cualquiera de las dos vías.
+  bool get fallo =>
+      salioMal || pasos.any((p) => p.estado == EstadoDePaso.fallado);
+
+  /// Las líneas para el panel de salida cruda: lo de Maestro y lo del driver.
+  List<String> get lineas => [
+    for (final l in salida.split('\n'))
+      if (l.trim().isNotEmpty) l.trimRight(),
+    ...ruido,
+  ];
 }
 
 /// Lanzar una prueba y seguirla.
@@ -245,7 +271,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     );
     state = PruebaEnMarcha(
       flow: prueba.nombre,
-      pasos: PasosDeUnaPrueba.leer(yaml),
+      delFlow: PasosDeUnaPrueba.leer(yaml),
     );
     await _pinta();
 
@@ -263,22 +289,16 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     }
     _proceso = proceso;
 
-    var resto = '';
-    proceso.stdout.transform(utf8.decoder).listen((trozo) {
-      resto += trozo;
-      final corte = resto.lastIndexOf('\n');
-      if (corte < 0) return;
-      final nuevas = [
-        for (final l in resto.substring(0, corte).split('\n'))
-          if (l.trim().isNotEmpty) l.trimRight(),
-      ];
-      resto = resto.substring(corte + 1);
-      _anota(nuevas);
-    });
-    // stderr también: ahí sale lo del driver cuando no se puede instalar.
-    proceso.stderr
-        .transform(utf8.decoder)
-        .listen((t) => _anota([t.trimRight()]));
+    // **Se acumula tal cual y no se espera un salto de línea.** Aquí estaba el
+    // fallo: Maestro anuncia el paso al empezarlo y lo hace **sin `\n`** —medido,
+    // quince segundos antes de su resultado—, así que un lector que corte por
+    // líneas se guarda ese anuncio en el buffer y solo lo ve cuando el paso ya
+    // terminó. El paso en curso no se podía enseñar porque no se estaba leyendo.
+    proceso.stdout.transform(utf8.decoder).listen(_masSalida);
+    // `stderr` aparte: ahí sale lo del driver cuando no se puede instalar, y
+    // mezclarlo rompería el parseo de pasos —una línea suya que acabe en tres
+    // puntos se pintaría como un paso que nunca existió—.
+    proceso.stderr.transform(utf8.decoder).listen(_masRuido);
 
     unawaited(
       proceso.exitCode.then((codigo) {
@@ -287,11 +307,11 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
         if (actual == null) return;
         state = PruebaEnMarcha(
           flow: actual.flow,
-          pasos: actual.pasos,
-          terminados: actual.terminados,
-          lineas: actual.lineas,
+          delFlow: actual.delFlow,
+          salida: actual.salida,
+          ruido: actual.ruido,
           viva: false,
-          fallo: actual.fallo || codigo != 0,
+          salioMal: codigo != 0,
         );
         unawaited(_pinta());
         unawaited(_dejaConstancia());
@@ -306,18 +326,34 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     _proceso = null;
   }
 
-  void _anota(List<String> nuevas) {
+  /// Más salida de Maestro. Se pega al final y se repinta.
+  void _masSalida(String trozo) {
     final actual = state;
-    if (actual == null || nuevas.isEmpty) return;
+    if (actual == null || trozo.isEmpty) return;
 
-    final lineas = [...actual.lineas, ...nuevas];
-    final avance = PasosDeUnaPrueba.avance(lineas);
     state = PruebaEnMarcha(
       flow: actual.flow,
-      pasos: actual.pasos,
-      terminados: avance.terminados,
-      lineas: lineas,
-      fallo: avance.fallo,
+      delFlow: actual.delFlow,
+      salida: actual.salida + trozo,
+      ruido: actual.ruido,
+      salioMal: actual.salioMal,
+    );
+    unawaited(_pinta());
+  }
+
+  /// Más `stderr`. Va a su lista, no a la salida que se parsea.
+  void _masRuido(String trozo) {
+    final actual = state;
+    if (actual == null) return;
+    final limpio = trozo.trimRight();
+    if (limpio.isEmpty) return;
+
+    state = PruebaEnMarcha(
+      flow: actual.flow,
+      delFlow: actual.delFlow,
+      salida: actual.salida,
+      ruido: [...actual.ruido, limpio],
+      salioMal: actual.salioMal,
     );
     unawaited(_pinta());
   }
@@ -335,9 +371,9 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           html: LaCorridaComoHtml.escribe(
             flow: actual.flow,
             pasos: actual.pasos,
-            estados: actual.estados,
             lineas: actual.lineas,
             terminados: actual.terminados,
+            total: actual.delFlow.length,
             viva: actual.viva,
             fallo: actual.fallo,
           ),
@@ -366,23 +402,21 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           corrida: {
             'flow': actual.flow,
             'cuando': ctx.cuando.toIso8601String(),
-            'pasos': actual.pasos.length,
-            // **Los nombres y no solo cuántos.** Sin ellos, el informe de una
-            // corrida guardada no tenía qué pintar y solo podía enseñar la salida
-            // cruda: los pasos con su ✓ son justo lo que se va a mirar.
-            // Con su número y su detalle: el informe pinta lo mismo que la vista
-            // en vivo, y para eso necesita el mismo dato y no un resumen.
-            'pasosDelFlow': [
-              for (final p in actual.pasos)
-                {'n': p.linea, 't': p.texto, 'd': p.detalle},
-            ],
+            // El total estimado del archivo, para el denominador del informe.
+            'pasos': actual.delFlow.length,
             'terminados': actual.terminados,
             'fallo': actual.fallo,
             'dispositivo': ctx.dispositivo,
-            // La salida, acotada: lo que se lee cuando algo falla son las últimas.
-            'lineas': actual.lineas.length > 200
-                ? actual.lineas.sublist(actual.lineas.length - 200)
-                : actual.lineas,
+            // **La salida entera y no una lista de pasos.** De ella salen los
+            // pasos con su frase y su estado, igual que en vivo, así que el
+            // informe guardado y la vista en marcha leen exactamente lo mismo.
+            // Antes se guardaban los pasos del YAML ya masticados, y eso
+            // significaba que el informe podía enseñar algo distinto de lo que se
+            // vio correr.
+            'salida': _acotada(actual.salida),
+            'ruido': actual.ruido.length > 50
+                ? actual.ruido.sublist(actual.ruido.length - 50)
+                : actual.ruido,
           },
         );
     ref.invalidate(corridasDePruebaProvider);
@@ -392,6 +426,17 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   Future<void> traeLaVentana() async {
     _ventanaAbierta = false;
     await _pinta();
+  }
+
+  /// La salida, acotada por la cola: lo que se lee cuando algo falla es el final.
+  ///
+  /// Se corta en el primer salto de línea después del recorte para no dejar media
+  /// línea al principio, que el parseo leería como un paso con el nombre partido.
+  static String _acotada(String salida, {int tope = 40000}) {
+    if (salida.length <= tope) return salida;
+    final cola = salida.substring(salida.length - tope);
+    final corte = cola.indexOf('\n');
+    return corte < 0 ? cola : cola.substring(corte + 1);
   }
 
   Future<String> _leer(String ruta) async {
