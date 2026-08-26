@@ -9,6 +9,7 @@ import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -85,6 +86,29 @@ final corridasDePruebaProvider = FutureProvider<List<CorridaDePrueba>>((
 final estaEnGitProvider = FutureProvider.family<bool?, String>(
   (ref, ruta) => ref.watch(e2eDataSourceProvider).estaEnGit(ruta),
 );
+
+/// Qué credenciales tiene un proyecto — **los nombres, no los valores**.
+///
+/// La app necesita saber cuántas hay, cómo se llaman y si el archivo está en git.
+/// Nada de eso necesita el valor, así que el valor no entra: se lee en el momento
+/// de lanzar y se va con el proceso. Un secreto que no está en el estado de la app
+/// no puede acabar en un volcado, en un mensaje de error ni en una captura.
+final credencialesProvider =
+    FutureProvider.family<({Set<String> claves, bool? enGit}), String>((
+      ref,
+      proyecto,
+    ) async {
+      final ds = ref.watch(e2eDataSourceProvider);
+      final claves = ds.variablesDe(proyecto).keys.toSet();
+      // **Si está en git, hay que decirlo.** Un archivo de credenciales dentro de un
+      // repositorio es una fuga, y en un repo compartido lo es para todo el equipo.
+      final enGit = claves.isEmpty
+          ? null
+          : await ds.estaEnGit(
+              '$proyecto/${LasVariablesDelProyecto.archivo}',
+            );
+      return (claves: claves, enGit: enGit);
+    });
 
 /// Lo que ocupan las corridas de cada proyecto.
 ///
@@ -275,14 +299,19 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     );
     await _pinta();
 
-    final proceso = await ref
-        .read(e2eDataSourceProvider)
-        .lanzar(
-          flow: prueba.ruta,
-          proyecto: proyecto,
-          deviceId: deviceId,
-          salida: salida,
-        );
+    // Las credenciales se leen aquí, en el último momento, y solo las que este
+    // flow nombra. No pasan por el estado de la app ni por el prompt.
+    final ds = ref.read(e2eDataSourceProvider);
+    final proceso = await ds.lanzar(
+      flow: prueba.ruta,
+      proyecto: proyecto,
+      deviceId: deviceId,
+      salida: salida,
+      variables: LasVariablesDelProyecto.paraElFlow(
+        yaml: yaml,
+        variables: ds.variablesDe(proyecto),
+      ),
+    );
     if (proceso == null) {
       state = null;
       return 'No se encontró Maestro, o no se pudo lanzar';

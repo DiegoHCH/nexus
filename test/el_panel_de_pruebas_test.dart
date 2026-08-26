@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -54,7 +56,12 @@ class _Maquina extends EmuladoresDataSource {
 }
 
 class _Borrados extends E2eDataSource {
-  const _Borrados(this.borrados, {this.instalada, this.enGit});
+  const _Borrados(
+    this.borrados, {
+    this.instalada,
+    this.enGit,
+    this.variables = const {},
+  });
 
   final List<String> borrados;
 
@@ -66,6 +73,14 @@ class _Borrados extends E2eDataSource {
 
   @override
   Future<bool?> estaEnGit(String ruta) async => enGit;
+
+  /// Las credenciales del proyecto. **Solo nombres en las aserciones**: si una
+  /// prueba tuviera que comprobar un valor, el valor estaría en un sitio donde no
+  /// debe estar.
+  final Map<String, String> variables;
+
+  @override
+  Map<String, String> variablesDe(String proyecto) => variables;
 
   @override
   Future<bool?> estaInstalada({
@@ -153,6 +168,7 @@ Future<void> _abrir(
   List<String>? borrados,
   bool? instalada,
   bool? enGit,
+  Map<String, String> variables = const {},
   List<String>? lanzados,
 }) async {
   await tester.pumpWidget(
@@ -162,7 +178,12 @@ Future<void> _abrir(
           _Maquina(encendidos: encendidos, conIphone: conIphone),
         ),
         e2eDataSourceProvider.overrideWithValue(
-          _Borrados(borrados ?? [], instalada: instalada, enGit: enGit),
+          _Borrados(
+            borrados ?? [],
+            instalada: instalada,
+            enGit: enGit,
+            variables: variables,
+          ),
         ),
         pruebasProvider('/casa/tienda').overrideWith((ref) async => pruebas),
         corridasDePruebaProvider.overrideWith(
@@ -216,11 +237,17 @@ String _hecho(String texto) => '$texto... COMPLETED\n';
 /// antes de lanzar —para saber el `appId` y avisar si la app no está instalada— y
 /// sin esto ese `await` se queda colgado, el lanzamiento no llega, y la prueba
 /// falla diciendo que no se lanzó nada. Que es lo que pasó.
+/// Bombea y espera **de verdad**, varias veces, porque lo que se dispara al tocar
+/// es una cadena de `await`: leer el `.yaml`, resolver el proveedor de credenciales
+/// —que a su vez le pregunta a git— y comprobar la instalación. Con una sola espera
+/// se quedaba a medias y la prueba decía que no se había lanzado nada.
 Future<void> _tocarYEsperar(WidgetTester tester, Finder que) async {
   await tester.runAsync(() async {
     await tester.tap(que);
-    await tester.pump();
-    await Future<void>.delayed(const Duration(milliseconds: 50));
+    for (var i = 0; i < 10; i++) {
+      await tester.pump();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+    }
   });
   await tester.pump();
 }
@@ -703,6 +730,78 @@ void main() {
       await pedirConfirmacion(tester);
 
       expect(find.byTooltip(strings.e2eDeleteTestAskPlain), findsOneWidget);
+    });
+  });
+
+  group('las credenciales del proyecto', () {
+    /// Un flow de verdad en disco: el aviso depende de leer su texto.
+    Prueba unFlowQueUsa(String variable, Directory casa) {
+      Directory('${casa.path}/.maestro').createSync(recursive: true);
+      final ruta = '${casa.path}/.maestro/login.yaml';
+      File(ruta).writeAsStringSync(
+        'appId: com.ejemplo\n---\n- inputText: \${$variable}\n',
+      );
+      return Prueba(ruta: ruta, nombre: 'login');
+    }
+
+    late Directory casa;
+    setUp(() => casa = Directory.systemTemp.createTempSync('panelvars'));
+    tearDown(() => casa.deleteSync(recursive: true));
+
+    testWidgets('dice cuántas hay cargadas, sin enseñar ninguna', (tester) async {
+      // Es la diferencia entre saber que el `.env.local` se leyó y suponerlo.
+      await _abrir(tester, variables: const {'CORREO': 'a@b.c', 'CLAVE': 'x'});
+
+      expect(find.text(strings.e2eVarsLoaded(2)), findsOneWidget);
+      // Y el valor no aparece en ningún sitio de la pantalla.
+      expect(find.textContaining('a@b.c'), findsNothing);
+    });
+
+    testWidgets('sin .env.local no se dice nada', (tester) async {
+      await _abrir(tester);
+      expect(find.textContaining('.env.local'), findsNothing);
+    });
+
+    testWidgets('si el archivo está en git, se avisa', (tester) async {
+      // Un archivo de credenciales dentro de un repositorio es una fuga, y en un
+      // repo compartido lo es para todo el equipo.
+      await _abrir(
+        tester,
+        variables: const {'CORREO': 'a@b.c'},
+        enGit: true,
+      );
+
+      expect(find.text(strings.e2eEnvInGit), findsOneWidget);
+    });
+
+    testWidgets('una variable que falta se dice antes de correr', (tester) async {
+      // Sin esto, Maestro escribe el literal `${CORREO}` en el campo y la prueba
+      // muere tres pasos después, en un sitio que no tiene que ver con la causa.
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        pruebas: [unFlowQueUsa('CORREO', casa)],
+        lanzados: lanzados,
+      );
+
+      await _tocarYEsperar(tester, find.text(strings.e2eRun));
+
+      expect(find.text(strings.e2eMissingVars('CORREO')), findsOneWidget);
+      expect(lanzados, isEmpty, reason: 'lanzó sin la credencial');
+    });
+
+    testWidgets('con la variable puesta, se lanza', (tester) async {
+      final lanzados = <String>[];
+      await _abrir(
+        tester,
+        pruebas: [unFlowQueUsa('CORREO', casa)],
+        variables: const {'CORREO': 'a@b.c'},
+        lanzados: lanzados,
+      );
+
+      await _tocarYEsperar(tester, find.text(strings.e2eRun));
+
+      expect(lanzados, ['login@emulator-5550']);
     });
   });
 }
