@@ -384,4 +384,111 @@ void main() {
       expect(guardadas.last, 'linea ${RegistrosController.tope + 49}');
     });
   });
+
+  group('la recarga automática', () {
+    testWidgets('viene apagada de fábrica', (tester) async {
+      // Recargar la app sin que nadie lo pida es una sorpresa la primera vez.
+      SharedPreferences.setMockInitialValues({});
+      await _montar(tester);
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      final boton = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.bolt),
+      );
+      expect(boton.color, isNot(NexusColors.dark.accent));
+    });
+
+    testWidgets('encendida se recuerda y se ve marcada', (tester) async {
+      SharedPreferences.setMockInitialValues({'run.autoRecarga': true});
+      await _montar(tester);
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      expect(
+        tester
+            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.bolt))
+            .color,
+        NexusColors.dark.accent,
+      );
+    });
+
+    testWidgets('con nada corriendo no hace nada ni revienta', (tester) async {
+      await _montar(tester);
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+
+      await expectLater(
+        contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+              proyecto: '/casa/tienda',
+              rutas: const ['lib/a.dart'],
+              diff: '',
+            ),
+        completes,
+      );
+    });
+
+    testWidgets('lo que pide recompilar se dice y NO se recompila', (
+      tester,
+    ) async {
+      // Son minutos y aquí hay alguien esperando: el mismo criterio de los
+      // comandos bloqueados. Se dice y la decisión se deja en quien mira.
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+
+      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+            proyecto: '/casa/tienda',
+            rutas: const ['android/app/build.gradle'],
+            diff: '',
+          );
+
+      final registro =
+          contenedor.read(registrosProvider)['emulator-5554']!.join('\n');
+      expect(registro, contains('recompilar'));
+      // La corrida sigue en pie: no se paró ni se relanzó nada.
+      expect(contenedor.read(corridasProvider).length, 1);
+    });
+
+    testWidgets('anota el motivo, que si no parece un capricho', (
+      tester,
+    ) async {
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+
+      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+            proyecto: '/casa/tienda',
+            rutas: const ['lib/a.dart'],
+            diff: '--- a/lib/a.dart\n+++ b/lib/a.dart\n+enum Estado { uno }',
+          );
+
+      final registro =
+          contenedor.read(registrosProvider)['emulator-5554']!.join('\n');
+      expect(registro, contains('reiniciando'));
+      expect(registro, contains('enum'));
+    });
+
+    testWidgets('un proyecto distinto no se toca', (tester) async {
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+
+      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+            proyecto: '/casa/otro',
+            rutas: const ['lib/a.dart'],
+            diff: '',
+          );
+
+      expect(contenedor.read(registrosProvider)['emulator-5554'], isNull);
+    });
+  });
 }

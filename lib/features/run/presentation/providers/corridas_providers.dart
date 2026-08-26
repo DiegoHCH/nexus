@@ -6,6 +6,7 @@ import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/run/data/datasources/corrida_viva.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/entities/mensaje_del_daemon.dart';
+import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/domain/usecases/estado_de_la_corrida.dart';
 
 /// Lo que está corriendo, por dispositivo.
@@ -101,6 +102,48 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       resultados[id] = await _vivas[id]!.recargar(completa: completa);
     }
     return resultados;
+  }
+
+  /// Un encargo acabó de tocar [proyecto]: decide qué hacer y lo hace.
+  ///
+  /// **Solo si el interruptor está puesto y hay algo corriendo de ese proyecto.**
+  /// Lo que decide es [QueHacerConElCambio], que mira las rutas y las líneas del
+  /// diff; el motivo se anota en el registro de la corrida porque «reinicié en
+  /// vez de recargar» sin explicación parece un capricho de la herramienta.
+  ///
+  /// Cuando hace falta recompilar **no se recompila**: son minutos y aquí hay
+  /// alguien esperando, que es el mismo criterio que ya usan los comandos
+  /// bloqueados. Se dice y se deja la decisión en quien mira.
+  Future<void> alTerminarUnEncargo({
+    required String proyecto,
+    required List<String> rutas,
+    required String diff,
+  }) async {
+    final mias = state.values.where((c) => c.proyecto == proyecto).toList();
+    if (mias.isEmpty) return;
+
+    final decision = QueHacerConElCambio.decide(rutas: rutas, diff: diff);
+    final registros = ref.read(registrosProvider.notifier);
+    final porque = decision.motivo == null ? '' : ' — ${decision.motivo}';
+
+    for (final corrida in mias) {
+      switch (decision.que) {
+        case QueHacer.recompilar:
+          registros.anota(
+            corrida.deviceId,
+            'recarga automática: hay que recompilar$porque',
+          );
+        case QueHacer.reiniciar:
+          registros.anota(
+            corrida.deviceId,
+            'recarga automática: reiniciando$porque',
+          );
+          await recargar(deviceId: corrida.deviceId, completa: true);
+        case QueHacer.recargar:
+          registros.anota(corrida.deviceId, 'recarga automática: recargando');
+          await recargar(deviceId: corrida.deviceId);
+      }
+    }
   }
 
   /// Parar una corrida.

@@ -81,3 +81,38 @@ final configsPorDefectoProvider =
     NotifierProvider<ConfigsPorDefecto, Map<String, String>>(
       ConfigsPorDefecto.new,
     );
+
+/// Si la app se recarga sola al terminar un encargo.
+///
+/// **Al terminar el encargo y no al guardar el archivo**, y esa es la diferencia
+/// que hace que esto tenga sentido aquí. En una herramienta donde guarda una
+/// persona, vigilar el guardado está bien: guarda una vez y quiere ver el cambio.
+/// Aquí quien guarda es **Claude**, veinte ediciones en un encargo, y una recarga
+/// por escritura sería un bucle de recompilaciones sobre código a medio escribir.
+///
+/// Apagado de fábrica. Recargar la app sin que nadie lo pida es una sorpresa la
+/// primera vez, y este proyecto no enciende por defecto lo que reinicia algo.
+class AutoRecarga extends Notifier<bool> {
+  static const _clave = 'run.autoRecarga';
+
+  @override
+  bool build() {
+    _cargar();
+    return false;
+  }
+
+  Future<void> _cargar() async {
+    final prefs = await SharedPreferences.getInstance();
+    state = prefs.getBool(_clave) ?? false;
+  }
+
+  Future<void> cambiar() async {
+    state = !state;
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(_clave, state);
+  }
+}
+
+final autoRecargaProvider = NotifierProvider<AutoRecarga, bool>(
+  AutoRecarga.new,
+);

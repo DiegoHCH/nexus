@@ -22,6 +22,9 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
+import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
+import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -363,7 +366,29 @@ class AssistantController extends Notifier<AssistantHudState> {
     final base = _repoBase;
     if (folder == null || base == null) return;
     final cambios = await const GitDataSource().changesSince(folder, base);
-    if (cambios != null) state = state.copyWith(changes: cambios);
+    if (cambios == null) return;
+    state = state.copyWith(changes: cambios);
+
+    // **Y si hay una app corriendo de este proyecto, se recarga sola.**
+    //
+    // Aquí y no al guardar cada archivo: quien guarda es Claude, veinte
+    // ediciones en un encargo, y una recarga por escritura sería un bucle de
+    // recompilaciones sobre código a medio escribir. Al terminar el encargo el
+    // cambio está completo, que es cuando tiene sentido mirarlo.
+    //
+    // Se aprovecha el diff que este método ya calculaba para el resumen: pedirlo
+    // otra vez sería un `git diff` más por el mismo dato.
+    if (!ref.read(autoRecargaProvider)) return;
+    await ref
+        .read(corridasProvider.notifier)
+        .alTerminarUnEncargo(
+          proyecto: folder,
+          rutas: [
+            ...QueHacerConElCambio.rutasDelDiff(cambios.diff),
+            ...cambios.newFiles,
+          ],
+          diff: cambios.diff,
+        );
   }
 
   /// Donde trabaja Claude: el repo elegido dentro de la carpeta, o la carpeta.

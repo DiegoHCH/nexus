@@ -211,9 +211,25 @@ class _PanelState extends ConsumerState<_Panel> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          strings.runTitle,
-          style: NexusTypography.label.copyWith(color: colors.faint),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                strings.runTitle,
+                style: NexusTypography.label.copyWith(color: colors.faint),
+              ),
+            ),
+            // **Apagado de fábrica.** Recargar la app sin que nadie lo pida es
+            // una sorpresa la primera vez, y aquí no se enciende por defecto lo
+            // que reinicia algo.
+            _BotonMini(
+              icono: Icons.bolt,
+              titulo: strings.runAuto,
+              activo: ref.watch(autoRecargaProvider),
+              onPulsar: () =>
+                  ref.read(autoRecargaProvider.notifier).cambiar(),
+            ),
+          ],
         ),
         const SizedBox(height: NexusSpacing.s3),
 
