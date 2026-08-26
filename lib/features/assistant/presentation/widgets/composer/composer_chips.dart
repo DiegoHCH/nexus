@@ -13,6 +13,7 @@ import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/data/datasources/gate_del_repo_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
+import 'package:nexus/features/workspace/presentation/widgets/corrida_sheet.dart';
 import 'package:nexus/features/workspace/presentation/widgets/gate_sheet.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/firmar_plan_sheet.dart';
@@ -66,6 +67,16 @@ class ComposerChips extends ConsumerWidget {
     final ramaDelPlan = dondeCorre == null
         ? null
         : ref.watch(gitInfoProvider(dondeCorre)).value?.branch;
+    // La carpeta y la rama donde va a trabajar Claude, que es de donde salen tanto el
+    // gate como la corrida. Se calcula una vez: el chip de la rama, el del gate y la hoja
+    // tienen que hablar exactamente de lo mismo.
+    final dondeDeLaCorrida = dondeCorre == null
+        ? null
+        : dondeMirar(
+            carpeta: dondeCorre,
+            perfil: paired?.claudeProfile,
+            rama: ramaDelPlan,
+          );
 
     return Row(
       children: [
@@ -244,8 +255,17 @@ class ComposerChips extends ConsumerWidget {
           // carpeta dice una cosa y el repo otra.
           _Chip(icon: Icons.hub_outlined, label: git.repository),
         ],
+        // La rama abre la corrida: **la corrida es la rama**, y este chip ya estaba ahí
+        // diciendo cuál. Un menú aparte habría sido un sitio más que aprender para llegar
+        // a lo mismo.
         if (git?.branch case final branch?)
-          _Chip(icon: Icons.alt_route, label: branch),
+          if (dondeDeLaCorrida case final donde?)
+            GestureDetector(
+              onTap: () => CorridaSheet.open(context, donde),
+              child: _Chip(icon: Icons.alt_route, label: branch),
+            )
+          else
+            _Chip(icon: Icons.alt_route, label: branch),
         if (git == null && paired != null)
           // Sin repositorio no hay nada que deshacer, y eso hay que decirlo
           // donde se ve el permiso: es la red de seguridad que falta.

@@ -217,6 +217,40 @@ abstract class NexusStrings {
   String get gateAnywayAction;
   String gateAnywayWritten(String reason);
 
+  // La corrida: la tarea de esta rama, de punta a punta.
+  //
+  // Se llama «corrida» y no «run» porque `run` ya es correr la app, que es otra cosa. El
+  // resumen lo arma el código con lo registrado, así que sale siempre e igual y se puede
+  // pegar en un ticket. Lo que no se sabe se dice: un tramo sin medir escrito como cero
+  // convierte «no lo registramos» en «no costó nada».
+  String get corridaTitle;
+  String get corridaBody;
+  String get corridaOpenFor;
+  String get corridaNarrativeHint;
+  String get corridaCancelHint;
+  String get corridaClose;
+  String get corridaCloseNoProd;
+  String get corridaCancel;
+  String get corridaCopy;
+  String get corridaCopied;
+  String corridaPrevious(int count);
+  String get corridaNotPublishing;
+  String corridaSummaryBranch(String branch);
+  String corridaSummaryWhat(String narrative);
+  String get corridaSummaryStillOpen;
+  String corridaSummaryPlan(String plan);
+  String get corridaSummaryGateGreen;
+  String get corridaSummaryGateRed;
+  String get corridaSummaryGateNever;
+  String corridaSummaryTotal(String duration);
+  String get corridaSummaryTotalUnknown;
+  String corridaSummaryBuilding(String duration);
+  String corridaSummaryClosing(String duration);
+  String get corridaSummaryNoProd;
+  String get corridaSummaryCancelled;
+  String durationMinutes(int minutes);
+  String durationHoursMinutes(int hours, int minutes);
+
   /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
   /// instalar, así que queda en el idioma que hubiera entonces.
   String get hooksInjectingStatus;
@@ -824,6 +858,67 @@ class NexusStringsEs extends NexusStrings {
   @override
   String gateAnywayWritten(String reason) =>
       'Se publicará con este motivo: «$reason»';
+  @override
+  String get corridaTitle => 'La corrida de esta rama';
+  @override
+  String get corridaBody =>
+      'Lo que se acordó, si el gate lo cubrió y cuánto llevó. Cerrar no publica nada: '
+      'escribe la bitácora y te devuelve el resumen para pegarlo donde haga falta.';
+  @override
+  String get corridaOpenFor => 'Abierta desde hace';
+  @override
+  String get corridaNarrativeHint => 'Qué se hizo, en una frase';
+  @override
+  String get corridaCancelHint => 'Por qué se cancela';
+  @override
+  String get corridaClose => 'Cerrar';
+  @override
+  String get corridaCloseNoProd => 'Cerrar sin producción';
+  @override
+  String get corridaCancel => 'Cancelar la corrida';
+  @override
+  String get corridaCopy => 'Copiar el resumen';
+  @override
+  String get corridaCopied => 'Copiado';
+  @override
+  String corridaPrevious(int count) =>
+      count == 1 ? 'Antes hubo otra corrida' : 'Antes hubo $count corridas';
+  @override
+  String get corridaNotPublishing =>
+      'Cerrar no publica: ni commitea, ni sube, ni abre nada.';
+  @override
+  String corridaSummaryBranch(String branch) => 'Rama: $branch';
+  @override
+  String corridaSummaryWhat(String narrative) => 'Qué se hizo: $narrative';
+  @override
+  String get corridaSummaryStillOpen => 'Todavía abierta.';
+  @override
+  String corridaSummaryPlan(String plan) => 'Lo que se acordó: $plan';
+  @override
+  String get corridaSummaryGateGreen => 'El gate: verde.';
+  @override
+  String get corridaSummaryGateRed => 'El gate: en rojo la última vez.';
+  @override
+  String get corridaSummaryGateNever => 'El gate: no llegó a correr.';
+  @override
+  String corridaSummaryTotal(String duration) => 'Llevó $duration.';
+  @override
+  String get corridaSummaryTotalUnknown =>
+      'Cuánto llevó: no se puede saber, no quedó registrado el arranque.';
+  @override
+  String corridaSummaryBuilding(String duration) => 'Construyendo: $duration.';
+  @override
+  String corridaSummaryClosing(String duration) =>
+      'Del gate al cierre: $duration.';
+  @override
+  String get corridaSummaryNoProd => 'No va a producción.';
+  @override
+  String get corridaSummaryCancelled => 'Se canceló: no dejó nada.';
+  @override
+  String durationMinutes(int minutes) => '$minutes min';
+  @override
+  String durationHoursMinutes(int hours, int minutes) =>
+      minutes == 0 ? '$hours h' : '$hours h $minutes min';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -2009,6 +2104,68 @@ class NexusStringsEn extends NexusStrings {
   @override
   String gateAnywayWritten(String reason) =>
       'It will go out with this reason: «$reason»';
+  @override
+  String get corridaTitle => 'This branch, end to end';
+  @override
+  String get corridaBody =>
+      'What was agreed, whether the gate covered it, and how long it took. Closing '
+      'publishes nothing: it writes the log and hands you the summary to paste wherever '
+      'it belongs.';
+  @override
+  String get corridaOpenFor => 'Open for';
+  @override
+  String get corridaNarrativeHint => 'What was done, in one sentence';
+  @override
+  String get corridaCancelHint => 'Why it is being cancelled';
+  @override
+  String get corridaClose => 'Close';
+  @override
+  String get corridaCloseNoProd => 'Close, not shipping';
+  @override
+  String get corridaCancel => 'Cancel the run';
+  @override
+  String get corridaCopy => 'Copy the summary';
+  @override
+  String get corridaCopied => 'Copied';
+  @override
+  String corridaPrevious(int count) => count == 1
+      ? 'There was one earlier run'
+      : 'There were $count earlier runs';
+  @override
+  String get corridaNotPublishing =>
+      'Closing does not publish: no commit, no push, nothing opened.';
+  @override
+  String corridaSummaryBranch(String branch) => 'Branch: $branch';
+  @override
+  String corridaSummaryWhat(String narrative) => 'What was done: $narrative';
+  @override
+  String get corridaSummaryStillOpen => 'Still open.';
+  @override
+  String corridaSummaryPlan(String plan) => 'What was agreed: $plan';
+  @override
+  String get corridaSummaryGateGreen => 'The gate: green.';
+  @override
+  String get corridaSummaryGateRed => 'The gate: red the last time.';
+  @override
+  String get corridaSummaryGateNever => 'The gate: never ran.';
+  @override
+  String corridaSummaryTotal(String duration) => 'It took $duration.';
+  @override
+  String get corridaSummaryTotalUnknown =>
+      'How long it took: unknown, the start was never recorded.';
+  @override
+  String corridaSummaryBuilding(String duration) => 'Building: $duration.';
+  @override
+  String corridaSummaryClosing(String duration) => 'Gate to close: $duration.';
+  @override
+  String get corridaSummaryNoProd => 'Not shipping.';
+  @override
+  String get corridaSummaryCancelled => 'Cancelled: it left nothing.';
+  @override
+  String durationMinutes(int minutes) => '$minutes min';
+  @override
+  String durationHoursMinutes(int hours, int minutes) =>
+      minutes == 0 ? '$hours h' : '$hours h $minutes min';
 
   @override
   String get planSignTitle => 'Sign the plan';
