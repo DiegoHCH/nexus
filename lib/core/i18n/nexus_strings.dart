@@ -142,11 +142,11 @@ abstract class NexusStrings {
   String get gateStale;
   String get gateRun;
   String gateWhen(int minutes);
-  String get chipTestsUnrun;
-  String get chipTestsRunning;
-  String get chipTestsGreen;
-  String get chipTestsRed;
-  String get chipTestsStale;
+  String get chipGateUnrun;
+  String get chipGateRunning;
+  String get chipGateGreen;
+  String get chipGateRed;
+  String get chipGateStale;
 
   /// El título de la hoja donde se firma.
   String get planSignTitle;
@@ -208,6 +208,14 @@ abstract class NexusStrings {
   String get hooksInjectRulesWhat;
   String get hooksRequirePlan;
   String get hooksRequirePlanWhat;
+  String get hooksBrakePr;
+  String get hooksBrakePrWhat;
+
+  // Publicar con el gate caducado: el motivo, que viaja al PR.
+  String get gateAnywayTitle;
+  String get gateAnywayHint;
+  String get gateAnywayAction;
+  String gateAnywayWritten(String reason);
 
   /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
   /// instalar, así que queda en el idioma que hubiera entonces.
@@ -765,7 +773,7 @@ class NexusStringsEs extends NexusStrings {
   @override
   String planSignBranch(String branch) => 'Para la rama «$branch»';
   @override
-  String get gateTitle => 'Las pruebas del repo';
+  String get gateTitle => 'El gate del repo';
   @override
   String get gateBody =>
       'Lo declara el propio repositorio en un «.nexus-pruebas», y lo único que lo pone '
@@ -790,15 +798,25 @@ class NexusStringsEs extends NexusStrings {
       ? 'hace $minutes min'
       : 'hace ${minutes ~/ 60} h ${minutes % 60} min';
   @override
-  String get chipTestsUnrun => 'PRUEBAS SIN CORRER';
+  String get chipGateUnrun => 'GATE SIN CORRER';
   @override
-  String get chipTestsRunning => 'PRUEBAS…';
+  String get chipGateRunning => 'GATE…';
   @override
-  String get chipTestsGreen => 'PRUEBAS · VERDE';
+  String get chipGateGreen => 'GATE · VERDE';
   @override
-  String get chipTestsRed => 'PRUEBAS · ROJO';
+  String get chipGateRed => 'GATE · ROJO';
   @override
-  String get chipTestsStale => 'VERDE · CAMBIÓ DESPUÉS';
+  String get chipGateStale => 'VERDE · CAMBIÓ DESPUÉS';
+  @override
+  String get gateAnywayTitle => 'Publicar igual';
+  @override
+  String get gateAnywayHint =>
+      'Por qué se puede publicar sin volver a correrlo';
+  @override
+  String get gateAnywayAction => 'Escribir el motivo';
+  @override
+  String gateAnywayWritten(String reason) =>
+      'Se publicará con este motivo: «$reason»';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -895,6 +913,13 @@ class NexusStringsEs extends NexusStrings {
       'hace nada.';
   @override
   String get hooksRequirePlan => 'Nada se escribe sin un plan firmado';
+  @override
+  String get hooksBrakePr => 'No se abre un PR sobre un gate que no lo cubre';
+  @override
+  String get hooksBrakePrWhat =>
+      'Deniega «gh pr create» si el gate no se ha corrido, salió rojo, o pasó sobre un '
+      'árbol anterior. Solo el PR: un push queda en una rama, un PR entra en la cola de '
+      'otra persona. Lo enciende el «.nexus-pruebas» del repo.';
   @override
   String get hooksRequirePlanWhat =>
       'Deniega la edición mientras la carpeta no tenga un plan firmado y vigente. Lo '
@@ -1916,7 +1941,7 @@ class NexusStringsEn extends NexusStrings {
   @override
   String planSignBranch(String branch) => 'For the «$branch» branch';
   @override
-  String get gateTitle => "The repo's tests";
+  String get gateTitle => 'The repo gate';
   @override
   String get gateBody =>
       'The repository itself declares it in a «.nexus-pruebas», and the only thing that '
@@ -1941,15 +1966,24 @@ class NexusStringsEn extends NexusStrings {
       ? '$minutes min ago'
       : '${minutes ~/ 60} h ${minutes % 60} min ago';
   @override
-  String get chipTestsUnrun => 'TESTS NOT RUN';
+  String get chipGateUnrun => 'GATE NOT RUN';
   @override
-  String get chipTestsRunning => 'TESTS…';
+  String get chipGateRunning => 'GATE…';
   @override
-  String get chipTestsGreen => 'TESTS · GREEN';
+  String get chipGateGreen => 'GATE · GREEN';
   @override
-  String get chipTestsRed => 'TESTS · RED';
+  String get chipGateRed => 'GATE · RED';
   @override
-  String get chipTestsStale => 'GREEN · CHANGED AFTER';
+  String get chipGateStale => 'GREEN · CHANGED AFTER';
+  @override
+  String get gateAnywayTitle => 'Publish anyway';
+  @override
+  String get gateAnywayHint => 'Why this can go out without running it again';
+  @override
+  String get gateAnywayAction => 'Write the reason';
+  @override
+  String gateAnywayWritten(String reason) =>
+      'It will go out with this reason: «$reason»';
 
   @override
   String get planSignTitle => 'Sign the plan';
@@ -2046,6 +2080,13 @@ class NexusStringsEn extends NexusStrings {
       'in a folder without one it does nothing.';
   @override
   String get hooksRequirePlan => 'Nothing gets written without a signed plan';
+  @override
+  String get hooksBrakePr => 'No PR over a gate that does not cover it';
+  @override
+  String get hooksBrakePrWhat =>
+      'Denies «gh pr create» if the gate has not run, came back red, or passed over an '
+      'earlier tree. The PR only: a push stays on a branch, a PR enters someone '
+      "else's queue. The repo's «.nexus-pruebas» turns it on.";
   @override
   String get hooksRequirePlanWhat =>
       'Denies the edit while the folder has no signed, valid plan. The gavel in '

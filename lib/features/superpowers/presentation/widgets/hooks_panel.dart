@@ -71,10 +71,12 @@ class _HooksPanelState extends ConsumerState<HooksPanel> {
           _GanchoRow(
             titulo: switch (gancho.id) {
               'inyectar_reglas' => strings.hooksInjectRules,
+              'frenar_publicacion' => strings.hooksBrakePr,
               _ => strings.hooksRequirePlan,
             },
             explicacion: switch (gancho.id) {
               'inyectar_reglas' => strings.hooksInjectRulesWhat,
+              'frenar_publicacion' => strings.hooksBrakePrWhat,
               _ => strings.hooksRequirePlanWhat,
             },
             estado: estados[gancho.id] ?? EstadoDelGancho.ausente,

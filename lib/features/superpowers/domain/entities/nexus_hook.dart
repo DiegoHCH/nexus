@@ -62,6 +62,17 @@ class NexusHook {
       event: 'PreToolUse',
       matcher: 'Edit|Write|MultiEdit|NotebookEdit',
     ),
+    NexusHook(
+      id: 'frenar_publicacion',
+      event: 'PreToolUse',
+      // Sobre `Bash` y no sobre las herramientas de edición: lo que hay que mirar es un
+      // comando, y el CLI abre un PR corriendo `gh`.
+      matcher: 'Bash',
+      // Más que los otros porque este pregunta a git por el árbol entero, y en un repo
+      // grande un `stash create` no es instantáneo. Diez segundos serían un gancho que
+      // se rinde justo donde más falta hace.
+      timeout: 30,
+    ),
   ];
 
   static NexusHook? porId(String id) =>

@@ -25,6 +25,27 @@ enum ResultadoDelGate {
   bool get corrio => this == verde || this == rojo;
 }
 
+/// El permiso escrito para publicar con el gate caducado.
+///
+/// **Es la única llave que abre el freno del PR, y deja constancia.** No sirve para un
+/// gate que no se ha corrido —ahí no hay nada que justificar, hay algo que hacer— ni para
+/// uno en rojo, que no es una caducidad sino una respuesta.
+///
+/// Y caduca con el árbol, igual que el verde: si vale para siempre, escribirlo una vez
+/// deja el freno abierto para el resto de la tarea.
+@immutable
+class PublicarIgual {
+  const PublicarIgual({
+    required this.motivo,
+    required this.huella,
+    this.cuando,
+  });
+
+  final String motivo;
+  final String? huella;
+  final DateTime? cuando;
+}
+
 /// El gate de una carpeta en una rama: qué comando es, cómo salió y sobre qué árbol.
 ///
 /// **Verde es un número, no una afirmación.** Lo único que pone esto en verde es el código
@@ -41,6 +62,7 @@ class GateDelRepo {
     this.huella,
     this.salida,
     this.aviso,
+    this.aunque,
   });
 
   final String carpeta;
@@ -69,6 +91,9 @@ class GateDelRepo {
   /// aparte porque hay que leerlo justo donde se decide correrlo.
   final String? aviso;
 
+  /// El motivo escrito para publicar sin volver a correrlo, si lo hay.
+  final PublicarIgual? aunque;
+
   /// Si lo verde cubre el árbol que hay ahora mismo.
   ///
   /// Con la huella desconocida se responde que **no**: no saber si cubre y saber que no
@@ -87,6 +112,8 @@ class GateDelRepo {
     String? huella,
     String? salida,
     String? aviso,
+    PublicarIgual? aunque,
+    bool sinAunque = false,
   }) => GateDelRepo(
     carpeta: carpeta,
     rama: rama,
@@ -96,6 +123,7 @@ class GateDelRepo {
     huella: huella ?? this.huella,
     salida: salida ?? this.salida,
     aviso: aviso ?? this.aviso,
+    aunque: sinAunque ? null : (aunque ?? this.aunque),
   );
 }
 
@@ -188,7 +216,46 @@ class GateDelRepoDataSource {
       },
       huella: suya['huella'] as String?,
       salida: suya['salida'] as String?,
+      aunque: switch (suya['aunque']) {
+        final Map a when (a['motivo'] as String?)?.trim().isNotEmpty ?? false =>
+          PublicarIgual(
+            motivo: (a['motivo'] as String).trim(),
+            huella: a['huella'] as String?,
+            cuando: switch (a['cuando']) {
+              final num s => DateTime.fromMillisecondsSinceEpoch(
+                (s * 1000).round(),
+                isUtc: true,
+              ),
+              _ => null,
+            },
+          ),
+        _ => null,
+      },
     );
+  }
+
+  /// Deja escrito por qué se publica sin volver a correr el gate.
+  ///
+  /// Se ata a la huella del momento porque si no, escribirlo una vez dejaría el freno
+  /// abierto para el resto de la tarea — y entonces la justificación no justifica nada
+  /// concreto, solo desactiva la puerta.
+  Future<GateDelRepo> publicarIgual(
+    String configDir,
+    GateDelRepo gate, {
+    required String motivo,
+    required String? huella,
+  }) async {
+    final limpio = motivo.trim();
+    if (limpio.isEmpty) return gate;
+    final conMotivo = gate.copyWith(
+      aunque: PublicarIgual(
+        motivo: limpio,
+        huella: huella,
+        cuando: DateTime.now().toUtc(),
+      ),
+    );
+    await guardar(configDir, conMotivo);
+    return conMotivo;
   }
 
   /// Corre el gate y devuelve cómo quedó, ya guardado.
@@ -230,6 +297,9 @@ class GateDelRepoDataSource {
 
     final texto = salida.toString();
     final resultado = gate.copyWith(
+      // Una medición nueva deja sin sentido la justificación de la anterior: se va con
+      // ella en vez de quedarse esperando a coincidir otra vez con el árbol.
+      sinAunque: true,
       resultado: codigo == 0 ? ResultadoDelGate.verde : ResultadoDelGate.rojo,
       cuando: DateTime.now().toUtc(),
       huella: huella,
@@ -267,6 +337,13 @@ class GateDelRepoDataSource {
           'cuando': gate.cuando!.millisecondsSinceEpoch ~/ 1000,
         if (gate.huella != null) 'huella': gate.huella,
         if (gate.salida != null) 'salida': gate.salida,
+        if (gate.aunque case final aunque?)
+          'aunque': {
+            'motivo': aunque.motivo,
+            if (aunque.huella != null) 'huella': aunque.huella,
+            if (aunque.cuando != null)
+              'cuando': aunque.cuando!.millisecondsSinceEpoch ~/ 1000,
+          },
       };
     }
 

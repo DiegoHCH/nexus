@@ -1,5 +1,7 @@
+import 'dart:convert';
 import 'dart:io';
 
+import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 
@@ -126,6 +128,99 @@ class GitDataSource {
 
     if (diff.isEmpty && nuevos.isEmpty) return null;
     return GitChanges(diff: diff, newFiles: nuevos);
+  }
+
+  /// Una huella del árbol **completo y estable**, para poder decir si una corrida del
+  /// gate sigue cubriendo lo que hay.
+  ///
+  /// Dos cosas la hacen distinta de [snapshot], y las dos salieron de una prueba:
+  ///
+  /// **No usa `git stash create`.** Ese comando fabrica un commit, y el hash de un commit
+  /// lleva la hora dentro: con el árbol sucio, llamarlo dos veces da dos valores para el
+  /// mismo código. Como base de un diff da igual —se toma una vez— pero como huella para
+  /// comparar después es justo lo contrario de lo que hace falta: el verde caducaría solo,
+  /// al segundo siguiente, sin que nadie hubiera tocado nada.
+  ///
+  /// **Incluye lo que git todavía no sigue.** Un archivo nuevo sin añadir no sale en
+  /// ningún diff, y escribir archivos nuevos es justo lo que hace un asistente: sin esto,
+  /// el verde cubría código que el gate no vio nunca.
+  ///
+  /// Así que se mezclan tres cosas deterministas: el commit de `HEAD`, el diff contra él
+  /// —con `--binary`, para que un cambio en un asset también cuente— y el hash del
+  /// contenido de cada archivo sin seguir.
+  ///
+  /// **El hook que frena el PR calcula esto mismo en Python** y no comparten código. La
+  /// construcción está fijada al byte a propósito, y hay una prueba que corre los dos
+  /// lados sobre el mismo repositorio: si se separan, el freno deniega para siempre sin
+  /// explicar por qué.
+  Future<String?> huellaDelArbol(String folderPath) async {
+    final cabeza = await _run(folderPath, ['rev-parse', 'HEAD']);
+    // Sin repositorio no hay nada que comparar, y decirlo con un nulo es lo que hace que
+    // arriba no se afirme que un verde cubre algo.
+    if (await _run(folderPath, ['rev-parse', '--show-toplevel']) == null) {
+      return null;
+    }
+
+    final diff =
+        await _run(folderPath, [
+          'diff',
+          'HEAD',
+          '--binary',
+          '--no-color',
+          '--no-ext-diff',
+        ]) ??
+        '';
+
+    final sinSeguir =
+        (await _run(folderPath, [
+                  'ls-files',
+                  '--others',
+                  '--exclude-standard',
+                ]) ??
+                '')
+            .split('\n')
+            .where((linea) => linea.isNotEmpty)
+            .toList();
+
+    final material = StringBuffer('${cabeza ?? ''}\n$diff');
+    if (sinSeguir.isNotEmpty) {
+      // Todos de una vez: un proceso por archivo en un repo con `build/` sin ignorar
+      // costaría segundos en cada pulsación.
+      final hashes = await _conEntrada(folderPath, [
+        'hash-object',
+        '--stdin-paths',
+      ], '${sinSeguir.join('\n')}\n');
+      final lista = (hashes ?? '').split('\n');
+      for (var i = 0; i < sinSeguir.length; i++) {
+        material.write('\n${sinSeguir[i]}:${i < lista.length ? lista[i] : ''}');
+      }
+    }
+
+    return sha1.convert(utf8.encode(material.toString())).toString();
+  }
+
+  /// Un `git` al que hay que darle algo por la entrada.
+  Future<String?> _conEntrada(
+    String folderPath,
+    List<String> arguments,
+    String entrada,
+  ) async {
+    try {
+      final proceso = await Process.start('git', [
+        '-C',
+        folderPath,
+        ...arguments,
+      ], environment: ClaudeEnvironment.forTools());
+      proceso.stdin.write(entrada);
+      await proceso.stdin.close();
+      final salida = await proceso.stdout.transform(utf8.decoder).join();
+      // La salida se consume antes del código: al revés, un `git` que escriba más de lo
+      // que cabe en el búfer se queda esperando y esto no vuelve nunca.
+      final codigo = await proceso.exitCode;
+      return codigo == 0 ? salida.trim() : null;
+    } on ProcessException {
+      return null;
+    }
   }
 
   Future<String?> _run(String folderPath, List<String> arguments) async {
