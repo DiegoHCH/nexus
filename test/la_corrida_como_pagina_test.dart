@@ -207,4 +207,41 @@ void main() {
     expect(html, contains('>1<'));
     expect(html, contains('title="línea 34"'));
   });
+
+  test('el indicador de un paso es un círculo, no una astilla', () {
+    // A un `span` inline no se le aplican `width` ni `height`: sin
+    // `inline-block`, el círculo del paso en curso se veía como una barra
+    // vertical. En la etiqueta de arriba salía bien porque allí es hijo de un
+    // `inline-flex`, así que el fallo solo aparecía en la lista.
+    final html = LaCorridaComoHtml.escribe(
+      flow: 'login',
+      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
+      estados: const [EstadoDePaso.enCurso],
+      lineas: const [],
+      terminados: 0,
+      viva: true,
+      fallo: false,
+    );
+
+    expect(html, contains('.gira{display:inline-block'));
+  });
+
+  test('el paso actual se marca con el fondo y la letra no se apaga', () {
+    // Un gris sobre el fondo oscuro de la ventana cae en el mismo rango de tono
+    // que el resto: no se distinguía dónde iba la prueba. La señal es el fondo
+    // con acento, y el texto se queda en tinta plena en todos los estados.
+    final html = LaCorridaComoHtml.escribe(
+      flow: 'login',
+      pasos: [PasoDelFlow(linea: 1, texto: 'uno')],
+      estados: const [EstadoDePaso.enCurso],
+      lineas: const [],
+      terminados: 0,
+      viva: true,
+      fallo: false,
+    );
+
+    expect(html, contains('li.curso{background:color-mix(in srgb,var(--acento)'));
+    expect(html, contains('.texto{white-space:pre-wrap;word-break:break-word;color:var(--ink)}'));
+    expect(html, isNot(contains('.texto{color:var(--faint)}')));
+  });
 }

@@ -54,14 +54,13 @@ abstract final class LaCorridaComoHtml {
 <style>
   :root{
     --bg:#0b0d10; --panel:#111419; --ink:#e8eaee; --faint:#6e7683; --line:#22262e;
-    --ok:#6fd39b; --err:#f08a8a; --acento:#7aa0ff; --fila:#151a21;
+    --ok:#6fd39b; --err:#f08a8a; --acento:#7aa0ff;
     --mono:"Geist Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
     --sans:"Instrument Sans",-apple-system,BlinkMacSystemFont,sans-serif;
   }
   @media (prefers-color-scheme:light){
     :root{ --bg:#f3f2f0; --panel:#fff; --ink:#16181d; --faint:#8b91a0;
-           --line:#e4e2dd; --ok:#1c7a4a; --err:#b02a2a; --acento:#2f5bd7;
-           --fila:#f6f5f3; }
+           --line:#e4e2dd; --ok:#1c7a4a; --err:#b02a2a; --acento:#2f5bd7; }
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:var(--mono);font-size:12.5px;
@@ -81,8 +80,15 @@ abstract final class LaCorridaComoHtml {
   .chapa.bien{color:var(--ok);background:color-mix(in srgb,var(--ok) 14%,transparent)}
   .chapa.mal{color:var(--err);background:color-mix(in srgb,var(--err) 14%,transparent)}
 
-  /* El giro, en CSS: la página no lleva JavaScript. */
-  .gira{width:10px;height:10px;border-radius:50%;flex:none;
+  /* El giro, en CSS: la página no lleva JavaScript.
+
+     `display:inline-block` es obligatorio y no decorativo: a un `span` inline no
+     se le aplican `width` ni `height`, así que el círculo se quedaba en una
+     astilla vertical —se veía como una barra— en la marca de cada paso. En la
+     etiqueta de arriba sí salía redondo, porque ahí es hijo de un `inline-flex`
+     y se convierte en item. El mismo HTML pintado de dos formas distintas según
+     el padre: por eso el arreglo va en la clase y no en cada sitio. */
+  .gira{display:inline-block;width:10px;height:10px;border-radius:50%;flex:none;
         border:1.5px solid color-mix(in srgb,currentColor 30%,transparent);
         border-top-color:currentColor;animation:vuelta .7s linear infinite}
   @keyframes vuelta{to{transform:rotate(360deg)}}
@@ -95,19 +101,25 @@ abstract final class LaCorridaComoHtml {
 
   ol{list-style:none;padding:6px 0;margin:0}
   li{display:flex;gap:8px;padding:2px 14px;align-items:baseline}
-  /* La fila en curso se sombrea: dice dónde va sin tener que buscar el símbolo. */
-  li.curso{background:var(--fila)}
+  /* **La fila en curso se marca con el acento de fondo, no con un gris.** Un gris
+     sobre un fondo oscuro queda dentro del mismo rango de tono que el resto y no
+     se distingue: había que buscar el símbolo para saber por dónde iba. Con el
+     acento detrás, el paso actual se ve de un vistazo y sin leer nada.
+
+     Y por eso mismo **la letra no se apaga nunca**: el paso pendiente se dice con
+     su símbolo —el punto— y con el fondo, no oscureciendo el texto. Texto gris
+     sobre este fondo se lee mal y compite con la única señal que importa. */
+  li.curso{background:color-mix(in srgb,var(--acento) 22%,transparent)}
   .marca{flex:none;width:12px;text-align:center;line-height:1.6}
   .num{flex:none;color:var(--faint);min-width:22px;text-align:right}
   .guion{flex:none;color:var(--line)}
-  .texto{white-space:pre-wrap;word-break:break-word}
-  li.espera .texto{color:var(--faint)}
+  .texto{white-space:pre-wrap;word-break:break-word;color:var(--ink)}
   li.hecho .marca{color:var(--ok)}
   li.fallo .marca{color:var(--err)}
   li.espera .marca{color:var(--line)}
   .punto{display:inline-block;width:5px;height:5px;border-radius:50%;
          background:currentColor;vertical-align:middle}
-  .detalle{color:var(--faint)}
+  .detalle{color:var(--ink)}
 
   h2{font-size:10px;letter-spacing:.1em;text-transform:uppercase;
      color:var(--faint);margin:14px 14px 4px;font-family:var(--sans)}
