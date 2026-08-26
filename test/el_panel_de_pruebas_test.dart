@@ -7,6 +7,7 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/e2e/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
@@ -158,6 +159,10 @@ class _EnMarchaFija extends PruebaEnMarchaController {
   PruebaEnMarcha? build() => _valor;
 }
 
+/// Un paso cualquiera. El número no importa en estas pruebas: lo que se mira es
+/// la hoja, y los números tienen su propia prueba en el lector.
+PasoDelFlow _paso(String texto) => PasoDelFlow(linea: 1, texto: texto);
+
 void main() {
   const strings = NexusStringsEs();
 
@@ -191,7 +196,7 @@ void main() {
       // driver.
       await _abrir(
         tester,
-        enMarcha: const PruebaEnMarcha(flow: 'login', pasos: ['launchApp']),
+        enMarcha: PruebaEnMarcha(flow: 'login', pasos: [_paso('launchApp')]),
       );
 
       final boton = tester.widget<TextButton>(
@@ -332,9 +337,9 @@ void main() {
       // con una lista que no cambia la dejaba en un rincón.
       await _abrir(
         tester,
-        enMarcha: const PruebaEnMarcha(
+        enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: ['launchApp', 'tapOn: x'],
+          pasos: [_paso('launchApp'), _paso('tapOn: x')],
           terminados: 1,
         ),
       );
@@ -369,9 +374,9 @@ void main() {
       // dudar de cuál es la de verdad.
       await _abrir(
         tester,
-        enMarcha: const PruebaEnMarcha(
+        enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: ['launchApp'],
+          pasos: [_paso('launchApp')],
           terminados: 1,
           viva: false,
         ),
@@ -384,9 +389,9 @@ void main() {
     testWidgets('mientras corre sí se avisa arriba', (tester) async {
       await _abrir(
         tester,
-        enMarcha: const PruebaEnMarcha(
+        enMarcha: PruebaEnMarcha(
           flow: 'login',
-          pasos: ['launchApp'],
+          pasos: [_paso('launchApp')],
           terminados: 0,
         ),
       );

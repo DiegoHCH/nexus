@@ -35,10 +35,10 @@ env:
       final pasos = PasosDeUnaPrueba.leer(flow);
 
       expect(pasos.length, 5);
-      expect(pasos.first, 'launchApp');
-      expect(pasos.last, 'takeScreenshot: final');
+      expect(pasos.first.texto, 'launchApp');
+      expect(pasos.last.texto, 'takeScreenshot: final');
       // `appId` y `env` van antes del `---` y no son ejecutables.
-      expect(pasos.join(' '), isNot(contains('appId')));
+      expect(pasos.map((p) => p.texto).join(' '), isNot(contains('appId')));
     });
 
     test('un guion indentado es un argumento, no otro paso', () {
@@ -52,7 +52,11 @@ appId: x
     text: "hola"
     optional: false
 ''';
-      expect(PasosDeUnaPrueba.leer(conLista).length, 2);
+      final leidos = PasosDeUnaPrueba.leer(conLista);
+      expect(leidos.length, 2);
+      // Y lo indentado se queda **con su paso**: un `assertVisible:` a secas no
+      // dice nada, y el `text:` de debajo es todo el contenido.
+      expect(leidos.last.detalle, ['    text: "hola"', '    optional: false']);
     });
 
     test('sin separador no hay pasos', () {
@@ -187,6 +191,22 @@ appId: x
     test('un flow sin appId no revienta', () {
       expect(PasosDeUnaPrueba.appIdDe('---\n- launchApp'), isNull);
       expect(PasosDeUnaPrueba.appIdDe(''), isNull);
+    });
+  });
+
+  group('el número de línea de cada paso', () {
+    test('es el del archivo, para poder ir a buscarlo', () {
+      // Cuando algo falla, lo que se busca es la línea — no «el tercero».
+      final pasos = PasosDeUnaPrueba.leer(flow);
+
+      // El `---` está en la línea 7 del fixture, así que el primer paso es la 8.
+      expect(pasos.first.linea, 8);
+      expect(pasos.first.texto, 'launchApp');
+      // Y los números no son consecutivos: entre pasos hay comentarios y huecos.
+      expect(
+        pasos.map((p) => p.linea).toList(),
+        isNot([8, 9, 10, 11, 12]),
+      );
     });
   });
 }

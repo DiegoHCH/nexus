@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
@@ -77,8 +78,9 @@ class PruebaEnMarcha {
 
   final String flow;
 
-  /// Los pasos del YAML, para poder pintarlos con su estado.
-  final List<String> pasos;
+  /// Los pasos del YAML, con su número y sus argumentos, para poder pintarlos
+  /// como están escritos.
+  final List<PasoDelFlow> pasos;
 
   final int terminados;
 
@@ -116,7 +118,21 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   _contexto;
 
   @override
-  PruebaEnMarcha? build() => null;
+  PruebaEnMarcha? build() {
+    // **El botón de detener de la ventana llega por aquí.** La página es estática
+    // y su botón un enlace `nexus://parar`; el visor lo intercepta y lo reenvía a
+    // este canal. Se escucha una sola vez, al construirse el controlador.
+    _visor.setMethodCallHandler((llamada) async {
+      if (llamada.method != 'desdeLaPagina') return null;
+      final que = (llamada.arguments as Map?)?['que'];
+      if (que == 'parar') parar();
+      return null;
+    });
+    return null;
+  }
+
+  /// El mismo canal del visor: es su ventana la que habla.
+  static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
 
   /// Lanza [prueba] en [deviceId]. `null` si arrancó.
   Future<String?> lanzar({
@@ -271,7 +287,12 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             // **Los nombres y no solo cuántos.** Sin ellos, el informe de una
             // corrida guardada no tenía qué pintar y solo podía enseñar la salida
             // cruda: los pasos con su ✓ son justo lo que se va a mirar.
-            'pasosDelFlow': actual.pasos,
+            // Con su número y su detalle: el informe pinta lo mismo que la vista
+            // en vivo, y para eso necesita el mismo dato y no un resumen.
+            'pasosDelFlow': [
+              for (final p in actual.pasos)
+                {'n': p.linea, 't': p.texto, 'd': p.detalle},
+            ],
             'terminados': actual.terminados,
             'fallo': actual.fallo,
             'dispositivo': ctx.dispositivo,

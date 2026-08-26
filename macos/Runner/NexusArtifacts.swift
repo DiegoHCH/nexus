@@ -21,6 +21,13 @@ final class NexusArtifacts: NSObject {
   /// delante, y con la recarga automática esa ventana ya está al día.
   private static var open: [String: Viewer] = [:]
 
+  /// El canal, guardado para poder hablar **hacia** Flutter.
+  ///
+  /// Hasta ahora este canal solo iba en un sentido —la app pide abrir, aquí se
+  /// abre—. La página de una prueba corriendo necesita el de vuelta: su botón de
+  /// detener es un enlace, y quien sabe parar el proceso es Dart.
+  private static var channel: FlutterMethodChannel?
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "com.katanalabs.nexus/artifacts",
@@ -50,7 +57,18 @@ final class NexusArtifacts: NSObject {
         result(FlutterMethodNotImplemented)
       }
     }
+    self.channel = channel
     log.info("canal de artefactos registrado")
+  }
+
+  /// Una página pidió algo. Se le pasa a Flutter tal cual.
+  ///
+  /// **Solo el nombre de lo pedido, nada de la URL.** Una página es contenido y
+  /// no una fuente de confianza: reenviar su URL entera invitaría a que mañana
+  /// alguien la usara para decidir algo con lo que venga dentro.
+  static func pidieron(_ que: String) {
+    log.info("la página pidió \(que, privacy: .public)")
+    channel?.invokeMethod("desdeLaPagina", arguments: ["que": que])
   }
 
   private static func show(path: String, width: Double? = nil, height: Double? = nil) {
@@ -226,6 +244,14 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
     decidePolicyFor navigationAction: WKNavigationAction,
     decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
   ) {
+    // Lo nuestro se queda dentro: una página de Nexus puede pedirle algo a la
+    // app, y eso no es navegar. Antes que el reenvío al navegador, porque
+    // `nexus://parar` no es una dirección de internet.
+    if let target = navigationAction.request.url, target.scheme == "nexus" {
+      NexusArtifacts.pidieron(target.host ?? "")
+      decisionHandler(.cancel)
+      return
+    }
     if let target = navigationAction.request.url, !target.isFileURL {
       NSWorkspace.shared.open(target)
       decisionHandler(.cancel)

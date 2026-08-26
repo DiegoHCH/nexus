@@ -334,9 +334,26 @@ class E2eDataSource {
     final flow = '${leido['flow'] ?? ''}';
     final terminados = (leido['terminados'] as num?)?.toInt() ?? 0;
     final fallo = leido['fallo'] == true;
-    final pasos = [
-      for (final p in (leido['pasosDelFlow'] as List?) ?? const []) '$p',
-    ];
+    // **Dos formatos, porque los registros viejos existen.** Antes se guardaba
+    // una lista de cadenas; ahora, objetos con su número de línea y su detalle. Un
+    // registro viejo se lee igual y se queda sin número: enseñarlo a medias es
+    // mejor que no enseñarlo.
+    final pasos = <PasoDelFlow>[];
+    var n = 0;
+    for (final crudo in (leido['pasosDelFlow'] as List?) ?? const []) {
+      n++;
+      if (crudo is Map) {
+        pasos.add(
+          PasoDelFlow(
+            linea: (crudo['n'] as num?)?.toInt() ?? n,
+            texto: '${crudo['t'] ?? ''}',
+            detalle: [for (final d in (crudo['d'] as List?) ?? const []) '$d'],
+          ),
+        );
+      } else {
+        pasos.add(PasoDelFlow(linea: n, texto: '$crudo'));
+      }
+    }
     final total = (leido['pasos'] as num?)?.toInt() ?? pasos.length;
 
     final html = LaCorridaComoHtml.escribe(
