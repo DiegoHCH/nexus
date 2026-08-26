@@ -19,7 +19,16 @@ import 'package:nexus/features/emulators/presentation/providers/emuladores_provi
 
 /// El panel de pruebas: lanzar, ver correr, y el historial.
 class _Maquina extends EmuladoresDataSource {
-  const _Maquina({this.encendidos = 1, this.conIphone = false});
+  const _Maquina({
+    this.encendidos = 1,
+    this.conIphone = false,
+    this.demora = Duration.zero,
+  });
+
+  /// Lo que tarda la búsqueda. **Hace falta que se pueda tardar**: buscar los
+  /// dispositivos lanza dos procesos, y el estado intermedio —que existía y no se
+  /// enseñaba— es justo el que se reportó.
+  final Duration demora;
 
   /// Cuántos emuladores hay arriba. Con dos hay que elegir; con uno, no.
   final int encendidos;
@@ -29,7 +38,12 @@ class _Maquina extends EmuladoresDataSource {
   final bool conIphone;
 
   @override
-  Future<({List<Emulador> emuladores, String? error})> listar() async => (
+  Future<({List<Emulador> emuladores, String? error})> listar() async {
+    if (demora > Duration.zero) await Future<void>.delayed(demora);
+    return _lista();
+  }
+
+  ({List<Emulador> emuladores, String? error}) _lista() => (
     emuladores: [
       for (var i = 0; i < 2; i++)
         Emulador(
@@ -45,7 +59,12 @@ class _Maquina extends EmuladoresDataSource {
   );
 
   @override
-  Future<List<DispositivoConectado>> listarDispositivos() async => conIphone
+  Future<List<DispositivoConectado>> listarDispositivos() async {
+    if (demora > Duration.zero) await Future<void>.delayed(demora);
+    return _conectados;
+  }
+
+  List<DispositivoConectado> get _conectados => conIphone
       ? const [
           DispositivoConectado(
             id: '00008030-000C390C1AC0C02E',
@@ -169,6 +188,7 @@ Future<void> _abrir(
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
   bool conIphone = false,
+  Duration demora = Duration.zero,
   List<String>? borrados,
   bool? instalada,
   bool? enGit,
@@ -179,7 +199,11 @@ Future<void> _abrir(
     ProviderScope(
       overrides: [
         emuladoresDataSourceProvider.overrideWithValue(
-          _Maquina(encendidos: encendidos, conIphone: conIphone),
+          _Maquina(
+            encendidos: encendidos,
+            conIphone: conIphone,
+            demora: demora,
+          ),
         ),
         e2eDataSourceProvider.overrideWithValue(
           _Borrados(
@@ -806,6 +830,47 @@ void main() {
       await _tocarYEsperar(tester, find.text(strings.e2eRun));
 
       expect(lanzados, ['login@emulator-5550']);
+    });
+  });
+
+  group('mientras se buscan los dispositivos', () {
+    testWidgets('se dice que se está buscando', (tester) async {
+      // Lo reportado: al abrir el panel no salía el selector de dónde correr. La
+      // causa era que «todavía buscando» y «no hay ninguno» eran el mismo estado.
+      await _abrir(tester, encendidos: 2, demora: const Duration(seconds: 1));
+
+      expect(find.text(strings.e2eSearchingDevices), findsOneWidget);
+
+      // Y al acabar la búsqueda, el selector aparece y el aviso se va.
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eSearchingDevices), findsNothing);
+      expect(find.byType(SelectorCompacto), findsOneWidget);
+    });
+
+    testWidgets('no se ofrece arrancar un emulador mientras no se sabe', (
+      tester,
+    ) async {
+      // Con uno ya encendido, ese botón es una pregunta absurda que además
+      // desaparece medio segundo después.
+      await _abrir(tester, demora: const Duration(seconds: 1));
+
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+    });
+
+    testWidgets('sin ninguno, al acabar sí se ofrece', (tester) async {
+      await _abrir(
+        tester,
+        encendidos: 0,
+        demora: const Duration(seconds: 1),
+      );
+
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eStartDevice), findsOneWidget);
     });
   });
 }

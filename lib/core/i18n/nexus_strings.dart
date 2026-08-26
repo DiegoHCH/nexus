@@ -492,6 +492,7 @@ abstract class NexusStrings {
   String get e2eDriverBlocked;
   String get e2eNoTapPermission;
   String get e2eAppMissing;
+  String get e2eSearchingDevices;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1519,6 +1520,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eAppMissing =>
       'La app no estaba en el dispositivo. Maestro no la instala: córrela primero.';
+  @override
+  String get e2eSearchingDevices => 'Buscando dispositivos…';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
@@ -2855,6 +2858,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eAppMissing =>
       'The app was not on the device. Maestro does not install it: run it first.';
+  @override
+  String get e2eSearchingDevices => 'Looking for devices…';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override

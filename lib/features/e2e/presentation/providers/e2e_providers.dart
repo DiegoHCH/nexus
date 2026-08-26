@@ -148,6 +148,20 @@ final dondeCorrerProvider = Provider<List<({String id, String nombre})>>((ref) {
   ];
 });
 
+/// Si todavía se están buscando.
+///
+/// **No es lo mismo que no haya ninguno**, y [dondeCorrerProvider] no puede
+/// distinguirlo: devuelve una lista, y una lista vacía dice «no hay». Colapsar las
+/// dos cosas se veía así al abrir el panel, con un emulador encendido: salía el
+/// botón de arrancar uno, no salía el selector de dónde correr, y si tocabas Correr
+/// en ese medio segundo se te contestaba que hacía falta un dispositivo encendido.
+/// Las tres cosas falsas, y las tres por no tener este booleano.
+final buscandoDispositivosProvider = Provider<bool>(
+  (ref) =>
+      !ref.watch(emuladoresProvider).hasValue ||
+      !ref.watch(dispositivosProvider).hasValue,
+);
+
 /// El que eligió el usuario, si eligió.
 class DispositivoElegido extends Notifier<String?> {
   @override

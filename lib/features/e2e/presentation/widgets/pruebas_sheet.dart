@@ -166,6 +166,22 @@ final _apretado = TextButton.styleFrom(
 /// `--device` falla, y sin la app instalada Maestro falla en el primer `launchApp`
 /// **saliendo con código 0**, un fallo disfrazado de éxito. Copiarlas en cada sitio
 /// era dejar a uno de los dos sin el aviso, y sin enterarse hasta que fallara ahí.
+/// Dónde correr, **esperando a que la búsqueda acabe**.
+///
+/// Leer el elegido sin esperar es lo que hacía que tocar Correr recién abierto el
+/// panel contestara «hace falta un dispositivo encendido» teniendo uno. La búsqueda
+/// tarda un instante —`flutter emulators` y `adb devices` son procesos— y en ese
+/// instante la respuesta correcta es esperar, no negar.
+Future<String?> _dondeCorrer(WidgetRef ref) async {
+  try {
+    await ref.read(emuladoresProvider.future);
+    await ref.read(dispositivosProvider.future);
+  } on Object {
+    // Si una de las dos vías falla, se sigue: puede haber dispositivo por la otra.
+  }
+  return ref.read(elDispositivoProvider);
+}
+
 Future<String?> _loQueFaltaParaCorrer(
   WidgetRef ref,
   NexusStrings strings, {
@@ -274,7 +290,8 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   }
 
   Future<void> _lanzar(Prueba prueba) async {
-    final donde = ref.read(elDispositivoProvider);
+    final donde = await _dondeCorrer(ref);
+    if (!mounted) return;
     final falta = await _loQueFaltaParaCorrer(
       ref,
       context.strings,
@@ -372,9 +389,33 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           )
         else ...[
+          // **Buscando no es lo mismo que no haber.** Mientras se busca no se
+          // ofrece arrancar un emulador: con uno ya encendido, ese botón es una
+          // pregunta absurda que además desaparece medio segundo después.
+          if (ref.watch(buscandoDispositivosProvider))
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Text(
+                    strings.e2eSearchingDevices,
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
+                  ),
+                ],
+              ),
+            )
           // **Sin nada encendido, se ofrece encenderlo** en vez de decir que
           // falta. Es lo único que separa «no puedo correr» de «dame 30 s».
-          if (dispositivos.isEmpty)
+          else if (dispositivos.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
               child: _arrancando
@@ -663,10 +704,12 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
     // **El mismo dispositivo, pero solo si sigue encendido.** Un `emulator-5554`
     // de hace tres días no es el mismo emulador, así que se comprueba contra lo
     // que hay ahora en vez de pasárselo a Maestro y esperar a que falle.
+    final elegido = await _dondeCorrer(ref);
+    if (!mounted) return;
     final hay = {for (final d in ref.read(dondeCorrerProvider)) d.id};
     final donde = hay.contains(corrida.dispositivo)
         ? corrida.dispositivo
-        : ref.read(elDispositivoProvider);
+        : elegido;
 
     final falta = await _loQueFaltaParaCorrer(
       ref,
