@@ -60,7 +60,10 @@ class PruebasSheet extends ConsumerWidget {
           // en marcha es su propia pantalla —ver [PruebaEnMarchaPage]— porque se
           // mira mientras avanza y compartir sitio con una lista que no cambia la
           // dejaba en un rincón. Aquí solo queda la puerta.
-          if (enMarcha != null) ...[
+          // **Solo mientras corre.** Al acabar, la corrida ya está en el
+          // historial de abajo con sus dos botones, y tenerla arriba además era
+          // enseñar lo mismo dos veces con acciones distintas en cada sitio.
+          if (enMarcha != null && enMarcha.viva) ...[
             _AvisoDeQueCorre(prueba: enMarcha),
             const SizedBox(height: NexusSpacing.s4),
           ],
@@ -525,6 +528,16 @@ class _FilaDeCorrida extends ConsumerWidget {
                 ),
               ],
             ),
+          ),
+          // **Ver y borrar.** Ver abre su informe en la misma ventana aparte que
+          // usa una corrida en marcha: la de una que ya acabó es la misma cosa
+          // quieta, y no había motivo para dos formas de mirar lo mismo.
+          TextButton(
+            style: _apretado,
+            onPressed: () => ref
+                .read(e2eDataSourceProvider)
+                .abreElInforme(corrida.carpeta),
+            child: Text(strings.e2eSee),
           ),
           TextButton(
             style: _apretado,

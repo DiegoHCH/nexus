@@ -111,6 +111,10 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   /// Si la ventana de esta corrida ya está abierta.
   var _ventanaAbierta = false;
 
+  /// Con qué se lanzó, para poder anotarlo al terminar.
+  ({String raiz, String perfil, String proyecto, String dispositivo, DateTime cuando})?
+  _contexto;
+
   @override
   PruebaEnMarcha? build() => null;
 
@@ -134,6 +138,13 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     // pasos de una versión que igual ya cambió.
     final yaml = await _leer(prueba.ruta);
     _ventanaAbierta = false;
+    _contexto = (
+      raiz: raiz,
+      perfil: perfil,
+      proyecto: proyecto,
+      dispositivo: deviceId,
+      cuando: DateTime.now(),
+    );
     state = PruebaEnMarcha(
       flow: prueba.nombre,
       pasos: PasosDeUnaPrueba.leer(yaml),
@@ -185,8 +196,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           fallo: actual.fallo || codigo != 0,
         );
         unawaited(_pinta());
-        // Y la lista de corridas ya tiene una más.
-        ref.invalidate(corridasDePruebaProvider);
+        unawaited(_dejaConstancia());
       }),
     );
     return null;
@@ -236,6 +246,38 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           primeraVez: !_ventanaAbierta,
         );
     _ventanaAbierta = true;
+  }
+
+  /// Deja constancia de lo que pasó, y refresca el historial.
+  ///
+  /// Se anota lo que Nexus leyó de la salida y no lo que escriba Maestro: su
+  /// carpeta del flow no siempre llega —medido— y sin esto una corrida que pasó
+  /// entera desaparecía del historial.
+  Future<void> _dejaConstancia() async {
+    final actual = state;
+    final ctx = _contexto;
+    if (actual == null || ctx == null) return;
+
+    await ref
+        .read(e2eDataSourceProvider)
+        .anotaLaCorrida(
+          raiz: ctx.raiz,
+          perfil: ctx.perfil,
+          proyecto: ctx.proyecto,
+          corrida: {
+            'flow': actual.flow,
+            'cuando': ctx.cuando.toIso8601String(),
+            'pasos': actual.pasos.length,
+            'terminados': actual.terminados,
+            'fallo': actual.fallo,
+            'dispositivo': ctx.dispositivo,
+            // La salida, acotada: lo que se lee cuando algo falla son las últimas.
+            'lineas': actual.lineas.length > 200
+                ? actual.lineas.sublist(actual.lineas.length - 200)
+                : actual.lineas,
+          },
+        );
+    ref.invalidate(corridasDePruebaProvider);
   }
 
   /// Volver a traer la ventana al frente, para el botón «Ver».

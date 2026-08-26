@@ -93,6 +93,50 @@ abstract final class LectorDeCorridas {
     );
   }
 
+  /// Un registro escrito por Nexus.
+  ///
+  /// **Formato nuestro y no el de Maestro.** Lleva lo que Nexus leyó de la salida
+  /// mientras la prueba corría, que es lo único de lo que se puede depender: la
+  /// carpeta del flow con su `commands.json` no siempre llega —medido— y sin esto
+  /// una corrida que pasó entera desaparecía del historial.
+  static CorridaDePrueba? leerRegistro(
+    String json, {
+    required String carpeta,
+    required String perfil,
+    required String proyecto,
+  }) {
+    final Object? leido;
+    try {
+      leido = jsonDecode(json);
+    } on FormatException {
+      return null;
+    }
+    if (leido is! Map) return null;
+
+    final cuando = DateTime.tryParse('${leido['cuando'] ?? ''}');
+    if (cuando == null) return null;
+
+    final pasos = (leido['pasos'] as num?)?.toInt() ?? 0;
+    final hechos = (leido['terminados'] as num?)?.toInt() ?? 0;
+    final fallo = leido['fallo'] == true;
+
+    return CorridaDePrueba(
+      carpeta: carpeta,
+      flow: '${leido['flow'] ?? ''}',
+      cuando: cuando,
+      comoAcabo: fallo
+          ? ComoAcabo.mal
+          : hechos >= pasos && pasos > 0
+          ? ComoAcabo.bien
+          : ComoAcabo.vayaUstedASaber,
+      perfil: perfil,
+      proyecto: proyecto,
+      dispositivo: leido['dispositivo'] as String?,
+      pasos: pasos,
+      pasosBien: fallo ? (hechos - 1).clamp(0, pasos) : hechos,
+    );
+  }
+
   /// La fecha que lleva el nombre de una carpeta de Maestro:
   /// `2026-08-25_163001`.
   ///

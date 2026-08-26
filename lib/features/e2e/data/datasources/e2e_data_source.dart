@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -6,6 +7,7 @@ import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/lector_de_corridas.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -47,11 +49,43 @@ class E2eDataSource {
     }
   }
 
-  /// Las corridas que lanzó Nexus, sacadas de su propio árbol.
+  /// Deja constancia de una corrida, en un archivo nuestro.
   ///
-  /// Sabe de qué perfil y de qué proyecto son **porque están donde las pusimos**,
-  /// sin interpretar nada. Es la misma técnica que la lista de documentos: se
-  /// entra solo donde se sabe qué hay.
+  /// **Existe porque no se puede depender de que Maestro escriba la suya.** Se
+  /// midió: dentro de la app, la carpeta del flow con su `commands.json` no
+  /// aparece —el log queda completo, 103 líneas idénticas a las de una corrida
+  /// que sí la escribe, y esa carpeta se crea después de la última línea, al
+  /// salir el proceso—. La misma llamada desde una shell y desde una prueba la
+  /// escribe siempre. No se dio con el motivo.
+  ///
+  /// Lo que sí se sabe con certeza es lo que pasó, porque Nexus lo ha leído paso
+  /// a paso de la salida mientras corría. Así que se anota aquí y el historial
+  /// deja de depender de un archivo ajeno que a veces no llega.
+  Future<void> anotaLaCorrida({
+    required String raiz,
+    required String perfil,
+    required String proyecto,
+    required Map<String, Object?> corrida,
+  }) async {
+    final dir = Directory(
+      '$raiz/$perfil/${DondeVivenLasCorridas.carpetaDe(proyecto)}/corridas',
+    );
+    try {
+      dir.createSync(recursive: true);
+      final cuando = corrida['cuando'] as String? ?? '';
+      File('${dir.path}/${cuando.replaceAll(':', '-')}.json')
+          .writeAsStringSync(jsonEncode(corrida));
+    } on FileSystemException {
+      // Sin poder anotar, la corrida ya pasó igual: se pierde del historial y no
+      // se pierde nada más.
+    }
+  }
+
+  /// Las corridas que lanzó Nexus, de los registros que dejó.
+  ///
+  /// **De nuestros archivos y no de los de Maestro**, por lo dicho en
+  /// [anotaLaCorrida]. El árbol sigue siendo el índice: el perfil y el proyecto
+  /// están en la ruta, sin interpretar nada.
   Future<List<CorridaDePrueba>> propias(String raiz) async {
     final base = Directory(raiz);
     if (!base.existsSync()) return const [];
@@ -59,23 +93,37 @@ class E2eDataSource {
     final corridas = <CorridaDePrueba>[];
     for (final perfil in _carpetas(base)) {
       for (final proyecto in _carpetas(perfil)) {
-        final donde = Directory(
-          '${proyecto.path}/${DondeVivenLasCorridas.loQueAnadeMaestro}',
+        final dir = Directory('${proyecto.path}/corridas');
+        if (!dir.existsSync()) continue;
+        final quien = DondeVivenLasCorridas.proyectoDe(
+          proyecto.path.split('/').last,
         );
-        for (final fecha in _carpetas(donde)) {
-          corridas.addAll(
-            _corridasEn(
-              fecha,
-              perfil: perfil.path.split('/').last,
-              proyecto: DondeVivenLasCorridas.proyectoDe(
-                proyecto.path.split('/').last,
-              ),
-            ),
-          );
+
+        for (final archivo in _archivosJson(dir)) {
+          if (LectorDeCorridas.leerRegistro(
+                archivo.readAsStringSync(),
+                carpeta: archivo.path,
+                perfil: perfil.path.split('/').last,
+                proyecto: quien,
+              )
+              case final corrida?) {
+            corridas.add(corrida);
+          }
         }
       }
     }
     return corridas;
+  }
+
+  List<File> _archivosJson(Directory dir) {
+    try {
+      return [
+        for (final e in dir.listSync(followLinks: false))
+          if (e is File && e.path.endsWith('.json')) e,
+      ];
+    } on FileSystemException {
+      return const [];
+    }
   }
 
   /// Las que lanzó cualquier otro, de la casa de Maestro.
@@ -264,6 +312,56 @@ class E2eDataSource {
 
   /// El mismo canal que el visor de documentos: es literalmente el mismo visor.
   static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
+
+  /// Abre el informe de una corrida que ya acabó, en la misma ventana aparte.
+  ///
+  /// Una corrida terminada es una en marcha quieta, así que se mira igual: se
+  /// escribe su página al lado de su registro y se abre el visor. No hacía falta
+  /// una segunda forma de enseñar lo mismo.
+  Future<void> abreElInforme(String registro) async {
+    final archivo = File(registro);
+    if (!archivo.existsSync()) return;
+
+    final Object? leido;
+    try {
+      leido = jsonDecode(archivo.readAsStringSync());
+    } on FormatException {
+      return;
+    }
+    if (leido is! Map) return;
+
+    final html = LaCorridaComoHtml.escribe(
+      flow: '${leido['flow'] ?? ''}',
+      // Del registro no salen las líneas del YAML, solo cuántas eran: se enseña
+      // la salida, que es lo que hay guardado y lo que se lee cuando algo falló.
+      pasos: const [],
+      estados: null,
+      lineas: [
+        for (final l in (leido['lineas'] as List?) ?? const []) '$l',
+      ],
+      terminados: (leido['terminados'] as num?)?.toInt() ?? 0,
+      viva: false,
+      fallo: leido['fallo'] == true,
+    );
+
+    final pagina = registro.replaceAll(RegExp(r'\.json$'), '.html');
+    try {
+      File(pagina).writeAsStringSync(html);
+    } on FileSystemException {
+      return;
+    }
+    try {
+      await _visor.invokeMethod<bool>('open', {
+        'path': pagina,
+        'width': 440.0,
+        'height': 900.0,
+      });
+    } on PlatformException {
+      return;
+    } on MissingPluginException {
+      return;
+    }
+  }
 
   /// Borra **la prueba**: su archivo `.yaml` del repo.
   ///

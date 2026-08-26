@@ -55,6 +55,9 @@ class _Borrados extends E2eDataSource {
   }) async => instalada;
 
   @override
+  Future<void> abreElInforme(String registro) async => borrados.add('ver:$registro');
+
+  @override
   Future<void> pintaLaCorrida({
     required String flow,
     required String html,
@@ -343,6 +346,56 @@ void main() {
     testWidgets('con uno encendido no se ofrece', (tester) async {
       await _abrir(tester);
       expect(find.text(strings.e2eStartDevice), findsNothing);
+    });
+  });
+
+  group('cuando la prueba acaba', () {
+    testWidgets('el aviso de arriba desaparece', (tester) async {
+      // **Lo reportado**: acabada, se veía arriba con «Ver» y abajo con «Borrar».
+      // Enseñar lo mismo dos veces con acciones distintas en cada sitio hace
+      // dudar de cuál es la de verdad.
+      await _abrir(
+        tester,
+        enMarcha: const PruebaEnMarcha(
+          flow: 'login',
+          pasos: ['launchApp'],
+          terminados: 1,
+          viva: false,
+        ),
+        corridas: [_corrida()],
+      );
+
+      expect(find.textContaining('login · 1/1'), findsNothing);
+    });
+
+    testWidgets('mientras corre sí se avisa arriba', (tester) async {
+      await _abrir(
+        tester,
+        enMarcha: const PruebaEnMarcha(
+          flow: 'login',
+          pasos: ['launchApp'],
+          terminados: 0,
+        ),
+      );
+      expect(find.textContaining('login · 0/1'), findsOneWidget);
+    });
+
+    testWidgets('la fila del historial tiene ver y borrar', (tester) async {
+      final borrados = <String>[];
+      await _abrir(
+        tester,
+        corridas: [_corrida(carpeta: '/donde/sea/login.json')],
+        borrados: borrados,
+      );
+
+      expect(find.text(strings.e2eSee), findsOneWidget);
+      expect(find.text(strings.e2eDelete), findsOneWidget);
+
+      // Ver abre su informe en la misma ventana aparte, no una segunda forma de
+      // enseñar lo mismo.
+      await tester.tap(find.text(strings.e2eSee));
+      await tester.pump();
+      expect(borrados, ['ver:/donde/sea/login.json']);
     });
   });
 }
