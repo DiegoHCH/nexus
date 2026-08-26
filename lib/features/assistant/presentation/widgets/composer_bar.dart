@@ -2,6 +2,7 @@ import 'package:desktop_drop/desktop_drop.dart';
 import 'package:flutter/material.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_chips.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/composer_menus.dart';
+import 'package:nexus/features/emulators/presentation/widgets/dispositivos_menu.dart';
 import 'package:nexus/features/assistant/presentation/widgets/composer/usage_menu.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -376,6 +377,12 @@ class _Controls extends ConsumerWidget {
             color: voiceActive ? colors.accent : colors.faint,
             icon: Icon(voiceActive ? Icons.mic : Icons.mic_none),
           ),
+        // **Los dispositivos, aquí y no solo en Ajustes.** Arrancar un emulador
+        // se hace a media faena; irse a Ajustes para eso es salirse de la
+        // conversación. Va junto al micrófono porque son la misma clase de cosa:
+        // herramientas de la sesión, no estado del proyecto —eso es la fila de
+        // arriba.
+        const DispositivosMenu(),
         const Spacer(),
         ModelMenu(folder: folder, meter: meter),
         const SizedBox(width: NexusSpacing.s3),
