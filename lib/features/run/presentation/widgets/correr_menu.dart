@@ -199,7 +199,8 @@ class _PanelState extends ConsumerState<_Panel> {
         ),
         const SizedBox(height: NexusSpacing.s3),
 
-        for (final corrida in corridas) _FilaDeCorrida(corrida: corrida),
+        for (final corrida in corridas)
+          _FilaDeCorrida(corrida: corrida, varias: corridas.length > 1),
         if (corridas.isNotEmpty) const SizedBox(height: NexusSpacing.s4),
 
         if (configs.isEmpty)
@@ -334,87 +335,182 @@ class _Elegir extends StatelessWidget {
 }
 
 /// Una app corriendo, con lo que se le puede pedir.
-class _FilaDeCorrida extends ConsumerWidget {
-  const _FilaDeCorrida({required this.corrida});
+///
+/// **La estructura viene de mirar la barra de La Oficina**, y no antes: se
+/// implementó primero por lo que tenía que mostrar, se enseñó, y lo que faltaba
+/// era exactamente lo que allí ya está resuelto. Dos cosas se traen de ahí:
+///
+/// - **El progreso tiene su propio sitio y no comparte línea con nada.** Metido
+///   detrás del nombre del dispositivo se corta: «Medium Phone API 36.1 · R…»,
+///   con la R de «Running Gradle task 'assembleCiDebug'…». Reportado tal cual:
+///   «no veo dónde dice lo de corriendo».
+/// - **El registro se abre desde aquí**, con un botón que se queda marcado. Se
+///   recogía y no se enseñaba en ningún sitio, que es tenerlo y no tenerlo.
+///
+/// Lo que **no** se trae es el interruptor de recarga automática. Allí tiene
+/// sentido; aquí quien guarda los archivos es Claude, a ráfagas de veinte
+/// ediciones por encargo, y eso es un bucle de recompilaciones. Sigue siendo una
+/// pregunta abierta y no una tarea.
+class _FilaDeCorrida extends ConsumerStatefulWidget {
+  const _FilaDeCorrida({required this.corrida, required this.varias});
 
   final Corrida corrida;
 
+  /// Si hay más de una corriendo. Cambia el registro: con dos, cada línea lleva
+  /// delante de qué dispositivo salió, o no hay forma de saber cuál falló.
+  final bool varias;
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FilaDeCorrida> createState() => _FilaDeCorridaState();
+}
+
+class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
+  var _verRegistro = false;
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
+    final corrida = widget.corrida;
     final controller = ref.read(corridasProvider.notifier);
 
-    // Lo que se lee debajo del nombre: si está compilando, **qué** compila; si no,
-    // en qué estado anda. El progreso pesa más porque es lo que cambia.
     final detalle = switch (corrida.estado) {
-      EstadoDeCorrida.arrancando =>
-        corrida.progreso ?? strings.runCompiling,
+      EstadoDeCorrida.arrancando => corrida.progreso ?? strings.runCompiling,
       EstadoDeCorrida.corriendo => strings.runRunning,
       EstadoDeCorrida.parando => strings.runStopping,
     };
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4),
-      child: Row(
-        children: [
-          Container(
-            width: 7,
-            height: 7,
-            margin: const EdgeInsets.only(right: NexusSpacing.s3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 7,
+              height: 7,
+              margin: const EdgeInsets.only(right: NexusSpacing.s3),
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: corrida.estado == EstadoDeCorrida.corriendo
+                    ? colors.ok
+                    : colors.warn,
+              ),
+            ),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    corrida.configuracion,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexusTypography.data.copyWith(color: colors.ink),
+                  ),
+                  Text(
+                    corrida.dispositivo,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
+                  ),
+                ],
+              ),
+            ),
+            if (corrida.puedeRecargar) ...[
+              _BotonMini(
+                icono: Icons.refresh,
+                titulo: strings.runReload,
+                onPulsar: () => controller.recargar(deviceId: corrida.deviceId),
+              ),
+              _BotonMini(
+                icono: Icons.restart_alt,
+                titulo: strings.runRestart,
+                onPulsar: () => controller.recargar(
+                  deviceId: corrida.deviceId,
+                  completa: true,
+                ),
+              ),
+            ],
+            _BotonMini(
+              icono: Icons.article_outlined,
+              titulo: strings.runLogs,
+              activo: _verRegistro,
+              onPulsar: () => setState(() => _verRegistro = !_verRegistro),
+            ),
+            if (corrida.estado != EstadoDeCorrida.parando)
+              _BotonMini(
+                icono: Icons.stop_rounded,
+                titulo: strings.runStop,
+                onPulsar: () => controller.parar(corrida.deviceId),
+              ),
+          ],
+        ),
+
+        // **El progreso, en su propia línea y a todo lo ancho.** Es lo que cambia
+        // cada pocos segundos mientras compila y lo único que dice que algo pasa;
+        // compartir sitio con el nombre del dispositivo lo dejaba en una letra.
+        Padding(
+          padding: const EdgeInsets.only(left: 19, top: 2),
+          child: Text(
+            detalle,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: NexusTypography.mono.copyWith(
               color: corrida.estado == EstadoDeCorrida.corriendo
                   ? colors.ok
                   : colors.warn,
             ),
           ),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  corrida.configuracion,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NexusTypography.data.copyWith(color: colors.ink),
-                ),
-                Text(
-                  '${corrida.dispositivo} · $detalle',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NexusTypography.mono.copyWith(color: colors.faint),
-                ),
-              ],
-            ),
-          ),
-          // **Recargar solo cuando se puede.** Antes de `app.started` no hay a
-          // quién pedírselo, y un botón que contesta «todavía está compilando» es
-          // un botón que no debía estar encendido.
-          if (corrida.puedeRecargar) ...[
-            _BotonMini(
-              icono: Icons.refresh,
-              titulo: strings.runReload,
-              onPulsar: () =>
-                  controller.recargar(deviceId: corrida.deviceId),
-            ),
-            _BotonMini(
-              icono: Icons.restart_alt,
-              titulo: strings.runRestart,
-              onPulsar: () => controller.recargar(
-                deviceId: corrida.deviceId,
-                completa: true,
+        ),
+
+        if (_verRegistro)
+          _Registro(deviceId: corrida.deviceId, conNombre: widget.varias),
+      ],
+    );
+  }
+}
+
+/// Lo que ha impreso la corrida.
+///
+/// **Cuando una compilación falla, el motivo está aquí y en ningún otro sitio.**
+/// Los errores de Gradle, los del compilador de Dart y los del NDK salen por
+/// aquí; el panel de arriba solo sabe decir que algo va mal.
+class _Registro extends ConsumerWidget {
+  const _Registro({required this.deviceId, required this.conNombre});
+
+  final String deviceId;
+  final bool conNombre;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final lineas = ref.watch(registrosProvider)[deviceId] ?? const <String>[];
+
+    return Container(
+      margin: const EdgeInsets.only(top: NexusSpacing.s2, left: 19),
+      padding: const EdgeInsets.all(NexusSpacing.s2),
+      constraints: const BoxConstraints(maxHeight: 150),
+      decoration: BoxDecoration(
+        color: colors.void_.withValues(alpha: 0.6),
+        border: Border.all(color: colors.rule),
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+      ),
+      child: lineas.isEmpty
+          // Vacío se dice, no se deja en blanco: un hueco negro se lee como roto
+          // y lo que pasa es que todavía no ha escrito nada.
+          ? Text(
+              strings.runCompiling,
+              style: NexusTypography.mono.copyWith(color: colors.faint),
+            )
+          : SingleChildScrollView(
+              // Lo último abajo y a la vista, como una terminal: lo que se busca
+              // cuando algo falla son las últimas líneas.
+              reverse: true,
+              child: SelectableText(
+                lineas.join('\n'),
+                style: NexusTypography.mono.copyWith(color: colors.faint),
               ),
             ),
-          ],
-          if (corrida.estado != EstadoDeCorrida.parando)
-            _BotonMini(
-              icono: Icons.stop_rounded,
-              titulo: strings.runStop,
-              onPulsar: () => controller.parar(corrida.deviceId),
-            ),
-        ],
-      ),
     );
   }
 }
@@ -433,11 +529,16 @@ class _BotonMini extends StatelessWidget {
     required this.icono,
     required this.titulo,
     required this.onPulsar,
+    this.activo = false,
   });
 
   final IconData icono;
   final String titulo;
   final VoidCallback onPulsar;
+
+  /// Marcado. Lo usa el del registro: un botón que abre algo tiene que decir si
+  /// está abierto, o se pulsa dos veces buscando lo que ya estaba.
+  final bool activo;
 
   @override
   Widget build(BuildContext context) => IconButton(
@@ -448,7 +549,7 @@ class _BotonMini extends StatelessWidget {
     padding: const EdgeInsets.symmetric(horizontal: 4),
     constraints: const BoxConstraints(),
     visualDensity: VisualDensity.compact,
-    color: context.colors.faint,
+    color: activo ? context.colors.accent : context.colors.faint,
     icon: Icon(icono),
   );
 }

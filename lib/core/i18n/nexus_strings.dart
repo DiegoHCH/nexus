@@ -324,6 +324,7 @@ abstract class NexusStrings {
   String get runRunning;
   String get runStopping;
   String get runNoProject;
+  String get runLogs;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1038,6 +1039,8 @@ class NexusStringsEs extends NexusStrings {
   String get runStopping => 'parando';
   @override
   String get runNoProject => 'Sin proyecto no hay nada que correr';
+  @override
+  String get runLogs => 'Registro';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -2061,6 +2064,8 @@ class NexusStringsEn extends NexusStrings {
   String get runStopping => 'stopping';
   @override
   String get runNoProject => 'No project, nothing to run';
+  @override
+  String get runLogs => 'Log';
   @override
   String get channelTitle => 'The phone channel';
   @override

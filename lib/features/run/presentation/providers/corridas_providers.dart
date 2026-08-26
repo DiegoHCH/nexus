@@ -70,7 +70,8 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       deviceId: deviceId,
       args: args,
       onEvento: (evento) => _aplica(deviceId, evento),
-      onRegistro: (linea) => anota(deviceId, linea),
+      onRegistro: (linea) =>
+          ref.read(registrosProvider.notifier).anota(deviceId, linea),
       onFin: (motivo) => _termina(deviceId, motivo),
     );
 
@@ -112,16 +113,6 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     return r.error;
   }
 
-  /// El registro de una corrida: lo que imprimió el compilador y la app.
-  ///
-  /// Acotado a las últimas líneas a propósito. Un `flutter run` de un proyecto
-  /// grande escupe miles y guardarlas todas es una fuga de memoria con forma de
-  /// función útil; lo que se lee cuando algo falla son las últimas.
-  List<String> registro(String deviceId) =>
-      _registros.putIfAbsent(deviceId, () => <String>[]);
-  final _registros = <String, List<String>>{};
-  static const _topeDeRegistro = 200;
-
   void _aplica(String deviceId, EventoDelDaemon evento) {
     final actual = state[deviceId];
     if (actual == null) return;
@@ -146,6 +137,8 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
   }
 
   void _termina(String deviceId, String? motivo) {
+    // El registro **no** se borra aquí: si algo se cayó, ahí está el motivo, y
+    // tirarlo justo al caerse es quitarle la prueba a quien va a mirarla.
     _vivas.remove(deviceId);
     _progresos.remove(deviceId);
     if (motivo != null) {
@@ -165,14 +158,50 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     _ultimoError = null;
     return motivo;
   }
+}
+
+/// Lo que ha impreso cada corrida: el compilador, Gradle, la app.
+///
+/// **Estado observable y no una lista dentro del controlador**, que es lo que
+/// era: así no se podía enseñar, porque nadie se enteraba de que llegó una línea.
+/// Aparte de [corridasProvider] a propósito — una línea de registro no cambia el
+/// estado de la corrida, y meterla ahí obligaría a reconstruir la fila entera
+/// por cada línea de Gradle.
+class RegistrosController extends Notifier<Map<String, List<String>>> {
+  /// Las últimas y no todas. Un `flutter run` de un proyecto grande escupe miles,
+  /// y guardarlas todas es una fuga de memoria con forma de función útil. Lo que
+  /// se lee cuando algo falla son las de abajo.
+  static const tope = 200;
+
+  @override
+  Map<String, List<String>> build() => const {};
 
   void anota(String deviceId, String linea) {
-    final lista = registro(deviceId)..add(linea);
-    if (lista.length > _topeDeRegistro) {
-      lista.removeRange(0, lista.length - _topeDeRegistro);
-    }
+    // Gradle imprime bloques con saltos dentro: se parten para que el panel
+    // enseñe líneas y no párrafos.
+    final nuevas = [
+      for (final l in linea.split('\n'))
+        if (l.trim().isNotEmpty) l.trimRight(),
+    ];
+    if (nuevas.isEmpty) return;
+
+    final actual = state[deviceId] ?? const <String>[];
+    final juntas = [...actual, ...nuevas];
+    state = {
+      ...state,
+      deviceId: juntas.length > tope
+          ? juntas.sublist(juntas.length - tope)
+          : juntas,
+    };
   }
+
+  void limpia(String deviceId) => state = {...state}..remove(deviceId);
 }
+
+final registrosProvider =
+    NotifierProvider<RegistrosController, Map<String, List<String>>>(
+      RegistrosController.new,
+    );
 
 final corridasProvider =
     NotifierProvider<CorridasController, Map<String, Corrida>>(

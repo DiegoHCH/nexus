@@ -210,7 +210,11 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip(strings.runReload), findsNothing);
-      expect(find.textContaining('Compilando lib/main.dart'), findsOneWidget);
+      // **En su propia línea**, no pegado al dispositivo: ahí se cortaba en una
+      // letra —«Medium Phone API 36.1 · R…»— y era lo único que decía que algo
+      // estaba pasando.
+      expect(find.text('Compilando lib/main.dart'), findsOneWidget);
+      expect(find.text('Medium Phone API 36.1'), findsOneWidget);
       // Parar sí, que es lo único que se puede hacer con algo que compila.
       expect(find.byTooltip(strings.runStop), findsOneWidget);
     });
@@ -239,7 +243,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.byTooltip(strings.runStop), findsNothing);
-      expect(find.textContaining(strings.runStopping), findsOneWidget);
+      expect(find.text(strings.runStopping), findsOneWidget);
     });
   });
 
@@ -300,6 +304,84 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(find.text(strings.runTitle), findsWidgets);
+    });
+  });
+
+  group('el registro', () {
+    testWidgets('se abre desde la fila y el botón queda marcado', (
+      tester,
+    ) async {
+      // Se recogía y no se enseñaba en ningún sitio, que es tenerlo y no tenerlo.
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(SelectableText), findsNothing);
+
+      await tester.tap(find.byTooltip(strings.runLogs));
+      await tester.pumpAndSettle();
+
+      // Vacío se dice, no se deja en blanco: un hueco negro se lee como roto.
+      expect(find.text(strings.runCompiling), findsWidgets);
+    });
+
+    testWidgets('enseña lo que imprimió la corrida', (tester) async {
+      // Cuando una compilación falla, el motivo está aquí y en ningún otro sitio.
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      final contenedor = tester.element(find.byType(CorrerMenu));
+      ProviderScope.containerOf(contenedor, listen: false)
+          .read(registrosProvider.notifier)
+          .anota('emulator-5554', "lib/main.dart:12:3: Error: Expected ';'");
+      await tester.pump();
+
+      await tester.tap(find.byTooltip(strings.runLogs));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining("Expected ';'"), findsOneWidget);
+    });
+
+    testWidgets('un bloque con saltos dentro se parte en líneas', (
+      tester,
+    ) async {
+      // Gradle imprime párrafos: sin partirlos el registro son cuatro líneas
+      // gigantes y el tope de 200 no significa nada.
+      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+      contenedor
+          .read(registrosProvider.notifier)
+          .anota('emulator-5554', 'una\n\notra\ntercera');
+
+      expect(
+        contenedor.read(registrosProvider)['emulator-5554'],
+        ['una', 'otra', 'tercera'],
+      );
+    });
+
+    testWidgets('el registro está acotado: se quedan las últimas', (
+      tester,
+    ) async {
+      // Un `flutter run` de un proyecto grande escupe miles de líneas, y
+      // guardarlas todas es una fuga de memoria con forma de función útil.
+      await _montar(tester);
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+      final notifier = contenedor.read(registrosProvider.notifier);
+      for (var i = 0; i < RegistrosController.tope + 50; i++) {
+        notifier.anota('emulator-5554', 'linea $i');
+      }
+
+      final guardadas = contenedor.read(registrosProvider)['emulator-5554']!;
+      expect(guardadas.length, RegistrosController.tope);
+      // Las últimas, que son las que se leen cuando algo falla.
+      expect(guardadas.last, 'linea ${RegistrosController.tope + 49}');
     });
   });
 }
