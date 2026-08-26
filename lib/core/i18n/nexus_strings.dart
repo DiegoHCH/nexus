@@ -460,6 +460,9 @@ abstract class NexusStrings {
   String get e2eDeleteProject;
   String get e2eDeleteProjectAsk;
   String e2eRunsSize(int cuantas, String tamano);
+  String e2eMissingVars(String claves);
+  String e2eVarsLoaded(int cuantas);
+  String get e2eEnvInGit;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1422,6 +1425,16 @@ class NexusStringsEs extends NexusStrings {
   @override
   String e2eRunsSize(int cuantas, String tamano) =>
       '${cuantas == 1 ? '1 corrida' : '$cuantas corridas'} · $tamano';
+  @override
+  String e2eMissingVars(String claves) =>
+      'Faltan en .env.local: $claves';
+  @override
+  String e2eVarsLoaded(int cuantas) => cuantas == 1
+      ? '1 variable de .env.local'
+      : '$cuantas variables de .env.local';
+  @override
+  String get e2eEnvInGit =>
+      '.env.local está en git. Sácalo: lleva credenciales.';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
@@ -2694,6 +2707,14 @@ class NexusStringsEn extends NexusStrings {
   @override
   String e2eRunsSize(int cuantas, String tamano) =>
       '${cuantas == 1 ? '1 run' : '$cuantas runs'} · $tamano';
+  @override
+  String e2eMissingVars(String claves) => 'Missing from .env.local: $claves';
+  @override
+  String e2eVarsLoaded(int cuantas) =>
+      cuantas == 1 ? '1 variable from .env.local' : '$cuantas variables from .env.local';
+  @override
+  String get e2eEnvInGit =>
+      '.env.local is in git. Take it out: it holds credentials.';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override
