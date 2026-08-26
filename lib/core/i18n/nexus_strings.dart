@@ -398,6 +398,11 @@ abstract class NexusStrings {
   String get e2eStartDevice;
   String get e2eStarting;
   String get e2eNotInstalled;
+  String get e2eRepeat;
+  String get e2eFlowGone;
+  String get e2eDeleteProject;
+  String get e2eDeleteProjectAsk;
+  String e2eRunsSize(int cuantas, String tamano);
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1238,6 +1243,19 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eNotInstalled =>
       'La app no está instalada en ese dispositivo. Maestro no la instala: córrela primero con ▶.';
+  @override
+  String get e2eRepeat => 'Repetir';
+  @override
+  String get e2eFlowGone =>
+      'Esa prueba ya no está en el repo, así que no se puede repetir.';
+  @override
+  String get e2eDeleteProject => 'Borrar las corridas de este proyecto';
+  @override
+  String get e2eDeleteProjectAsk =>
+      'Borra todas las corridas de este proyecto. Las pruebas no se tocan.';
+  @override
+  String e2eRunsSize(int cuantas, String tamano) =>
+      '${cuantas == 1 ? '1 corrida' : '$cuantas corridas'} · $tamano';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
@@ -2389,6 +2407,19 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eNotInstalled =>
       "The app is not installed on that device. Maestro will not install it: run it first with ▶.";
+  @override
+  String get e2eRepeat => 'Repeat';
+  @override
+  String get e2eFlowGone =>
+      'That test is no longer in the repo, so it cannot be repeated.';
+  @override
+  String get e2eDeleteProject => "Delete this project's runs";
+  @override
+  String get e2eDeleteProjectAsk =>
+      "Deletes every run of this project. The tests are left alone.";
+  @override
+  String e2eRunsSize(int cuantas, String tamano) =>
+      '${cuantas == 1 ? '1 run' : '$cuantas runs'} · $tamano';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override

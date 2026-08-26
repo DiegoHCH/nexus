@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/design_system/selector_compacto.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
@@ -155,6 +156,46 @@ final _apretado = TextButton.styleFrom(
   visualDensity: VisualDensity.compact,
 );
 
+/// Lo que falta para poder correr, o `null` si no falta nada.
+///
+/// **Fuera de los dos widgets a propósito.** Hay dos sitios que lanzan —la lista
+/// del proyecto y el historial, al repetir una corrida— y estas comprobaciones son
+/// las que convierten un fallo confuso en una frase: sin dispositivo encendido
+/// `--device` falla, y sin la app instalada Maestro falla en el primer `launchApp`
+/// **saliendo con código 0**, un fallo disfrazado de éxito. Copiarlas en cada sitio
+/// era dejar a uno de los dos sin el aviso, y sin enterarse hasta que fallara ahí.
+Future<String?> _loQueFaltaParaCorrer(
+  WidgetRef ref,
+  NexusStrings strings, {
+  required Prueba prueba,
+  required String? donde,
+}) async {
+  if (ref.read(dondeCorrerProvider).isEmpty) return strings.e2eNoDevice;
+  if (donde == null) return strings.e2eDevice;
+
+  // Solo se para cuando se sabe que **no** está: `null` es «no se pudo
+  // comprobar» —un iPhone, sin adb— y ahí no se bloquea nada. Negarse por no
+  // saber sería peor que dejar fallar a Maestro.
+  final yaml = await File(prueba.ruta).readAsString().catchError((_) => '');
+  if (PasosDeUnaPrueba.appIdDe(yaml) case final appId?) {
+    final instalada = await ref
+        .read(e2eDataSourceProvider)
+        .estaInstalada(deviceId: donde, appId: appId);
+    if (instalada == false) return strings.e2eNotInstalled;
+  }
+  return null;
+}
+
+/// El tamaño en algo que se lea.
+///
+/// Sin decimales por debajo de un mega: antes de borrar, «812 kB» ya dice todo lo
+/// que hay que saber y «812,4 kB» no añade nada.
+String _tamano(int bytes) {
+  if (bytes < 1024) return '$bytes B';
+  if (bytes < 1024 * 1024) return '${(bytes / 1024).round()} kB';
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
 /// Elegir una prueba de este proyecto y lanzarla.
 class _Lanzadera extends ConsumerStatefulWidget {
   const _Lanzadera({required this.proyecto});
@@ -166,54 +207,25 @@ class _Lanzadera extends ConsumerStatefulWidget {
 }
 
 class _LanzaderaState extends ConsumerState<_Lanzadera> {
-  String? _dispositivo;
   String? _error;
   String? _confirmandoBorrado;
   var _arrancando = false;
 
-  /// Los dispositivos sobre los que se puede correr: **encendidos y nada más**.
-  ///
-  /// Un `maestro test --device` contra un emulador apagado falla, así que
-  /// ofrecerlo sería ofrecer ese fallo — el mismo criterio que el panel de correr
-  /// la app. Para encenderlo está el icono de los dispositivos.
-  List<String> get _dispositivos => [
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
-      if (e.corriendo && e.deviceId != null) e.deviceId!,
-    for (final d in ref.watch(dispositivosProvider).value ?? const []) d.id,
-  ];
+  /// Los dispositivos y el elegido salen de sus proveedores —ver
+  /// [dondeCorrerProvider]—, no de aquí: el historial también lanza, y con esto
+  /// calculado en cada sitio los dos criterios se separan en cuanto uno cambie.
+  List<({String id, String nombre})> get _dispositivos =>
+      ref.watch(dondeCorrerProvider);
 
-  /// Cómo se llama cada dispositivo, por su id.
-  ///
-  /// **Un id no sirve para elegir**: `36c56d94` y
-  /// `00008030-000C390C1AC0C02E` no dicen cuál es el móvil y cuál el iPhone. El
-  /// nombre sí —«POCO F6», «iPhone 11»— y lo trae ya el data source, que lo
-  /// pregunta a cada plataforma. El id se enseña detrás, en pequeño: sigue siendo
-  /// lo que hay que pasarle a `--device` y a veces hay dos aparatos con el mismo
-  /// nombre.
-  Map<String, String> get _nombres => {
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
-      if (e.corriendo && e.deviceId != null) e.deviceId!: e.nombre,
-    for (final d in ref.watch(dispositivosProvider).value ?? const [])
-      d.id: d.nombre,
-  };
-
+  /// **Un id no sirve para elegir**: `36c56d94` y `00008030-000C390C1AC0C02E` no
+  /// dicen cuál es el móvil y cuál el iPhone. El nombre sí —«POCO F6», «iPhone
+  /// 11»—. El id se enseña detrás, en pequeño: sigue siendo lo que hay que pasarle
+  /// a `--device` y a veces hay dos aparatos con el mismo nombre.
   String _comoSeLlama(String id) {
-    final nombre = _nombres[id];
-    return nombre == null || nombre == id ? id : '$nombre · $id';
-  }
-
-  /// Cuál se usa: el elegido, o el único que haya.
-  ///
-  /// **Elegir hace falta de verdad**: con el Redmi enchufado y un emulador
-  /// arriba hay dos, y coger el primero era decidir por el usuario en silencio —
-  /// exactamente lo que reportó al no poder elegir. Con uno solo no se pregunta,
-  /// que sería una pregunta con una sola respuesta.
-  String? get _elegido {
-    final hay = _dispositivos;
-    if (_dispositivo case final elegido? when hay.contains(elegido)) {
-      return elegido;
+    for (final d in _dispositivos) {
+      if (d.id == id) return d.nombre == id ? id : '${d.nombre} · $id';
     }
-    return hay.length == 1 ? hay.single : null;
+    return id;
   }
 
   /// Arranca un emulador y espera a que exista.
@@ -247,44 +259,26 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   }
 
   Future<void> _lanzar(Prueba prueba) async {
-    final dispositivos = _dispositivos;
-    if (dispositivos.isEmpty) {
-      setState(() => _error = context.strings.e2eNoDevice);
-      return;
-    }
-    final donde = _elegido;
-    if (donde == null) {
-      setState(() => _error = context.strings.e2eDevice);
+    final donde = ref.read(elDispositivoProvider);
+    final falta = await _loQueFaltaParaCorrer(
+      ref,
+      context.strings,
+      prueba: prueba,
+      donde: donde,
+    );
+    if (!mounted) return;
+    if (falta != null) {
+      setState(() => _error = falta);
       return;
     }
     setState(() => _error = null);
-
-    // **Antes de correr: ¿está la app ahí?** Maestro no la instala, y sin ella la
-    // prueba falla en el primer `launchApp` con «Package … is not installed»
-    // **saliendo con código 0** — un fallo disfrazado de éxito. Decirlo antes
-    // cuesta 70 ms y ahorra leer un informe engañoso.
-    //
-    // Solo se para cuando se sabe que **no** está: `null` es «no se pudo
-    // comprobar» —un iPhone, sin adb— y ahí no se bloquea nada.
-    final yaml = await File(prueba.ruta).readAsString().catchError((_) => '');
-    if (PasosDeUnaPrueba.appIdDe(yaml) case final appId?) {
-      final instalada = await ref
-          .read(e2eDataSourceProvider)
-          .estaInstalada(deviceId: donde, appId: appId);
-      if (instalada == false) {
-        if (!mounted) return;
-        setState(() => _error = context.strings.e2eNotInstalled);
-        return;
-      }
-    }
-    if (!mounted) return;
 
     final error = await ref
         .read(pruebaEnMarchaProvider.notifier)
         .lanzar(
           prueba: prueba,
           proyecto: widget.proyecto,
-          deviceId: donde,
+          deviceId: donde!,
           perfil: 'local',
         );
     if (!mounted) return;
@@ -369,11 +363,12 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
           // El dispositivo, y solo cuando hay más de uno que elegir.
           if (dispositivos.length > 1) ...[
             SelectorCompacto(
-              valor: _elegido,
-              opciones: dispositivos,
+              valor: ref.watch(elDispositivoProvider),
+              opciones: [for (final d in dispositivos) d.id],
               etiqueta: _comoSeLlama,
               pista: strings.e2eDevice,
-              onElegir: (v) => setState(() => _dispositivo = v),
+              onElegir: (v) =>
+                  ref.read(dispositivoElegidoProvider.notifier).elige(v),
             ),
             const SizedBox(height: NexusSpacing.s3),
           ],
@@ -445,11 +440,37 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
 /// Las que no se pudieron atribuir van en su propio grupo y **no se esconden**:
 /// no saber de qué proyecto salió una corrida es un problema nuestro, y taparla
 /// se lo pasaría al usuario en forma de historial incompleto.
-class _Historial extends ConsumerWidget {
+class _Historial extends ConsumerStatefulWidget {
   const _Historial();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_Historial> createState() => _HistorialState();
+}
+
+class _HistorialState extends ConsumerState<_Historial> {
+  /// Qué grupo pidió confirmación. Los dos toques de siempre, y aquí importan más
+  /// que en una fila: esto se lleva por delante todas las corridas del proyecto.
+  String? _confirmando;
+
+  Future<void> _borrarElProyecto(
+    String clave,
+    List<CorridaDePrueba> corridas,
+  ) async {
+    if (_confirmando != clave) {
+      setState(() => _confirmando = clave);
+      return;
+    }
+    final ds = ref.read(e2eDataSourceProvider);
+    for (final corrida in corridas) {
+      await ds.borrar(corrida.carpeta);
+    }
+    ref.invalidate(corridasDePruebaProvider);
+    if (!mounted) return;
+    setState(() => _confirmando = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
     final corridas = ref.watch(corridasDePruebaProvider);
@@ -470,13 +491,15 @@ class _Historial extends ConsumerWidget {
 
     final porProyecto = <String, List<CorridaDePrueba>>{};
     for (final corrida in lista) {
-      porProyecto
-          .putIfAbsent(corrida.proyecto ?? '', () => [])
-          .add(corrida);
+      porProyecto.putIfAbsent(corrida.proyecto ?? '', () => []).add(corrida);
     }
     // Lo sin atribuir al final: es lo menos útil, no lo primero que se mira.
     final claves = porProyecto.keys.toList()
       ..sort((a, b) => a.isEmpty ? 1 : (b.isEmpty ? -1 : a.compareTo(b)));
+
+    // Los tamaños se miden en un proveedor y no aquí: `bytesDe` recorre el disco,
+    // y hacerlo dentro de `build` era leerlo entero en cada repintado.
+    final tamanos = ref.watch(tamanoPorProyectoProvider).value ?? const {};
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -484,11 +507,43 @@ class _Historial extends ConsumerWidget {
         for (final clave in claves) ...[
           Padding(
             padding: const EdgeInsets.only(top: NexusSpacing.s4, bottom: 4),
-            child: Text(
-              clave.isEmpty
-                  ? strings.e2eUnattributed
-                  : clave.split('/').last,
-              style: NexusTypography.label.copyWith(color: colors.faint),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    clave.isEmpty
+                        ? strings.e2eUnattributed
+                        : clave.split('/').last,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: NexusTypography.label.copyWith(color: colors.faint),
+                  ),
+                ),
+                // **Cuántas y cuánto ocupan**, que es lo que hace falta para
+                // decidir si borrarlas. Un grupo de 40 corridas con capturas son
+                // decenas de megas y nada lo decía.
+                Text(
+                  strings.e2eRunsSize(
+                    porProyecto[clave]!.length,
+                    _tamano(tamanos[clave] ?? 0),
+                  ),
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+                IconButton(
+                  onPressed: () =>
+                      _borrarElProyecto(clave, porProyecto[clave]!),
+                  tooltip: _confirmando == clave
+                      ? strings.e2eDeleteProjectAsk
+                      : strings.e2eDeleteProject,
+                  iconSize: 14,
+                  splashRadius: 14,
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  constraints: const BoxConstraints(),
+                  visualDensity: VisualDensity.compact,
+                  color: _confirmando == clave ? colors.err : colors.faint,
+                  icon: const Icon(Icons.delete_sweep_outlined),
+                ),
+              ],
             ),
           ),
           for (final corrida in porProyecto[clave]!)
@@ -499,15 +554,96 @@ class _Historial extends ConsumerWidget {
   }
 }
 
-class _FilaDeCorrida extends ConsumerWidget {
+class _FilaDeCorrida extends ConsumerStatefulWidget {
   const _FilaDeCorrida({required this.corrida});
 
   final CorridaDePrueba corrida;
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_FilaDeCorrida> createState() => _FilaDeCorridaState();
+}
+
+class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
+  String? _error;
+  var _repitiendo = false;
+
+  /// Vuelve a correr esa prueba, y si se puede en el mismo sitio.
+  Future<void> _repetir() async {
+    final corrida = widget.corrida;
+    final proyecto = corrida.proyecto;
+    if (proyecto == null) return;
+    final strings = context.strings;
+
+    setState(() {
+      _repitiendo = true;
+      _error = null;
+    });
+
+    // **La prueba se busca en el repo, no se recompone su ruta.** Un flow puede
+    // ser `.yaml` o `.yml`, y sobre todo **puede no estar ya**: repetir una
+    // corrida de la semana pasada con el flow borrado tiene que decirlo aquí y no
+    // fallar dentro de Maestro con un «file not found».
+    final pruebas = await ref.read(pruebasProvider(proyecto).future);
+    Prueba? prueba;
+    for (final p in pruebas) {
+      if (p.nombre == corrida.flow) {
+        prueba = p;
+        break;
+      }
+    }
+    if (!mounted) return;
+    if (prueba == null) {
+      setState(() {
+        _repitiendo = false;
+        _error = strings.e2eFlowGone;
+      });
+      return;
+    }
+
+    // **El mismo dispositivo, pero solo si sigue encendido.** Un `emulator-5554`
+    // de hace tres días no es el mismo emulador, así que se comprueba contra lo
+    // que hay ahora en vez de pasárselo a Maestro y esperar a que falle.
+    final hay = {for (final d in ref.read(dondeCorrerProvider)) d.id};
+    final donde = hay.contains(corrida.dispositivo)
+        ? corrida.dispositivo
+        : ref.read(elDispositivoProvider);
+
+    final falta = await _loQueFaltaParaCorrer(
+      ref,
+      strings,
+      prueba: prueba,
+      donde: donde,
+    );
+    if (!mounted) return;
+    if (falta != null) {
+      setState(() {
+        _repitiendo = false;
+        _error = falta;
+      });
+      return;
+    }
+
+    final error = await ref
+        .read(pruebaEnMarchaProvider.notifier)
+        .lanzar(
+          prueba: prueba,
+          proyecto: proyecto,
+          deviceId: donde!,
+          perfil: corrida.perfil ?? 'local',
+        );
+    if (!mounted) return;
+    setState(() {
+      _repitiendo = false;
+      _error = error;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
+    final corrida = widget.corrida;
+    final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
 
     final (icono, color, etiqueta) = switch (corrida.comoAcabo) {
       ComoAcabo.bien => (Icons.check, colors.ok, strings.e2ePassed),
@@ -526,48 +662,91 @@ class _FilaDeCorrida extends ConsumerWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 3),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icono, size: 12, color: color),
-          const SizedBox(width: NexusSpacing.s3),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  corrida.flow,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: NexusTypography.data.copyWith(color: colors.ink),
+          Row(
+            children: [
+              Icon(icono, size: 12, color: color),
+              const SizedBox(width: NexusSpacing.s3),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      corrida.flow,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: NexusTypography.data.copyWith(color: colors.ink),
+                    ),
+                    Text(
+                      // Cuándo, cómo acabó y cuántos pasos llegaron: «2 de 8» dice
+                      // dónde se rompió sin abrir nada.
+                      '${_cuando(corrida.cuando)} · $etiqueta · '
+                      '${corrida.pasosBien}/${corrida.pasos}',
+                      style: NexusTypography.mono.copyWith(color: colors.faint),
+                    ),
+                  ],
                 ),
-                Text(
-                  // Cuándo, cómo acabó y cuántos pasos llegaron: «2 de 8» dice
-                  // dónde se rompió sin abrir nada.
-                  '${_cuando(corrida.cuando)} · $etiqueta · '
-                  '${corrida.pasosBien}/${corrida.pasos}',
-                  style: NexusTypography.mono.copyWith(color: colors.faint),
-                ),
-              ],
+              ),
+              // **Repetir solo donde se puede.** Sin proyecto atribuido no se sabe
+              // en qué repo vive el flow, y ofrecer un botón que solo puede
+              // contestar «no sé de dónde salió esto» es peor que no ofrecerlo.
+              //
+              // Un icono y no una palabra: con «Ver» y «Borrar» escritos, una
+              // tercera palabra en esta fila es exactamente cómo desbordó antes.
+              if (corrida.atribuida)
+                _repitiendo
+                    ? Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 6),
+                        child: SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 1.5,
+                            color: colors.accent,
+                          ),
+                        ),
+                      )
+                    : IconButton(
+                        onPressed: corriendo ? null : _repetir,
+                        tooltip: strings.e2eRepeat,
+                        iconSize: 14,
+                        splashRadius: 14,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        constraints: const BoxConstraints(),
+                        visualDensity: VisualDensity.compact,
+                        color: colors.faint,
+                        icon: const Icon(Icons.replay),
+                      ),
+              // **Ver y borrar.** Ver abre su informe en la misma ventana aparte
+              // que usa una corrida en marcha: la de una que ya acabó es la misma
+              // cosa quieta, y no había motivo para dos formas de mirar lo mismo.
+              TextButton(
+                style: _apretado,
+                onPressed: () => ref
+                    .read(e2eDataSourceProvider)
+                    .abreElInforme(corrida.carpeta),
+                child: Text(strings.e2eSee),
+              ),
+              TextButton(
+                style: _apretado,
+                onPressed: () async {
+                  await ref.read(e2eDataSourceProvider).borrar(corrida.carpeta);
+                  ref.invalidate(corridasDePruebaProvider);
+                },
+                child: Text(strings.e2eDelete),
+              ),
+            ],
+          ),
+          if (_error case final mensaje?)
+            Padding(
+              padding: const EdgeInsets.only(left: 20, top: 2),
+              child: Text(
+                mensaje,
+                style: NexusTypography.mono.copyWith(color: colors.err),
+              ),
             ),
-          ),
-          // **Ver y borrar.** Ver abre su informe en la misma ventana aparte que
-          // usa una corrida en marcha: la de una que ya acabó es la misma cosa
-          // quieta, y no había motivo para dos formas de mirar lo mismo.
-          TextButton(
-            style: _apretado,
-            onPressed: () => ref
-                .read(e2eDataSourceProvider)
-                .abreElInforme(corrida.carpeta),
-            child: Text(strings.e2eSee),
-          ),
-          TextButton(
-            style: _apretado,
-            onPressed: () async {
-              await ref.read(e2eDataSourceProvider).borrar(corrida.carpeta);
-              ref.invalidate(corridasDePruebaProvider);
-            },
-            child: Text(strings.e2eDelete),
-          ),
         ],
       ),
     );
