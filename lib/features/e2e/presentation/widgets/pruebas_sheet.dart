@@ -182,6 +182,26 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     for (final d in ref.watch(dispositivosProvider).value ?? const []) d.id,
   ];
 
+  /// Cómo se llama cada dispositivo, por su id.
+  ///
+  /// **Un id no sirve para elegir**: `36c56d94` y
+  /// `00008030-000C390C1AC0C02E` no dicen cuál es el móvil y cuál el iPhone. El
+  /// nombre sí —«POCO F6», «iPhone 11»— y lo trae ya el data source, que lo
+  /// pregunta a cada plataforma. El id se enseña detrás, en pequeño: sigue siendo
+  /// lo que hay que pasarle a `--device` y a veces hay dos aparatos con el mismo
+  /// nombre.
+  Map<String, String> get _nombres => {
+    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+      if (e.corriendo && e.deviceId != null) e.deviceId!: e.nombre,
+    for (final d in ref.watch(dispositivosProvider).value ?? const [])
+      d.id: d.nombre,
+  };
+
+  String _comoSeLlama(String id) {
+    final nombre = _nombres[id];
+    return nombre == null || nombre == id ? id : '$nombre · $id';
+  }
+
   /// Cuál se usa: el elegido, o el único que haya.
   ///
   /// **Elegir hace falta de verdad**: con el Redmi enchufado y un emulador
@@ -351,6 +371,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
             SelectorCompacto(
               valor: _elegido,
               opciones: dispositivos,
+              etiqueta: _comoSeLlama,
               pista: strings.e2eDevice,
               onElegir: (v) => setState(() => _dispositivo = v),
             ),

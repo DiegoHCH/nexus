@@ -18,12 +18,21 @@ class SelectorCompacto extends StatelessWidget {
     required this.opciones,
     required this.pista,
     required this.onElegir,
+    this.etiqueta,
   });
 
   final String? valor;
   final List<String> opciones;
   final String pista;
   final void Function(String) onElegir;
+
+  /// Lo que se lee de cada opción, cuando no es la opción misma.
+  ///
+  /// **Hace falta porque lo que se elige no siempre se puede leer.** Un
+  /// dispositivo se elige por su id —`emulator-5554`, `00008030-000C390C1AC0C02E`—
+  /// y eso no dice cuál es cuál; el nombre sí. Se separan el valor y su etiqueta
+  /// en vez de enseñar el id, que fue el primer intento y no servía para elegir.
+  final String Function(String opcion)? etiqueta;
 
   @override
   Widget build(BuildContext context) {
@@ -43,6 +52,8 @@ class SelectorCompacto extends StatelessWidget {
           isDense: true,
           dropdownColor: colors.deep,
           focusColor: Colors.transparent,
+          // Lo mismo en el valor puesto: `DropdownButton` pinta el hijo del item
+          // elegido, así que la etiqueta llega sola por el `items` de arriba.
           hint: Text(
             pista,
             style: NexusTypography.mono.copyWith(color: colors.faint),
@@ -53,7 +64,7 @@ class SelectorCompacto extends StatelessWidget {
               DropdownMenuItem(
                 value: opcion,
                 child: Text(
-                  opcion,
+                  etiqueta?.call(opcion) ?? opcion,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: NexusTypography.data.copyWith(color: colors.ink),

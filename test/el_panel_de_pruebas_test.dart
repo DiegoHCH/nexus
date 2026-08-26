@@ -15,10 +15,14 @@ import 'package:nexus/features/emulators/presentation/providers/emuladores_provi
 
 /// El panel de pruebas: lanzar, ver correr, y el historial.
 class _Maquina extends EmuladoresDataSource {
-  const _Maquina({this.encendidos = 1});
+  const _Maquina({this.encendidos = 1, this.conIphone = false});
 
-  /// Cuántos hay arriba. Con dos hay que elegir; con uno, no.
+  /// Cuántos emuladores hay arriba. Con dos hay que elegir; con uno, no.
   final int encendidos;
+
+  /// Si además hay un iPhone enchufado. Aparte y apagado por defecto para que las
+  /// pruebas de «no hay nada» y «hay uno solo» sigan diciendo eso.
+  final bool conIphone;
 
   @override
   Future<({List<Emulador> emuladores, String? error})> listar() async => (
@@ -26,7 +30,7 @@ class _Maquina extends EmuladoresDataSource {
       for (var i = 0; i < 2; i++)
         Emulador(
           id: 'Emu$i',
-          nombre: 'Emu$i',
+          nombre: 'Medium Phone $i',
           fabricante: 'Generic',
           plataforma: PlataformaEmulador.android,
           corriendo: i < encendidos,
@@ -37,7 +41,15 @@ class _Maquina extends EmuladoresDataSource {
   );
 
   @override
-  Future<List<DispositivoConectado>> listarDispositivos() async => const [];
+  Future<List<DispositivoConectado>> listarDispositivos() async => conIphone
+      ? const [
+          DispositivoConectado(
+            id: '00008030-000C390C1AC0C02E',
+            nombre: 'iPhone 11',
+            plataforma: PlataformaEmulador.ios,
+          ),
+        ]
+      : const [];
 }
 
 class _Borrados extends E2eDataSource {
@@ -101,6 +113,7 @@ Future<void> _abrir(
   List<CorridaDePrueba>? corridas,
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
+  bool conIphone = false,
   List<String>? borrados,
   bool? instalada,
 }) async {
@@ -108,7 +121,7 @@ Future<void> _abrir(
     ProviderScope(
       overrides: [
         emuladoresDataSourceProvider.overrideWithValue(
-          _Maquina(encendidos: encendidos),
+          _Maquina(encendidos: encendidos, conIphone: conIphone),
         ),
         e2eDataSourceProvider.overrideWithValue(
           _Borrados(borrados ?? [], instalada: instalada),
@@ -396,6 +409,31 @@ void main() {
       await tester.tap(find.text(strings.e2eSee));
       await tester.pump();
       expect(borrados, ['ver:/donde/sea/login.json']);
+    });
+  });
+
+  group('los nombres de los dispositivos', () {
+    testWidgets('**el desplegable enseña nombres, no ids**', (tester) async {
+      // Lo reportado dos veces: `36c56d94` y `00008030-000C390C1AC0C02E` no dicen
+      // cuál es cuál. Los nombres ya los traía el data source; lo que faltaba era
+      // enseñarlos, que era un fallo mío en la UI y no en la lectura.
+      await _abrir(tester, encendidos: 1, conIphone: true);
+      await tester.tap(find.byType(SelectorCompacto));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.textContaining('iPhone 11'), findsWidgets);
+      expect(find.textContaining('Medium Phone 0'), findsWidgets);
+    });
+
+    testWidgets('el id va detrás, que es lo que pide --device', (tester) async {
+      // Y porque puede haber dos aparatos con el mismo nombre.
+      await _abrir(tester, encendidos: 1, conIphone: true);
+      await tester.tap(find.byType(SelectorCompacto));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.textContaining('emulator-5550'), findsWidgets);
     });
   });
 }

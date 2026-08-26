@@ -275,6 +275,9 @@ class _PanelState extends ConsumerState<_Panel> {
                 child: SelectorCompacto(
                   valor: _dispositivo,
                   opciones: _dispositivosDisponibles(),
+                  // El nombre delante y el id detrás, por lo mismo que en el
+                  // panel de pruebas: un id no dice cuál es cuál.
+                  etiqueta: _comoSeLlama,
                   pista: strings.runChooseDevice,
                   onElegir: (v) => setState(() => _dispositivo = v),
                 ),
@@ -309,6 +312,20 @@ class _PanelState extends ConsumerState<_Panel> {
         ],
       ],
     );
+  }
+
+  /// Cómo se llama un dispositivo, para poder elegirlo.
+  ///
+  /// El nombre sale de las mismas dos listas que dan los ids, así que no hay una
+  /// tercera fuente que pueda contradecirlas.
+  String _comoSeLlama(String id) {
+    for (final e in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
+      if (e.deviceId == id) return '${e.nombre} · $id';
+    }
+    for (final d in ref.read(dispositivosProvider).value ?? const []) {
+      if (d.id == id) return '${d.nombre} · $id';
+    }
+    return id;
   }
 
   /// Lo que hay para correr: emuladores **arrancados** y teléfonos enchufados.
