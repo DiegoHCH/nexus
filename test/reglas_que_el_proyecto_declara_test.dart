@@ -71,6 +71,25 @@ reglas/a.md
     expect(await reglasDe(), ['la buena']);
   });
 
+  test('las reglas por capa no se cargan aqui: las pone el gancho', () async {
+    // **El fallo que esto cierra.** La forma con flecha la añadio el gancho, que carga la
+    // regla justo antes de cada edicion sabiendo que archivo se toca. Este lado no se
+    // entero y trataba la linea entera como una ruta, asi que cada encargo se llevaba un
+    // «Nexus no encontro esta regla declarada: **/domain/** -> …» — un aviso falso, en
+    // todos los encargos, sobre una regla que si existia y llegaba por otro camino.
+    escribir('reglas/siempre.md', 'esta va en todos');
+    escribir('reglas/dominio.md', 'esta la pone el gancho');
+    escribir('.nexus-reglas', '''
+reglas/siempre.md
+**/domain/** -> reglas/dominio.md
+''');
+
+    final reglas = await reglasDe();
+    expect(reglas, contains('esta va en todos'));
+    expect(reglas, isNot(contains('esta la pone el gancho')));
+    expect(reglas.join(), isNot(contains('no encontró')));
+  });
+
   test('una regla declarada que no existe se dice, no se calla', () async {
     // **Es el caso que mas importa.** Un archivo que se movio o un nombre mal escrito
     // sin aviso produce trabajo que ignora una regla, y el sintoma no apunta a ningun

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
+import 'package:nexus/features/workspace/domain/usecases/reglas_declaradas.dart';
 
 /// Busca en el disco lo que Claude debería saber antes de empezar: las reglas
 /// del árbol de carpetas y el contexto compartido del repo.
@@ -16,7 +17,7 @@ class ProjectContextDataSource {
   /// En la raíz del proyecto y con nombre visible —no dentro de una carpeta
   /// oculta— porque es una decisión del equipo que se revisa en un PR, no una
   /// preferencia de la máquina de cada uno.
-  static const _archivoDeReglas = '.nexus-reglas';
+  static const _archivoDeReglas = ReglasDeclaradas.archivo;
   const ProjectContextDataSource();
 
   /// Hasta dónde se sube buscando reglas. Sin tope se llegaría a `/`, y las
@@ -61,9 +62,13 @@ class ProjectContextDataSource {
     final home = Platform.environment['HOME'] ?? '';
     final found = <ContextFile>[];
 
-    for (final linea in (await lista.readAsString()).split('\n')) {
-      final crudo = linea.trim();
-      if (crudo.isEmpty || crudo.startsWith('#')) continue;
+    // **Solo las que van siempre.** Las de capa —las que llevan flecha— las carga el
+    // gancho justo antes de cada edición, sabiendo qué archivo se toca. Antes esto se
+    // tragaba la línea entera como si fuera una ruta, así que un proyecto con reglas por
+    // capa metía «**/domain/** -> …» en cada encargo con un aviso de que no existía.
+    for (final regla in ReglasDeclaradas.leer(await lista.readAsString())) {
+      if (!regla.siempre) continue;
+      final crudo = regla.ruta;
 
       final ruta = switch (crudo) {
         _ when crudo.startsWith('/') => crudo,

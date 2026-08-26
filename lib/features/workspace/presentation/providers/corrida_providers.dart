@@ -3,10 +3,31 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/workspace/data/datasources/cierre_de_la_corrida_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/gate_del_repo_data_source.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/revision_data_source.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_encargo_de_revisar.dart';
+import 'package:nexus/features/workspace/domain/usecases/reglas_declaradas.dart';
 import 'package:nexus/features/workspace/domain/usecases/la_corrida.dart';
 import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
+
+final revisionDataSourceProvider = Provider<RevisionDataSource>(
+  (ref) => const RevisionDataSource(),
+);
+
+final revisionProvider = FutureProvider.family<Revision?, DondeMirar>(
+  (ref, donde) => ref
+      .watch(revisionDataSourceProvider)
+      .leer(donde.configDir, donde.carpeta, rama: donde.rama),
+);
+
+/// Los archivos que la rama lleva tocados. Es lo que se revisa y, de paso, lo que se
+/// enseña mientras se construye: «llevas tocados cuatro» dice más que un cronómetro.
+final archivosTocadosProvider = FutureProvider.family<List<String>, String>(
+  (ref, carpeta) => const GitDataSource().archivosTocados(carpeta),
+);
 
 final cierresDataSourceProvider = Provider<CierreDeLaCorridaDataSource>(
   (ref) => const CierreDeLaCorridaDataSource(),
@@ -41,9 +62,72 @@ final laCorridaProvider = Provider.family<LaCorrida, DondeMirar>((ref, donde) {
       _ => null,
     },
     gateDeclarado: gate != null && !gate.quien.medido,
+    revisionPedida: ref.watch(revisionProvider(donde)).value?.cuando,
     cierres: cierres,
   );
 });
+
+/// Pide la revisión del diff contra las reglas de la capa de cada archivo.
+///
+/// **Se manda como un encargo más y sin permiso de escritura.** No hay un canal especial
+/// para esto y no debería haberlo: lo que se pide es una lectura, y una lectura que puede
+/// escribir es otra cosa. El resultado aparece en la conversación, que es donde se
+/// discute — guardar los hallazgos en una marca los convertiría en un veredicto.
+class PedirLaRevision extends Notifier<bool> {
+  PedirLaRevision(this.donde);
+
+  final DondeMirar donde;
+
+  /// `false` cuando no hubo nada que pedir. La pantalla lo dice en vez de fingir que
+  /// mandó algo.
+  @override
+  bool build() => true;
+
+  Future<void> pedir() async {
+    final archivos = await ref.read(
+      archivosTocadosProvider(donde.carpeta).future,
+    );
+    final lista = File('${donde.carpeta}/${ReglasDeclaradas.archivo}');
+    final reglas = lista.existsSync()
+        ? ReglasDeclaradas.leer(await lista.readAsString())
+        : const <ReglaDeclarada>[];
+
+    final texto = ElEncargoDeRevisar.texto(
+      archivos: archivos,
+      reglas: reglas,
+      rama: donde.rama,
+    );
+    final conversacion = ref.read(conversationsProvider).focused;
+    if (texto == null || conversacion == null) {
+      state = false;
+      return;
+    }
+
+    state = true;
+    await ref
+        .read(assistantControllerProvider(conversacion.id).notifier)
+        .submit(texto, allowWrites: false);
+
+    // Se anota que **se pidió**, no que se hizo: cuándo termina y qué encuentra es de la
+    // conversación. Lo único que esta marca tiene que poder contestar es si lo revisado
+    // sigue siendo el código que hay.
+    await ref
+        .read(revisionDataSourceProvider)
+        .anotar(
+          donde.configDir,
+          donde.carpeta,
+          rama: donde.rama,
+          huella: await ref.read(huellaDelArbolProvider(donde.carpeta).future),
+          archivos: archivos.length,
+        );
+    ref.invalidate(revisionProvider(donde));
+  }
+}
+
+final pedirLaRevisionProvider =
+    NotifierProvider.family<PedirLaRevision, bool, DondeMirar>(
+      PedirLaRevision.new,
+    );
 
 /// Cerrar, cerrar sin producción y cancelar. Las tres apilan un cierre y ninguna publica.
 class CerrarLaCorrida extends Notifier<void> {
@@ -98,11 +182,13 @@ final todasLasCorridasProvider =
       final planes = ref.watch(planFirmadoDataSourceProvider);
       final gates = ref.watch(gateDelRepoDataSourceProvider);
       final cierres = ref.watch(cierresDataSourceProvider);
+      final revisiones = ref.watch(revisionDataSourceProvider);
 
       final claves = <({String carpeta, String? rama})>{
         ...await planes.carpetasYRamas(configDir),
         ...await gates.carpetasYRamas(configDir),
         ...await cierres.carpetasYRamas(configDir),
+        ...await revisiones.carpetasYRamas(configDir),
       };
 
       const git = GitDataSource();
@@ -123,6 +209,11 @@ final todasLasCorridasProvider =
           clave.carpeta,
           rama: clave.rama,
         );
+        final suRevision = await revisiones.leer(
+          configDir,
+          clave.carpeta,
+          rama: clave.rama,
+        );
 
         lista.add((
           carpeta: clave.carpeta,
@@ -137,6 +228,7 @@ final todasLasCorridasProvider =
               _ => null,
             },
             gateDeclarado: !gate.quien.medido,
+            revisionPedida: suRevision?.cuando,
             cierres: susCierres,
           ),
           huerfana:
@@ -162,9 +254,9 @@ final todasLasCorridasProvider =
 
 /// Borra una corrida entera: su firma, su gate y sus cierres.
 ///
-/// **Es irreversible y no se ofrece salvo para las huérfanas.** Borrar la corrida de una
-/// rama viva sería perder la medición de un trabajo en curso sin ningún motivo; lo que se
-/// limpia es lo que ya no tiene a quién pertenecer.
+/// **Es irreversible**, y por eso una rama viva pide confirmar y una huérfana no: borrar
+/// la medición de un trabajo en curso por un clic de más es la única forma de que esta
+/// pantalla haga daño.
 class LimpiarCorridas extends Notifier<void> {
   @override
   void build() {}
@@ -177,6 +269,7 @@ class LimpiarCorridas extends Notifier<void> {
         .read(gateDelRepoDataSourceProvider)
         .borrar(configDir, carpeta, rama);
     await ref.read(cierresDataSourceProvider).borrar(configDir, carpeta, rama);
+    await ref.read(revisionDataSourceProvider).borrar(configDir, carpeta, rama);
     ref.invalidate(todasLasCorridasProvider(configDir));
   }
 }

@@ -5,9 +5,11 @@ import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_radius.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/workspace/data/datasources/cierre_de_la_corrida_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/corrida_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
 
 /// La tarea de esta rama de punta a punta: qué se acordó, cómo salió el gate, cuánto
@@ -38,6 +40,11 @@ class _Hoja extends ConsumerStatefulWidget {
   ConsumerState<_Hoja> createState() => _HojaState();
 }
 
+/// Un tiempo en llano, para decir «hace 20 min» sin repetir el cálculo en tres sitios.
+String _hace(Duration cuanto, NexusStrings strings) => cuanto.inHours > 0
+    ? strings.durationHoursMinutes(cuanto.inHours, cuanto.inMinutes % 60)
+    : strings.durationMinutes(cuanto.inMinutes);
+
 class _HojaState extends ConsumerState<_Hoja> {
   final _narrativa = TextEditingController();
   var _copiado = false;
@@ -67,6 +74,14 @@ class _HojaState extends ConsumerState<_Hoja> {
     final strings = context.strings;
     final corrida = ref.watch(laCorridaProvider(widget.donde));
     final lleva = corrida.llevaEn(DateTime.now());
+    final tocados =
+        ref.watch(archivosTocadosProvider(widget.donde.carpeta)).value ??
+        const <String>[];
+    final revision = ref.watch(revisionProvider(widget.donde)).value;
+    final huella = ref
+        .watch(huellaDelArbolProvider(widget.donde.carpeta))
+        .value;
+    final hayQueRevisar = ref.watch(pedirLaRevisionProvider(widget.donde));
 
     return Container(
       decoration: BoxDecoration(
@@ -93,11 +108,18 @@ class _HojaState extends ConsumerState<_Hoja> {
             style: NexusTypography.body.copyWith(color: colors.mute),
           ),
 
-          if (lleva != null) ...[
+          if (lleva != null || tocados.isNotEmpty) ...[
             const SizedBox(height: NexusSpacing.s4),
+            // Mientras se construye, el cronómetro solo no dice nada: lo que sitúa es
+            // cuánto llevas movido. Es el tramo que el marco no marca y que sin embargo
+            // es donde se pasa el rato.
             Text(
-              '${strings.corridaOpenFor} '
-              '${lleva.inHours > 0 ? strings.durationHoursMinutes(lleva.inHours, lleva.inMinutes % 60) : strings.durationMinutes(lleva.inMinutes)}',
+              [
+                if (lleva != null)
+                  '${strings.corridaOpenFor} '
+                      '${lleva.inHours > 0 ? strings.durationHoursMinutes(lleva.inHours, lleva.inMinutes % 60) : strings.durationMinutes(lleva.inMinutes)}',
+                if (tocados.isNotEmpty) strings.corridaTouched(tocados.length),
+              ].join('  ·  '),
               style: NexusTypography.label.copyWith(color: colors.accent),
             ),
           ],
@@ -137,6 +159,60 @@ class _HojaState extends ConsumerState<_Hoja> {
               ),
             ),
           ),
+
+          // La revisión: eje aparte del gate y sin verde posible. Solo se puede decir si
+          // se pidió y si lo que se revisó sigue siendo lo que hay.
+          if (corrida.abierta) ...[
+            const SizedBox(height: NexusSpacing.s5),
+            Text(
+              strings.corridaReviewTitle,
+              style: NexusTypography.label.copyWith(color: colors.accent),
+            ),
+            const SizedBox(height: NexusSpacing.s2),
+            Text(
+              switch (revision) {
+                null => strings.corridaReviewNever,
+                final r when !r.cubre(huella) => strings.corridaReviewStale,
+                final r => strings.corridaReviewAsked(
+                  _hace(DateTime.now().toUtc().difference(r.cuando), strings),
+                ),
+              },
+              style: NexusTypography.mono.copyWith(
+                color: revision != null && !revision.cubre(huella)
+                    ? colors.warn
+                    : colors.faint,
+              ),
+            ),
+            if (!hayQueRevisar)
+              Padding(
+                padding: const EdgeInsets.only(top: NexusSpacing.s2),
+                child: Text(
+                  strings.corridaReviewNothing,
+                  style: NexusTypography.mono.copyWith(color: colors.mute),
+                ),
+              ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                key: const ValueKey('pedir-la-revision'),
+                onPressed: () async {
+                  await ref
+                      .read(pedirLaRevisionProvider(widget.donde).notifier)
+                      .pedir();
+                  // La hoja se cierra porque lo pedido sale en la conversación, que está
+                  // detrás: dejarla abierta taparía justo lo que se acaba de pedir.
+                  if (context.mounted &&
+                      ref.read(pedirLaRevisionProvider(widget.donde))) {
+                    Navigator.of(context).maybePop();
+                  }
+                },
+                child: Text(
+                  strings.corridaReviewAsk,
+                  style: NexusTypography.label.copyWith(color: colors.accent),
+                ),
+              ),
+            ),
+          ],
 
           if (corrida.abierta) ...[
             const SizedBox(height: NexusSpacing.s3),

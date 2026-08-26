@@ -240,6 +240,15 @@ abstract class NexusStrings {
   String get corridaCopied;
   String corridaPrevious(int count);
   String get corridaNotPublishing;
+
+  // Lo que llevas tocado, y la revisión contra las reglas de la capa.
+  String corridaTouched(int files);
+  String get corridaReviewTitle;
+  String get corridaReviewNever;
+  String corridaReviewAsked(String ago);
+  String get corridaReviewStale;
+  String get corridaReviewAsk;
+  String get corridaReviewNothing;
   String corridaSummaryBranch(String branch);
   String corridaSummaryWhat(String narrative);
   String get corridaSummaryStillOpen;
@@ -249,6 +258,10 @@ abstract class NexusStrings {
   /// Verde por la palabra de una persona, no por un exit code. Se dice distinto en todas
   /// partes: mezclarlos convierte el gate en un adorno.
   String get corridaSummaryGateDeclared;
+
+  /// La revisión contra las reglas de la capa. No tiene verde: se pidió o no se pidió.
+  String get corridaSummaryReviewed;
+  String get corridaSummaryNotReviewed;
   String get corridaSummaryGateRed;
   String get corridaSummaryGateNever;
   String corridaSummaryTotal(String duration);
@@ -272,6 +285,10 @@ abstract class NexusStrings {
   String corridasOrphansFound(int count);
   String get corridasClean;
   String get corridasCleanAll;
+
+  /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
+  String get corridasConfirmRemove;
+  String corridasStretches(String building, String closing);
 
   /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
   /// instalar, así que queda en el idioma que hubiera entonces.
@@ -922,6 +939,25 @@ class NexusStringsEs extends NexusStrings {
   String get corridaNotPublishing =>
       'Cerrar no publica: ni commitea, ni sube, ni abre nada.';
   @override
+  String corridaTouched(int files) =>
+      files == 1 ? 'Un archivo tocado' : '$files archivos tocados';
+  @override
+  String get corridaReviewTitle => 'La revisión contra las reglas';
+  @override
+  String get corridaReviewNever =>
+      'No se ha pedido. Es lo que el gate no puede ver: si el código cumple las reglas '
+      'de su capa, no si funciona.';
+  @override
+  String corridaReviewAsked(String ago) => 'Pedida hace $ago.';
+  @override
+  String get corridaReviewStale =>
+      'Pedida, pero el código cambió después: lo revisado ya no es lo que hay.';
+  @override
+  String get corridaReviewAsk => 'Pedir la revisión';
+  @override
+  String get corridaReviewNothing =>
+      'Nada que revisar: o no has tocado nada, o este repo no declara reglas por capa.';
+  @override
   String corridaSummaryBranch(String branch) => 'Rama: $branch';
   @override
   String corridaSummaryWhat(String narrative) => 'Qué se hizo: $narrative';
@@ -934,6 +970,11 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get corridaSummaryGateDeclared =>
       'El gate: declarado — lo corrió una persona, no lo midió Nexus.';
+  @override
+  String get corridaSummaryReviewed => 'La revisión contra las reglas: pedida.';
+  @override
+  String get corridaSummaryNotReviewed =>
+      'La revisión contra las reglas: no se pidió.';
   @override
   String get corridaSummaryGateRed => 'El gate: en rojo la última vez.';
   @override
@@ -983,6 +1024,11 @@ class NexusStringsEs extends NexusStrings {
   String get corridasClean => 'Quitar';
   @override
   String get corridasCleanAll => 'Quitar las huérfanas';
+  @override
+  String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
+  @override
+  String corridasStretches(String building, String closing) =>
+      'construyendo $building · del gate al cierre $closing';
 
   @override
   String get planSignTitle => 'Firma el plan';
@@ -2219,6 +2265,27 @@ class NexusStringsEn extends NexusStrings {
   String get corridaNotPublishing =>
       'Closing does not publish: no commit, no push, nothing opened.';
   @override
+  String corridaTouched(int files) =>
+      files == 1 ? 'One file touched' : '$files files touched';
+  @override
+  String get corridaReviewTitle => 'The review against the rules';
+  @override
+  String get corridaReviewNever =>
+      'Never asked for. It is what the gate cannot see: whether the code follows its '
+      "layer's rules, not whether it works.";
+  @override
+  String corridaReviewAsked(String ago) => 'Asked for $ago ago.';
+  @override
+  String get corridaReviewStale =>
+      'Asked for, but the code changed afterwards: what was reviewed is no longer what '
+      'is there.';
+  @override
+  String get corridaReviewAsk => 'Ask for the review';
+  @override
+  String get corridaReviewNothing =>
+      'Nothing to review: either you have touched nothing, or this repo declares no '
+      'per-layer rules.';
+  @override
   String corridaSummaryBranch(String branch) => 'Branch: $branch';
   @override
   String corridaSummaryWhat(String narrative) => 'What was done: $narrative';
@@ -2231,6 +2298,10 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get corridaSummaryGateDeclared =>
       'The gate: declared — a person ran it, Nexus did not measure it.';
+  @override
+  String get corridaSummaryReviewed => 'The rules review: asked for.';
+  @override
+  String get corridaSummaryNotReviewed => 'The rules review: never asked for.';
   @override
   String get corridaSummaryGateRed => 'The gate: red the last time.';
   @override
@@ -2278,6 +2349,11 @@ class NexusStringsEn extends NexusStrings {
   String get corridasClean => 'Remove';
   @override
   String get corridasCleanAll => 'Remove the orphans';
+  @override
+  String get corridasConfirmRemove => 'Press again to delete it';
+  @override
+  String corridasStretches(String building, String closing) =>
+      'building $building · gate to close $closing';
 
   @override
   String get planSignTitle => 'Sign the plan';
