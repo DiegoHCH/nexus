@@ -10,6 +10,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/e2e/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
@@ -18,7 +19,16 @@ import 'package:nexus/features/emulators/presentation/providers/emuladores_provi
 
 /// El panel de pruebas: lanzar, ver correr, y el historial.
 class _Maquina extends EmuladoresDataSource {
-  const _Maquina({this.encendidos = 1, this.conIphone = false});
+  const _Maquina({
+    this.encendidos = 1,
+    this.conIphone = false,
+    this.demora = Duration.zero,
+  });
+
+  /// Lo que tarda la búsqueda. **Hace falta que se pueda tardar**: buscar los
+  /// dispositivos lanza dos procesos, y el estado intermedio —que existía y no se
+  /// enseñaba— es justo el que se reportó.
+  final Duration demora;
 
   /// Cuántos emuladores hay arriba. Con dos hay que elegir; con uno, no.
   final int encendidos;
@@ -28,7 +38,12 @@ class _Maquina extends EmuladoresDataSource {
   final bool conIphone;
 
   @override
-  Future<({List<Emulador> emuladores, String? error})> listar() async => (
+  Future<({List<Emulador> emuladores, String? error})> listar() async {
+    if (demora > Duration.zero) await Future<void>.delayed(demora);
+    return _lista();
+  }
+
+  ({List<Emulador> emuladores, String? error}) _lista() => (
     emuladores: [
       for (var i = 0; i < 2; i++)
         Emulador(
@@ -44,7 +59,12 @@ class _Maquina extends EmuladoresDataSource {
   );
 
   @override
-  Future<List<DispositivoConectado>> listarDispositivos() async => conIphone
+  Future<List<DispositivoConectado>> listarDispositivos() async {
+    if (demora > Duration.zero) await Future<void>.delayed(demora);
+    return _conectados;
+  }
+
+  List<DispositivoConectado> get _conectados => conIphone
       ? const [
           DispositivoConectado(
             id: '00008030-000C390C1AC0C02E',
@@ -89,7 +109,10 @@ class _Borrados extends E2eDataSource {
   }) async => instalada;
 
   @override
-  Future<void> abreElInforme(String registro) async => borrados.add('ver:$registro');
+  Future<void> abreElInforme(
+    String registro, {
+    String Function(PorQueSeCayo)? explica,
+  }) async => borrados.add('ver:$registro');
 
   @override
   Future<void> pintaLaCorrida({
@@ -165,17 +188,23 @@ Future<void> _abrir(
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
   bool conIphone = false,
+  Duration demora = Duration.zero,
   List<String>? borrados,
   bool? instalada,
   bool? enGit,
   Map<String, String> variables = const {},
   List<String>? lanzados,
+  void Function()? alLeerElRepo,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
       overrides: [
         emuladoresDataSourceProvider.overrideWithValue(
-          _Maquina(encendidos: encendidos, conIphone: conIphone),
+          _Maquina(
+            encendidos: encendidos,
+            conIphone: conIphone,
+            demora: demora,
+          ),
         ),
         e2eDataSourceProvider.overrideWithValue(
           _Borrados(
@@ -185,7 +214,10 @@ Future<void> _abrir(
             variables: variables,
           ),
         ),
-        pruebasProvider('/casa/tienda').overrideWith((ref) async => pruebas),
+        pruebasProvider('/casa/tienda').overrideWith((ref) async {
+          alLeerElRepo?.call();
+          return pruebas;
+        }),
         corridasDePruebaProvider.overrideWith(
           (ref) async => corridas ?? const [],
         ),
@@ -267,17 +299,21 @@ void main() {
       expect(find.text(strings.e2eNone), findsOneWidget);
     });
 
-    testWidgets('sin dispositivo encendido se explica y no se lanza', (
+    testWidgets('sin dispositivo encendido, el botón no deja ni tocarlo', (
       tester,
     ) async {
-      // `maestro test --device` contra un emulador apagado falla: ofrecerlo sería
-      // ofrecer ese fallo, así que se dice antes.
+      // **Antes esta prueba tocaba el botón y esperaba la explicación.** Eso era
+      // enterarse tarde de algo que ya se sabía: `maestro test --device` contra un
+      // emulador apagado falla, así que el botón no puede ofrecerlo. Ahora está
+      // apagado y el motivo va en su tooltip, que es lo que evita el otro problema
+      // —un botón muerto sin explicación—.
       await _abrir(tester, encendidos: 0);
-      await tester.tap(find.text(strings.e2eRun));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
 
-      expect(find.text(strings.e2eNoDevice), findsOneWidget);
+      final boton = tester.widget<TextButton>(
+        find.widgetWithText(TextButton, strings.e2eRun),
+      );
+      expect(boton.onPressed, isNull);
+      expect(find.byTooltip(strings.e2eNoDevice), findsOneWidget);
     });
 
     testWidgets('con una corriendo no se puede lanzar otra', (tester) async {
@@ -600,9 +636,13 @@ void main() {
       expect(find.byIcon(Icons.replay), findsNothing);
     });
 
-    testWidgets('sin nada encendido lo explica en la propia fila', (
+    testWidgets('sin nada encendido, repetir tampoco se deja tocar', (
       tester,
     ) async {
+      // **Antes esto tocaba el icono y esperaba la explicación en la fila.** Igual
+      // que en la lista de arriba, eso era enterarse tarde: sin dónde correr,
+      // repetir no puede pasar. Un icono apagado dice todavía menos que un botón
+      // apagado, así que el motivo va en su tooltip.
       final lanzados = <String>[];
       await _abrir(
         tester,
@@ -611,11 +651,11 @@ void main() {
         corridas: [_corrida(dispositivo: 'emulator-5550')],
       );
 
-      await tester.tap(find.byIcon(Icons.replay));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
-
-      expect(find.text(strings.e2eNoDevice), findsOneWidget);
+      final icono = tester.widget<IconButton>(
+        find.widgetWithIcon(IconButton, Icons.replay),
+      );
+      expect(icono.onPressed, isNull);
+      expect(icono.tooltip, strings.e2eNoDevice);
       expect(lanzados, isEmpty);
     });
   });
@@ -802,6 +842,74 @@ void main() {
       await _tocarYEsperar(tester, find.text(strings.e2eRun));
 
       expect(lanzados, ['login@emulator-5550']);
+    });
+  });
+
+  group('mientras se buscan los dispositivos', () {
+    testWidgets('se dice que se está buscando', (tester) async {
+      // Lo reportado: al abrir el panel no salía el selector de dónde correr. La
+      // causa era que «todavía buscando» y «no hay ninguno» eran el mismo estado.
+      await _abrir(tester, encendidos: 2, demora: const Duration(seconds: 1));
+
+      expect(find.text(strings.e2eSearchingDevices), findsOneWidget);
+
+      // Y al acabar la búsqueda, el selector aparece y el aviso se va.
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eSearchingDevices), findsNothing);
+      expect(find.byType(SelectorCompacto), findsOneWidget);
+    });
+
+    testWidgets('no se ofrece arrancar un emulador mientras no se sabe', (
+      tester,
+    ) async {
+      // Con uno ya encendido, ese botón es una pregunta absurda que además
+      // desaparece medio segundo después.
+      await _abrir(tester, demora: const Duration(seconds: 1));
+
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+    });
+
+    testWidgets('sin ninguno, al acabar sí se ofrece', (tester) async {
+      await _abrir(
+        tester,
+        encendidos: 0,
+        demora: const Duration(seconds: 1),
+      );
+
+      expect(find.text(strings.e2eStartDevice), findsNothing);
+
+      await tester.pump(const Duration(seconds: 2));
+      expect(find.text(strings.e2eStartDevice), findsOneWidget);
+    });
+  });
+
+  group('una prueba recién creada', () {
+    testWidgets('al abrir se vuelve a mirar el repo, sin reiniciar', (
+      tester,
+    ) async {
+      // **El bucle entero de la feature dependía de esto**: se le pide a Nexus un
+      // e2e, lo escribe en el `.maestro/` del repo, y no aparecía para correrlo
+      // hasta reiniciar la app. La lista solo se refrescaba al borrar una prueba.
+      var lecturas = 0;
+      await _abrir(tester, alLeerElRepo: () => lecturas++);
+
+      expect(
+        lecturas,
+        greaterThanOrEqualTo(2),
+        reason: 'no se volvió a mirar el repo al abrir el panel',
+      );
+    });
+
+    testWidgets('y la lista sigue puesta mientras se vuelve a mirar', (
+      tester,
+    ) async {
+      // La otra mitad del criterio: el valor guardado evita el parpadeo. Refrescar
+      // sin conservarlo cambiaría un problema por el otro.
+      await _abrir(tester);
+      expect(find.text('login'), findsOneWidget);
     });
   });
 }

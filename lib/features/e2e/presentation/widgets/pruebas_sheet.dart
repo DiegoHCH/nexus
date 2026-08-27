@@ -9,6 +9,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
@@ -165,6 +166,22 @@ final _apretado = TextButton.styleFrom(
 /// `--device` falla, y sin la app instalada Maestro falla en el primer `launchApp`
 /// **saliendo con código 0**, un fallo disfrazado de éxito. Copiarlas en cada sitio
 /// era dejar a uno de los dos sin el aviso, y sin enterarse hasta que fallara ahí.
+/// Dónde correr, **esperando a que la búsqueda acabe**.
+///
+/// Leer el elegido sin esperar es lo que hacía que tocar Correr recién abierto el
+/// panel contestara «hace falta un dispositivo encendido» teniendo uno. La búsqueda
+/// tarda un instante —`flutter emulators` y `adb devices` son procesos— y en ese
+/// instante la respuesta correcta es esperar, no negar.
+Future<String?> _dondeCorrer(WidgetRef ref) async {
+  try {
+    await ref.read(emuladoresProvider.future);
+    await ref.read(dispositivosProvider.future);
+  } on Object {
+    // Si una de las dos vías falla, se sigue: puede haber dispositivo por la otra.
+  }
+  return ref.read(elDispositivoProvider);
+}
+
 Future<String?> _loQueFaltaParaCorrer(
   WidgetRef ref,
   NexusStrings strings, {
@@ -225,6 +242,30 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   String? _confirmandoBorrado;
   var _arrancando = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // **Al abrir, se vuelve a mirar el `.maestro/` del repo.** El mismo criterio que
+    // el panel de dispositivos: el valor guardado pone la lista al instante, y esto
+    // hace que no sea vieja. Sin lo primero parpadea en cada visita, sin lo segundo
+    // miente.
+    //
+    // Aquí «mentir» era romper el bucle entero de la feature: se le pide a Nexus un
+    // e2e, lo escribe en el repo, y **no aparecía para correrlo hasta reiniciar la
+    // app**. La lista solo se refrescaba al borrar una prueba. Se aprendió esta
+    // lección con los dispositivos y no se aplicó aquí.
+    //
+    // Después del primer fotograma: invalidar un provider mientras se construye el
+    // widget que lo mira es modificarlo durante el build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(pruebasProvider(widget.proyecto));
+      // Y las credenciales, por lo mismo: escribir el `.env.local` no debería pedir
+      // un reinicio para que el panel diga cuántas variables hay.
+      ref.invalidate(credencialesProvider(widget.proyecto));
+    });
+  }
+
   /// Los dispositivos y el elegido salen de sus proveedores —ver
   /// [dondeCorrerProvider]—, no de aquí: el historial también lanza, y con esto
   /// calculado en cada sitio los dos criterios se separan en cuanto uno cambie.
@@ -273,7 +314,8 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   }
 
   Future<void> _lanzar(Prueba prueba) async {
-    final donde = ref.read(elDispositivoProvider);
+    final donde = await _dondeCorrer(ref);
+    if (!mounted) return;
     final falta = await _loQueFaltaParaCorrer(
       ref,
       context.strings,
@@ -326,6 +368,17 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     final pruebas = ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
     final dispositivos = _dispositivos;
+    final buscando = ref.watch(buscandoDispositivosProvider);
+
+    // **Un botón no ofrece lo que no puede pasar.** Antes Correr estaba siempre
+    // activo y el «hace falta un dispositivo encendido» llegaba **después** de
+    // tocarlo, que es enterarse tarde de algo que ya se sabía. Se apaga también
+    // mientras se busca: ahí tampoco se sabe, y encenderlo para apagarlo medio
+    // segundo después es peor que esperar ese medio segundo.
+    //
+    // Con varios encendidos y ninguno elegido sí se deja tocar: ahí la respuesta
+    // útil no es un botón muerto, es la frase que dice que elijas.
+    final sePuedeCorrer = !corriendo && !buscando && dispositivos.isNotEmpty;
 
     // **Se le pregunta a git por todas, y ahora, no al confirmar.** Preguntando en
     // el toque, el primer fotograma enseña «borra el archivo del repo» y el
@@ -371,9 +424,33 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           )
         else ...[
+          // **Buscando no es lo mismo que no haber.** Mientras se busca no se
+          // ofrece arrancar un emulador: con uno ya encendido, ese botón es una
+          // pregunta absurda que además desaparece medio segundo después.
+          if (ref.watch(buscandoDispositivosProvider))
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+              child: Row(
+                children: [
+                  SizedBox(
+                    width: 12,
+                    height: 12,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: colors.accent,
+                    ),
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  Text(
+                    strings.e2eSearchingDevices,
+                    style: NexusTypography.mono.copyWith(color: colors.faint),
+                  ),
+                ],
+              ),
+            )
           // **Sin nada encendido, se ofrece encenderlo** en vez de decir que
           // falta. Es lo único que separa «no puedo correr» de «dame 30 s».
-          if (dispositivos.isEmpty)
+          else if (dispositivos.isEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
               child: _arrancando
@@ -472,10 +549,35 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                         : colors.faint,
                     icon: const Icon(Icons.delete_outline),
                   ),
-                  TextButton(
-                    style: _apretado,
-                    onPressed: corriendo ? null : () => _lanzar(prueba),
-                    child: Text(strings.e2eRun),
+                  // **El botón dice por qué no se puede.** Apagarlo sin más
+                  // cambia un problema por otro: un botón muerto y sin motivo
+                  // deja al usuario mirándolo. Mientras se busca lleva el
+                  // indicador girando en el sitio de la palabra —está ocupado,
+                  // no roto— y cuando ya se sabe que no hay ninguno, el motivo
+                  // va en su tooltip.
+                  //
+                  // El `Tooltip` envuelve al botón y no es una propiedad suya
+                  // porque un `TextButton` apagado no atiende punteros: el
+                  // tooltip tiene que estar fuera para que se vea justo cuando
+                  // más falta hace.
+                  Tooltip(
+                    message: buscando
+                        ? strings.e2eSearchingDevices
+                        : (dispositivos.isEmpty ? strings.e2eNoDevice : ''),
+                    child: TextButton(
+                      style: _apretado,
+                      onPressed: sePuedeCorrer ? () => _lanzar(prueba) : null,
+                      child: buscando
+                          ? SizedBox(
+                              width: 12,
+                              height: 12,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 1.5,
+                                color: colors.faint,
+                              ),
+                            )
+                          : Text(strings.e2eRun),
+                    ),
                   ),
                 ],
               ),
@@ -662,10 +764,12 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
     // **El mismo dispositivo, pero solo si sigue encendido.** Un `emulator-5554`
     // de hace tres días no es el mismo emulador, así que se comprueba contra lo
     // que hay ahora en vez de pasárselo a Maestro y esperar a que falle.
+    final elegido = await _dondeCorrer(ref);
+    if (!mounted) return;
     final hay = {for (final d in ref.read(dondeCorrerProvider)) d.id};
     final donde = hay.contains(corrida.dispositivo)
         ? corrida.dispositivo
-        : ref.read(elDispositivoProvider);
+        : elegido;
 
     final falta = await _loQueFaltaParaCorrer(
       ref,
@@ -703,7 +807,11 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
     final colors = context.colors;
     final strings = context.strings;
     final corrida = widget.corrida;
-    final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
+    // Por lo mismo que arriba: sin dónde correr, repetir tampoco puede pasar.
+    final sePuedeCorrer =
+        !(ref.watch(pruebaEnMarchaProvider)?.viva ?? false) &&
+        !ref.watch(buscandoDispositivosProvider) &&
+        ref.watch(dondeCorrerProvider).isNotEmpty;
 
     final (icono, color, etiqueta) = switch (corrida.comoAcabo) {
       ComoAcabo.bien => (Icons.check, colors.ok, strings.e2ePassed),
@@ -769,8 +877,14 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                         ),
                       )
                     : IconButton(
-                        onPressed: corriendo ? null : _repetir,
-                        tooltip: strings.e2eRepeat,
+                        onPressed: sePuedeCorrer ? _repetir : null,
+                        // Un icono apagado dice todavía menos que un botón
+                        // apagado, así que su tooltip lleva el motivo.
+                        tooltip: sePuedeCorrer
+                            ? strings.e2eRepeat
+                            : (ref.watch(buscandoDispositivosProvider)
+                                  ? strings.e2eSearchingDevices
+                                  : strings.e2eNoDevice),
                         iconSize: 14,
                         splashRadius: 14,
                         padding: const EdgeInsets.symmetric(horizontal: 4),
@@ -786,7 +900,16 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                 style: _apretado,
                 onPressed: () => ref
                     .read(e2eDataSourceProvider)
-                    .abreElInforme(corrida.carpeta),
+                    .abreElInforme(
+                      corrida.carpeta,
+                      explica: (por) => switch (por) {
+                        PorQueSeCayo.driverNoSeInstala =>
+                          strings.e2eDriverBlocked,
+                        PorQueSeCayo.sinPermisoParaTocar =>
+                          strings.e2eNoTapPermission,
+                        PorQueSeCayo.appNoInstalada => strings.e2eAppMissing,
+                      },
+                    ),
                 child: Text(strings.e2eSee),
               ),
               TextButton(

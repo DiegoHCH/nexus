@@ -489,6 +489,10 @@ abstract class NexusStrings {
   String e2eMissingVars(String claves);
   String e2eVarsLoaded(int cuantas);
   String get e2eEnvInGit;
+  String get e2eDriverBlocked;
+  String get e2eNoTapPermission;
+  String get e2eAppMissing;
+  String get e2eSearchingDevices;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1503,6 +1507,21 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eEnvInGit =>
       '.env.local está en git. Sácalo: lleva credenciales.';
+  @override
+  String get e2eDriverBlocked =>
+      'El dispositivo no dejó instalar el driver de Maestro. En Xiaomi hace falta '
+      '«Instalar vía USB» y «Depuración USB (Ajustes de seguridad)» en opciones de '
+      'desarrollador; se apagan solas cada cierto tiempo.';
+  @override
+  String get e2eNoTapPermission =>
+      'El dispositivo deja leer la pantalla pero no tocarla. En Xiaomi es '
+      '«Depuración USB (Ajustes de seguridad)»: sin ella los assert pasan y el tap '
+      'falla.';
+  @override
+  String get e2eAppMissing =>
+      'La app no estaba en el dispositivo. Maestro no la instala: córrela primero.';
+  @override
+  String get e2eSearchingDevices => 'Buscando dispositivos…';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
@@ -2826,6 +2845,21 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eEnvInGit =>
       '.env.local is in git. Take it out: it holds credentials.';
+  @override
+  String get e2eDriverBlocked =>
+      "The device refused to install Maestro's driver. On Xiaomi this needs "
+      '"Install via USB" and "USB debugging (Security settings)" in developer '
+      'options; both switch themselves off periodically.';
+  @override
+  String get e2eNoTapPermission =>
+      'The device lets the screen be read but not touched. On Xiaomi that is '
+      '"USB debugging (Security settings)": without it asserts pass and the tap '
+      'fails.';
+  @override
+  String get e2eAppMissing =>
+      'The app was not on the device. Maestro does not install it: run it first.';
+  @override
+  String get e2eSearchingDevices => 'Looking for devices…';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override
