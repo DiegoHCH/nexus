@@ -33,6 +33,27 @@ void main() {
       );
     });
 
+    // El idioma vive aquí desde que se lo quitamos al encargo: pegado al prompt de la
+    // persona rompía a quien lo lee como un comando. Y sigue siendo una preferencia —lo
+    // dice el propio texto—, no una orden que gane a lo que se escribió.
+    test('el idioma va en el prompt de sistema, y como preferencia', () {
+      final texto = ProjectContextPrompt.compose(
+        rules: const [],
+        language: 'español',
+      )!;
+
+      expect(texto, contains('responde en español'));
+      expect(texto, contains('el idioma en que te escribieron'));
+    });
+
+    test('sin idioma no se dice nada del idioma', () {
+      expect(ProjectContextPrompt.compose(rules: const []), isNull);
+      expect(
+        ProjectContextPrompt.compose(rules: const [], language: ''),
+        isNull,
+      );
+    });
+
     test('el contexto compartido dice que no son las reglas completas', () {
       final texto = ProjectContextPrompt.compose(
         rules: const [],

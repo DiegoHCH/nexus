@@ -136,6 +136,7 @@ class _Bridge implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     _raw.add(instruction);
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
@@ -227,6 +228,7 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     // El orden es el de verdad: primero el `init` con el modelo, y el fin de
     // turno con las cifras al final.

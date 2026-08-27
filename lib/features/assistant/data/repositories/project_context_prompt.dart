@@ -40,8 +40,26 @@ abstract final class ProjectContextPrompt {
     String? artifactsFolder,
     String? artifactsAccount,
     String? carpetaDePruebas,
+    String? language,
   }) {
     final sections = <String>[];
+
+    // El idioma **es una preferencia, no una orden**: si escribes en otro idioma, gana lo
+    // que escribiste. Imponerlo haría que preguntar en español con la app en inglés te
+    // contestara en inglés, que es lo contrario de lo que se pidió.
+    //
+    // 🔴 **Y va aquí y no pegado al encargo, que es donde estaba.** Lo que la persona
+    // escribe puede ser el comando de otra herramienta: el plugin del marco de trabajo
+    // lee el prompt, y `flow start <título>` toma como título todo lo que va detrás. Con
+    // la frase colgando del encargo, abrir una tarea la bautizaba «(Si no se te pide otra
+    // cosa, responde en español.)» — pasó de verdad, y el mismo fallo habría metido esa
+    // línea dentro de una narrativa de cierre o del motivo de un `cancel`.
+    if (language != null && language.isNotEmpty) {
+      sections.add(
+        'Si el encargo no pide otra cosa, responde en $language. Es una preferencia: '
+        'si te escriben en otro idioma, contesta en el idioma en que te escribieron.',
+      );
+    }
 
     // Dónde dejar lo que genere. Va aquí y no en cada encargo porque es una
     // regla del sitio, no de la petición: sin decirlo, un mockup acaba en la
