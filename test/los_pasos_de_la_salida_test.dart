@@ -202,4 +202,81 @@ void main() {
       expect(pasos[4].estado, EstadoDePaso.pendiente);
     });
   });
+
+  group('un flujo anidado', () {
+    /// Captura real de la corrida del login: un `runFlow` condicional se imprime en
+    /// tres tramos —anuncio, pasos de dentro indentados, y **otra vez el mismo
+    /// `runFlow`** con su resultado—.
+    const conRunFlow =
+        'Running on 36c56d94\n'
+        ' > Flow login\n'
+        'Press Enter key... COMPLETED\n'
+        'Assert that (Optional) id: input.pin is visible... COMPLETED\n'
+        'Run flow when id: input.pin is visible...\n'
+        '  Tap on id: btn.pin_keypad_1... COMPLETED\n'
+        '  Tap on id: btn.pin_keypad_2... COMPLETED\n'
+        'Run flow when id: input.pin is visible... COMPLETED\n';
+
+    test('el anuncio y su cierre son el mismo paso, no dos', () {
+      // Lo que se veía: el anuncio girando para siempre —nunca recibe estado en su
+      // propia línea— y su cierre como una fila más. Con dos flujos anidados,
+      // **tres indicadores a la vez** y la ventana leyéndose como colgada teniendo
+      // la corrida acabada.
+      final pasos = PasosDeUnaPrueba.deLaSalida(conRunFlow);
+
+      expect(
+        pasos.where((p) => p.texto.startsWith('Run flow')).length,
+        1,
+        reason: 'el runFlow salió dos veces',
+      );
+      expect(pasos.length, 5);
+    });
+
+    test('y ese paso queda hecho, no en curso', () {
+      final pasos = PasosDeUnaPrueba.deLaSalida(conRunFlow);
+      final flujo = pasos.firstWhere((p) => p.texto.startsWith('Run flow'));
+
+      expect(flujo.estado, EstadoDePaso.hecho);
+      expect(
+        pasos.where((p) => p.estado == EstadoDePaso.enCurso),
+        isEmpty,
+        reason: 'quedó algo girando con la corrida acabada',
+      );
+    });
+
+    test('mientras corre, el anuncio sí es el paso en curso', () {
+      // Sin su cierre todavía: ahí sí es lo que está pasando.
+      final pasos = PasosDeUnaPrueba.deLaSalida(
+        'Run flow when id: input.pin is visible...\n'
+        '  Tap on id: btn.pin_keypad_1... COMPLETED\n',
+      );
+
+      expect(pasos.first.estado, EstadoDePaso.enCurso);
+      expect(pasos.length, 2);
+    });
+
+    test('dos pasos idénticos seguidos no se confunden entre sí', () {
+      // Un PIN con dígitos repetidos toca la misma tecla dos veces. No colisionan
+      // porque solo se busca entre los que están en curso, y uno acabado no casa.
+      final pasos = PasosDeUnaPrueba.deLaSalida(
+        'Tap on id: btn.pin_keypad_1... COMPLETED\n'
+        'Tap on id: btn.pin_keypad_1... COMPLETED\n',
+      );
+
+      expect(pasos.length, 2);
+      expect(pasos.every((p) => p.estado == EstadoDePaso.hecho), isTrue);
+    });
+
+    test('el paso que revienta dentro de un flujo también cierra su anuncio', () {
+      final pasos = PasosDeUnaPrueba.deLaSalida(
+        'Run flow when id: input.pin is visible...\n'
+        '  Tap on id: btn... COMPLETED\n'
+        "Run flow when id: input.pin is visible...maestro.MaestroException: algo\n",
+      );
+
+      final flujo = pasos.firstWhere((p) => p.texto.startsWith('Run flow'));
+      expect(flujo.estado, EstadoDePaso.fallado);
+      expect(pasos.length, 2);
+    });
+  });
 }
