@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
-import 'package:nexus/features/workspace/domain/usecases/reglas_declaradas.dart';
 
 /// Busca en el disco lo que Claude debería saber antes de empezar: las reglas
 /// del árbol de carpetas y el contexto compartido del repo.
@@ -12,12 +11,6 @@ import 'package:nexus/features/workspace/domain/usecases/reglas_declaradas.dart'
 /// una carpeta llamada **exactamente** `ai-context` que tenga
 /// `repo-map/registry.json`, y de ahí sale el `CONTEXT.md` del repo en juego.
 class ProjectContextDataSource {
-  /// Dónde el repo declara qué reglas hay que cargarle.
-  ///
-  /// En la raíz del proyecto y con nombre visible —no dentro de una carpeta
-  /// oculta— porque es una decisión del equipo que se revisa en un PR, no una
-  /// preferencia de la máquina de cada uno.
-  static const _archivoDeReglas = ReglasDeclaradas.archivo;
   const ProjectContextDataSource();
 
   /// Hasta dónde se sube buscando reglas. Sin tope se llegaría a `/`, y las
@@ -27,73 +20,12 @@ class ProjectContextDataSource {
   Future<({List<ContextFile> rules, ContextFile? sharedContext})> read(
     String workingDirectory,
   ) async {
-    final rules = [
-      ...await _rules(workingDirectory),
-      // **Al final del todo, y por lo mismo que el `CLAUDE.md` del proyecto va
-      // último**: lo último leído es lo que pesa, y estas son las reglas que el
-      // repo declara para sí mismo.
-      ...await _declaradas(workingDirectory),
-    ];
+    // **Aquí se leía también un `.nexus-reglas` del repo, y se fue con el marco flow.**
+    // Las reglas por capa las inyecta ahora el plugin `flash-flutter`, que sabe qué
+    // archivo se está tocando; esto solo mira los `CLAUDE.md` del árbol.
+    final rules = await _rules(workingDirectory);
     final shared = await _sharedContext(workingDirectory);
     return (rules: rules, sharedContext: shared);
-  }
-
-  /// Las reglas que **el propio repo declara** en `.nexus-reglas`.
-  ///
-  /// Existe porque un proyecto puede guardar sus reglas fuera de un `CLAUDE.md`
-  /// —repartidas por capa, en un repo de contexto aparte— y entonces Nexus no las
-  /// veía en absoluto: solo mira los `CLAUDE.md` del árbol y el `CONTEXT.md` del
-  /// repo. Medido en un caso real: **33 archivos de reglas, 328 KB, y ninguno
-  /// llegaba al modelo.** El trabajo salía sin la mitad de la ley del sitio.
-  ///
-  /// **Las elige una persona, no la app.** Ese es el punto de esta pieza, y no una
-  /// limitación: 328 KB son dieciséis veces lo que cabe en un encargo, así que
-  /// alguien tiene que decidir qué entra — y quien sabe qué regla aplica a lo que
-  /// se va a tocar es quien escribe el encargo, no un heurístico sobre su texto.
-  ///
-  /// El archivo es una ruta por línea. Se admiten comentarios con `#`, rutas
-  /// absolutas, `~` y rutas relativas al repo: las reglas suelen vivir en un repo
-  /// hermano, así que exigirlas dentro sería no servir para el caso que motivó
-  /// esto.
-  Future<List<ContextFile>> _declaradas(String workingDirectory) async {
-    final lista = File('$workingDirectory/$_archivoDeReglas');
-    if (!lista.existsSync()) return const [];
-
-    final home = Platform.environment['HOME'] ?? '';
-    final found = <ContextFile>[];
-
-    // **Solo las que van siempre.** Las de capa —las que llevan flecha— las carga el
-    // gancho justo antes de cada edición, sabiendo qué archivo se toca. Antes esto se
-    // tragaba la línea entera como si fuera una ruta, así que un proyecto con reglas por
-    // capa metía «**/domain/** -> …» en cada encargo con un aviso de que no existía.
-    for (final regla in ReglasDeclaradas.leer(await lista.readAsString())) {
-      if (!regla.siempre) continue;
-      final crudo = regla.ruta;
-
-      final ruta = switch (crudo) {
-        _ when crudo.startsWith('/') => crudo,
-        _ when crudo.startsWith('~/') => '$home${crudo.substring(1)}',
-        _ => '$workingDirectory/$crudo',
-      };
-
-      final file = File(ruta);
-      if (!file.existsSync()) {
-        // **Se dice y no se calla.** Una regla declarada que no existe es un
-        // archivo que se movió o un nombre mal escrito, y el síntoma sin esto
-        // sería trabajo que ignora una regla sin que nadie sepa por qué.
-        found.add((
-          path: ruta,
-          content:
-              '> Nexus no encontró esta regla declarada en '
-              '`$_archivoDeReglas`: `$ruta`. Alguien la movió o la escribió mal.',
-        ));
-        continue;
-      }
-      final content = await file.readAsString();
-      if (content.trim().isNotEmpty) found.add((path: ruta, content: content));
-    }
-
-    return found;
   }
 
   /// Los `CLAUDE.md` del árbol, **de la carpeta más lejana a la más cercana**.

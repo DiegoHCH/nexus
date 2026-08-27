@@ -1,12 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:nexus/features/superpowers/data/datasources/hooks_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/plugins_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/skills_data_source.dart';
 import 'package:nexus/features/superpowers/domain/entities/claude_plugin.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
-import 'package:nexus/features/superpowers/domain/entities/nexus_hook.dart';
 
 final mcpDataSourceProvider = Provider<McpDataSource>(
   (ref) => const McpDataSource(),
@@ -58,23 +56,3 @@ final marketplacesProvider = FutureProvider.family<List<Marketplace>, String>(
   (ref, configDir) =>
       ref.watch(pluginsDataSourceProvider).marketplaces(configDir),
 );
-
-final hooksDataSourceProvider = Provider<HooksDataSource>(
-  (ref) => const HooksDataSource(),
-);
-
-/// Cómo está cada gancho de Nexus en una cuenta.
-///
-/// Todos de una vez y no uno por fila: son dos, salen del mismo `settings.json`, y
-/// pedirlo por gancho leería y parsearía ese archivo tantas veces como ganchos haya.
-final estadoDeLosGanchosProvider =
-    FutureProvider.family<Map<String, EstadoDelGancho>, String>((
-      ref,
-      configDir,
-    ) async {
-      final fuente = ref.watch(hooksDataSourceProvider);
-      return {
-        for (final gancho in NexusHook.catalogo)
-          gancho.id: await fuente.estado(configDir, gancho),
-      };
-    });

@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
-import 'package:nexus/features/superpowers/presentation/widgets/hooks_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/mcp_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/plugins_panel.dart';
 import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
@@ -22,12 +21,12 @@ class SuperpowersSection extends ConsumerStatefulWidget {
   ConsumerState<SuperpowersSection> createState() => _SuperpowersSectionState();
 }
 
-/// Manos fuera del disco, procedimientos aprendidos, paquetes de los dos — y los ganchos.
+/// Manos fuera del disco, procedimientos aprendidos y paquetes de los dos.
 ///
-/// Los ganchos van los últimos y no los primeros aunque sean los que más mandan: son dos,
-/// se ponen una vez y no se vuelven a tocar, mientras que los MCP y las skills se miran
-/// cada semana.
-enum _Kind { mcp, skills, plugins, hooks }
+/// **Aquí hubo una cuarta, los ganchos, y se fue con el marco flow.** Nexus dejó de traer
+/// los suyos cuando el plugin `flash-flutter` pasó a poner los de verdad: dos juegos sobre
+/// los mismos matchers se pisan, y el que gana no es el que uno cree.
+enum _Kind { mcp, skills, plugins }
 
 class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   String? _profile;
@@ -99,7 +98,6 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
                   _Kind.mcp => strings.superpowersMcp,
                   _Kind.skills => strings.superpowersSkills,
                   _Kind.plugins => strings.superpowersPlugins,
-                  _Kind.hooks => strings.superpowersHooks,
                 },
                 active: _kind == kind,
                 onTap: () => setState(() => _kind = kind),
@@ -126,11 +124,6 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
             ),
             _Kind.plugins => PluginsPanel(
               key: ValueKey('plugins-$current'),
-              configDir: current,
-            ),
-            _Kind.hooks => HooksPanel(
-              key: ValueKey('hooks-$current-$_enTodas'),
-              tambienEn: _otras(profiles, current),
               configDir: current,
             ),
           },
