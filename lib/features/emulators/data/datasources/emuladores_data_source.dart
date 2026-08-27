@@ -4,6 +4,7 @@ import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_iphone.dart';
 import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_movil.dart';
 import 'package:nexus/features/emulators/domain/usecases/comando_de_emuladores.dart';
 
@@ -113,6 +114,28 @@ class EmuladoresDataSource {
 
   /// Si scrcpy está instalado. Es opcional: sin él, el botón no se ofrece.
   bool hayEspejo() => BinarioEnElPath.hay(ElEspejoDelMovil.binario);
+
+  /// Abre la pantalla de un iPhone con lo que trae macOS.
+  ///
+  /// **No recibe dispositivo, y no es un olvido**: Duplicado abre el iPhone
+  /// emparejado y QuickTime pide elegir la fuente dentro. Ninguna de las dos acepta
+  /// que se le diga cuál desde fuera, así que pedirlo aquí sería prometerlo.
+  Future<String?> verElIphone(ComoVerElIphone como) async {
+    try {
+      await Process.start(
+        ElEspejoDelIphone.binario,
+        ElEspejoDelIphone.argumentos(como),
+        environment: ClaudeEnvironment.forTools(),
+        includeParentEnvironment: false,
+      );
+      return null;
+    } on ProcessException catch (e) {
+      return e.message;
+    }
+  }
+
+  /// Qué formas de ver un iPhone hay en esta máquina.
+  List<ComoVerElIphone> comoVerElIphone() => ElEspejoDelIphone.lasQueHay();
 
   Future<List<DispositivoConectado>> listarDispositivos() async {
     final flutter = await _flutter();

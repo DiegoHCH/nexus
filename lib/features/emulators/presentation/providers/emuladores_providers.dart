@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_iphone.dart';
 
 final emuladoresDataSourceProvider = Provider<EmuladoresDataSource>(
   (ref) => const EmuladoresDataSource(),
@@ -64,4 +65,23 @@ final sePuedeVerLaPantallaProvider = Provider.family<bool, String>((ref, id) {
       .value
       ?.any((d) => d.id == id && d.plataforma == PlataformaEmulador.android) ??
       false;
+});
+
+/// Cómo se puede ver *este* dispositivo, si es un iPhone físico.
+///
+/// Vacío para cualquier otra cosa. Y **esto no se ofrece en el panel de pruebas**:
+/// Maestro no maneja un iPhone físico, solo simuladores, así que un espejo de iOS
+/// sirve para mirar y no para probar.
+final comoVerElIphoneProvider = Provider.family<List<ComoVerElIphone>, String>((
+  ref,
+  id,
+) {
+  final esIphone =
+      ref
+          .watch(dispositivosProvider)
+          .value
+          ?.any((d) => d.id == id && d.plataforma == PlataformaEmulador.ios) ??
+      false;
+  if (!esIphone) return const [];
+  return ref.watch(emuladoresDataSourceProvider).comoVerElIphone();
 });
