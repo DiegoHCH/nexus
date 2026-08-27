@@ -14,6 +14,7 @@ import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
+import 'package:nexus/features/e2e/presentation/providers/raiz_de_los_flows_provider.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final e2eDataSourceProvider = Provider<E2eDataSource>(
@@ -48,12 +49,13 @@ final carpetaDePruebasProvider = Provider.family<String, String>((
   proyecto,
 ) {
   final home = Platform.environment['HOME'] ?? '';
+  final raiz = ref.watch(raizDeLosFlowsProvider);
   final emparejadas = ref.watch(workspaceControllerProvider).folders;
   // Por el directorio de trabajo **y** por la ruta emparejada: con una raíz de varios
   // repos, quien pide las pruebas manda el repo elegido y no la raíz.
   for (final carpeta in emparejadas) {
     if (carpeta.workingDirectory == proyecto || carpeta.path == proyecto) {
-      return carpeta.pruebasEn(home);
+      return carpeta.pruebasEn(home, raiz: raiz);
     }
   }
   return '$proyecto/.maestro';

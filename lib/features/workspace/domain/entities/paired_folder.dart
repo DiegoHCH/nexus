@@ -84,10 +84,29 @@ class PairedFolder {
   /// llaman con `runFlow`.
   final String? carpetaDePruebas;
 
-  /// Dónde buscar las pruebas, ya resuelta contra el proyecto y el home.
-  String pruebasEn(String home) {
+  /// Dónde buscar las pruebas, ya resuelta contra el proyecto, la raíz y el home.
+  ///
+  /// Tres reglas, y en este orden:
+  ///
+  /// 1. **Lo que declare la carpeta.** Un repo que ya tiene sus pruebas en `flows/` no
+  ///    se puede mover, y el ajuste global no puede pisarlo.
+  /// 2. **La raíz común, con una subcarpeta por proyecto**: `~/pruebas/nexus`. Es lo que
+  ///    permite tenerlas todas juntas y fuera de los repos sin que se mezclen.
+  /// 3. **`.maestro/` dentro del proyecto**, la convención de Maestro, para quien no ha
+  ///    elegido nada.
+  ///
+  /// La declaración de la carpeta gana a la raíz a propósito: la raíz es una preferencia
+  /// tuya y la declaración es un hecho del repo.
+  String pruebasEn(String home, {String? raiz}) {
     final declarada = carpetaDePruebas?.trim();
     if (declarada == null || declarada.isEmpty) {
+      final comun = raiz?.trim();
+      if (comun != null && comun.isNotEmpty) {
+        final base = comun.startsWith('~/')
+            ? '$home${comun.substring(1)}'
+            : comun;
+        return '$base/$name';
+      }
       return '$workingDirectory/.maestro';
     }
     if (declarada.startsWith('/')) return declarada;
