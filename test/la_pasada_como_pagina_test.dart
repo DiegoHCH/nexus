@@ -1,8 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 
-/// La corrida escrita como página, que es lo que se ve en la ventana aparte.
+/// La pasada escrita como página, que es lo que se ve en la ventana aparte.
 /// Los pasos y sus estados **eran dos listas paralelas** y ahora son una sola cosa,
 /// porque los ejecutados vienen ya con su estado desde la salida de Maestro.
 ///
@@ -23,7 +23,7 @@ List<PasoParaPintar> _pasos(
 
 void main() {
   test('cada paso lleva la clase de su estado', () {
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([
         PasoDelFlow(linea: 11, texto: 'uno'),
@@ -53,10 +53,10 @@ void main() {
   });
 
   test('**el total va aparte, o sale una cuenta imposible**', () {
-    // El fallo que se vio: al abrir el informe de una corrida guardada, la lista
+    // El fallo que se vio: al abrir el informe de una pasada guardada, la lista
     // de pasos venía vacía y el encabezado decía «8/0». Una cuenta así se lee
     // como un fallo nuestro, y lo era.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([], const []),
       lineas: const ['Launch app... COMPLETED'],
@@ -73,7 +73,7 @@ void main() {
   });
 
   test('sin total se usa el número de pasos, que es lo de en vivo', () {
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([
         PasoDelFlow(linea: 1, texto: 'uno'),
@@ -90,7 +90,7 @@ void main() {
   test('lo que escribió alguien no puede volverse HTML', () {
     // Un `assertVisible: "<b>"` en un `.yaml`, o una comilla en la salida de
     // Maestro, acaban dentro de esta página.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([PasoDelFlow(linea: 1, texto: 'assertVisible: "<b>hola</b>"')], [EstadoDePaso.hecho]),
       lineas: const ['algo & otro <cosa>'],
@@ -105,7 +105,7 @@ void main() {
   });
 
   test('sin salida no se pinta su sección vacía', () {
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
       lineas: const [],
@@ -119,7 +119,7 @@ void main() {
   test('autocontenida: nada de fuera', () {
     // La ventana carga un archivo local; cualquier petición a la red sería un
     // hueco en blanco.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
       lineas: const [],
@@ -133,7 +133,7 @@ void main() {
 
   group('la etiqueta de estado', () {
     String pagina({required bool viva, required bool fallo}) =>
-        LaCorridaComoHtml.escribe(
+        LaPasadaComoHtml.escribe(
           flow: 'login',
           pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
           lineas: const [],
@@ -170,7 +170,7 @@ void main() {
       // a la app, que es quien sabe matar el proceso.
       expect(
         pagina(viva: true, fallo: false),
-        contains('href="${LaCorridaComoHtml.esquema}://parar"'),
+        contains('href="${LaPasadaComoHtml.esquema}://parar"'),
       );
       expect(
         pagina(viva: false, fallo: false),
@@ -180,7 +180,7 @@ void main() {
   });
 
   test('la fila en curso se sombrea, para decir dónde va', () {
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([
         PasoDelFlow(linea: 1, texto: 'uno'),
@@ -197,7 +197,7 @@ void main() {
 
   test('el detalle indentado de un paso se enseña con él', () {
     // Un `tapOn:` a secas no dice nada; el `id:` de debajo es todo el contenido.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([
         PasoDelFlow(
@@ -222,7 +222,7 @@ void main() {
     // `inline-block`, el círculo del paso en curso se veía como una barra
     // vertical. En la etiqueta de arriba salía bien porque allí es hijo de un
     // `inline-flex`, así que el fallo solo aparecía en la lista.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
       lineas: const [],
@@ -238,7 +238,7 @@ void main() {
     // Un gris sobre el fondo oscuro de la ventana cae en el mismo rango de tono
     // que el resto: no se distinguía dónde iba la prueba. La señal es el fondo
     // con acento, y el texto se queda en tinta plena en todos los estados.
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
       lineas: const [],

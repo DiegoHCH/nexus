@@ -1495,7 +1495,7 @@ class NexusStringsEs extends NexusStrings {
   String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
   @override
   String get e2eNoRuns =>
-      'Todavía no hay corridas. Las que lances desde aquí aparecerán con su proyecto.';
+      'Todavía no hay pasadas. Las que lances desde aquí aparecerán con su proyecto.';
   @override
   String get e2eRun => 'Correr';
   @override
@@ -1543,13 +1543,13 @@ class NexusStringsEs extends NexusStrings {
   String get e2eFlowGone =>
       'Esa prueba ya no está en el repo, así que no se puede repetir.';
   @override
-  String get e2eDeleteProject => 'Borrar las corridas de este proyecto';
+  String get e2eDeleteProject => 'Borrar las pasadas de este proyecto';
   @override
   String get e2eDeleteProjectAsk =>
-      'Borra todas las corridas de este proyecto. Las pruebas no se tocan.';
+      'Borra todas las pasadas de este proyecto. Las pruebas no se tocan.';
   @override
   String e2eRunsSize(int cuantas, String tamano) =>
-      '${cuantas == 1 ? '1 corrida' : '$cuantas corridas'} · $tamano';
+      '${cuantas == 1 ? '1 pasada' : '$cuantas pasadas'} · $tamano';
   @override
   String e2eMissingVars(String claves) => 'Faltan en .env.local: $claves';
   @override

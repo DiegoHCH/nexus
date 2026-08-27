@@ -1,4 +1,4 @@
-/// Dónde se guardan las corridas de pruebas, y cómo se nombran.
+/// Dónde se guardan las pasadas de pruebas, y cómo se nombran.
 ///
 /// **En la carpeta de documentos del usuario y no en Application Support**, que
 /// es donde estaban: enterradas donde nadie las ve. Van al lado de lo que escribe
@@ -10,7 +10,7 @@
 /// proyectos que se llamen `app` comparten carpeta, y por eso la ruta completa va
 /// **dentro** de cada registro: la atribución sale del dato y no del nombre de la
 /// carpeta.
-abstract final class DondeVivenLasCorridas {
+abstract final class DondeVivenLasPasadas {
   /// La carpeta, dentro de la de documentos.
   static const carpeta = 'test';
 
@@ -33,11 +33,11 @@ abstract final class DondeVivenLasCorridas {
     return nombre.isEmpty ? 'proyecto' : nombre;
   }
 
-  /// Dónde van las corridas de un proyecto.
+  /// Dónde van las pasadas de un proyecto.
   static String de({required String raiz, required String proyecto}) =>
       '$raiz/${carpetaDe(proyecto)}';
 
-  /// Cómo se llama el registro de una corrida.
+  /// Cómo se llama el registro de una pasada.
   ///
   /// **Con el flow y la hora, legible**, porque este archivo lo va a ver alguien
   /// en el Finder. Y con `h` en vez de dos puntos: macOS enseña un `:` en un

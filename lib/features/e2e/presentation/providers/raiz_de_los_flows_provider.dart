@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// La carpeta raíz donde viven **los archivos de prueba** de todos los proyectos.
 ///
 /// Se llama «de los flows» y no «de pruebas» porque ya hay una raíz de pruebas y es otra
-/// cosa: aquella es donde se guardan **las corridas** —lo que dejó ejecutarlas—. Dos
+/// cosa: aquella es donde se guardan **las pasadas** —lo que dejó ejecutarlas—. Dos
 /// cosas con el mismo nombre en el mismo módulo es como alguien acaba borrando el sitio
 /// que no era.
 ///

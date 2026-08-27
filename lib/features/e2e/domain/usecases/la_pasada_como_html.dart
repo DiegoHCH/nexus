@@ -15,7 +15,7 @@ import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 /// y el avance llega recargando el archivo, así que no hay estado que sincronizar
 /// entre la página y la app — que es el error obvio aquí y el que habría hecho
 /// falta depurar en dos sitios.
-abstract final class LaCorridaComoHtml {
+abstract final class LaPasadaComoHtml {
   /// El esquema con el que la página le habla a la app.
   ///
   /// El visor intercepta cualquier URL que no sea de archivo; con este esquema, en
@@ -35,7 +35,7 @@ abstract final class LaCorridaComoHtml {
     String? diagnostico,
   }) {
     // **El total va aparte y no se deduce de la lista.** Con una lista vacía
-    // —lo que pasaba al abrir el informe de una corrida guardada— el encabezado
+    // —lo que pasaba al abrir el informe de una pasada guardada— el encabezado
     // decía «8/0», que es una cuenta imposible y se lee como un fallo nuestro.
     final cuantos = total ?? pasos.length;
 

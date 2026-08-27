@@ -6,7 +6,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
-import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -64,7 +64,7 @@ class PruebasSheet extends ConsumerWidget {
           // en marcha es su propia pantalla —ver [PruebaEnMarchaPage]— porque se
           // mira mientras avanza y compartir sitio con una lista que no cambia la
           // dejaba en un rincón. Aquí solo queda la puerta.
-          // **Solo mientras corre.** Al acabar, la corrida ya está en el
+          // **Solo mientras corre.** Al acabar, la pasada ya está en el
           // historial de abajo con sus dos botones, y tenerla arriba además era
           // enseñar lo mismo dos veces con acciones distintas en cada sitio.
           if (enMarcha != null && enMarcha.viva) ...[
@@ -162,7 +162,7 @@ final _apretado = TextButton.styleFrom(
 /// Lo que falta para poder correr, o `null` si no falta nada.
 ///
 /// **Fuera de los dos widgets a propósito.** Hay dos sitios que lanzan —la lista
-/// del proyecto y el historial, al repetir una corrida— y estas comprobaciones son
+/// del proyecto y el historial, al repetir una pasada— y estas comprobaciones son
 /// las que convierten un fallo confuso en una frase: sin dispositivo encendido
 /// `--device` falla, y sin la app instalada Maestro falla en el primer `launchApp`
 /// **saliendo con código 0**, un fallo disfrazado de éxito. Copiarlas en cada sitio
@@ -497,7 +497,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
             ),
           // **Ver la pantalla del móvil**, cuando el elegido es uno físico de
           // Android y scrcpy está instalado. Aquí va **sin control**: si hay una
-          // corrida viva y tocas la pantalla, Maestro y tú estáis inyectando
+          // pasada viva y tocas la pantalla, Maestro y tú estáis inyectando
           // eventos en el mismo dispositivo y el fallo que salga no será real.
           //
           // Y encima de todo mientras corre, que es cuando se quiere mirar sin
@@ -655,7 +655,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
 /// Lo que ya corrió, agrupado por proyecto.
 ///
 /// Las que no se pudieron atribuir van en su propio grupo y **no se esconden**:
-/// no saber de qué proyecto salió una corrida es un problema nuestro, y taparla
+/// no saber de qué proyecto salió una pasada es un problema nuestro, y taparla
 /// se lo pasaría al usuario en forma de historial incompleto.
 class _Historial extends ConsumerStatefulWidget {
   const _Historial();
@@ -666,22 +666,22 @@ class _Historial extends ConsumerStatefulWidget {
 
 class _HistorialState extends ConsumerState<_Historial> {
   /// Qué grupo pidió confirmación. Los dos toques de siempre, y aquí importan más
-  /// que en una fila: esto se lleva por delante todas las corridas del proyecto.
+  /// que en una fila: esto se lleva por delante todas las pasadas del proyecto.
   String? _confirmando;
 
   Future<void> _borrarElProyecto(
     String clave,
-    List<CorridaDePrueba> corridas,
+    List<PasadaDePrueba> pasadas,
   ) async {
     if (_confirmando != clave) {
       setState(() => _confirmando = clave);
       return;
     }
     final ds = ref.read(e2eDataSourceProvider);
-    for (final corrida in corridas) {
-      await ds.borrar(corrida.carpeta);
+    for (final pasada in pasadas) {
+      await ds.borrar(pasada.carpeta);
     }
-    ref.invalidate(corridasDePruebaProvider);
+    ref.invalidate(pasadasDePruebaProvider);
     if (!mounted) return;
     setState(() => _confirmando = null);
   }
@@ -690,9 +690,9 @@ class _HistorialState extends ConsumerState<_Historial> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final corridas = ref.watch(corridasDePruebaProvider);
+    final pasadas = ref.watch(pasadasDePruebaProvider);
 
-    final lista = corridas.value;
+    final lista = pasadas.value;
     if (lista == null) {
       return Text(
         strings.e2eTitle,
@@ -706,9 +706,9 @@ class _HistorialState extends ConsumerState<_Historial> {
       );
     }
 
-    final porProyecto = <String, List<CorridaDePrueba>>{};
-    for (final corrida in lista) {
-      porProyecto.putIfAbsent(corrida.proyecto ?? '', () => []).add(corrida);
+    final porProyecto = <String, List<PasadaDePrueba>>{};
+    for (final pasada in lista) {
+      porProyecto.putIfAbsent(pasada.proyecto ?? '', () => []).add(pasada);
     }
     // Lo sin atribuir al final: es lo menos útil, no lo primero que se mira.
     final claves = porProyecto.keys.toList()
@@ -737,7 +737,7 @@ class _HistorialState extends ConsumerState<_Historial> {
                   ),
                 ),
                 // **Cuántas y cuánto ocupan**, que es lo que hace falta para
-                // decidir si borrarlas. Un grupo de 40 corridas con capturas son
+                // decidir si borrarlas. Un grupo de 40 pasadas con capturas son
                 // decenas de megas y nada lo decía.
                 Text(
                   strings.e2eRunsSize(
@@ -763,31 +763,31 @@ class _HistorialState extends ConsumerState<_Historial> {
               ],
             ),
           ),
-          for (final corrida in porProyecto[clave]!)
-            _FilaDeCorrida(corrida: corrida),
+          for (final pasada in porProyecto[clave]!)
+            _FilaDePasada(pasada: pasada),
         ],
       ],
     );
   }
 }
 
-class _FilaDeCorrida extends ConsumerStatefulWidget {
-  const _FilaDeCorrida({required this.corrida});
+class _FilaDePasada extends ConsumerStatefulWidget {
+  const _FilaDePasada({required this.pasada});
 
-  final CorridaDePrueba corrida;
+  final PasadaDePrueba pasada;
 
   @override
-  ConsumerState<_FilaDeCorrida> createState() => _FilaDeCorridaState();
+  ConsumerState<_FilaDePasada> createState() => _FilaDePasadaState();
 }
 
-class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
+class _FilaDePasadaState extends ConsumerState<_FilaDePasada> {
   String? _error;
   var _repitiendo = false;
 
   /// Vuelve a correr esa prueba, y si se puede en el mismo sitio.
   Future<void> _repetir() async {
-    final corrida = widget.corrida;
-    final proyecto = corrida.proyecto;
+    final pasada = widget.pasada;
+    final proyecto = pasada.proyecto;
     if (proyecto == null) return;
     final strings = context.strings;
 
@@ -798,12 +798,12 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
 
     // **La prueba se busca en el repo, no se recompone su ruta.** Un flow puede
     // ser `.yaml` o `.yml`, y sobre todo **puede no estar ya**: repetir una
-    // corrida de la semana pasada con el flow borrado tiene que decirlo aquí y no
+    // pasada de la semana pasada con el flow borrado tiene que decirlo aquí y no
     // fallar dentro de Maestro con un «file not found».
     final pruebas = await ref.read(pruebasProvider(proyecto).future);
     Prueba? prueba;
     for (final p in pruebas) {
-      if (p.nombre == corrida.flow) {
+      if (p.nombre == pasada.flow) {
         prueba = p;
         break;
       }
@@ -823,8 +823,8 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
     final elegido = await _dondeCorrer(ref);
     if (!mounted) return;
     final hay = {for (final d in ref.read(dondeCorrerProvider)) d.id};
-    final donde = hay.contains(corrida.dispositivo)
-        ? corrida.dispositivo
+    final donde = hay.contains(pasada.dispositivo)
+        ? pasada.dispositivo
         : elegido;
 
     final falta = await _loQueFaltaParaCorrer(
@@ -849,7 +849,7 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
           prueba: prueba,
           proyecto: proyecto,
           deviceId: donde!,
-          perfil: corrida.perfil ?? 'local',
+          perfil: pasada.perfil ?? 'local',
         );
     if (!mounted) return;
     setState(() {
@@ -862,14 +862,14 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final corrida = widget.corrida;
+    final pasada = widget.pasada;
     // Por lo mismo que arriba: sin dónde correr, repetir tampoco puede pasar.
     final sePuedeCorrer =
         !(ref.watch(pruebaEnMarchaProvider)?.viva ?? false) &&
         !ref.watch(buscandoDispositivosProvider) &&
         ref.watch(dondeCorrerProvider).isNotEmpty;
 
-    final (icono, color, etiqueta) = switch (corrida.comoAcabo) {
+    final (icono, color, etiqueta) = switch (pasada.comoAcabo) {
       ComoAcabo.bien => (Icons.check, colors.ok, strings.e2ePassed),
       ComoAcabo.mal => (Icons.close, colors.err, strings.e2eFailed),
       ComoAcabo.enMarcha => (
@@ -898,7 +898,7 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      corrida.flow,
+                      pasada.flow,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: NexusTypography.data.copyWith(color: colors.ink),
@@ -906,8 +906,8 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                     Text(
                       // Cuándo, cómo acabó y cuántos pasos llegaron: «2 de 8» dice
                       // dónde se rompió sin abrir nada.
-                      '${_cuando(corrida.cuando)} · $etiqueta · '
-                      '${corrida.pasosBien}/${corrida.pasos}',
+                      '${_cuando(pasada.cuando)} · $etiqueta · '
+                      '${pasada.pasosBien}/${pasada.pasos}',
                       style: NexusTypography.mono.copyWith(color: colors.faint),
                     ),
                   ],
@@ -919,7 +919,7 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
               //
               // Un icono y no una palabra: con «Ver» y «Borrar» escritos, una
               // tercera palabra en esta fila es exactamente cómo desbordó antes.
-              if (corrida.atribuida)
+              if (pasada.atribuida)
                 _repitiendo
                     ? Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 6),
@@ -950,14 +950,14 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
                         icon: const Icon(Icons.replay),
                       ),
               // **Ver y borrar.** Ver abre su informe en la misma ventana aparte
-              // que usa una corrida en marcha: la de una que ya acabó es la misma
+              // que usa una pasada en marcha: la de una que ya acabó es la misma
               // cosa quieta, y no había motivo para dos formas de mirar lo mismo.
               TextButton(
                 style: _apretado,
                 onPressed: () => ref
                     .read(e2eDataSourceProvider)
                     .abreElInforme(
-                      corrida.carpeta,
+                      pasada.carpeta,
                       explica: (por) => switch (por) {
                         PorQueSeCayo.driverNoSeInstala =>
                           strings.e2eDriverBlocked,
@@ -971,8 +971,8 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
               TextButton(
                 style: _apretado,
                 onPressed: () async {
-                  await ref.read(e2eDataSourceProvider).borrar(corrida.carpeta);
-                  ref.invalidate(corridasDePruebaProvider);
+                  await ref.read(e2eDataSourceProvider).borrar(pasada.carpeta);
+                  ref.invalidate(pasadasDePruebaProvider);
                 },
                 child: Text(strings.e2eDelete),
               ),
