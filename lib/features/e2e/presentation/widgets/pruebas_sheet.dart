@@ -478,6 +478,45 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                       child: Text(strings.e2eStartDevice),
                     ),
             ),
+          // **Ver la pantalla del móvil**, cuando el elegido es uno físico de
+          // Android y scrcpy está instalado. Aquí va **sin control**: si hay una
+          // corrida viva y tocas la pantalla, Maestro y tú estáis inyectando
+          // eventos en el mismo dispositivo y el fallo que salga no será real.
+          //
+          // Y encima de todo mientras corre, que es cuando se quiere mirar sin
+          // perder Nexus de vista.
+          if (ref.watch(elDispositivoProvider) case final donde?
+              when ref.watch(sePuedeVerLaPantallaProvider(donde)))
+            Padding(
+              padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
+              child: Row(
+                children: [
+                  Icon(
+                    Icons.smartphone_outlined,
+                    size: 13,
+                    color: colors.faint,
+                  ),
+                  const SizedBox(width: NexusSpacing.s3),
+                  TextButton(
+                    style: _apretado,
+                    onPressed: () => ref
+                        .read(emuladoresDataSourceProvider)
+                        .verLaPantalla(
+                          deviceId: donde,
+                          titulo: _comoSeLlama(donde),
+                          conControl: !corriendo,
+                          encima: corriendo,
+                        ),
+                    child: Text(
+                      corriendo
+                          ? strings.verLaPantallaSinTocar
+                          : strings.verLaPantalla,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // El dispositivo, y solo cuando hay más de uno que elegir.
           if (dispositivos.length > 1) ...[
             SelectorCompacto(

@@ -493,6 +493,8 @@ abstract class NexusStrings {
   String get e2eNoTapPermission;
   String get e2eAppMissing;
   String get e2eSearchingDevices;
+  String get verLaPantalla;
+  String get verLaPantallaSinTocar;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -1522,6 +1524,11 @@ class NexusStringsEs extends NexusStrings {
       'La app no estaba en el dispositivo. Maestro no la instala: córrela primero.';
   @override
   String get e2eSearchingDevices => 'Buscando dispositivos…';
+  @override
+  String get verLaPantalla => 'Ver la pantalla del móvil';
+  @override
+  String get verLaPantallaSinTocar =>
+      'Ver la pantalla, sin control: hay una prueba corriendo';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
@@ -2860,6 +2867,11 @@ class NexusStringsEn extends NexusStrings {
       'The app was not on the device. Maestro does not install it: run it first.';
   @override
   String get e2eSearchingDevices => 'Looking for devices…';
+  @override
+  String get verLaPantalla => "See the phone's screen";
+  @override
+  String get verLaPantallaSinTocar =>
+      'See the screen, no control: a test is running';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override
