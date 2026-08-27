@@ -100,8 +100,10 @@ class _Borrados extends E2eDataSource {
   final Map<String, String> variables;
 
   @override
-  Map<String, String> variablesDe(String proyecto, {String? carpetaDePruebas}) =>
-      variables;
+  Map<String, String> variablesDe(
+    String proyecto, {
+    String? carpetaDePruebas,
+  }) => variables;
 
   @override
   Future<bool?> estaInstalada({
@@ -184,7 +186,9 @@ CorridaDePrueba _corrida({
 Future<void> _abrir(
   WidgetTester tester, {
   String? proyecto = '/casa/tienda',
-  List<Prueba> pruebas = const [Prueba(ruta: '/casa/tienda/.maestro/login.yaml', nombre: 'login')],
+  List<Prueba> pruebas = const [
+    Prueba(ruta: '/casa/tienda/.maestro/login.yaml', nombre: 'login'),
+  ],
   List<CorridaDePrueba>? corridas,
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
@@ -322,10 +326,7 @@ void main() {
       // driver.
       await _abrir(
         tester,
-        enMarcha: PruebaEnMarcha(
-          flow: 'login',
-          delFlow: [_paso('launchApp')],
-        ),
+        enMarcha: PruebaEnMarcha(flow: 'login', delFlow: [_paso('launchApp')]),
       );
 
       final boton = tester.widget<TextButton>(
@@ -344,10 +345,7 @@ void main() {
     });
 
     testWidgets('cada corrida dice cómo acabó y por dónde iba', (tester) async {
-      await _abrir(
-        tester,
-        corridas: [_corrida(como: ComoAcabo.mal, bien: 2)],
-      );
+      await _abrir(tester, corridas: [_corrida(como: ComoAcabo.mal, bien: 2)]);
 
       // «2/8» dice dónde se rompió sin abrir nada.
       expect(find.textContaining('2/8'), findsOneWidget);
@@ -483,17 +481,45 @@ void main() {
   });
 
   group('antes de correr', () {
-    testWidgets('sin nada encendido se ofrece arrancar uno', (tester) async {
+    testWidgets('con varios apagados se puede elegir cuál', (tester) async {
       // **Maestro no arranca nada.** Y encenderlo es algo que Nexus ya sabe hacer,
       // así que decir «hace falta un dispositivo» era quedarse a medio camino.
+      //
+      // Uno por emulador y con su nombre: antes arrancaba «el primero apagado» sin
+      // decir cuál, y con dos definidos eso es encender el que no era la mitad de
+      // las veces.
       await _abrir(tester, encendidos: 0);
 
+      expect(find.text('Medium Phone 0'), findsOneWidget);
+      expect(find.text('Medium Phone 1'), findsOneWidget);
+    });
+
+    testWidgets('con uno solo apagado, el botón no pregunta cuál', (
+      tester,
+    ) async {
+      await _abrir(tester, encendidos: 1);
       expect(find.text(strings.e2eStartDevice), findsOneWidget);
     });
 
-    testWidgets('con uno encendido no se ofrece', (tester) async {
-      await _abrir(tester);
+    testWidgets('con un dispositivo ya presente se sigue ofreciendo', (
+      tester,
+    ) async {
+      // **Lo reportado, y la condición que lo causaba.** Se ofrecía solo cuando no
+      // había ningún dispositivo, y basta un iPhone emparejado por wifi —que aparece
+      // solo, sin cable— para que Nexus crea que ya hay dónde correr. Resultado: no
+      // te deja encender el emulador, que además es el único de los dos donde Maestro
+      // funciona de verdad.
+      await _abrir(tester, encendidos: 0, conIphone: true);
+
+      expect(find.text('Medium Phone 0'), findsOneWidget);
+    });
+
+    testWidgets('sin ninguno apagado no se ofrece nada', (tester) async {
+      // Con los dos arriba no hay nada que encender, y un botón que no puede hacer
+      // nada es peor que ninguno: se traga la pulsación y no lo dice.
+      await _abrir(tester, encendidos: 2);
       expect(find.text(strings.e2eStartDevice), findsNothing);
+      expect(find.text('Medium Phone 0'), findsNothing);
     });
   });
 
@@ -519,10 +545,7 @@ void main() {
     testWidgets('mientras corre sí se avisa arriba', (tester) async {
       await _abrir(
         tester,
-        enMarcha: PruebaEnMarcha(
-          flow: 'login',
-          delFlow: [_paso('launchApp')],
-        ),
+        enMarcha: PruebaEnMarcha(flow: 'login', delFlow: [_paso('launchApp')]),
       );
       expect(find.textContaining('login · 0/1'), findsOneWidget);
     });
@@ -690,30 +713,31 @@ void main() {
       expect(borrados, isEmpty, reason: 'borró al primer toque');
     });
 
-    testWidgets('al segundo toque se lleva las de ese proyecto y no las otras', (
-      tester,
-    ) async {
-      final borrados = <String>[];
-      await _abrir(
-        tester,
-        borrados: borrados,
-        corridas: [
-          _corrida(proyecto: '/casa/otra', carpeta: '/donde/sea/ajena'),
-          _corrida(carpeta: '/donde/sea/uno'),
-          _corrida(carpeta: '/donde/sea/dos'),
-        ],
-      );
+    testWidgets(
+      'al segundo toque se lleva las de ese proyecto y no las otras',
+      (tester) async {
+        final borrados = <String>[];
+        await _abrir(
+          tester,
+          borrados: borrados,
+          corridas: [
+            _corrida(proyecto: '/casa/otra', carpeta: '/donde/sea/ajena'),
+            _corrida(carpeta: '/donde/sea/uno'),
+            _corrida(carpeta: '/donde/sea/dos'),
+          ],
+        );
 
-      // Los grupos van ordenados por proyecto: «otra» antes que «tienda».
-      final sweep = find.byIcon(Icons.delete_sweep_outlined);
-      await tester.tap(sweep.at(1));
-      await tester.pump();
-      await tester.tap(sweep.at(1));
-      await tester.pump();
-      await tester.pump(const Duration(milliseconds: 100));
+        // Los grupos van ordenados por proyecto: «otra» antes que «tienda».
+        final sweep = find.byIcon(Icons.delete_sweep_outlined);
+        await tester.tap(sweep.at(1));
+        await tester.pump();
+        await tester.tap(sweep.at(1));
+        await tester.pump();
+        await tester.pump(const Duration(milliseconds: 100));
 
-      expect(borrados, ['/donde/sea/uno', '/donde/sea/dos']);
-    });
+        expect(borrados, ['/donde/sea/uno', '/donde/sea/dos']);
+      },
+    );
   });
 
   testWidgets('la fila con sus tres acciones no desborda en estrecho', (
@@ -789,7 +813,9 @@ void main() {
     setUp(() => casa = Directory.systemTemp.createTempSync('panelvars'));
     tearDown(() => casa.deleteSync(recursive: true));
 
-    testWidgets('dice cuántas hay cargadas, sin enseñar ninguna', (tester) async {
+    testWidgets('dice cuántas hay cargadas, sin enseñar ninguna', (
+      tester,
+    ) async {
       // Es la diferencia entre saber que el `.env.local` se leyó y suponerlo.
       await _abrir(tester, variables: const {'CORREO': 'a@b.c', 'CLAVE': 'x'});
 
@@ -806,16 +832,14 @@ void main() {
     testWidgets('si el archivo está en git, se avisa', (tester) async {
       // Un archivo de credenciales dentro de un repositorio es una fuga, y en un
       // repo compartido lo es para todo el equipo.
-      await _abrir(
-        tester,
-        variables: const {'CORREO': 'a@b.c'},
-        enGit: true,
-      );
+      await _abrir(tester, variables: const {'CORREO': 'a@b.c'}, enGit: true);
 
       expect(find.text(strings.e2eEnvInGit), findsOneWidget);
     });
 
-    testWidgets('una variable que falta se dice antes de correr', (tester) async {
+    testWidgets('una variable que falta se dice antes de correr', (
+      tester,
+    ) async {
       // Sin esto, Maestro escribe el literal `${CORREO}` en el campo y la prueba
       // muere tres pasos después, en un sitio que no tiene que ver con la causa.
       final lanzados = <String>[];
@@ -863,22 +887,19 @@ void main() {
     testWidgets('no se ofrece arrancar un emulador mientras no se sabe', (
       tester,
     ) async {
-      // Con uno ya encendido, ese botón es una pregunta absurda que además
-      // desaparece medio segundo después.
-      await _abrir(tester, demora: const Duration(seconds: 1));
+      // Mientras no se sabe, no se ofrece: un botón que aparece y desaparece medio
+      // segundo después se lee como un parpadeo, no como una opción.
+      await _abrir(tester, encendidos: 2, demora: const Duration(seconds: 1));
 
       expect(find.text(strings.e2eStartDevice), findsNothing);
 
+      // Y al acabar tampoco, porque con los dos arriba no hay nada que encender.
       await tester.pump(const Duration(seconds: 2));
       expect(find.text(strings.e2eStartDevice), findsNothing);
     });
 
     testWidgets('sin ninguno, al acabar sí se ofrece', (tester) async {
-      await _abrir(
-        tester,
-        encendidos: 0,
-        demora: const Duration(seconds: 1),
-      );
+      await _abrir(tester, encendidos: 1, demora: const Duration(seconds: 1));
 
       expect(find.text(strings.e2eStartDevice), findsNothing);
 

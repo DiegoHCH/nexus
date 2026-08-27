@@ -210,4 +210,50 @@ void main() {
       expect(ProjectContextPrompt.compose(rules: const []), isNull);
     });
   });
+
+  group('la raíz común', () {
+    test('le pone el nombre del proyecto detrás', () {
+      // Es lo que pedía el caso: una carpeta para todo y una subcarpeta por proyecto,
+      // así están juntas y no se mezclan.
+      expect(
+        carpeta().pruebasEn(home, raiz: '~/pruebas'),
+        '/Users/quien/pruebas/proyecto',
+      );
+    });
+
+    test('y una absoluta vale igual', () {
+      expect(
+        carpeta().pruebasEn(home, raiz: '/Volumes/disco/pruebas'),
+        '/Volumes/disco/pruebas/proyecto',
+      );
+    });
+
+    test('lo que declara la carpeta gana a la raíz', () {
+      // La raíz es una preferencia tuya; la declaración es un hecho del repo. Un repo
+      // que ya tiene sus pruebas en «flows» no se puede mover desde un ajuste global.
+      expect(
+        carpeta(pruebas: 'flows').pruebasEn(home, raiz: '~/pruebas'),
+        '/Users/quien/Workspace/proyecto/flows',
+      );
+    });
+
+    test('sin raíz y sin declarar, la convención de Maestro', () {
+      expect(
+        carpeta().pruebasEn(home, raiz: '   '),
+        '/Users/quien/Workspace/proyecto/.maestro',
+      );
+    });
+
+    test('dos proyectos caen en subcarpetas distintas', () {
+      const otro = PairedFolder(
+        path: '/Users/quien/Workspace/nexus',
+        modality: FolderModality.textOnly,
+      );
+      expect(
+        carpeta().pruebasEn(home, raiz: '~/pruebas'),
+        isNot(otro.pruebasEn(home, raiz: '~/pruebas')),
+      );
+      expect(otro.pruebasEn(home, raiz: '~/pruebas'), endsWith('/nexus'));
+    });
+  });
 }

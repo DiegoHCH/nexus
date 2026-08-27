@@ -48,16 +48,17 @@ void main() {
     final cuantas = tester.widgetList(pestanas).length;
     expect(
       cuantas,
-      // Once con «Corridas». Este número se sube **a mano y a propósito** — es
-      // lo que hace que añadir una sección pase por aquí, y ya avisó tres veces:
-      // de la novena («Móvil», al dejar de estar apagada), de la décima y de esta.
+      // Doce con «Pruebas». Este número se sube **a mano y a propósito** — es lo
+      // que hace que añadir una sección pase por aquí, y ya avisó cuatro veces: de
+      // la novena («Móvil», al dejar de estar apagada), de la décima, de «Corridas»
+      // y de esta.
       //
       // El título de la prueba no lleva el número justamente por eso: decía
       // «ocho» cuando ya esperaba nueve, y un nombre que miente es peor que uno
       // vago.
-      11,
+      12,
       reason:
-          'se esperaban once secciones y hay $cuantas: si se añade una al enum, '
+          'se esperaban doce secciones y hay $cuantas: si se añade una al enum, '
           'esta prueba tiene que verla — y si desaparece, también',
     );
 

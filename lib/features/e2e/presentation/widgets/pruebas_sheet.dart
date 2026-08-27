@@ -11,6 +11,7 @@ import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.da
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
+import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
 /// Las pruebas de la app: las que hay, las que corrieron, y una corriendo.
@@ -289,22 +290,18 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   /// arrancarlo es algo que Nexus ya sabe hacer —incluido esperar a que aparezca,
   /// que el comando vuelve antes que el aparato—, así que en vez de decir «hace
   /// falta un dispositivo» se ofrece encenderlo.
-  Future<void> _arrancarUno() async {
-    final apagados = ref
-        .read(emuladoresProvider)
-        .value
-        ?.emuladores
-        .where((e) => !e.corriendo)
-        .toList();
-    if (apagados == null || apagados.isEmpty) return;
+  /// Los que hay definidos y apagados, que son los que se pueden encender.
+  List<Emulador> get _apagados => [
+    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+      if (!e.corriendo) e,
+  ];
 
+  Future<void> _arrancar(Emulador cual) async {
     setState(() {
       _arrancando = true;
       _error = null;
     });
-    final error = await ref
-        .read(emuladoresDataSourceProvider)
-        .lanzar(apagados.first);
+    final error = await ref.read(emuladoresDataSourceProvider).lanzar(cual);
     ref.invalidate(emuladoresProvider);
     if (!mounted) return;
     setState(() {
@@ -365,7 +362,8 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final pruebas = ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
+    final pruebas =
+        ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
     final dispositivos = _dispositivos;
     final buscando = ref.watch(buscandoDispositivosProvider);
@@ -386,7 +384,8 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     // de que lo hayas leído es exactamente lo que un aviso no puede hacer. Es el
     // mismo fallo del parpadeo gris de los emuladores, con otra cara.
     final enGit = {
-      for (final p in pruebas) p.ruta: ref.watch(estaEnGitProvider(p.ruta)).value,
+      for (final p in pruebas)
+        p.ruta: ref.watch(estaEnGitProvider(p.ruta)).value,
     };
 
     return Column(
@@ -403,8 +402,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
         // diferencia entre saber que el `.env.local` se leyó y suponerlo: si no se
         // dice, un archivo mal puesto se descubre en el fallo de la prueba.
         if (ref.watch(credencialesProvider(widget.proyecto)).value
-            case final credenciales?
-            when credenciales.claves.isNotEmpty) ...[
+            case final credenciales? when credenciales.claves.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
             strings.e2eVarsLoaded(credenciales.claves.length),
@@ -448,9 +446,13 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                 ],
               ),
             )
-          // **Sin nada encendido, se ofrece encenderlo** en vez de decir que
-          // falta. Es lo único que separa «no puedo correr» de «dame 30 s».
-          else if (dispositivos.isEmpty)
+          // **Se ofrece siempre que haya un emulador apagado**, no solo cuando no
+          // hay ningún dispositivo. Esa condición parecía razonable y escondía el
+          // botón justo cuando más falta hacía: basta un iPhone emparejado por wifi
+          // —que aparece solo, sin cable— para que Nexus crea que ya hay dónde correr
+          // y no te deje encender el emulador, que además es el único de los dos donde
+          // Maestro funciona de verdad.
+          else if (_apagados.isNotEmpty)
             Padding(
               padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
               child: _arrancando
@@ -473,9 +475,24 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                         ),
                       ],
                     )
-                  : OutlinedButton(
-                      onPressed: _arrancarUno,
-                      child: Text(strings.e2eStartDevice),
+                  : Wrap(
+                      spacing: NexusSpacing.s2,
+                      runSpacing: NexusSpacing.s2,
+                      children: [
+                        // Uno por emulador, con su nombre. Antes arrancaba «el primero
+                        // apagado» sin decir cuál: con dos definidos, la mitad de las
+                        // veces encendía el que no era.
+                        for (final cual in _apagados)
+                          OutlinedButton(
+                            key: ValueKey('arrancar-${cual.id}'),
+                            onPressed: () => _arrancar(cual),
+                            child: Text(
+                              _apagados.length == 1
+                                  ? strings.e2eStartDevice
+                                  : cual.nombre,
+                            ),
+                          ),
+                      ],
                     ),
             ),
           // **Ver la pantalla del móvil**, cuando el elegido es uno físico de

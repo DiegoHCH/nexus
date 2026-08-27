@@ -293,6 +293,15 @@ abstract class NexusStrings {
   String testsFolderResolved(String path);
   String get testsFolderPick;
 
+  // La sección de Pruebas: una raíz común y el listado por proyecto.
+  String get sectionPruebas;
+  String get flowsRootExplainer;
+  String get flowsRootHint;
+  String get flowsByProject;
+  String get flowsNoProjects;
+  String get flowsNoneHere;
+  String flowsCount(int total);
+
   /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
   String get corridasConfirmRemove;
   String corridasStretches(String building, String closing);
@@ -1053,6 +1062,25 @@ class NexusStringsEs extends NexusStrings {
   String testsFolderResolved(String path) => 'Buscará en $path';
   @override
   String get testsFolderPick => 'Elegir…';
+  @override
+  String get sectionPruebas => 'Pruebas';
+  @override
+  String get flowsRootExplainer =>
+      'Una carpeta para las pruebas de todos los proyectos, con una subcarpeta por cada '
+      'uno: «~/pruebas/nexus». Así están juntas y fuera de los repos —una prueba dentro '
+      'de un repo del trabajo es un archivo que alguien acaba commiteando— y aun así no '
+      'se mezclan, porque cada proyecto lista la suya. Vacío deja a cada uno con su '
+      '«.maestro/», que es la convención de Maestro.';
+  @override
+  String get flowsRootHint => '~/pruebas';
+  @override
+  String get flowsByProject => 'Por proyecto';
+  @override
+  String get flowsNoProjects => 'No hay ninguna carpeta emparejada todavía.';
+  @override
+  String get flowsNoneHere => 'ninguna';
+  @override
+  String flowsCount(int total) => total == 1 ? '1 prueba' : '$total pruebas';
   @override
   String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
   @override
@@ -2418,6 +2446,25 @@ class NexusStringsEn extends NexusStrings {
   String testsFolderResolved(String path) => 'Will look in $path';
   @override
   String get testsFolderPick => 'Choose…';
+  @override
+  String get sectionPruebas => 'Tests';
+  @override
+  String get flowsRootExplainer =>
+      'One folder for every project\'s tests, with a subfolder per project: '
+      '«~/tests/nexus». Together and outside the repos — a test inside a work repo is a '
+      'file somebody eventually commits — and still not mixed, because each project '
+      'lists its own. Empty leaves each one with its «.maestro/», which is Maestro\'s '
+      'convention.';
+  @override
+  String get flowsRootHint => '~/tests';
+  @override
+  String get flowsByProject => 'By project';
+  @override
+  String get flowsNoProjects => 'No folder paired yet.';
+  @override
+  String get flowsNoneHere => 'none';
+  @override
+  String flowsCount(int total) => total == 1 ? '1 test' : '$total tests';
   @override
   String get corridasConfirmRemove => 'Press again to delete it';
   @override
