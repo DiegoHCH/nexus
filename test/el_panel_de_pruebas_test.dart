@@ -100,7 +100,8 @@ class _Borrados extends E2eDataSource {
   final Map<String, String> variables;
 
   @override
-  Map<String, String> variablesDe(String proyecto) => variables;
+  Map<String, String> variablesDe(String proyecto, {String? carpetaDePruebas}) =>
+      variables;
 
   @override
   Future<bool?> estaInstalada({

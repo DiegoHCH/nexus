@@ -286,6 +286,12 @@ abstract class NexusStrings {
   String get corridasClean;
   String get corridasCleanAll;
 
+  // Dónde viven las pruebas de una carpeta.
+  String testsFolderTitle(String folder);
+  String get testsFolderExplainer;
+  String get testsFolderHint;
+  String testsFolderResolved(String path);
+
   /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
   String get corridasConfirmRemove;
   String corridasStretches(String building, String closing);
@@ -1033,6 +1039,18 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get corridasCleanAll => 'Quitar las huérfanas';
   @override
+  String testsFolderTitle(String folder) => 'Las pruebas de «$folder»';
+  @override
+  String get testsFolderExplainer =>
+      'Dónde buscarlas. Vacío es «.maestro/» dentro del proyecto, que es la convención '
+      'de Maestro. Apuntando cada proyecto a su propia carpeta, sus pruebas no se '
+      'mezclan con las de otro: Nexus lista esa y no ve las demás. Se lista plano, así '
+      'que lo que guardes en subcarpetas —los flows que otros llaman— queda fuera.';
+  @override
+  String get testsFolderHint => '~/Escritorio/e2e/global66   ·   o «flows»';
+  @override
+  String testsFolderResolved(String path) => 'Buscará en $path';
+  @override
   String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
   @override
   String corridasStretches(String building, String closing) =>
@@ -1502,8 +1520,7 @@ class NexusStringsEs extends NexusStrings {
   String e2eRunsSize(int cuantas, String tamano) =>
       '${cuantas == 1 ? '1 corrida' : '$cuantas corridas'} · $tamano';
   @override
-  String e2eMissingVars(String claves) =>
-      'Faltan en .env.local: $claves';
+  String e2eMissingVars(String claves) => 'Faltan en .env.local: $claves';
   @override
   String e2eVarsLoaded(int cuantas) => cuantas == 1
       ? '1 variable de .env.local'
@@ -2385,6 +2402,18 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get corridasCleanAll => 'Remove the orphans';
   @override
+  String testsFolderTitle(String folder) => 'The tests for «$folder»';
+  @override
+  String get testsFolderExplainer =>
+      'Where to look for them. Empty means «.maestro/» inside the project, which is '
+      "Maestro's convention. Point each project at its own folder and its tests cannot "
+      'mix with another\'s: Nexus lists that one and never sees the rest. Listing is '
+      'flat, so whatever you keep in subfolders — the flows others call — stays out.';
+  @override
+  String get testsFolderHint => '~/Desktop/e2e/global66   ·   or «flows»';
+  @override
+  String testsFolderResolved(String path) => 'Will look in $path';
+  @override
   String get corridasConfirmRemove => 'Press again to delete it';
   @override
   String corridasStretches(String building, String closing) =>
@@ -2856,8 +2885,9 @@ class NexusStringsEn extends NexusStrings {
   @override
   String e2eMissingVars(String claves) => 'Missing from .env.local: $claves';
   @override
-  String e2eVarsLoaded(int cuantas) =>
-      cuantas == 1 ? '1 variable from .env.local' : '$cuantas variables from .env.local';
+  String e2eVarsLoaded(int cuantas) => cuantas == 1
+      ? '1 variable from .env.local'
+      : '$cuantas variables from .env.local';
   @override
   String get e2eEnvInGit =>
       '.env.local is in git. Take it out: it holds credentials.';

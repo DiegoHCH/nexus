@@ -29,6 +29,7 @@ class PairedFolder {
     this.claudeEffort,
     this.activeRepo,
     this.blockedCommands = const [],
+    this.carpetaDePruebas,
   });
 
   final String path;
@@ -68,6 +69,34 @@ class PairedFolder {
   /// ruego en el prompt: el CLI los deniega, así que no hay rodeo posible.
   final List<String> blockedCommands;
 
+  /// Dónde viven las pruebas de este proyecto, o `null` para la convención de Maestro.
+  ///
+  /// **Existe para que las pruebas de dos proyectos no se mezclen nunca.** Sin esto solo
+  /// valía `<proyecto>/.maestro/`, así que quien las quiere fuera del repo —para no
+  /// ensuciar uno del trabajo— no tenía dónde ponerlas. Apuntando cada proyecto a su
+  /// subcarpeta, la separación no es un filtro que pueda fallar: Nexus lista una carpeta
+  /// y las demás no las ve.
+  ///
+  /// Absoluta o con `~` si están fuera; relativa si están dentro —`flows`, que es donde
+  /// las tiene más de un repo—. Se sigue listando **plano y sin bajar**, así que los
+  /// auxiliares que cada proyecto guarde en un subdirectorio quedan fuera de la lista
+  /// solos, que es lo que se quiere: no son pruebas que se lancen, son piezas que otras
+  /// llaman con `runFlow`.
+  final String? carpetaDePruebas;
+
+  /// Dónde buscar las pruebas, ya resuelta contra el proyecto y el home.
+  String pruebasEn(String home) {
+    final declarada = carpetaDePruebas?.trim();
+    if (declarada == null || declarada.isEmpty) {
+      return '$workingDirectory/.maestro';
+    }
+    if (declarada.startsWith('/')) return declarada;
+    if (declarada.startsWith('~/')) return '$home${declarada.substring(1)}';
+    // Relativa al sitio donde Claude trabaja, no a la carpeta emparejada: con una raíz de
+    // varios repos, las pruebas son del repo elegido y no de la raíz.
+    return '$workingDirectory/$declarada';
+  }
+
   /// Dónde trabaja Claude de verdad.
   String get workingDirectory => activeRepo ?? path;
 
@@ -96,6 +125,8 @@ class PairedFolder {
     String? claudeEffort,
     String? activeRepo,
     List<String>? blockedCommands,
+    String? carpetaDePruebas,
+    bool sinCarpetaDePruebas = false,
   }) => PairedFolder(
     path: path,
     modality: modality ?? this.modality,
@@ -104,6 +135,9 @@ class PairedFolder {
     claudeEffort: claudeEffort ?? this.claudeEffort,
     activeRepo: activeRepo ?? this.activeRepo,
     blockedCommands: blockedCommands ?? this.blockedCommands,
+    carpetaDePruebas: sinCarpetaDePruebas
+        ? null
+        : (carpetaDePruebas ?? this.carpetaDePruebas),
   );
 
   Map<String, dynamic> toJson() => {
@@ -114,6 +148,8 @@ class PairedFolder {
     if (claudeEffort != null) 'claudeEffort': claudeEffort,
     if (activeRepo != null) 'activeRepo': activeRepo,
     if (blockedCommands.isNotEmpty) 'blockedCommands': blockedCommands,
+    if (carpetaDePruebas != null && carpetaDePruebas!.trim().isNotEmpty)
+      'carpetaDePruebas': carpetaDePruebas!.trim(),
   };
 
   static PairedFolder? fromJson(Map<String, dynamic> json) {
@@ -125,6 +161,7 @@ class PairedFolder {
       claudeModel: json['claudeModel'] as String?,
       claudeEffort: json['claudeEffort'] as String?,
       activeRepo: json['activeRepo'] as String?,
+      carpetaDePruebas: json['carpetaDePruebas'] as String?,
       blockedCommands: [
         for (final command
             in json['blockedCommands'] as List<dynamic>? ?? const [])
