@@ -4,8 +4,6 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
-import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
-import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
 
@@ -164,7 +162,6 @@ class _FolderRow extends ConsumerWidget {
               ),
             ),
             _AccountPicker(folder: folder),
-            _PlanToggle(folder: folder),
             _ModalityToggle(modality: folder.modality, onChanged: onModality),
             IconButton(
               onPressed: onRemove,
@@ -173,63 +170,6 @@ class _FolderRow extends ConsumerWidget {
             ),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// Si esta carpeta exige un plan firmado antes de escribir.
-///
-/// Va en la misma fila que la cuenta y la modalidad porque es lo mismo que ellas: un
-/// permiso de **esta** carpeta. Y se enciende aquí y se firma en el compositor a
-/// propósito — encender es una decisión que se toma una vez, firmar es algo que se hace
-/// cada vez que se va a trabajar, y mezclarlos mandaría a Ajustes a cada rato.
-///
-/// Apagarlo no borra el plan escrito: si mañana se enciende, lo que había sigue ahí con
-/// su fecha. Borrarlo haría que apagar y encender pareciera firmar.
-class _PlanToggle extends ConsumerWidget {
-  const _PlanToggle({required this.folder});
-
-  final PairedFolder folder;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final strings = context.strings;
-    final donde = dondeMirar(
-      carpeta: folder.path,
-      perfil: folder.claudeProfile,
-    );
-    final exige = ref.watch(planFirmadoProvider(donde)).value?.exige ?? false;
-
-    // **Encendido no es lo mismo que funcionando.** Este interruptor solo escribe una
-    // marca en el disco; quien deniega la edición es un gancho de la cuenta, y si no
-    // está puesto el martillo se ve encendido y no pasa absolutamente nada — sin error,
-    // sin aviso, y creyendo que hay un gate. Así que se comprueba y se dice.
-    //
-    // Mientras se lee no se avisa: un rojo que aparece y desaparece al abrir Ajustes se
-    // lee como un fallo intermitente, que es peor que enterarse medio segundo después.
-    final gancho = ref
-        .watch(estadoDeLosGanchosProvider(donde.configDir))
-        .value?['exigir_plan'];
-    final sinGancho = exige && gancho != null && !gancho.funciona;
-
-    return IconButton(
-      onPressed: () =>
-          ref.read(planFirmadoProvider(donde).notifier).exigir(!exige),
-      tooltip: sinGancho
-          ? strings.planRequireNoHook
-          : exige
-          ? strings.planRequireOn
-          : strings.planRequireOff,
-      icon: Icon(
-        sinGancho ? Icons.gavel_outlined : Icons.gavel,
-        size: 15,
-        color: sinGancho
-            ? colors.err
-            : exige
-            ? colors.accent
-            : colors.faint,
       ),
     );
   }

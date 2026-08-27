@@ -130,33 +130,6 @@ class GitDataSource {
     return GitChanges(diff: diff, newFiles: nuevos);
   }
 
-  /// Los archivos que la rama lleva tocados: lo que difiere de `HEAD` y lo que git
-  /// todavía no sigue, en rutas relativas al repo.
-  ///
-  /// Relativas y no absolutas porque es lo que se compara con los patrones de
-  /// `.nexus-reglas`: quien escribe `**/domain/**` no sabe dónde está clonado el
-  /// proyecto. Y los sin seguir van también, por lo de siempre — un archivo nuevo no sale
-  /// en ningún diff y suele ser justo el que hay que revisar.
-  Future<List<String>> archivosTocados(String folderPath) async {
-    final cambiados =
-        await _run(folderPath, ['diff', '--name-only', 'HEAD']) ?? '';
-    final sinSeguir =
-        await _run(folderPath, [
-          'ls-files',
-          '--others',
-          '--exclude-standard',
-        ]) ??
-        '';
-
-    final todos = <String>[];
-    for (final linea in [...cambiados.split('\n'), ...sinSeguir.split('\n')]) {
-      final ruta = linea.trim();
-      if (ruta.isNotEmpty && !todos.contains(ruta)) todos.add(ruta);
-    }
-    todos.sort();
-    return todos;
-  }
-
   /// Si esa rama sigue existiendo en ese repositorio.
   ///
   /// Se usa para saber qué corridas quedaron huérfanas: una rama borrada deja su plan, su

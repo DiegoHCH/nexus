@@ -114,61 +114,6 @@ abstract class NexusStrings {
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
 
-  /// El plan de esta carpeta, cuando la carpeta lo exige y no está firmado.
-  ///
-  /// Va en el compositor y no en Ajustes porque es un estado de **ahora**, no una
-  /// preferencia: dice por qué el siguiente encargo no va a poder escribir.
-  String get planUnsigned;
-
-  /// Firmado y vigente, con lo que le queda.
-  String planValidFor(int hours, int minutes);
-
-  /// Para qué rama es esta firma. La firma es de la tarea, y una tarea es una rama.
-  String planSignBranch(String branch);
-
-  // El gate del repositorio: lo que declara y cómo salió.
-  //
-  // «Verde» es un código de salida y nada más. No hay texto en esta lista que permita
-  // afirmar que pasó: eso sería sustituir una medición por la palabra de alguien.
-  String get gateTitle;
-  String get gateBody;
-  String get gateCommand;
-  String get gateNotRun;
-  String get gateRunning;
-  String get gateGreen;
-  String get gateRed;
-
-  /// Verde, pero sobre un árbol que ya no es este.
-  String get gateStale;
-  String get gateRun;
-  String get gateDeclared;
-  String get gateDeclareTitle;
-  String get gateDeclareHint;
-  String get gateDeclareAction;
-  String get chipGateDeclared;
-  String gateWhen(int minutes);
-  String get chipGateUnrun;
-  String get chipGateRunning;
-  String get chipGateGreen;
-  String get chipGateRed;
-  String get chipGateStale;
-
-  /// El título de la hoja donde se firma.
-  String get planSignTitle;
-
-  /// Qué se le pide escribir. Una frase, no un documento.
-  String get planSignHint;
-
-  /// Lo que explica para qué sirve, y que se puede negar.
-  String get planSignBody;
-
-  String get planSignAction;
-
-  /// El interruptor por carpeta, en Permisos. Dos textos y no uno porque el estado
-  /// encendido tiene que decir qué está pasando, no qué pasaría al pulsar.
-  String get planRequireOff;
-
-  String get planRequireOn;
 
   /// Instalar en todas las cuentas de golpe.
   ///
@@ -196,95 +141,9 @@ abstract class NexusStrings {
   String get skillsOwnHint;
   String get skillsCreate;
 
-  // Superpoderes: los ganchos que Nexus reparte.
-  //
-  // Se nombran por lo que **hacen**, no por su archivo: quien mira esta pantalla decide
-  // si quiere ese efecto, y `inyectar_reglas.py` no dice cuál es.
-  String get superpowersHooks;
-  String get hooksExplainer;
-  String get hooksNotInstalled;
-  String get hooksHalf;
-  String get hooksOutdated;
-  String get hooksUpToDate;
-  String get hooksInstall;
-  String get hooksUpdate;
-  String get hooksRemove;
-  String get hooksInjectRules;
-  String get hooksInjectRulesWhat;
-  String get hooksRequirePlan;
-  String get hooksRequirePlanWhat;
-  String get hooksBrakePr;
-  String get hooksBrakePrWhat;
-
-  // Publicar con el gate caducado: el motivo, que viaja al PR.
-  String get gateAnywayTitle;
-  String get gateAnywayHint;
-  String get gateAnywayAction;
-  String gateAnywayWritten(String reason);
-
-  // La corrida: la tarea de esta rama, de punta a punta.
-  //
-  // Se llama «corrida» y no «run» porque `run` ya es correr la app, que es otra cosa. El
-  // resumen lo arma el código con lo registrado, así que sale siempre e igual y se puede
-  // pegar en un ticket. Lo que no se sabe se dice: un tramo sin medir escrito como cero
-  // convierte «no lo registramos» en «no costó nada».
-  String get corridaTitle;
-  String get corridaBody;
-  String get corridaOpenFor;
-  String get corridaNarrativeHint;
-  String get corridaCancelHint;
-  String get corridaClose;
-  String get corridaCloseNoProd;
-  String get corridaCancel;
-  String get corridaCopy;
-  String get corridaCopied;
-  String corridaPrevious(int count);
-  String get corridaNotPublishing;
-
-  // Lo que llevas tocado, y la revisión contra las reglas de la capa.
-  String corridaTouched(int files);
-  String get corridaReviewTitle;
-  String get corridaReviewNever;
-  String corridaReviewAsked(String ago);
-  String get corridaReviewStale;
-  String get corridaReviewAsk;
-  String get corridaReviewNothing;
-  String corridaSummaryBranch(String branch);
-  String corridaSummaryWhat(String narrative);
-  String get corridaSummaryStillOpen;
-  String corridaSummaryPlan(String plan);
-  String get corridaSummaryGateGreen;
-
-  /// Verde por la palabra de una persona, no por un exit code. Se dice distinto en todas
-  /// partes: mezclarlos convierte el gate en un adorno.
-  String get corridaSummaryGateDeclared;
-
-  /// La revisión contra las reglas de la capa. No tiene verde: se pidió o no se pidió.
-  String get corridaSummaryReviewed;
-  String get corridaSummaryNotReviewed;
-  String get corridaSummaryGateRed;
-  String get corridaSummaryGateNever;
-  String corridaSummaryTotal(String duration);
-  String get corridaSummaryTotalUnknown;
-  String corridaSummaryBuilding(String duration);
-  String corridaSummaryClosing(String duration);
-  String get corridaSummaryNoProd;
-  String get corridaSummaryCancelled;
   String durationMinutes(int minutes);
   String durationHoursMinutes(int hours, int minutes);
 
-  // La lista de corridas, en Ajustes.
-  String get sectionCorridas;
-  String get corridasExplainer;
-  String get corridasNone;
-  String get corridasOpenTag;
-  String get corridasClosedTag;
-  String get corridasNoProdTag;
-  String get corridasCancelledTag;
-  String get corridasOrphanTag;
-  String corridasOrphansFound(int count);
-  String get corridasClean;
-  String get corridasCleanAll;
 
   // Dónde viven las pruebas de una carpeta.
   String testsFolderTitle(String folder);
@@ -304,17 +163,6 @@ abstract class NexusStrings {
 
   /// El desplegable de qué proyecto mirar, cuando hay más de uno emparejado.
   String get e2eWhichProject;
-
-  /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
-  String get corridasConfirmRemove;
-  String corridasStretches(String building, String closing);
-
-  /// Lo que el CLI enseña mientras el gancho corre. Se escribe en `settings.json` al
-  /// instalar, así que queda en el idioma que hubiera entonces.
-  String get hooksInjectingStatus;
-
-  /// El interruptor del plan, encendido en una cuenta que no tiene el gancho.
-  String get planRequireNoHook;
 
   // Superpoderes: plugins y marketplaces.
   String get superpowersPlugins;
@@ -875,182 +723,11 @@ class NexusStringsEs extends NexusStrings {
   String get superpowersMcp => 'Servidores MCP';
 
   @override
-  String get planUnsigned => 'PLAN SIN FIRMAR';
-
-  @override
-  String planValidFor(int hours, int minutes) =>
-      hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
-  @override
-  String planSignBranch(String branch) => 'Para la rama «$branch»';
-  @override
-  String get gateTitle => 'El gate del repo';
-  @override
-  String get gateBody =>
-      'Lo declara el propio repositorio en un «.nexus-pruebas», y lo único que lo pone '
-      'en verde es el código de salida: aquí no hay forma de afirmar que pasó. Se '
-      'ofrece y no se lanza solo — tarda lo que tarde y se come la máquina.';
-  @override
-  String get gateCommand => 'El comando';
-  @override
-  String get gateNotRun => 'SIN CORRER';
-  @override
-  String get gateRunning => 'CORRIENDO';
-  @override
-  String get gateGreen => 'VERDE';
-  @override
-  String get gateRed => 'ROJO';
-  @override
-  String get gateStale => 'VERDE, PERO EL ÁRBOL CAMBIÓ DESPUÉS';
-  @override
-  String get gateRun => 'Correr';
-  @override
-  String get gateDeclared => 'DECLARADO';
-  @override
-  String get gateDeclareTitle => 'Lo corrí yo';
-  @override
-  String get gateDeclareHint => 'Pega aquí la salida';
-  @override
-  String get gateDeclareAction => 'Registrar lo que corrí';
-  @override
-  String get chipGateDeclared => 'GATE · DECLARADO';
-  @override
-  String gateWhen(int minutes) => minutes < 60
-      ? 'hace $minutes min'
-      : 'hace ${minutes ~/ 60} h ${minutes % 60} min';
-  @override
-  String get chipGateUnrun => 'GATE SIN CORRER';
-  @override
-  String get chipGateRunning => 'GATE…';
-  @override
-  String get chipGateGreen => 'GATE · VERDE';
-  @override
-  String get chipGateRed => 'GATE · ROJO';
-  @override
-  String get chipGateStale => 'VERDE · CAMBIÓ DESPUÉS';
-  @override
-  String get gateAnywayTitle => 'Publicar igual';
-  @override
-  String get gateAnywayHint =>
-      'Por qué se puede publicar sin volver a correrlo';
-  @override
-  String get gateAnywayAction => 'Escribir el motivo';
-  @override
-  String gateAnywayWritten(String reason) =>
-      'Se publicará con este motivo: «$reason»';
-  @override
-  String get corridaTitle => 'La corrida de esta rama';
-  @override
-  String get corridaBody =>
-      'Lo que se acordó, si el gate lo cubrió y cuánto llevó. Cerrar no publica nada: '
-      'escribe la bitácora y te devuelve el resumen para pegarlo donde haga falta.';
-  @override
-  String get corridaOpenFor => 'Abierta desde hace';
-  @override
-  String get corridaNarrativeHint => 'Qué se hizo, en una frase';
-  @override
-  String get corridaCancelHint => 'Por qué se cancela';
-  @override
-  String get corridaClose => 'Cerrar';
-  @override
-  String get corridaCloseNoProd => 'Cerrar sin producción';
-  @override
-  String get corridaCancel => 'Cancelar la corrida';
-  @override
-  String get corridaCopy => 'Copiar el resumen';
-  @override
-  String get corridaCopied => 'Copiado';
-  @override
-  String corridaPrevious(int count) =>
-      count == 1 ? 'Antes hubo otra corrida' : 'Antes hubo $count corridas';
-  @override
-  String get corridaNotPublishing =>
-      'Cerrar no publica: ni commitea, ni sube, ni abre nada.';
-  @override
-  String corridaTouched(int files) =>
-      files == 1 ? 'Un archivo tocado' : '$files archivos tocados';
-  @override
-  String get corridaReviewTitle => 'La revisión contra las reglas';
-  @override
-  String get corridaReviewNever =>
-      'No se ha pedido. Es lo que el gate no puede ver: si el código cumple las reglas '
-      'de su capa, no si funciona.';
-  @override
-  String corridaReviewAsked(String ago) => 'Pedida hace $ago.';
-  @override
-  String get corridaReviewStale =>
-      'Pedida, pero el código cambió después: lo revisado ya no es lo que hay.';
-  @override
-  String get corridaReviewAsk => 'Pedir la revisión';
-  @override
-  String get corridaReviewNothing =>
-      'Nada que revisar: o no has tocado nada, o este repo no declara reglas por capa.';
-  @override
-  String corridaSummaryBranch(String branch) => 'Rama: $branch';
-  @override
-  String corridaSummaryWhat(String narrative) => 'Qué se hizo: $narrative';
-  @override
-  String get corridaSummaryStillOpen => 'Todavía abierta.';
-  @override
-  String corridaSummaryPlan(String plan) => 'Lo que se acordó: $plan';
-  @override
-  String get corridaSummaryGateGreen => 'El gate: verde.';
-  @override
-  String get corridaSummaryGateDeclared =>
-      'El gate: declarado — lo corrió una persona, no lo midió Nexus.';
-  @override
-  String get corridaSummaryReviewed => 'La revisión contra las reglas: pedida.';
-  @override
-  String get corridaSummaryNotReviewed =>
-      'La revisión contra las reglas: no se pidió.';
-  @override
-  String get corridaSummaryGateRed => 'El gate: en rojo la última vez.';
-  @override
-  String get corridaSummaryGateNever => 'El gate: no llegó a correr.';
-  @override
-  String corridaSummaryTotal(String duration) => 'Llevó $duration.';
-  @override
-  String get corridaSummaryTotalUnknown =>
-      'Cuánto llevó: no se puede saber, no quedó registrado el arranque.';
-  @override
-  String corridaSummaryBuilding(String duration) => 'Construyendo: $duration.';
-  @override
-  String corridaSummaryClosing(String duration) =>
-      'Del gate al cierre: $duration.';
-  @override
-  String get corridaSummaryNoProd => 'No va a producción.';
-  @override
-  String get corridaSummaryCancelled => 'Se canceló: no dejó nada.';
-  @override
   String durationMinutes(int minutes) => '$minutes min';
   @override
   String durationHoursMinutes(int hours, int minutes) =>
       minutes == 0 ? '$hours h' : '$hours h $minutes min';
-  @override
-  String get sectionCorridas => 'Corridas';
-  @override
-  String get corridasExplainer =>
-      'Cada rama con su tarea: lo que se acordó, cómo salió el gate y cuánto llevó. Una '
-      'corrida sola no se compara con nada; diez seguidas empiezan a decir algo.';
-  @override
-  String get corridasNone => 'Todavía no hay ninguna en esta cuenta.';
-  @override
-  String get corridasOpenTag => 'ABIERTA';
-  @override
-  String get corridasClosedTag => 'CERRADA';
-  @override
-  String get corridasNoProdTag => 'SIN PROD';
-  @override
-  String get corridasCancelledTag => 'CANCELADA';
-  @override
-  String get corridasOrphanTag => 'SIN RAMA';
-  @override
-  String corridasOrphansFound(int count) => count == 1
-      ? 'Una se quedó sin su rama.'
-      : '$count se quedaron sin su rama.';
-  @override
-  String get corridasClean => 'Quitar';
-  @override
-  String get corridasCleanAll => 'Quitar las huérfanas';
+
   @override
   String testsFolderTitle(String folder) => 'Las pruebas de «$folder»';
   @override
@@ -1086,31 +763,7 @@ class NexusStringsEs extends NexusStrings {
   String flowsCount(int total) => total == 1 ? '1 prueba' : '$total pruebas';
   @override
   String get e2eWhichProject => 'De qué proyecto';
-  @override
-  String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
-  @override
-  String corridasStretches(String building, String closing) =>
-      'construyendo $building · del gate al cierre $closing';
 
-  @override
-  String get planSignTitle => 'Firma el plan';
-
-  @override
-  String get planSignHint => 'Qué vas a hacer, en una frase';
-
-  @override
-  String get planSignBody =>
-      'Esta carpeta no deja escribir sin un plan firmado. Mientras no lo esté, el asistente puede leer y contestar, pero cualquier edición se le deniega — y se le dice por qué. La firma es de esta rama y caduca en ocho horas: un permiso que no caduca deja de ser una decisión, y uno que caduca cada hora deja de leerse.';
-
-  @override
-  String get planSignAction => 'Firmar';
-
-  @override
-  String get planRequireOff => 'Exigir un plan firmado antes de escribir';
-
-  @override
-  String get planRequireOn =>
-      'Esta carpeta exige un plan firmado antes de escribir';
 
   @override
   String get superpowersEverywhere => 'En todas las cuentas';
@@ -1156,54 +809,7 @@ class NexusStringsEs extends NexusStrings {
   String get skillsOwnHint => 'cómo se llama';
   @override
   String get skillsCreate => 'Crear y abrir';
-  @override
-  String get superpowersHooks => 'Ganchos';
-  @override
-  String get hooksExplainer =>
-      'Un gancho no lo decide el modelo: lo ejecuta el CLI en un momento exacto, así '
-      'que es lo único que puede poner una regla delante de una edición o negarla. Va '
-      'en la cuenta —nunca dentro de un repo, que lo heredaría todo el equipo— y cada '
-      'uno solo actúa donde se le pide.';
-  @override
-  String get hooksNotInstalled => 'Sin instalar';
-  @override
-  String get hooksHalf => 'A medias: el CLI no lo llama';
-  @override
-  String get hooksOutdated => 'Hay una versión más nueva';
-  @override
-  String get hooksUpToDate => 'Al día';
-  @override
-  String get hooksInstall => 'Instalar';
-  @override
-  String get hooksUpdate => 'Actualizar';
-  @override
-  String get hooksRemove => 'Quitar';
-  @override
-  String get hooksInjectRules => 'La regla de la capa, antes de cada edición';
-  @override
-  String get hooksInjectRulesWhat =>
-      'Le pone delante la regla del archivo que va a tocar, justo cuando va a tocarlo. '
-      'Lo enciende un «.nexus-reglas» en la raíz del proyecto; en una carpeta sin él no '
-      'hace nada.';
-  @override
-  String get hooksRequirePlan => 'Nada se escribe sin un plan firmado';
-  @override
-  String get hooksBrakePr => 'No se abre un PR sobre un gate que no lo cubre';
-  @override
-  String get hooksBrakePrWhat =>
-      'Deniega «gh pr create» si el gate no se ha corrido, salió rojo, o pasó sobre un '
-      'árbol anterior. Solo el PR: un push queda en una rama, un PR entra en la cola de '
-      'otra persona. Lo enciende el «.nexus-pruebas» del repo.';
-  @override
-  String get hooksRequirePlanWhat =>
-      'Deniega la edición mientras la carpeta no tenga un plan firmado y vigente. Lo '
-      'enciende el martillo de Permisos, carpeta por carpeta.';
-  @override
-  String get hooksInjectingStatus => 'Cargando las reglas de la capa…';
-  @override
-  String get planRequireNoHook =>
-      'Esta cuenta no tiene el gancho: ponlo en Superpoderes → Ganchos o esto no '
-      'deniega nada';
+
   @override
   String get superpowersPlugins => 'Plugins';
   @override
@@ -2261,182 +1867,11 @@ class NexusStringsEn extends NexusStrings {
   String get superpowersMcp => 'MCP servers';
 
   @override
-  String get planUnsigned => 'PLAN NOT SIGNED';
-
-  @override
-  String planValidFor(int hours, int minutes) =>
-      hours > 0 ? 'PLAN · $hours H $minutes MIN' : 'PLAN · $minutes MIN';
-  @override
-  String planSignBranch(String branch) => 'For the «$branch» branch';
-  @override
-  String get gateTitle => 'The repo gate';
-  @override
-  String get gateBody =>
-      'The repository itself declares it in a «.nexus-pruebas», and the only thing that '
-      'turns it green is the exit code: there is no way to assert it passed from here. '
-      'It is offered, never launched on its own — it takes what it takes.';
-  @override
-  String get gateCommand => 'The command';
-  @override
-  String get gateNotRun => 'NOT RUN';
-  @override
-  String get gateRunning => 'RUNNING';
-  @override
-  String get gateGreen => 'GREEN';
-  @override
-  String get gateRed => 'RED';
-  @override
-  String get gateStale => 'GREEN, BUT THE TREE CHANGED AFTERWARDS';
-  @override
-  String get gateRun => 'Run';
-  @override
-  String get gateDeclared => 'DECLARED';
-  @override
-  String get gateDeclareTitle => 'I ran it myself';
-  @override
-  String get gateDeclareHint => 'Paste the output here';
-  @override
-  String get gateDeclareAction => 'Record what I ran';
-  @override
-  String get chipGateDeclared => 'GATE · DECLARED';
-  @override
-  String gateWhen(int minutes) => minutes < 60
-      ? '$minutes min ago'
-      : '${minutes ~/ 60} h ${minutes % 60} min ago';
-  @override
-  String get chipGateUnrun => 'GATE NOT RUN';
-  @override
-  String get chipGateRunning => 'GATE…';
-  @override
-  String get chipGateGreen => 'GATE · GREEN';
-  @override
-  String get chipGateRed => 'GATE · RED';
-  @override
-  String get chipGateStale => 'GREEN · CHANGED AFTER';
-  @override
-  String get gateAnywayTitle => 'Publish anyway';
-  @override
-  String get gateAnywayHint => 'Why this can go out without running it again';
-  @override
-  String get gateAnywayAction => 'Write the reason';
-  @override
-  String gateAnywayWritten(String reason) =>
-      'It will go out with this reason: «$reason»';
-  @override
-  String get corridaTitle => 'This branch, end to end';
-  @override
-  String get corridaBody =>
-      'What was agreed, whether the gate covered it, and how long it took. Closing '
-      'publishes nothing: it writes the log and hands you the summary to paste wherever '
-      'it belongs.';
-  @override
-  String get corridaOpenFor => 'Open for';
-  @override
-  String get corridaNarrativeHint => 'What was done, in one sentence';
-  @override
-  String get corridaCancelHint => 'Why it is being cancelled';
-  @override
-  String get corridaClose => 'Close';
-  @override
-  String get corridaCloseNoProd => 'Close, not shipping';
-  @override
-  String get corridaCancel => 'Cancel the run';
-  @override
-  String get corridaCopy => 'Copy the summary';
-  @override
-  String get corridaCopied => 'Copied';
-  @override
-  String corridaPrevious(int count) => count == 1
-      ? 'There was one earlier run'
-      : 'There were $count earlier runs';
-  @override
-  String get corridaNotPublishing =>
-      'Closing does not publish: no commit, no push, nothing opened.';
-  @override
-  String corridaTouched(int files) =>
-      files == 1 ? 'One file touched' : '$files files touched';
-  @override
-  String get corridaReviewTitle => 'The review against the rules';
-  @override
-  String get corridaReviewNever =>
-      'Never asked for. It is what the gate cannot see: whether the code follows its '
-      "layer's rules, not whether it works.";
-  @override
-  String corridaReviewAsked(String ago) => 'Asked for $ago ago.';
-  @override
-  String get corridaReviewStale =>
-      'Asked for, but the code changed afterwards: what was reviewed is no longer what '
-      'is there.';
-  @override
-  String get corridaReviewAsk => 'Ask for the review';
-  @override
-  String get corridaReviewNothing =>
-      'Nothing to review: either you have touched nothing, or this repo declares no '
-      'per-layer rules.';
-  @override
-  String corridaSummaryBranch(String branch) => 'Branch: $branch';
-  @override
-  String corridaSummaryWhat(String narrative) => 'What was done: $narrative';
-  @override
-  String get corridaSummaryStillOpen => 'Still open.';
-  @override
-  String corridaSummaryPlan(String plan) => 'What was agreed: $plan';
-  @override
-  String get corridaSummaryGateGreen => 'The gate: green.';
-  @override
-  String get corridaSummaryGateDeclared =>
-      'The gate: declared — a person ran it, Nexus did not measure it.';
-  @override
-  String get corridaSummaryReviewed => 'The rules review: asked for.';
-  @override
-  String get corridaSummaryNotReviewed => 'The rules review: never asked for.';
-  @override
-  String get corridaSummaryGateRed => 'The gate: red the last time.';
-  @override
-  String get corridaSummaryGateNever => 'The gate: never ran.';
-  @override
-  String corridaSummaryTotal(String duration) => 'It took $duration.';
-  @override
-  String get corridaSummaryTotalUnknown =>
-      'How long it took: unknown, the start was never recorded.';
-  @override
-  String corridaSummaryBuilding(String duration) => 'Building: $duration.';
-  @override
-  String corridaSummaryClosing(String duration) => 'Gate to close: $duration.';
-  @override
-  String get corridaSummaryNoProd => 'Not shipping.';
-  @override
-  String get corridaSummaryCancelled => 'Cancelled: it left nothing.';
-  @override
   String durationMinutes(int minutes) => '$minutes min';
   @override
   String durationHoursMinutes(int hours, int minutes) =>
       minutes == 0 ? '$hours h' : '$hours h $minutes min';
-  @override
-  String get sectionCorridas => 'Runs';
-  @override
-  String get corridasExplainer =>
-      'Every branch with its task: what was agreed, how the gate came out, and how long '
-      'it took. One run compares to nothing; ten in a row start to say something.';
-  @override
-  String get corridasNone => 'None on this account yet.';
-  @override
-  String get corridasOpenTag => 'OPEN';
-  @override
-  String get corridasClosedTag => 'CLOSED';
-  @override
-  String get corridasNoProdTag => 'NO SHIP';
-  @override
-  String get corridasCancelledTag => 'CANCELLED';
-  @override
-  String get corridasOrphanTag => 'NO BRANCH';
-  @override
-  String corridasOrphansFound(int count) =>
-      count == 1 ? 'One lost its branch.' : '$count lost their branch.';
-  @override
-  String get corridasClean => 'Remove';
-  @override
-  String get corridasCleanAll => 'Remove the orphans';
+
   @override
   String testsFolderTitle(String folder) => 'The tests for «$folder»';
   @override
@@ -2472,31 +1907,7 @@ class NexusStringsEn extends NexusStrings {
   String flowsCount(int total) => total == 1 ? '1 test' : '$total tests';
   @override
   String get e2eWhichProject => 'Which project';
-  @override
-  String get corridasConfirmRemove => 'Press again to delete it';
-  @override
-  String corridasStretches(String building, String closing) =>
-      'building $building · gate to close $closing';
 
-  @override
-  String get planSignTitle => 'Sign the plan';
-
-  @override
-  String get planSignHint => 'What you are about to do, in one sentence';
-
-  @override
-  String get planSignBody =>
-      'This folder will not allow writing without a signed plan. Until it is, the assistant can read and answer, but any edit is denied — and it is told why. The signature belongs to this branch and expires in eight hours: a permission that never expires stops being a decision, and one that expires every hour stops being read.';
-
-  @override
-  String get planSignAction => 'Sign';
-
-  @override
-  String get planRequireOff => 'Require a signed plan before writing';
-
-  @override
-  String get planRequireOn =>
-      'This folder requires a signed plan before writing';
 
   @override
   String get superpowersEverywhere => 'In every account';
@@ -2542,54 +1953,7 @@ class NexusStringsEn extends NexusStrings {
   String get skillsOwnHint => 'what it is called';
   @override
   String get skillsCreate => 'Create and open';
-  @override
-  String get superpowersHooks => 'Hooks';
-  @override
-  String get hooksExplainer =>
-      'A hook is not something the model decides on: the CLI runs it at an exact '
-      'moment, so it is the only thing that can put a rule in front of an edit or deny '
-      'it. It lives on the account — never inside a repo, where the whole team would '
-      'inherit it — and each one only acts where you ask it to.';
-  @override
-  String get hooksNotInstalled => 'Not installed';
-  @override
-  String get hooksHalf => 'Half installed: the CLI never calls it';
-  @override
-  String get hooksOutdated => 'A newer version is available';
-  @override
-  String get hooksUpToDate => 'Up to date';
-  @override
-  String get hooksInstall => 'Install';
-  @override
-  String get hooksUpdate => 'Update';
-  @override
-  String get hooksRemove => 'Remove';
-  @override
-  String get hooksInjectRules => 'The layer rule, before every edit';
-  @override
-  String get hooksInjectRulesWhat =>
-      'Puts the rule for the file it is about to touch in front of it, right when it '
-      'is about to touch it. A «.nexus-reglas» at the root of the project turns it on; '
-      'in a folder without one it does nothing.';
-  @override
-  String get hooksRequirePlan => 'Nothing gets written without a signed plan';
-  @override
-  String get hooksBrakePr => 'No PR over a gate that does not cover it';
-  @override
-  String get hooksBrakePrWhat =>
-      'Denies «gh pr create» if the gate has not run, came back red, or passed over an '
-      'earlier tree. The PR only: a push stays on a branch, a PR enters someone '
-      "else's queue. The repo's «.nexus-pruebas» turns it on.";
-  @override
-  String get hooksRequirePlanWhat =>
-      'Denies the edit while the folder has no signed, valid plan. The gavel in '
-      'Permissions turns it on, folder by folder.';
-  @override
-  String get hooksInjectingStatus => 'Loading the layer rules…';
-  @override
-  String get planRequireNoHook =>
-      'This account does not have the hook: add it in Superpowers → Hooks or this '
-      'denies nothing';
+
   @override
   String get superpowersPlugins => 'Plugins';
   @override

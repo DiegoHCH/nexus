@@ -1,4 +1,3 @@
-import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,15 +7,8 @@ import 'package:nexus/features/artifacts/presentation/providers/artifacts_provid
 import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
-import 'package:nexus/features/workspace/data/datasources/plan_firmado_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
-import 'package:nexus/features/workspace/data/datasources/gate_del_repo_data_source.dart';
-import 'package:nexus/features/workspace/presentation/providers/gate_del_repo_providers.dart';
-import 'package:nexus/features/workspace/presentation/providers/plan_firmado_providers.dart';
-import 'package:nexus/features/workspace/presentation/widgets/corrida_sheet.dart';
-import 'package:nexus/features/workspace/presentation/widgets/gate_sheet.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
-import 'package:nexus/features/workspace/presentation/widgets/firmar_plan_sheet.dart';
 
 /// Las fichas de la barra: carpeta, modelo, esfuerzo, cupo.
 ///
@@ -59,24 +51,6 @@ class ComposerChips extends ConsumerWidget {
     final repos = paired == null
         ? const <String>[]
         : ref.watch(reposInsideProvider(paired.path)).value ?? const [];
-    // La rama con la que se firma el plan: la del sitio donde va a correr el encargo, que
-    // es de donde el hook la va a sacar. Con la carpeta emparejada es la misma que la de
-    // arriba —mismo proveedor, misma clave— y sin emparejar sigue habiendo carpeta, así
-    // que se resuelve igual en vez de darla por perdida.
-    final dondeCorre = paired?.workingDirectory ?? folderPath;
-    final ramaDelPlan = dondeCorre == null
-        ? null
-        : ref.watch(gitInfoProvider(dondeCorre)).value?.branch;
-    // La carpeta y la rama donde va a trabajar Claude, que es de donde salen tanto el
-    // gate como la corrida. Se calcula una vez: el chip de la rama, el del gate y la hoja
-    // tienen que hablar exactamente de lo mismo.
-    final dondeDeLaCorrida = dondeCorre == null
-        ? null
-        : dondeMirar(
-            carpeta: dondeCorre,
-            perfil: paired?.claudeProfile,
-            rama: ramaDelPlan,
-          );
 
     return Row(
       children: [
@@ -255,17 +229,10 @@ class ComposerChips extends ConsumerWidget {
           // carpeta dice una cosa y el repo otra.
           _Chip(icon: Icons.hub_outlined, label: git.repository),
         ],
-        // La rama abre la corrida: **la corrida es la rama**, y este chip ya estaba ahí
-        // diciendo cuál. Un menú aparte habría sido un sitio más que aprender para llegar
-        // a lo mismo.
+        // La rama, a secas. **Abría la hoja de la corrida y ya no**: eso era del marco
+        // flow, que se fue entero al plugin.
         if (git?.branch case final branch?)
-          if (dondeDeLaCorrida case final donde?)
-            GestureDetector(
-              onTap: () => CorridaSheet.open(context, donde),
-              child: _Chip(icon: Icons.alt_route, label: branch),
-            )
-          else
-            _Chip(icon: Icons.alt_route, label: branch),
+          _Chip(icon: Icons.alt_route, label: branch),
         if (git == null && paired != null)
           // Sin repositorio no hay nada que deshacer, y eso hay que decirlo
           // donde se ve el permiso: es la red de seguridad que falta.
@@ -281,173 +248,11 @@ class ComposerChips extends ConsumerWidget {
             if (paired?.claudeProfile?.split('/').last case final profile?)
               if (profile.startsWith('.claude-'))
                 _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
-        // El plan, **solo donde se exige**. En las demás carpetas no aparece
-        // nada: un chip apagado en todas las conversaciones enseñaría un
-        // mecanismo que casi nadie enciende, y el sitio se paga en atención.
-        if (folderPath case final carpeta?)
-          // La rama es la del sitio donde va a trabajar Claude, que es de donde el hook
-          // la va a sacar: si aquí se firmara bajo otra, la firma existiría y el gate
-          // seguiría denegando sin que nada explicara por qué.
-          if (dondeMirar(
-                carpeta: carpeta,
-                perfil: paired?.claudeProfile,
-                rama: ramaDelPlan,
-              )
-              case final donde)
-            if (ref.watch(planFirmadoProvider(donde)).value case final plan?
-                when plan.exige)
-              _PlanChip(plan: plan, donde: donde),
-        // Las pruebas, **solo donde el repo las declara**. Misma regla que el plan y que
-        // las reglas por capa: el mecanismo está siempre, lo enciende el proyecto.
-        //
-        // Y se miran en `dondeCorre` y no en la carpeta emparejada, que es la diferencia
-        // con el plan de arriba: el `.nexus-pruebas` vive en el repo donde va a correr el
-        // comando. La marca del plan, en cambio, está en la carpeta y cubre lo de dentro
-        // — el hook sube buscándola. Parecen la misma clave y no lo son.
-        if (dondeCorre case final carpeta?)
-          if (dondeMirar(
-                carpeta: carpeta,
-                perfil: paired?.claudeProfile,
-                rama: ramaDelPlan,
-              )
-              case final donde)
-            if (ref.watch(gateDelRepoProvider(donde)).value case final gate?
-                when gate.comando != null)
-              _GateChip(gate: gate, donde: donde),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como
         // interruptor— y se contradecían a la vista.
       ],
-    );
-  }
-}
-
-/// El plan de esta carpeta: firmado y con lo que le queda, o sin firmar en ámbar.
-///
-/// **No apaga el botón de mandar**, y es a propósito: el gate solo deniega escrituras, así
-/// que sin plan el asistente sigue pudiendo leer el proyecto y contestar preguntas —que es
-/// buena parte de para qué se usa—. Apagar el compositor prohibiría más de lo que prohíbe
-/// el hook, y una app más estricta que su propia regla se acaba desactivando entera.
-///
-/// Se refresca solo porque **la vigencia se mide con el reloj**: un chip que dijera «47
-/// MIN» durante dos horas es exactamente la mentira que este mecanismo existe para no
-/// contar. Solo hay temporizador donde hay plan, que son las pocas carpetas que lo piden.
-class _PlanChip extends StatefulWidget {
-  const _PlanChip({required this.plan, required this.donde});
-
-  final PlanFirmado plan;
-  final DondeMirar donde;
-
-  @override
-  State<_PlanChip> createState() => _PlanChipState();
-}
-
-class _PlanChipState extends State<_PlanChip> {
-  Timer? _reloj;
-
-  @override
-  void initState() {
-    super.initState();
-    // Medio minuto: el minuto es la unidad más fina que se enseña, así que más a menudo
-    // sería trabajo que no se ve. Y sigue haciendo falta con una firma de ocho horas: lo
-    // que importa del contador es el final, no el principio.
-    _reloj = Timer.periodic(
-      const Duration(seconds: 30),
-      (_) => setState(() {}),
-    );
-  }
-
-  @override
-  void dispose() {
-    _reloj?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final strings = context.strings;
-    final ahora = DateTime.now().toUtc();
-    final vigente = widget.plan.vigenteEn(ahora);
-    final resta = widget.plan.restanteEn(ahora);
-
-    return Tooltip(
-      message: widget.plan.plan ?? '',
-      child: GestureDetector(
-        onTap: () => FirmarPlanSheet.open(context, widget.donde),
-        child: _Chip(
-          // Un icono distinto del martillo de Ajustes **a propósito**: allí el martillo
-          // dice «esta carpeta exige plan» y aquí se dice «falta firmarlo». Con el mismo
-          // en los dos sitios, tener el martillo encendido se leía como estar firmado —
-          // pasó en la primera prueba con alguien delante.
-          icon: vigente
-              ? Icons.assignment_turned_in_outlined
-              : Icons.assignment_late_outlined,
-          label: vigente
-              ? strings.planValidFor(
-                  resta?.inHours ?? 0,
-                  ((resta?.inMinutes ?? 0) % 60) + 1,
-                )
-              : strings.planUnsigned,
-          warn: !vigente,
-        ),
-      ),
-    );
-  }
-}
-
-/// El gate del repo en la barra: cómo salió, o que nadie lo ha corrido.
-///
-/// **Un verde caducado no se enseña como verde.** Es la única mentira que este chip puede
-/// contar y la más cara: alguien mira la barra, lee «verde» y publica algo que el gate no
-/// vio nunca. Así que en cuanto el árbol cambia, lo dice.
-class _GateChip extends ConsumerWidget {
-  const _GateChip({required this.gate, required this.donde});
-
-  final GateDelRepo gate;
-  final DondeMirar donde;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final strings = context.strings;
-    final huella = ref.watch(huellaDelArbolProvider(donde.carpeta)).value;
-
-    final (etiqueta, avisa) = switch (gate.resultado) {
-      ResultadoDelGate.corriendo => (strings.chipGateRunning, false),
-      ResultadoDelGate.rojo => (strings.chipGateRed, true),
-      ResultadoDelGate.verde when gate.cubre(huella) && gate.quien.medido => (
-        strings.chipGateGreen,
-        false,
-      ),
-      // Declarado y vigente: ni verde ni aviso. Es cierto y no está medido, y la barra
-      // tiene que poder decir eso sin gritar y sin mentir.
-      ResultadoDelGate.verde when gate.cubre(huella) => (
-        strings.chipGateDeclared,
-        false,
-      ),
-      ResultadoDelGate.verde => (strings.chipGateStale, true),
-      ResultadoDelGate.sinCorrer => (strings.chipGateUnrun, false),
-    };
-
-    return Tooltip(
-      message: gate.comando ?? '',
-      child: GestureDetector(
-        onTap: () => GateSheet.open(context, donde),
-        child: _Chip(
-          icon: switch (gate.resultado) {
-            ResultadoDelGate.verde
-                when gate.cubre(huella) && gate.quien.medido =>
-              Icons.check_circle_outline,
-            // Una persona dando fe, no una medición.
-            ResultadoDelGate.verde when gate.cubre(huella) =>
-              Icons.how_to_reg_outlined,
-            ResultadoDelGate.rojo => Icons.error_outline,
-            _ => Icons.science_outlined,
-          },
-          label: etiqueta,
-          warn: avisa,
-        ),
-      ),
     );
   }
 }

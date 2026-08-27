@@ -45,15 +45,6 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-  # Los ganchos viajan **dentro de la app**, no en el repo.
-  #
-  # Vivían en `tool/`, que es para scripts de quien desarrolla y no se empaqueta: con
-  # ellos ahí, instalarlos exigía tener este repo clonado — y por eso los dos que hay
-  # puestos hoy los copié a mano. Como asset, la copia que se instala es siempre la de
-  # la versión de Nexus que corre, y actualizar la app actualiza los ganchos.
-  assets:
-    - assets/hooks/
-
   fonts:
     - family: Instrument Sans
       fonts:

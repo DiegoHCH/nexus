@@ -72,7 +72,6 @@ void main() {
         'mobile',
         'history',
         'pruebas',
-        'corridas',
         'stats',
         'superpowers',
         'emulators',
