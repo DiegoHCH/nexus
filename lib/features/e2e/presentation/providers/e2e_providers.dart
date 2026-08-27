@@ -6,9 +6,9 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
-import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
-import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
-import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_pasadas.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -21,7 +21,7 @@ final e2eDataSourceProvider = Provider<E2eDataSource>(
   (ref) => const E2eDataSource(),
 );
 
-/// Dónde guarda Nexus las corridas.
+/// Dónde guarda Nexus las pasadas.
 ///
 /// **En la carpeta de documentos del usuario, en `test/`.** Antes iban a
 /// Application Support, donde nadie las ve; ahí van al lado de lo que escribe
@@ -34,7 +34,7 @@ final e2eDataSourceProvider = Provider<E2eDataSource>(
 final raizDePruebasProvider = FutureProvider<String>((ref) async {
   final documentos = ref.watch(artifactsFolderProvider);
   if (documentos != null && documentos.isNotEmpty) {
-    return '$documentos/${DondeVivenLasCorridas.carpeta}';
+    return '$documentos/${DondeVivenLasPasadas.carpeta}';
   }
   return E2eDataSource.raiz();
 });
@@ -69,7 +69,7 @@ final pruebasProvider = FutureProvider.family<List<Prueba>, String>(
       .pruebasDe(ref.watch(carpetaDePruebasProvider(proyecto))),
 );
 
-/// Todas las corridas: las que lanzó Nexus y las que no.
+/// Todas las pasadas: las que lanzó Nexus y las que no.
 ///
 /// **Las dos fuentes en una sola lista, con su procedencia marcada.** Un panel
 /// con dos secciones «las mías» y «las otras» le pasaría al usuario un problema
@@ -78,14 +78,14 @@ final pruebasProvider = FutureProvider.family<List<Prueba>, String>(
 /// Sin `autoDispose` y refrescando al abrir, por lo aprendido con los
 /// dispositivos: guardar el valor **y** volver a preguntar. Con una sola de las
 /// dos cosas se elige entre mentir y parpadear.
-final corridasDePruebaProvider = FutureProvider<List<CorridaDePrueba>>((
+final pasadasDePruebaProvider = FutureProvider<List<PasadaDePrueba>>((
   ref,
 ) async {
   final ds = ref.watch(e2eDataSourceProvider);
   final raiz = await ref.watch(raizDePruebasProvider.future);
 
   // Las pruebas de cada carpeta emparejada, que es lo que permite atribuir las
-  // corridas ajenas por nombre de flow.
+  // pasadas ajenas por nombre de flow.
   final carpetas = ref
       .watch(workspaceControllerProvider)
       .folders
@@ -140,18 +140,18 @@ final credencialesProvider =
       return (claves: claves, enGit: enGit);
     });
 
-/// Lo que ocupan las corridas de cada proyecto.
+/// Lo que ocupan las pasadas de cada proyecto.
 ///
 /// **En un proveedor y no en el widget** porque medirlo recorre el disco, y
 /// hacerlo dentro de un `build` era volver a recorrerlo en cada repintado.
 final tamanoPorProyectoProvider = FutureProvider<Map<String, int>>((ref) async {
   final ds = ref.watch(e2eDataSourceProvider);
-  final corridas = await ref.watch(corridasDePruebaProvider.future);
+  final pasadas = await ref.watch(pasadasDePruebaProvider.future);
 
   final total = <String, int>{};
-  for (final corrida in corridas) {
-    final clave = corrida.proyecto ?? '';
-    total[clave] = (total[clave] ?? 0) + ds.bytesDe(corrida.carpeta);
+  for (final pasada in pasadas) {
+    final clave = pasada.proyecto ?? '';
+    total[clave] = (total[clave] ?? 0) + ds.bytesDe(pasada.carpeta);
   }
   return total;
 });
@@ -163,7 +163,7 @@ final tamanoPorProyectoProvider = FutureProvider<Map<String, int>>((ref) async {
 ///
 /// **Vive en un proveedor y no dentro del panel** porque hay dos sitios que
 /// lanzan: la lista de pruebas del proyecto y el historial, cuando se repite una
-/// corrida. Con la lista de dispositivos calculada en cada uno, lo que pasa a
+/// pasada. Con la lista de dispositivos calculada en cada uno, lo que pasa a
 /// continuación está escrito: uno de los dos se queda sin un criterio que el otro
 /// sí tiene, y nadie se entera hasta que falla en el sitio raro.
 final dondeCorrerProvider = Provider<List<({String id, String nombre})>>((ref) {
@@ -282,21 +282,21 @@ class PruebaEnMarcha {
 
 /// Lanzar una prueba y seguirla.
 ///
-/// **Una a la vez**, y no por simplificar: dos corridas de Maestro sobre el mismo
+/// **Una a la vez**, y no por simplificar: dos pasadas de Maestro sobre el mismo
 /// dispositivo se pelean por su driver, y sobre dispositivos distintos ya está
 /// bien pero nadie lo ha pedido. Cuando haga falta, esto pasa a ser un mapa como
-/// el de las corridas de la app.
+/// el de las pasadas de la app.
 class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   Process? _proceso;
 
-  /// Si la ventana de esta corrida ya está abierta.
+  /// Si la ventana de esta pasada ya está abierta.
   var _ventanaAbierta = false;
 
   /// Las capturas que dejó, ya embebidas, **y solo cuando ha terminado**.
   ///
   /// Embebidas pesan: una pantalla de móvil son unos 90 kB de PNG y en base64
   /// crece un tercio. La página se reescribe en cada trozo de salida —decenas de
-  /// veces por corrida— y meterlas ahí sería escribir eso decenas de veces para
+  /// veces por pasada— y meterlas ahí sería escribir eso decenas de veces para
   /// enseñar una imagen que solo se mira al acabar.
   Map<String, String> _capturas = const {};
 
@@ -343,7 +343,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     final raiz = await ref.read(raizDePruebasProvider.future);
     // Maestro escribe su propio ruido en `.maestro/tests` dentro de esta carpeta,
     // que empieza por punto y no estorba a lo que sí se mira.
-    final salida = DondeVivenLasCorridas.de(raiz: raiz, proyecto: proyecto);
+    final salida = DondeVivenLasPasadas.de(raiz: raiz, proyecto: proyecto);
 
     // El YAML se lee ahora: es lo que se pinta, y leerlo después sería pintar los
     // pasos de una versión que igual ya cambió.
@@ -409,7 +409,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
           viva: false,
           salioMal: codigo != 0,
         );
-        // Las capturas, ahora que la corrida acabó y existen en disco.
+        // Las capturas, ahora que la pasada acabó y existen en disco.
         final ds = ref.read(e2eDataSourceProvider);
         _artefactos = ds.carpetaDeArtefactos(salida: salida, flow: actual.flow);
         _capturas = ds.capturasDe(_artefactos);
@@ -459,7 +459,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     unawaited(_pinta());
   }
 
-  /// Reescribe la página de la corrida. La ventana se recarga sola al verla
+  /// Reescribe la página de la pasada. La ventana se recarga sola al verla
   /// cambiar, así que esto es todo lo que hace falta para que siga en vivo.
   Future<void> _pinta() async {
     final actual = state;
@@ -467,9 +467,9 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
 
     await ref
         .read(e2eDataSourceProvider)
-        .pintaLaCorrida(
+        .pintaLaPasada(
           flow: actual.flow,
-          html: LaCorridaComoHtml.escribe(
+          html: LaPasadaComoHtml.escribe(
             flow: actual.flow,
             pasos: actual.pasos,
             lineas: actual.lineas,
@@ -493,7 +493,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   /// Deja constancia de lo que pasó, y refresca el historial.
   ///
   /// Se anota lo que Nexus leyó de la salida y no lo que escriba Maestro: su
-  /// carpeta del flow no siempre llega —medido— y sin esto una corrida que pasó
+  /// carpeta del flow no siempre llega —medido— y sin esto una pasada que pasó
   /// entera desaparecía del historial.
   Future<void> _dejaConstancia() async {
     final actual = state;
@@ -502,11 +502,11 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
 
     await ref
         .read(e2eDataSourceProvider)
-        .anotaLaCorrida(
+        .anotaLaPasada(
           raiz: ctx.raiz,
           perfil: ctx.perfil,
           proyecto: ctx.proyecto,
-          corrida: {
+          pasada: {
             'flow': actual.flow,
             'cuando': ctx.cuando.toIso8601String(),
             // El total estimado del archivo, para el denominador del informe.
@@ -527,18 +527,18 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
                 : actual.ruido,
           },
         );
-    ref.invalidate(corridasDePruebaProvider);
+    ref.invalidate(pasadasDePruebaProvider);
   }
 
   /// Qué frase explica este fallo, si es de los reconocibles.
   ///
-  /// Solo cuando la corrida **ya acabó y acabó mal**: en marcha no hay nada que
+  /// Solo cuando la pasada **ya acabó y acabó mal**: en marcha no hay nada que
   /// explicar todavía, y en una que va bien el texto sería ruido rojo.
   String? _diagnostico(PruebaEnMarcha prueba) {
     if (prueba.viva || !prueba.fallo) return null;
 
     final strings = ref.read(stringsProvider);
-    return switch (PorQueSeCayoLaCorrida.de(
+    return switch (PorQueSeCayoLaPasada.de(
       [prueba.salida, ...prueba.ruido].join('\n'),
     )) {
       PorQueSeCayo.driverNoSeInstala => strings.e2eDriverBlocked,

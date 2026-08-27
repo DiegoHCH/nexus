@@ -8,7 +8,7 @@ import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
-import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
@@ -118,7 +118,7 @@ class _Borrados extends E2eDataSource {
   }) async => borrados.add('ver:$registro');
 
   @override
-  Future<void> pintaLaCorrida({
+  Future<void> pintaLaPasada({
     required String flow,
     required String html,
     required bool primeraVez,
@@ -137,7 +137,7 @@ class _Borrados extends E2eDataSource {
     return null;
   }
 
-  /// Un tamaño fijo por corrida: lo que se comprueba es que el grupo lo sume y lo
+  /// Un tamaño fijo por pasada: lo que se comprueba es que el grupo lo sume y lo
   /// enseñe, no cómo se mide —eso tiene su propia prueba contra el disco.
   @override
   int bytesDe(String ruta) => 2048;
@@ -164,7 +164,7 @@ class _Lanzamientos extends PruebaEnMarchaController {
   }
 }
 
-CorridaDePrueba _corrida({
+PasadaDePrueba _corrida({
   String flow = 'login',
   ComoAcabo como = ComoAcabo.bien,
   String? proyecto = '/casa/tienda',
@@ -172,7 +172,7 @@ CorridaDePrueba _corrida({
   int bien = 8,
   String carpeta = '/donde/sea/login',
   String? dispositivo,
-}) => CorridaDePrueba(
+}) => PasadaDePrueba(
   carpeta: carpeta,
   flow: flow,
   cuando: DateTime(2026, 8, 25, 16, 30),
@@ -189,7 +189,7 @@ Future<void> _abrir(
   List<Prueba> pruebas = const [
     Prueba(ruta: '/casa/tienda/.maestro/login.yaml', nombre: 'login'),
   ],
-  List<CorridaDePrueba>? corridas,
+  List<PasadaDePrueba>? pasadas,
   PruebaEnMarcha? enMarcha,
   int encendidos = 1,
   bool conIphone = false,
@@ -223,8 +223,8 @@ Future<void> _abrir(
           alLeerElRepo?.call();
           return pruebas;
         }),
-        corridasDePruebaProvider.overrideWith(
-          (ref) async => corridas ?? const [],
+        pasadasDePruebaProvider.overrideWith(
+          (ref) async => pasadas ?? const [],
         ),
         if (enMarcha != null)
           pruebaEnMarchaProvider.overrideWith(() => _EnMarchaFija(enMarcha)),
@@ -270,7 +270,7 @@ String _hecho(String texto) => '$texto... COMPLETED\n';
 /// Tocar algo que va a leer del disco, y esperar de verdad.
 ///
 /// **`runAsync` no es opcional aquí.** `testWidgets` corre en tiempo falso y ahí
-/// la E/S real no completa nunca: repetir una corrida lee el `.yaml` de la prueba
+/// la E/S real no completa nunca: repetir una pasada lee el `.yaml` de la prueba
 /// antes de lanzar —para saber el `appId` y avisar si la app no está instalada— y
 /// sin esto ese `await` se queda colgado, el lanzamiento no llega, y la prueba
 /// falla diciendo que no se lanzó nada. Que es lo que pasó.
@@ -322,7 +322,7 @@ void main() {
     });
 
     testWidgets('con una corriendo no se puede lanzar otra', (tester) async {
-      // Dos corridas de Maestro sobre el mismo dispositivo se pelean por su
+      // Dos pasadas de Maestro sobre el mismo dispositivo se pelean por su
       // driver.
       await _abrir(
         tester,
@@ -337,15 +337,15 @@ void main() {
   });
 
   group('el historial', () {
-    testWidgets('sin corridas se explica en vez de dejar un hueco', (
+    testWidgets('sin pasadas se explica en vez de dejar un hueco', (
       tester,
     ) async {
       await _abrir(tester);
       expect(find.text(strings.e2eNoRuns), findsOneWidget);
     });
 
-    testWidgets('cada corrida dice cómo acabó y por dónde iba', (tester) async {
-      await _abrir(tester, corridas: [_corrida(como: ComoAcabo.mal, bien: 2)]);
+    testWidgets('cada pasada dice cómo acabó y por dónde iba', (tester) async {
+      await _abrir(tester, pasadas: [_corrida(como: ComoAcabo.mal, bien: 2)]);
 
       // «2/8» dice dónde se rompió sin abrir nada.
       expect(find.textContaining('2/8'), findsOneWidget);
@@ -355,11 +355,11 @@ void main() {
     testWidgets('**las que no se pudieron atribuir se enseñan igual**', (
       tester,
     ) async {
-      // No saber de qué proyecto salió una corrida es un problema nuestro;
+      // No saber de qué proyecto salió una pasada es un problema nuestro;
       // esconderla se lo pasaría al usuario como historial incompleto.
       await _abrir(
         tester,
-        corridas: [
+        pasadas: [
           _corrida(),
           _corrida(flow: 'explora', proyecto: null, carpeta: '/otro/explora'),
         ],
@@ -369,13 +369,13 @@ void main() {
       expect(find.text('explora'), findsOneWidget);
     });
 
-    testWidgets('borrar una corrida borra su carpeta y solo esa', (
+    testWidgets('borrar una pasada borra su carpeta y solo esa', (
       tester,
     ) async {
       final borrados = <String>[];
       await _abrir(
         tester,
-        corridas: [_corrida(carpeta: '/donde/sea/login')],
+        pasadas: [_corrida(carpeta: '/donde/sea/login')],
         borrados: borrados,
       );
 
@@ -536,7 +536,7 @@ void main() {
           salida: _hecho('Launch app "com.ejemplo"'),
           viva: false,
         ),
-        corridas: [_corrida()],
+        pasadas: [_corrida()],
       );
 
       expect(find.textContaining('login · 1/1'), findsNothing);
@@ -554,7 +554,7 @@ void main() {
       final borrados = <String>[];
       await _abrir(
         tester,
-        corridas: [_corrida(carpeta: '/donde/sea/login.json')],
+        pasadas: [_corrida(carpeta: '/donde/sea/login.json')],
         borrados: borrados,
       );
 
@@ -594,19 +594,19 @@ void main() {
     });
   });
 
-  group('repetir una corrida', () {
+  group('repetir una pasada', () {
     testWidgets('la vuelve a correr donde corrió, si sigue encendido', (
       tester,
     ) async {
       // Con dos encendidos y ninguno elegido, la lista de arriba no puede lanzar
       // —no va a decidir por el usuario—. Repetir sí sabe dónde: en el de la
-      // corrida. Eso es lo que se comprueba aquí.
+      // pasada. Eso es lo que se comprueba aquí.
       final lanzados = <String>[];
       await _abrir(
         tester,
         encendidos: 2,
         lanzados: lanzados,
-        corridas: [_corrida(dispositivo: 'emulator-5551')],
+        pasadas: [_corrida(dispositivo: 'emulator-5551')],
       );
 
       await _tocarYEsperar(tester, find.byIcon(Icons.replay));
@@ -623,7 +623,7 @@ void main() {
       await _abrir(
         tester,
         lanzados: lanzados,
-        corridas: [_corrida(dispositivo: 'emulator-9999')],
+        pasadas: [_corrida(dispositivo: 'emulator-9999')],
       );
 
       await _tocarYEsperar(tester, find.byIcon(Icons.replay));
@@ -635,14 +635,14 @@ void main() {
       tester,
     ) async {
       // El caso que había que resolver antes de ofrecer el botón: repetir una
-      // corrida de la semana pasada con el flow borrado. Se dice aquí, no se
+      // pasada de la semana pasada con el flow borrado. Se dice aquí, no se
       // falla dentro de Maestro con un «file not found».
       final lanzados = <String>[];
       await _abrir(
         tester,
         pruebas: const [],
         lanzados: lanzados,
-        corridas: [_corrida(dispositivo: 'emulator-5550')],
+        pasadas: [_corrida(dispositivo: 'emulator-5550')],
       );
 
       await tester.tap(find.byIcon(Icons.replay));
@@ -656,7 +656,7 @@ void main() {
     testWidgets('sin proyecto atribuido no se ofrece repetir', (tester) async {
       // Sin saber en qué repo vive el flow, el botón solo podría contestar «no sé
       // de dónde salió esto», y eso es peor que no ofrecerlo.
-      await _abrir(tester, corridas: [_corrida(proyecto: null)]);
+      await _abrir(tester, pasadas: [_corrida(proyecto: null)]);
       expect(find.byIcon(Icons.replay), findsNothing);
     });
 
@@ -672,7 +672,7 @@ void main() {
         tester,
         encendidos: 0,
         lanzados: lanzados,
-        corridas: [_corrida(dispositivo: 'emulator-5550')],
+        pasadas: [_corrida(dispositivo: 'emulator-5550')],
       );
 
       final icono = tester.widget<IconButton>(
@@ -684,13 +684,13 @@ void main() {
     });
   });
 
-  group('borrar las corridas de un proyecto', () {
+  group('borrar las pasadas de un proyecto', () {
     testWidgets('el grupo dice cuántas hay y cuánto ocupan', (tester) async {
-      // Es lo que hace falta para decidir si borrarlas: un grupo de corridas con
+      // Es lo que hace falta para decidir si borrarlas: un grupo de pasadas con
       // capturas son decenas de megas y nada lo decía.
       await _abrir(
         tester,
-        corridas: [
+        pasadas: [
           _corrida(carpeta: '/donde/sea/uno'),
           _corrida(carpeta: '/donde/sea/dos'),
         ],
@@ -704,7 +704,7 @@ void main() {
       await _abrir(
         tester,
         borrados: borrados,
-        corridas: [_corrida(carpeta: '/donde/sea/uno')],
+        pasadas: [_corrida(carpeta: '/donde/sea/uno')],
       );
 
       await tester.tap(find.byIcon(Icons.delete_sweep_outlined));
@@ -720,7 +720,7 @@ void main() {
         await _abrir(
           tester,
           borrados: borrados,
-          corridas: [
+          pasadas: [
             _corrida(proyecto: '/casa/otra', carpeta: '/donde/sea/ajena'),
             _corrida(carpeta: '/donde/sea/uno'),
             _corrida(carpeta: '/donde/sea/dos'),
@@ -754,7 +754,7 @@ void main() {
 
     await _abrir(
       tester,
-      corridas: [
+      pasadas: [
         _corrida(flow: 'un_nombre_de_prueba_bastante_largo_de_verdad'),
       ],
     );

@@ -1,4 +1,4 @@
-/// Por qué se cayó una corrida, cuando se puede reconocer.
+/// Por qué se cayó una pasada, cuando se puede reconocer.
 ///
 /// **Existe porque los fallos de dispositivo llegan sin mensaje.** El caso que lo
 /// motivó, medido en un móvil real: HyperOS bloquea la instalación del driver y la
@@ -25,7 +25,7 @@ enum PorQueSeCayo {
   appNoInstalada,
 }
 
-abstract final class PorQueSeCayoLaCorrida {
+abstract final class PorQueSeCayoLaPasada {
   /// Lo reconocible de una salida, o `null`.
   ///
   /// Se mira de lo más específico a lo más general: un fallo al instalar el driver

@@ -219,7 +219,7 @@ abstract final class PasosDeUnaPrueba {
       // Tomando cada línea como un paso, el anuncio se quedaba **girando para
       // siempre** —nunca recibe estado en su propia línea— y su cierre aparecía como
       // una fila más. Con dos flujos anidados se veían tres indicadores a la vez y la
-      // ventana se leía como colgada teniendo la corrida acabada. Se vio así.
+      // ventana se leía como colgada teniendo la pasada acabada. Se vio así.
       //
       // Se busca solo entre los que están en curso, y por eso dos pasos idénticos
       // seguidos no se confunden: un paso que ya acabó no vuelve a casar.

@@ -1,4 +1,4 @@
-/// Cómo acabó una corrida de pruebas.
+/// Cómo acabó una pasada de pruebas.
 enum ComoAcabo {
   /// Todos los pasos completados.
   bien,
@@ -21,14 +21,14 @@ class Prueba {
   final String ruta;
 
   /// El nombre del archivo sin extensión, que es el que usa Maestro para nombrar
-  /// su carpeta de resultados. **De ahí sale la atribución** de las corridas que
+  /// su carpeta de resultados. **De ahí sale la atribución** de las pasadas que
   /// no lanzó Nexus.
   final String nombre;
 }
 
-/// Una corrida: lo que quedó de haber ejecutado una prueba.
-class CorridaDePrueba {
-  const CorridaDePrueba({
+/// Una pasada: lo que quedó de haber ejecutado una prueba.
+class PasadaDePrueba {
+  const PasadaDePrueba({
     required this.carpeta,
     required this.flow,
     required this.cuando,

@@ -70,8 +70,8 @@ void main() {
       expect(pasos.single.texto, 'Tap on id: btn_go_to_login');
     });
 
-    test('una corrida entera, en orden', () {
-      // La captura completa de la corrida de hoy.
+    test('una pasada entera, en orden', () {
+      // La captura completa de la pasada de hoy.
       final pasos = PasosDeUnaPrueba.deLaSalida(
         'Running on Medium_Phone_API_36.1\n'
         ' > Flow welcome_to_login\n'
@@ -137,7 +137,7 @@ void main() {
   });
 
   group('un paso que revienta', () {
-    /// La salida de una corrida real en un móvil físico, tal como llegó. El `tap`
+    /// La salida de una pasada real en un móvil físico, tal como llegó. El `tap`
     /// murió por permisos de MIUI y **Maestro no imprimió ningún estado**: le pegó la
     /// excepción al anuncio, en la misma línea.
     const deVerdad =
@@ -204,7 +204,7 @@ void main() {
   });
 
   group('un flujo anidado', () {
-    /// Captura real de la corrida del login: un `runFlow` condicional se imprime en
+    /// Captura real de la pasada del login: un `runFlow` condicional se imprime en
     /// tres tramos —anuncio, pasos de dentro indentados, y **otra vez el mismo
     /// `runFlow`** con su resultado—.
     const conRunFlow =
@@ -221,7 +221,7 @@ void main() {
       // Lo que se veía: el anuncio girando para siempre —nunca recibe estado en su
       // propia línea— y su cierre como una fila más. Con dos flujos anidados,
       // **tres indicadores a la vez** y la ventana leyéndose como colgada teniendo
-      // la corrida acabada.
+      // la pasada acabada.
       final pasos = PasosDeUnaPrueba.deLaSalida(conRunFlow);
 
       expect(
@@ -240,7 +240,7 @@ void main() {
       expect(
         pasos.where((p) => p.estado == EstadoDePaso.enCurso),
         isEmpty,
-        reason: 'quedó algo girando con la corrida acabada',
+        reason: 'quedó algo girando con la pasada acabada',
       );
     });
 

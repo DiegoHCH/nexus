@@ -1,16 +1,16 @@
 import 'dart:convert';
 
-import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 
-/// Leer lo que dejó una corrida de Maestro.
-abstract final class LectorDeCorridas {
+/// Leer lo que dejó una pasada de Maestro.
+abstract final class LectorDePasadas {
   /// El estado y las cuentas, sacados de su `commands.json`.
   ///
   /// **Se lee el archivo y no el nombre de la carpeta**, porque la carpeta solo
   /// dice cuándo. El estado está en cada paso: `metadata.status`, que es
   /// `COMPLETED` o no.
   ///
-  /// Formato real, comprobado contra las corridas de esta máquina: una lista de
+  /// Formato real, comprobado contra las pasadas de esta máquina: una lista de
   /// objetos con `command` y `metadata`. El primer paso es siempre un
   /// `defineVariablesCommand` con el entorno de Maestro dentro, y de ahí sale el
   /// dispositivo.
@@ -98,8 +98,8 @@ abstract final class LectorDeCorridas {
   /// **Formato nuestro y no el de Maestro.** Lleva lo que Nexus leyó de la salida
   /// mientras la prueba corría, que es lo único de lo que se puede depender: la
   /// carpeta del flow con su `commands.json` no siempre llega —medido— y sin esto
-  /// una corrida que pasó entera desaparecía del historial.
-  static CorridaDePrueba? leerRegistro(
+  /// una pasada que pasó entera desaparecía del historial.
+  static PasadaDePrueba? leerRegistro(
     String json, {
     required String carpeta,
   }) {
@@ -118,7 +118,7 @@ abstract final class LectorDeCorridas {
     final hechos = (leido['terminados'] as num?)?.toInt() ?? 0;
     final fallo = leido['fallo'] == true;
 
-    return CorridaDePrueba(
+    return PasadaDePrueba(
       carpeta: carpeta,
       flow: '${leido['flow'] ?? ''}',
       cuando: cuando,
@@ -157,7 +157,7 @@ abstract final class LectorDeCorridas {
     );
   }
 
-  /// A qué proyecto pertenece una corrida que **no lanzó Nexus**, por el nombre
+  /// A qué proyecto pertenece una pasada que **no lanzó Nexus**, por el nombre
   /// de su flow.
   ///
   /// Es una heurística y hay que decirlo: si dos proyectos tienen un `login.yaml`

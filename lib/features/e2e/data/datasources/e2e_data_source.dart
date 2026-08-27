@@ -5,13 +5,13 @@ import 'package:flutter/services.dart';
 
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
-import 'package:nexus/features/e2e/domain/entities/corrida_de_prueba.dart';
-import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_corridas.dart';
-import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_pasadas.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
-import 'package:nexus/features/e2e/domain/usecases/lector_de_corridas.dart';
+import 'package:nexus/features/e2e/domain/usecases/lector_de_pasadas.dart';
 import 'package:path_provider/path_provider.dart';
 
 /// Las pruebas de Maestro de un proyecto y lo que dejaron al correr.
@@ -55,7 +55,7 @@ class E2eDataSource {
     }
   }
 
-  /// Deja constancia de una corrida, en un archivo nuestro.
+  /// Deja constancia de una pasada, en un archivo nuestro.
   ///
   /// **Existe porque el historial no debe depender de un archivo ajeno.** Lo que
   /// pasó lo sabe Nexus con certeza: lo ha leído paso a paso de la salida mientras
@@ -73,56 +73,56 @@ class E2eDataSource {
   /// **La ruta del proyecto va dentro del registro**, no solo en el nombre de la
   /// carpeta: esa lleva el nombre legible de la app y dos proyectos pueden
   /// llamarse igual. La atribución sale del dato.
-  Future<void> anotaLaCorrida({
+  Future<void> anotaLaPasada({
     required String raiz,
     required String perfil,
     required String proyecto,
-    required Map<String, Object?> corrida,
+    required Map<String, Object?> pasada,
   }) async {
     final dir = Directory(
-      DondeVivenLasCorridas.de(raiz: raiz, proyecto: proyecto),
+      DondeVivenLasPasadas.de(raiz: raiz, proyecto: proyecto),
     );
     try {
       dir.createSync(recursive: true);
       final cuando =
-          DateTime.tryParse('${corrida['cuando'] ?? ''}') ?? DateTime.now();
-      final nombre = DondeVivenLasCorridas.nombreDelRegistro(
-        flow: '${corrida['flow'] ?? 'prueba'}',
+          DateTime.tryParse('${pasada['cuando'] ?? ''}') ?? DateTime.now();
+      final nombre = DondeVivenLasPasadas.nombreDelRegistro(
+        flow: '${pasada['flow'] ?? 'prueba'}',
         cuando: cuando,
       );
       File('${dir.path}/$nombre.json').writeAsStringSync(
-        jsonEncode({...corrida, 'proyecto': proyecto, 'perfil': perfil}),
+        jsonEncode({...pasada, 'proyecto': proyecto, 'perfil': perfil}),
       );
     } on FileSystemException {
-      // Sin poder anotar, la corrida ya pasó igual: se pierde del historial y no
+      // Sin poder anotar, la pasada ya pasó igual: se pierde del historial y no
       // se pierde nada más.
     }
   }
 
-  /// Las corridas que lanzó Nexus, de los registros que dejó.
+  /// Las pasadas que lanzó Nexus, de los registros que dejó.
   ///
   /// Un nivel de carpetas —una por app— y los registros dentro. El proyecto sale
-  /// **del registro** y no de la carpeta, por lo dicho en [anotaLaCorrida].
-  Future<List<CorridaDePrueba>> propias(String raiz) async {
+  /// **del registro** y no de la carpeta, por lo dicho en [anotaLaPasada].
+  Future<List<PasadaDePrueba>> propias(String raiz) async {
     final base = Directory(raiz);
     if (!base.existsSync()) return const [];
 
-    final corridas = <CorridaDePrueba>[];
+    final pasadas = <PasadaDePrueba>[];
     for (final app in _carpetas(base)) {
-      // La casa de Maestro dentro de una app es su ruido, no una corrida nuestra.
+      // La casa de Maestro dentro de una app es su ruido, no una pasada nuestra.
       if (app.path.split('/').last.startsWith('.')) continue;
 
       for (final archivo in _archivosJson(app)) {
-        if (LectorDeCorridas.leerRegistro(
+        if (LectorDePasadas.leerRegistro(
               archivo.readAsStringSync(),
               carpeta: archivo.path,
             )
-            case final corrida?) {
-          corridas.add(corrida);
+            case final pasada?) {
+          pasadas.add(pasada);
         }
       }
     }
-    return corridas;
+    return pasadas;
   }
 
   List<File> _archivosJson(Directory dir) {
@@ -139,47 +139,47 @@ class E2eDataSource {
   /// Las que lanzó cualquier otro, de la casa de Maestro.
   ///
   /// **La red de seguridad.** La herramienta `run` del MCP la llama Claude, no
-  /// Nexus, así que esas corridas no llevan nuestro `--debug-output` y aterrizan
+  /// Nexus, así que esas pasadas no llevan nuestro `--debug-output` y aterrizan
   /// aquí. Sin esto desaparecerían del panel, y una lista que esconde la mitad de
   /// lo que pasó es peor que no tener lista.
   ///
   /// El proyecto se atribuye por el nombre del flow —ver
-  /// [LectorDeCorridas.atribuyePorNombre]—, que es una heurística: coincidencia
+  /// [LectorDePasadas.atribuyePorNombre]—, que es una heurística: coincidencia
   /// única se atribuye, varias se dejan sin atribuir.
-  Future<List<CorridaDePrueba>> ajenas(
+  Future<List<PasadaDePrueba>> ajenas(
     Map<String, List<String>> pruebasPorProyecto,
   ) async {
     // La casa de Maestro, que es la misma estructura que él añade a cualquier
     // ruta que se le dé: `~/.maestro/tests`.
     final casa = Directory(
       '${Platform.environment['HOME']}/'
-      '${DondeVivenLasCorridas.loQueAnadeMaestro}',
+      '${DondeVivenLasPasadas.loQueAnadeMaestro}',
     );
     if (!casa.existsSync()) return const [];
 
-    final corridas = <CorridaDePrueba>[];
+    final pasadas = <PasadaDePrueba>[];
     for (final fecha in _carpetas(casa)) {
-      for (final corrida in _corridasEn(fecha)) {
-        final quien = LectorDeCorridas.atribuyePorNombre(
-          corrida.flow,
+      for (final pasada in _pasadasEn(fecha)) {
+        final quien = LectorDePasadas.atribuyePorNombre(
+          pasada.flow,
           pruebasPorProyecto,
         );
-        corridas.add(
-          CorridaDePrueba(
-            carpeta: corrida.carpeta,
-            flow: corrida.flow,
-            cuando: corrida.cuando,
-            comoAcabo: corrida.comoAcabo,
+        pasadas.add(
+          PasadaDePrueba(
+            carpeta: pasada.carpeta,
+            flow: pasada.flow,
+            cuando: pasada.cuando,
+            comoAcabo: pasada.comoAcabo,
             proyecto: quien.proyecto,
-            dispositivo: corrida.dispositivo,
-            pasos: corrida.pasos,
-            pasosBien: corrida.pasosBien,
-            capturas: corrida.capturas,
+            dispositivo: pasada.dispositivo,
+            pasos: pasada.pasos,
+            pasosBien: pasada.pasosBien,
+            capturas: pasada.capturas,
           ),
         );
       }
     }
-    return corridas;
+    return pasadas;
   }
 
   /// Lanza una prueba, **diciéndole dónde escribir**.
@@ -247,7 +247,7 @@ class E2eDataSource {
     }
   }
 
-  /// Dónde dejó Maestro los artefactos de la corrida que acaba de terminar.
+  /// Dónde dejó Maestro los artefactos de la pasada que acaba de terminar.
   ///
   /// **Maestro añade `.maestro/tests/<fecha_hora>/` dentro de la ruta que se le
   /// da**, así que la carpeta exacta no se sabe al lanzar: la elige él. Se busca
@@ -256,10 +256,10 @@ class E2eDataSource {
   ///
   /// Se intentó primero leerla de la salida, que Maestro la imprime:
   /// `==== Debug output (logs & screenshots) ====`. No sirve: **solo la imprime
-  /// cuando la corrida falla.** En una que pasa no aparece esa línea.
+  /// cuando la pasada falla.** En una que pasa no aparece esa línea.
   String? carpetaDeArtefactos({required String salida, required String flow}) {
     final tests = Directory(
-      '$salida/${DondeVivenLasCorridas.loQueAnadeMaestro}',
+      '$salida/${DondeVivenLasPasadas.loQueAnadeMaestro}',
     );
     if (!tests.existsSync()) return null;
 
@@ -280,7 +280,7 @@ class E2eDataSource {
     return masReciente == null ? null : '${masReciente.path}/$flow';
   }
 
-  /// Las capturas de una corrida, **ya embebidas** para poder pintarlas.
+  /// Las capturas de una pasada, **ya embebidas** para poder pintarlas.
   ///
   /// Devuelve `nombre -> data:` porque la página es autocontenida y el visor solo
   /// tiene permiso de lectura sobre la carpeta del propio archivo: una imagen
@@ -308,9 +308,9 @@ class E2eDataSource {
     return capturas;
   }
 
-  /// La página que se le escribe a una corrida guardada, al lado de su registro.
+  /// La página que se le escribe a una pasada guardada, al lado de su registro.
   ///
-  /// Derivada del registro y no inventada: así **quien borra la corrida sabe qué
+  /// Derivada del registro y no inventada: así **quien borra la pasada sabe qué
   /// página se lleva con ella** sin tener que buscarla.
   static String paginaDe(String registro) =>
       '${registro.replaceAll(RegExp(r'\.json$'), '')}.html';
@@ -349,16 +349,16 @@ class E2eDataSource {
     flow,
   ];
 
-  /// Borra lo que dejó una corrida.
+  /// Borra lo que dejó una pasada.
   ///
   /// **Solo artefactos, nunca el `.yaml`.** Lo que se borra aquí es reproducible;
   /// el flow es código del usuario y vive en git.
   ///
-  /// **Dos formas, porque una corrida deja dos cosas distintas**: las nuestras son
+  /// **Dos formas, porque una pasada deja dos cosas distintas**: las nuestras son
   /// un registro `.json` suelto, las de Maestro una carpeta con su `commands.json`
   /// dentro. Esto solo sabía borrar carpetas, y `Directory(ruta).existsSync()` con
   /// un archivo da `false`: se salía por «no hay nada que borrar» devolviendo
-  /// `null`, que quien llama lee como éxito. Resultado: **borrar una corrida
+  /// `null`, que quien llama lee como éxito. Resultado: **borrar una pasada
   /// lanzada por Nexus no hacía nada** y la fila volvía al refrescar la lista. No
   /// daba error en ningún sitio, que es lo que lo hizo durar.
   Future<String?> borrar(String ruta) async {
@@ -427,7 +427,7 @@ class E2eDataSource {
         .contains('package:$appId');
   }
 
-  /// Escribe la página de la corrida y **abre su ventana**, o la actualiza.
+  /// Escribe la página de la pasada y **abre su ventana**, o la actualiza.
   ///
   /// **Se reusa el visor de documentos y no se escribe una ventana nueva.** Es una
   /// `NSWindow` con un `WKWebView` que ya vigila el archivo y se recarga cuando
@@ -435,12 +435,12 @@ class E2eDataSource {
   /// falta: una ventana independiente que se actualiza sola, no bloquea la app y
   /// se puede dejar al lado mientras se trabaja.
   ///
-  /// La ruta es **estable por corrida**, y eso importa: el visor lleva sus
+  /// La ruta es **estable por pasada**, y eso importa: el visor lleva sus
   /// ventanas por archivo, así que reescribir la misma ruta actualiza la que ya
   /// está delante en vez de abrir otra en cada paso.
   ///
   /// Estrecha y alta —440 × 900— porque lo que se enseña es una columna de pasos.
-  Future<void> pintaLaCorrida({
+  Future<void> pintaLaPasada({
     required String flow,
     required String html,
     required bool primeraVez,
@@ -492,8 +492,8 @@ class E2eDataSource {
         'height': 900.0,
       });
     } on PlatformException {
-      // Sin canal nativo —en una prueba, o si el visor no está— la corrida sigue
-      // igual: la ventana es una forma de mirarla, no la corrida.
+      // Sin canal nativo —en una prueba, o si el visor no está— la pasada sigue
+      // igual: la ventana es una forma de mirarla, no la pasada.
     } on MissingPluginException {
       return;
     }
@@ -502,9 +502,9 @@ class E2eDataSource {
   /// El mismo canal que el visor de documentos: es literalmente el mismo visor.
   static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
 
-  /// Abre el informe de una corrida que ya acabó, en la misma ventana aparte.
+  /// Abre el informe de una pasada que ya acabó, en la misma ventana aparte.
   ///
-  /// Una corrida terminada es una en marcha quieta, así que se mira igual: se
+  /// Una pasada terminada es una en marcha quieta, así que se mira igual: se
   /// escribe su página al lado de su registro y se abre el visor. No hacía falta
   /// una segunda forma de enseñar lo mismo.
   /// [explica] traduce el motivo del fallo, si se reconoce.
@@ -594,7 +594,7 @@ class E2eDataSource {
       ];
     }
 
-    final html = LaCorridaComoHtml.escribe(
+    final html = LaPasadaComoHtml.escribe(
       flow: flow,
       pasos: pasos,
       lineas: lineas,
@@ -602,12 +602,12 @@ class E2eDataSource {
       total: total == 0 ? pasos.length : total,
       viva: false,
       fallo: fallo,
-      // Las capturas de aquella corrida, si su carpeta sigue estando. Un registro
+      // Las capturas de aquella pasada, si su carpeta sigue estando. Un registro
       // viejo no la guarda y entonces no hay imágenes: el informe se abre igual.
       capturas: capturasDe(leido['artefactos'] as String?),
       diagnostico: !fallo || explica == null
           ? null
-          : switch (PorQueSeCayoLaCorrida.de(lineas.join('\n'))) {
+          : switch (PorQueSeCayoLaPasada.de(lineas.join('\n'))) {
               final PorQueSeCayo por => explica(por),
               null => null,
             },
@@ -700,7 +700,7 @@ class E2eDataSource {
     }
   }
 
-  /// Cuánto ocupa una corrida, para poder decirlo antes de borrar.
+  /// Cuánto ocupa una pasada, para poder decirlo antes de borrar.
   ///
   /// Un registro nuestro o una carpeta de Maestro, por lo mismo que [borrar]: con
   /// un archivo, el `Directory` de antes daba `0`. Y un tamaño que sale `0`
@@ -768,25 +768,25 @@ class E2eDataSource {
     }
   }
 
-  /// Las corridas dentro de una carpeta de fecha. Cada flow es una subcarpeta.
-  List<CorridaDePrueba> _corridasEn(
+  /// Las pasadas dentro de una carpeta de fecha. Cada flow es una subcarpeta.
+  List<PasadaDePrueba> _pasadasEn(
     Directory fecha, {
     String? perfil,
     String? proyecto,
   }) {
-    final cuando = LectorDeCorridas.cuandoDe(fecha.path.split('/').last);
+    final cuando = LectorDePasadas.cuandoDe(fecha.path.split('/').last);
     if (cuando == null) return const [];
 
-    final corridas = <CorridaDePrueba>[];
+    final pasadas = <PasadaDePrueba>[];
     for (final flow in _carpetas(fecha)) {
       final nombre = flow.path.split('/').last;
       final commands = File('${flow.path}/commands.json');
-      final leido = LectorDeCorridas.leer(
+      final leido = LectorDePasadas.leer(
         commands.existsSync() ? commands.readAsStringSync() : '',
       );
 
-      corridas.add(
-        CorridaDePrueba(
+      pasadas.add(
+        PasadaDePrueba(
           carpeta: flow.path,
           flow: nombre,
           cuando: cuando,
@@ -800,7 +800,7 @@ class E2eDataSource {
         ),
       );
     }
-    return corridas;
+    return pasadas;
   }
 
   List<String> _capturasEn(String carpeta) {

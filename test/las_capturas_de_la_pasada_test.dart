@@ -3,15 +3,15 @@ import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
-import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 
-/// Las capturas que deja una corrida.
+/// Las capturas que deja una pasada.
 ///
 /// **La carpeta la elige Maestro**: añade `.maestro/tests/<fecha_hora>/` dentro de
 /// la ruta que le damos, así que no se sabe al lanzar y se busca al terminar.
 ///
-/// Durante un tiempo creí que esa carpeta no se escribía cuando la corrida salía de
+/// Durante un tiempo creí que esa carpeta no se escribía cuando la pasada salía de
 /// la app, y lo dejé escrito en un comentario como hecho medido. Era falso: la
 /// buscaba en `~/.maestro/tests`, el sitio por defecto, que es justo el que deja de
 /// usarse cuando se pasa `--debug-output`.
@@ -106,7 +106,7 @@ void main() {
       expect(ds.capturasDe(carpeta)['login_form'], isNot(contains('.png')));
     });
 
-    test('una corrida sin capturas no da nada', () {
+    test('una pasada sin capturas no da nada', () {
       final carpeta = corridaDeMaestro('2026-08-26_160821', 'login');
       expect(ds.capturasDe(carpeta), isEmpty);
     });
@@ -120,7 +120,7 @@ void main() {
     const unaCaptura = {'login_form': 'data:image/png;base64,AAAA'};
 
     test('cada una va debajo del paso que la tomó', () {
-      final html = LaCorridaComoHtml.escribe(
+      final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
           PasoParaPintar(texto: 'Launch app "com.x"', estado: EstadoDePaso.hecho),
@@ -146,7 +146,7 @@ void main() {
     });
 
     test('un paso que no toma capturas no lleva ninguna', () {
-      final html = LaCorridaComoHtml.escribe(
+      final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
           PasoParaPintar(texto: 'Launch app "com.x"', estado: EstadoDePaso.hecho),
@@ -162,7 +162,7 @@ void main() {
     });
 
     test('el paso del YAML no lleva captura: todavía no ha corrido', () {
-      final html = LaCorridaComoHtml.escribe(
+      final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
           PasoParaPintar(
@@ -181,7 +181,7 @@ void main() {
     });
 
     test('sigue sin pedir nada a la red', () {
-      final html = LaCorridaComoHtml.escribe(
+      final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
           PasoParaPintar(

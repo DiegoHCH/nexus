@@ -57,7 +57,7 @@ void main() {
     expect(prueba.pasos[1].texto, 'Assert that id: btn_go_to_register is visible');
   });
 
-  test('un paso fallado tumba la corrida', () {
+  test('un paso fallado tumba la pasada', () {
     final prueba = conLaSalida('Tap on id: btn... FAILED\n');
     expect(prueba.fallo, isTrue);
   });

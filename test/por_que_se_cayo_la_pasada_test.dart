@@ -1,5 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexus/features/e2e/domain/usecases/la_corrida_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 
@@ -25,7 +25,7 @@ void main() {
 
     test('se reconoce por la pila, que es lo único que dice algo', () {
       expect(
-        PorQueSeCayoLaCorrida.de(salida),
+        PorQueSeCayoLaPasada.de(salida),
         PorQueSeCayo.driverNoSeInstala,
       );
     });
@@ -42,7 +42,7 @@ void main() {
       // Este pasa **dentro** de un paso; el del driver, antes de cualquiera. Así
       // que no compiten.
       expect(
-        PorQueSeCayoLaCorrida.de(salida),
+        PorQueSeCayoLaPasada.de(salida),
         PorQueSeCayo.sinPermisoParaTocar,
       );
     });
@@ -50,19 +50,19 @@ void main() {
 
   test('la app que no está', () {
     expect(
-      PorQueSeCayoLaCorrida.de('Package com.ejemplo is not installed'),
+      PorQueSeCayoLaPasada.de('Package com.ejemplo is not installed'),
       PorQueSeCayo.appNoInstalada,
     );
   });
 
   test('lo que no se reconoce se queda sin frase', () {
     // No reconocer no puede ser peor que antes: se sigue enseñando la salida cruda.
-    expect(PorQueSeCayoLaCorrida.de('algo que nunca hemos visto'), isNull);
-    expect(PorQueSeCayoLaCorrida.de(''), isNull);
+    expect(PorQueSeCayoLaPasada.de('algo que nunca hemos visto'), isNull);
+    expect(PorQueSeCayoLaPasada.de(''), isNull);
   });
 
   group('cómo se enseña', () {
-    String pagina({String? diagnostico}) => LaCorridaComoHtml.escribe(
+    String pagina({String? diagnostico}) => LaPasadaComoHtml.escribe(
       flow: 'login',
       pasos: const [
         PasoParaPintar(texto: 'launchApp', estado: EstadoDePaso.pendiente),

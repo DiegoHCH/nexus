@@ -13,7 +13,7 @@
 ///   y por eso se pasan **solo las claves que el flow usa** y no el archivo entero.
 /// - **No se filtran por la salida.** Medido: Maestro imprime `Input text
 ///   ${SECRETO}... COMPLETED`, el marcador y no el valor. Importa porque el
-///   registro de una corrida guarda la salida entera en disco.
+///   registro de una pasada guarda la salida entera en disco.
 ///
 /// Y la consecuencia: **un valor no se escribe nunca en ningún sitio nuestro.** Ni
 /// en un mensaje de error, ni en el registro, ni en la página. Los nombres de las

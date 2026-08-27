@@ -3,9 +3,9 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 
-/// Borrar y medir una corrida, que no siempre es una carpeta.
+/// Borrar y medir una pasada, que no siempre es una carpeta.
 ///
-/// **Estas dos existen por un fallo que no daba ningún error.** Las corridas que
+/// **Estas dos existen por un fallo que no daba ningún error.** Las pasadas que
 /// lanza Nexus son un registro `.json` suelto, y las dos funciones trataban
 /// cualquier ruta como una carpeta. `Directory(archivo).existsSync()` da `false`,
 /// así que borrar salía por «no hay nada que borrar» devolviendo `null` —éxito— y
@@ -15,10 +15,10 @@ void main() {
   const ds = E2eDataSource();
 
   late Directory casa;
-  setUp(() => casa = Directory.systemTemp.createTempSync('corridas'));
+  setUp(() => casa = Directory.systemTemp.createTempSync('pasadas'));
   tearDown(() => casa.deleteSync(recursive: true));
 
-  test('borra el registro de una corrida nuestra, que es un archivo', () async {
+  test('borra el registro de una pasada nuestra, que es un archivo', () async {
     final registro = File('${casa.path}/login 2026-08-26 09h3507.json')
       ..writeAsStringSync('{"flow":"login"}');
 
@@ -49,7 +49,7 @@ void main() {
     );
   });
 
-  test('borra la carpeta de una corrida de Maestro, con lo que tenga dentro', () async {
+  test('borra la carpeta de una pasada de Maestro, con lo que tenga dentro', () async {
     final carpeta = Directory('${casa.path}/login')..createSync();
     File('${carpeta.path}/commands.json').writeAsStringSync('[]');
     Directory('${carpeta.path}/takeScreenshot').createSync();
