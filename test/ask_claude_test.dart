@@ -21,6 +21,7 @@ class _Bridge implements ClaudeBridge {
     String? model,
     String? effort,
     String? artifactsFolder,
+    String? carpetaDePruebas,
     List<String> disallowedTools = const [],
   }) async* {
     asked.add(instruction);
@@ -82,6 +83,7 @@ AskClaude _askWith(
           model: null,
           effort: null,
           artifactsFolder: null,
+          carpetaDePruebas: null,
           disallowedTools: const <String>[],
           constraintsNotice: null,
         ),

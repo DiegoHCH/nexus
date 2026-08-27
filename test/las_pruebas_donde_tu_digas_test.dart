@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 
@@ -183,6 +184,30 @@ void main() {
         fuente.variablesDe(proyecto.path, carpetaDePruebas: pruebas.path),
         isEmpty,
       );
+    });
+  });
+
+  group('lo que se le dice a Claude', () {
+    test('con la carpeta declarada, se le dice dónde escribirlas', () {
+      // Sin esto el ajuste queda a medias: Nexus buscaría en una carpeta y Claude
+      // escribiría en otra. La prueba existiría, la lista saldría vacía, y no hay forma
+      // de diagnosticar eso mirando.
+      final texto = ProjectContextPrompt.compose(
+        rules: const [],
+        carpetaDePruebas: '/Users/quien/Escritorio/e2e/global66',
+      );
+
+      expect(texto, contains('/Users/quien/Escritorio/e2e/global66'));
+      expect(texto, contains('no dentro del repositorio'));
+      // Y que los auxiliares van en un subdirectorio, porque lo suelto se ofrece como
+      // prueba que se lanza sola.
+      expect(texto, contains('runFlow'));
+    });
+
+    test('sin declararla, no se dice nada', () {
+      // `.maestro/` es la convención de Maestro y Claude ya la conoce. Repetirla en cada
+      // encargo de cada proyecto sería ruido para los que no tienen pruebas.
+      expect(ProjectContextPrompt.compose(rules: const []), isNull);
     });
   });
 }

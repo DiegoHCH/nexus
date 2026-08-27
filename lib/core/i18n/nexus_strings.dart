@@ -291,6 +291,7 @@ abstract class NexusStrings {
   String get testsFolderExplainer;
   String get testsFolderHint;
   String testsFolderResolved(String path);
+  String get testsFolderPick;
 
   /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
   String get corridasConfirmRemove;
@@ -1050,6 +1051,8 @@ class NexusStringsEs extends NexusStrings {
   String get testsFolderHint => '~/Escritorio/e2e/global66   ·   o «flows»';
   @override
   String testsFolderResolved(String path) => 'Buscará en $path';
+  @override
+  String get testsFolderPick => 'Elegir…';
   @override
   String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
   @override
@@ -2413,6 +2416,8 @@ class NexusStringsEn extends NexusStrings {
   String get testsFolderHint => '~/Desktop/e2e/global66   ·   or «flows»';
   @override
   String testsFolderResolved(String path) => 'Will look in $path';
+  @override
+  String get testsFolderPick => 'Choose…';
   @override
   String get corridasConfirmRemove => 'Press again to delete it';
   @override

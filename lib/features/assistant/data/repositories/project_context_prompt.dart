@@ -39,6 +39,7 @@ abstract final class ProjectContextPrompt {
     ContextFile? sharedContext,
     String? artifactsFolder,
     String? artifactsAccount,
+    String? carpetaDePruebas,
   }) {
     final sections = <String>[];
 
@@ -66,6 +67,23 @@ abstract final class ProjectContextPrompt {
         '$destino con un nombre que se entienda de aquí a un mes. '
         'Lo que es código del proyecto NO va ahí: eso va donde le toque dentro '
         'del repositorio.',
+      );
+    }
+
+    // Dónde van las pruebas, **solo si el proyecto lo declaró**. Misma regla que los
+    // documentos y por el mismo motivo: sin declarar vale `.maestro/`, que Claude ya
+    // conoce porque es la convención de Maestro, y decirlo en cada encargo de cada
+    // proyecto sería ruido para los que no tienen pruebas.
+    //
+    // Cuando sí está declarada hace falta decirlo o el ajuste queda a medias: Nexus
+    // buscaría en una carpeta y Claude escribiría en otra, la prueba existiría y la
+    // lista saldría vacía. Ese es justo el final que no se puede diagnosticar mirando.
+    if (carpetaDePruebas != null && carpetaDePruebas.isNotEmpty) {
+      sections.add(
+        'Las pruebas de este proyecto viven en $carpetaDePruebas: si escribes una, '
+        'va ahí y no dentro del repositorio. Los flows auxiliares que otra prueba '
+        'llame con `runFlow` van en un subdirectorio de esa carpeta, porque lo que '
+        'quede suelto en ella se ofrece como una prueba que se lanza sola.',
       );
     }
 
