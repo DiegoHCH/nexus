@@ -194,6 +194,7 @@ Future<void> _abrir(
   bool? enGit,
   Map<String, String> variables = const {},
   List<String>? lanzados,
+  void Function()? alLeerElRepo,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -213,7 +214,10 @@ Future<void> _abrir(
             variables: variables,
           ),
         ),
-        pruebasProvider('/casa/tienda').overrideWith((ref) async => pruebas),
+        pruebasProvider('/casa/tienda').overrideWith((ref) async {
+          alLeerElRepo?.call();
+          return pruebas;
+        }),
         corridasDePruebaProvider.overrideWith(
           (ref) async => corridas ?? const [],
         ),
@@ -879,6 +883,33 @@ void main() {
 
       await tester.pump(const Duration(seconds: 2));
       expect(find.text(strings.e2eStartDevice), findsOneWidget);
+    });
+  });
+
+  group('una prueba recién creada', () {
+    testWidgets('al abrir se vuelve a mirar el repo, sin reiniciar', (
+      tester,
+    ) async {
+      // **El bucle entero de la feature dependía de esto**: se le pide a Nexus un
+      // e2e, lo escribe en el `.maestro/` del repo, y no aparecía para correrlo
+      // hasta reiniciar la app. La lista solo se refrescaba al borrar una prueba.
+      var lecturas = 0;
+      await _abrir(tester, alLeerElRepo: () => lecturas++);
+
+      expect(
+        lecturas,
+        greaterThanOrEqualTo(2),
+        reason: 'no se volvió a mirar el repo al abrir el panel',
+      );
+    });
+
+    testWidgets('y la lista sigue puesta mientras se vuelve a mirar', (
+      tester,
+    ) async {
+      // La otra mitad del criterio: el valor guardado evita el parpadeo. Refrescar
+      // sin conservarlo cambiaría un problema por el otro.
+      await _abrir(tester);
+      expect(find.text('login'), findsOneWidget);
     });
   });
 }

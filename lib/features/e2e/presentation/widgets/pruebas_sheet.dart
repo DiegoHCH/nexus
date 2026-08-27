@@ -242,6 +242,30 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   String? _confirmandoBorrado;
   var _arrancando = false;
 
+  @override
+  void initState() {
+    super.initState();
+    // **Al abrir, se vuelve a mirar el `.maestro/` del repo.** El mismo criterio que
+    // el panel de dispositivos: el valor guardado pone la lista al instante, y esto
+    // hace que no sea vieja. Sin lo primero parpadea en cada visita, sin lo segundo
+    // miente.
+    //
+    // Aquí «mentir» era romper el bucle entero de la feature: se le pide a Nexus un
+    // e2e, lo escribe en el repo, y **no aparecía para correrlo hasta reiniciar la
+    // app**. La lista solo se refrescaba al borrar una prueba. Se aprendió esta
+    // lección con los dispositivos y no se aplicó aquí.
+    //
+    // Después del primer fotograma: invalidar un provider mientras se construye el
+    // widget que lo mira es modificarlo durante el build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.invalidate(pruebasProvider(widget.proyecto));
+      // Y las credenciales, por lo mismo: escribir el `.env.local` no debería pedir
+      // un reinicio para que el panel diga cuántas variables hay.
+      ref.invalidate(credencialesProvider(widget.proyecto));
+    });
+  }
+
   /// Los dispositivos y el elegido salen de sus proveedores —ver
   /// [dondeCorrerProvider]—, no de aquí: el historial también lanza, y con esto
   /// calculado en cada sitio los dos criterios se separan en cuanto uno cambie.
