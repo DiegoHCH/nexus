@@ -105,7 +105,7 @@ class PairedFolder {
         final base = comun.startsWith('~/')
             ? '$home${comun.substring(1)}'
             : comun;
-        return '$base/$name';
+        return '$base/$nombreDelRepo';
       }
       return '$workingDirectory/.maestro';
     }
@@ -126,6 +126,20 @@ class PairedFolder {
       return '~${path.substring(home.length)}';
     }
     return path;
+  }
+
+  /// El nombre del **repo sobre el que se trabaja**, que es de quien son las pruebas.
+  ///
+  /// No es [name] y la diferencia sale en cuanto hay una raíz de varios repos: la carpeta
+  /// emparejada es `~/Workspace` y el trabajo ocurre en `~/Workspace/front-mobile-b2c`.
+  /// Con [name], las pruebas de los tres repos de dentro caerían todas en
+  /// `~/pruebas/Workspace` — mezcladas, que es justo lo que la raíz existe para evitar.
+  String get nombreDelRepo {
+    final trimmed = workingDirectory.endsWith('/')
+        ? workingDirectory.substring(0, workingDirectory.length - 1)
+        : workingDirectory;
+    final slash = trimmed.lastIndexOf('/');
+    return slash == -1 ? trimmed : trimmed.substring(slash + 1);
   }
 
   /// El último tramo de la ruta, para cuando no cabe entera.

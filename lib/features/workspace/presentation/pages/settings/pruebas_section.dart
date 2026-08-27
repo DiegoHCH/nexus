@@ -150,7 +150,7 @@ class _Proyecto extends ConsumerWidget {
             children: [
               Expanded(
                 child: Text(
-                  carpeta.name,
+                  carpeta.nombreDelRepo,
                   style: NexusTypography.data.copyWith(color: colors.ink),
                 ),
               ),

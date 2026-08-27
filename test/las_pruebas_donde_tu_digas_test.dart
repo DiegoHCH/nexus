@@ -244,6 +244,18 @@ void main() {
       );
     });
 
+    test('la subcarpeta es la del repo, no la de la carpeta emparejada', () {
+      // **El caso real que lo destapó**: `~/Workspace` emparejada con tres repos
+      // dentro. Con el nombre de la carpeta, las pruebas de los tres caerían en
+      // `~/pruebas/Workspace` — mezcladas, que es lo que la raíz existe para evitar.
+      expect(
+        carpeta(
+          repo: '/Users/quien/Workspace/proyecto/front-mobile-b2c',
+        ).pruebasEn(home, raiz: '~/pruebas'),
+        '/Users/quien/pruebas/front-mobile-b2c',
+      );
+    });
+
     test('dos proyectos caen en subcarpetas distintas', () {
       const otro = PairedFolder(
         path: '/Users/quien/Workspace/nexus',
