@@ -40,6 +40,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
     /// duplicaría trabajo ya hecho.
@@ -141,6 +142,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           // primera vez, y derivarla más arriba obligaría a llevarla de la mano por
           // tres sitios que no la usan.
           artifactsAccount: ClaudeProfile.nameFromPath(claudeProfile),
+          language: language,
         ),
       )) {
         // Cada mensaje del asistente es una petición: su `usage` dice cuánto

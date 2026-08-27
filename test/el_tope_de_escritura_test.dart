@@ -31,6 +31,7 @@ class _Bridge implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     // Lo único que esta prueba mira: con qué permiso llegó al puente, que es lo
     // último antes de `claude -p`.
