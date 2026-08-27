@@ -13,6 +13,7 @@ import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Las pruebas de la app: las que hay, las que corrieron, y una corriendo.
 ///
@@ -239,6 +240,24 @@ class _Lanzadera extends ConsumerStatefulWidget {
 }
 
 class _LanzaderaState extends ConsumerState<_Lanzadera> {
+  /// El proyecto que se está mirando, cuando no es el de la conversación.
+  ///
+  /// **Se elige aquí y no se cambia la conversación.** Mirar las pruebas de otro repo es
+  /// una consulta, no un cambio de sitio de trabajo: llevarse el encargo detrás sería
+  /// hacer algo grande por haber abierto un desplegable.
+  String? _elegido;
+
+  /// De quién son las pruebas que se enseñan.
+  String get _proyecto => _elegido ?? widget.proyecto;
+
+  /// Entre los que se puede elegir: los repos emparejados, y el de la conversación
+  /// aunque no lo esté — «sin proyecto» trabaja sobre la carpeta de documentos.
+  List<String> get _proyectos => <String>{
+    widget.proyecto,
+    for (final carpeta in ref.watch(workspaceControllerProvider).folders)
+      carpeta.workingDirectory,
+  }.toList();
+
   String? _error;
   String? _confirmandoBorrado;
   var _arrancando = false;
@@ -260,10 +279,10 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
     // widget que lo mira es modificarlo durante el build.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      ref.invalidate(pruebasProvider(widget.proyecto));
+      ref.invalidate(pruebasProvider(_proyecto));
       // Y las credenciales, por lo mismo: escribir el `.env.local` no debería pedir
       // un reinicio para que el panel diga cuántas variables hay.
-      ref.invalidate(credencialesProvider(widget.proyecto));
+      ref.invalidate(credencialesProvider(_proyecto));
     });
   }
 
@@ -317,7 +336,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       ref,
       context.strings,
       prueba: prueba,
-      proyecto: widget.proyecto,
+      proyecto: _proyecto,
       donde: donde,
     );
     if (!mounted) return;
@@ -331,7 +350,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
         .read(pruebaEnMarchaProvider.notifier)
         .lanzar(
           prueba: prueba,
-          proyecto: widget.proyecto,
+          proyecto: _proyecto,
           deviceId: donde!,
           perfil: 'local',
         );
@@ -353,7 +372,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       return;
     }
     await ref.read(e2eDataSourceProvider).borrarPrueba(prueba.ruta);
-    ref.invalidate(pruebasProvider(widget.proyecto));
+    ref.invalidate(pruebasProvider(_proyecto));
     if (!mounted) return;
     setState(() => _confirmandoBorrado = null);
   }
@@ -362,8 +381,7 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final pruebas =
-        ref.watch(pruebasProvider(widget.proyecto)).value ?? const [];
+    final pruebas = ref.watch(pruebasProvider(_proyecto)).value ?? const [];
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
     final dispositivos = _dispositivos;
     final buscando = ref.watch(buscandoDispositivosProvider);
@@ -392,16 +410,36 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         // **De qué proyecto son estas pruebas.** El historial ya lo decía y la
-        // lista no, así que se leía como si fueran de nadie. Un `.maestro/` es de
-        // su repo y de ninguno más.
-        Text(
-          widget.proyecto.split('/').last,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
+        // lista no, así que se leía como si fueran de nadie: las pruebas son de su
+        // repo y de ninguno más.
+        //
+        // Con un solo proyecto es un rótulo, y con varios un desplegable: enseñar un
+        // selector de una sola opción es pedir una decisión que no existe. Misma regla
+        // que las pestañas de cuenta, que solo salen si hay más de una.
+        if (_proyectos.length <= 1)
+          Text(
+            _proyecto.split('/').last,
+            style: NexusTypography.label.copyWith(color: colors.faint),
+          )
+        else
+          Padding(
+            padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
+            child: SelectorCompacto(
+              key: const ValueKey('de-que-proyecto'),
+              valor: _proyecto,
+              opciones: _proyectos,
+              pista: strings.e2eWhichProject,
+              etiqueta: (ruta) => ruta.split('/').last,
+              // Solo cambia lo que se mira. La conversación sigue donde estaba, y por
+              // eso lo que se lance desde aquí corre en el repo elegido y no en el de
+              // la conversación — que es lo que uno espera al elegirlo.
+              onElegir: (ruta) => setState(() => _elegido = ruta),
+            ),
+          ),
         // **Cuántas credenciales hay cargadas, sin enseñar ninguna.** Es la
         // diferencia entre saber que el `.env.local` se leyó y suponerlo: si no se
         // dice, un archivo mal puesto se descubre en el fallo de la prueba.
-        if (ref.watch(credencialesProvider(widget.proyecto)).value
+        if (ref.watch(credencialesProvider(_proyecto)).value
             case final credenciales? when credenciales.claves.isNotEmpty) ...[
           const SizedBox(height: 2),
           Text(
