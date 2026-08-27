@@ -2,7 +2,9 @@ import 'dart:io';
 
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
+import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_movil.dart';
 import 'package:nexus/features/emulators/domain/usecases/comando_de_emuladores.dart';
 
 /// Lo que dicen las herramientas de la máquina sobre los emuladores.
@@ -73,6 +75,45 @@ class EmuladoresDataSource {
   /// (`5B1BD75F-2EC3-…`) y no el UDID que pide `-d`
   /// (`00008030-000C390C1AC0C02E`). Enseñar un id que no sirve para lo que se
   /// dice que sirve es peor que tardar.
+  /// Abre la pantalla del móvil en una ventana del sistema.
+  ///
+  /// `null` si arrancó. **No se espera a que termine**: es una ventana que se cierra
+  /// cuando estorbe, no un comando con resultado.
+  Future<String?> verLaPantalla({
+    required String deviceId,
+    required String titulo,
+    required bool conControl,
+    bool encima = false,
+  }) async {
+    final scrcpy = await HerramientaExterna.donde(
+      ElEspejoDelMovil.binario,
+      candidatos: HerramientaExterna.candidatosDeScrcpy(
+        Platform.environment['HOME'] ?? '',
+      ),
+    );
+    if (scrcpy == null) return 'No se encontró scrcpy';
+
+    try {
+      await Process.start(
+        scrcpy,
+        ElEspejoDelMovil.argumentos(
+          deviceId: deviceId,
+          titulo: titulo,
+          conControl: conControl,
+          encima: encima,
+        ),
+        environment: ClaudeEnvironment.forTools(),
+        includeParentEnvironment: false,
+      );
+      return null;
+    } on ProcessException catch (e) {
+      return e.message;
+    }
+  }
+
+  /// Si scrcpy está instalado. Es opcional: sin él, el botón no se ofrece.
+  bool hayEspejo() => BinarioEnElPath.hay(ElEspejoDelMovil.binario);
+
   Future<List<DispositivoConectado>> listarDispositivos() async {
     final flutter = await _flutter();
     if (flutter == null) return const [];

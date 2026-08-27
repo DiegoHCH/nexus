@@ -59,6 +59,14 @@ abstract final class HerramientaExterna {
   /// el perfil de la shell**, que una app de escritorio no lee — ya está en el
   /// PATH que monta [ClaudeEnvironment.forTools], pero quien lo instaló por el
   /// tap de Homebrew lo tiene en otro sitio.
+  /// Donde lo deja Homebrew. No hay instalador propio que edite el perfil, así que
+  /// con los dos prefijos de brew está cubierto.
+  static List<String> candidatosDeScrcpy(String home) => [
+    '/opt/homebrew/bin/scrcpy',
+    '/usr/local/bin/scrcpy',
+    if (home.isNotEmpty) '$home/.local/bin/scrcpy',
+  ];
+
   static List<String> candidatosDeMaestro(String home) => [
     if (home.isNotEmpty) '$home/.maestro/bin/maestro',
     '/opt/homebrew/bin/maestro',
