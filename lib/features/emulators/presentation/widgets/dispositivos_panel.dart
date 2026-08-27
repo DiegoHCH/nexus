@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_iphone.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 
 /// La lista de dispositivos con sus botones, para el sitio que sea.
@@ -329,6 +330,34 @@ class _FilaDeDispositivo extends ConsumerWidget {
               visualDensity: VisualDensity.compact,
               color: colors.faint,
               icon: const Icon(Icons.smartphone_outlined),
+            ),
+          // **Un iPhone físico se mira con lo que trae macOS**, y con las dos
+          // formas porque se complementan: Duplicado da control pero exige Apple
+          // ID y teléfono bloqueado; QuickTime no da control pero no exige nada de
+          // eso y distingue dispositivos.
+          //
+          // Cada una solo si su app está en la máquina: Duplicado llegó en macOS
+          // 15, y en una anterior el botón solo podría fallar.
+          for (final como in ref.watch(comoVerElIphoneProvider(dispositivo.id)))
+            IconButton(
+              onPressed: () =>
+                  ref.read(emuladoresDataSourceProvider).verElIphone(como),
+              tooltip: switch (como) {
+                ComoVerElIphone.duplicado => strings.verElIphoneDuplicado,
+                ComoVerElIphone.quickTime => strings.verElIphoneQuickTime,
+              },
+              iconSize: 15,
+              splashRadius: 15,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
+              color: colors.faint,
+              icon: Icon(
+                switch (como) {
+                  ComoVerElIphone.duplicado => Icons.phone_iphone,
+                  ComoVerElIphone.quickTime => Icons.videocam_outlined,
+                },
+              ),
             ),
         ],
       ),
