@@ -39,3 +39,29 @@ final emuladoresProvider =
 final dispositivosProvider = FutureProvider<List<DispositivoConectado>>(
   (ref) => ref.watch(emuladoresDataSourceProvider).listarDispositivos(),
 );
+
+/// Si se puede ofrecer ver la pantalla: **hace falta scrcpy instalado**.
+///
+/// Es opcional a propósito. Un botón que solo puede fallar es peor que no tenerlo,
+/// así que sin el binario no se pinta — el mismo criterio que con Maestro.
+final hayEspejoProvider = Provider<bool>(
+  (ref) => ref.watch(emuladoresDataSourceProvider).hayEspejo(),
+);
+
+/// Si a *este* dispositivo se le puede ver la pantalla.
+///
+/// **Solo móviles físicos Android**, y las dos condiciones son por motivos
+/// distintos: un emulador ya tiene su propia ventana, así que duplicarla no aporta
+/// nada; y scrcpy no habla con iOS, así que en un iPhone el botón solo podría
+/// fallar.
+///
+/// Vive aquí y no en cada pantalla porque lo preguntan dos paneles, y ya me ha
+/// pasado hoy que un criterio calculado en dos sitios se separa en cuanto uno cambia.
+final sePuedeVerLaPantallaProvider = Provider.family<bool, String>((ref, id) {
+  if (!ref.watch(hayEspejoProvider)) return false;
+  return ref
+      .watch(dispositivosProvider)
+      .value
+      ?.any((d) => d.id == id && d.plataforma == PlataformaEmulador.android) ??
+      false;
+});

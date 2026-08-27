@@ -263,15 +263,21 @@ final _botonApretado = TextButton.styleFrom(
   visualDensity: VisualDensity.compact,
 );
 
-/// Un teléfono enchufado. Sin botón a propósito: ver [_FilaDeEmulador] abajo.
-class _FilaDeDispositivo extends StatelessWidget {
+/// Un teléfono enchufado.
+///
+/// No hay nada que arrancar ni que apagar —si está en la lista, está enchufado— así
+/// que su única acción es **ver su pantalla**, y solo aparece si se puede: hace
+/// falta scrcpy, y solo tiene sentido en Android físico. Ver
+/// [sePuedeVerLaPantallaProvider].
+class _FilaDeDispositivo extends ConsumerWidget {
   const _FilaDeDispositivo({required this.dispositivo});
 
   final DispositivoConectado dispositivo;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
+    final strings = context.strings;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -303,6 +309,27 @@ class _FilaDeDispositivo extends StatelessWidget {
               ],
             ),
           ),
+          if (ref.watch(sePuedeVerLaPantallaProvider(dispositivo.id)))
+            IconButton(
+              onPressed: () => ref
+                  .read(emuladoresDataSourceProvider)
+                  .verLaPantalla(
+                    deviceId: dispositivo.id,
+                    titulo: dispositivo.nombre,
+                    // Desde aquí sí con control: se abre para mirarlo y tocarlo.
+                    // El caso sin control es el del panel de pruebas, cuando hay
+                    // una corrida viva.
+                    conControl: true,
+                  ),
+              tooltip: strings.verLaPantalla,
+              iconSize: 15,
+              splashRadius: 15,
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              constraints: const BoxConstraints(),
+              visualDensity: VisualDensity.compact,
+              color: colors.faint,
+              icon: const Icon(Icons.smartphone_outlined),
+            ),
         ],
       ),
     );
