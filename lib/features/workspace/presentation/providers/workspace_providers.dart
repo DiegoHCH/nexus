@@ -92,6 +92,11 @@ class WorkspaceController extends Notifier<Workspace> {
 
   /// Con qué cuenta de Claude trabaja esta carpeta. `null` vuelve a la de
   /// siempre.
+  /// **Se rehace entera y a mano porque `copyWith` no puede vaciar un campo**, y elegir
+  /// dos veces la misma cuenta significa «la de fábrica». El precio de rehacerla es que
+  /// hay que nombrar todos los campos: la versión que solo nombraba tres **borraba el
+  /// modelo, el esfuerzo, el repo activo y los comandos bloqueados** cada vez que alguien
+  /// cambiaba de cuenta, y eso no fallaba en ninguna parte — se perdía y ya.
   Future<void> setClaudeProfile(String path, String? profile) async {
     final folders = [
       for (final folder in state.folders)
@@ -100,6 +105,11 @@ class WorkspaceController extends Notifier<Workspace> {
             path: folder.path,
             modality: folder.modality,
             claudeProfile: profile,
+            claudeModel: folder.claudeModel,
+            claudeEffort: folder.claudeEffort,
+            activeRepo: folder.activeRepo,
+            blockedCommands: folder.blockedCommands,
+            carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
           folder,
@@ -122,6 +132,8 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeModel: folder.claudeModel,
             claudeEffort: folder.claudeEffort,
             activeRepo: repo,
+            blockedCommands: folder.blockedCommands,
+            carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
           folder,
@@ -142,6 +154,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: folder.claudeEffort,
             activeRepo: folder.activeRepo,
             blockedCommands: commands,
+            carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
           folder,
@@ -161,6 +174,26 @@ class WorkspaceController extends Notifier<Workspace> {
     (folder) => folder.claudeEffort == effort ? null : effort,
   );
 
+  /// Dónde están las pruebas de esta carpeta. Vacío vuelve a la convención de Maestro.
+  ///
+  /// **Es lo que impide que se mezclen las de dos proyectos**: cada uno apunta a su
+  /// subcarpeta y Nexus lista esa. La separación deja de depender de un filtro y pasa a
+  /// depender de dónde miras, que no se puede equivocar.
+  Future<void> setCarpetaDePruebas(String path, String? carpeta) async {
+    final limpia = carpeta?.trim();
+    final folders = [
+      for (final folder in state.folders)
+        if (folder.path == path)
+          folder.copyWith(
+            carpetaDePruebas: limpia,
+            sinCarpetaDePruebas: limpia == null || limpia.isEmpty,
+          )
+        else
+          folder,
+    ];
+    await _persist(state.copyWith(folders: folders));
+  }
+
   /// Volver a elegir lo que ya estaba puesto lo quita: es la forma de decir
   /// «lo que decida el CLI» sin una opción aparte para eso.
   Future<void> _replace(
@@ -179,6 +212,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: effort == null ? folder.claudeEffort : effort(folder),
             activeRepo: folder.activeRepo,
             blockedCommands: folder.blockedCommands,
+            carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
           folder,

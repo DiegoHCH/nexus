@@ -38,10 +38,33 @@ final raizDePruebasProvider = FutureProvider<String>((ref) async {
   return E2eDataSource.raiz();
 });
 
-/// Las pruebas de un proyecto. Familia por carpeta: un `.maestro/` es de su repo
+/// Dónde viven las pruebas de un proyecto.
+///
+/// Lo que declare su carpeta emparejada, y si no declara nada, la convención de Maestro.
+/// **La separación entre proyectos vive aquí**: cada uno apunta a lo suyo, así que no hay
+/// un filtro que pueda equivocarse — Nexus lista una carpeta y las demás no existen.
+final carpetaDePruebasProvider = Provider.family<String, String>((
+  ref,
+  proyecto,
+) {
+  final home = Platform.environment['HOME'] ?? '';
+  final emparejadas = ref.watch(workspaceControllerProvider).folders;
+  // Por el directorio de trabajo **y** por la ruta emparejada: con una raíz de varios
+  // repos, quien pide las pruebas manda el repo elegido y no la raíz.
+  for (final carpeta in emparejadas) {
+    if (carpeta.workingDirectory == proyecto || carpeta.path == proyecto) {
+      return carpeta.pruebasEn(home);
+    }
+  }
+  return '$proyecto/.maestro';
+});
+
+/// Las pruebas de un proyecto. Familia por carpeta: las de un proyecto son suyas
 /// y de ninguno más.
 final pruebasProvider = FutureProvider.family<List<Prueba>, String>(
-  (ref, proyecto) => ref.watch(e2eDataSourceProvider).pruebasDe(proyecto),
+  (ref, proyecto) => ref
+      .watch(e2eDataSourceProvider)
+      .pruebasDe(ref.watch(carpetaDePruebasProvider(proyecto))),
 );
 
 /// Todas las corridas: las que lanzó Nexus y las que no.
@@ -78,8 +101,7 @@ final corridasDePruebaProvider = FutureProvider<List<CorridaDePrueba>>((
   final ajenas = await ds.ajenas(pruebasPorProyecto);
 
   // Lo último arriba: lo que acabas de correr es lo que vas a querer mirar.
-  return [...propias, ...ajenas]
-    ..sort((a, b) => b.cuando.compareTo(a.cuando));
+  return [...propias, ...ajenas]..sort((a, b) => b.cuando.compareTo(a.cuando));
 });
 
 /// Si un flow está en git, que es lo que decide si borrarlo se puede deshacer.
@@ -101,14 +123,18 @@ final credencialesProvider =
       proyecto,
     ) async {
       final ds = ref.watch(e2eDataSourceProvider);
-      final claves = ds.variablesDe(proyecto).keys.toSet();
+      final claves = ds
+          .variablesDe(
+            proyecto,
+            carpetaDePruebas: ref.watch(carpetaDePruebasProvider(proyecto)),
+          )
+          .keys
+          .toSet();
       // **Si está en git, hay que decirlo.** Un archivo de credenciales dentro de un
       // repositorio es una fuga, y en un repo compartido lo es para todo el equipo.
       final enGit = claves.isEmpty
           ? null
-          : await ds.estaEnGit(
-              '$proyecto/${LasVariablesDelProyecto.archivo}',
-            );
+          : await ds.estaEnGit('$proyecto/${LasVariablesDelProyecto.archivo}');
       return (claves: claves, enGit: enGit);
     });
 
@@ -235,7 +261,8 @@ class PruebaEnMarcha {
 
   int get terminados => pasos
       .where(
-        (p) => p.estado == EstadoDePaso.hecho || p.estado == EstadoDePaso.fallado,
+        (p) =>
+            p.estado == EstadoDePaso.hecho || p.estado == EstadoDePaso.fallado,
       )
       .length;
 
@@ -272,7 +299,13 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   Map<String, String> _capturas = const {};
 
   /// Con qué se lanzó, para poder anotarlo al terminar.
-  ({String raiz, String perfil, String proyecto, String dispositivo, DateTime cuando})?
+  ({
+    String raiz,
+    String perfil,
+    String proyecto,
+    String dispositivo,
+    DateTime cuando,
+  })?
   _contexto;
 
   /// Dónde dejó Maestro los artefactos, para poder guardarlo en el registro y que
@@ -338,7 +371,10 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       salida: salida,
       variables: LasVariablesDelProyecto.paraElFlow(
         yaml: yaml,
-        variables: ds.variablesDe(proyecto),
+        variables: ds.variablesDe(
+          proyecto,
+          carpetaDePruebas: ref.read(carpetaDePruebasProvider(proyecto)),
+        ),
       ),
     );
     if (proceso == null) {
@@ -446,7 +482,8 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
             diagnostico: _diagnostico(actual),
           ),
           primeraVez: !_ventanaAbierta,
-          raizDeLaVentana: _contexto?.raiz ?? await ref.read(raizDePruebasProvider.future),
+          raizDeLaVentana:
+              _contexto?.raiz ?? await ref.read(raizDePruebasProvider.future),
         );
     _ventanaAbierta = true;
   }

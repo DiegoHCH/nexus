@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -96,6 +97,8 @@ class PermissionsSection extends ConsumerWidget {
             case final activa?) ...[
           const SizedBox(height: NexusSpacing.s6),
           _BlockedCommands(folder: activa),
+          const SizedBox(height: NexusSpacing.s5),
+          _CarpetaDePruebas(folder: activa),
         ],
       ],
     );
@@ -231,6 +234,85 @@ class _PlanToggle extends ConsumerWidget {
             ? colors.accent
             : colors.faint,
       ),
+    );
+  }
+}
+
+/// Dónde están las pruebas de esta carpeta.
+///
+/// **Va en Permisos y no en el panel de Pruebas** por lo mismo que la cuenta y el modelo:
+/// es un ajuste de la carpeta, se decide una vez y no se vuelve a mirar. El panel es para
+/// lanzar, y meter ahí una caja de configuración obligaría a pasar por ella cada vez.
+class _CarpetaDePruebas extends ConsumerStatefulWidget {
+  const _CarpetaDePruebas({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  ConsumerState<_CarpetaDePruebas> createState() => _CarpetaDePruebasState();
+}
+
+class _CarpetaDePruebasState extends ConsumerState<_CarpetaDePruebas> {
+  late final _controller = TextEditingController(
+    text: widget.folder.carpetaDePruebas ?? '',
+  );
+
+  @override
+  void didUpdateWidget(covariant _CarpetaDePruebas oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Al cambiar de carpeta activa hay que traer la suya: sin esto se quedaría la de la
+    // anterior y se guardaría encima de la nueva.
+    if (widget.folder.path == oldWidget.folder.path) return;
+    _controller.text = widget.folder.carpetaDePruebas ?? '';
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final home = Platform.environment['HOME'] ?? '';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.testsFolderTitle(widget.folder.name),
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.testsFolderExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s3),
+        TextField(
+          key: const ValueKey('carpeta-de-pruebas'),
+          controller: _controller,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(
+            hintText: strings.testsFolderHint,
+            hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+          ),
+          onChanged: (valor) => ref
+              .read(workspaceControllerProvider.notifier)
+              .setCarpetaDePruebas(widget.folder.path, valor),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        // La ruta ya resuelta, y no solo lo escrito: es donde se ve que un «flows» acaba
+        // en el repo elegido y no en la raíz emparejada, que es el caso que confunde.
+        Text(
+          strings.testsFolderResolved(
+            widget.folder.pruebasEn(home).replaceFirst(home, '~'),
+          ),
+          style: NexusTypography.mono.copyWith(color: colors.rule2),
+        ),
+      ],
     );
   }
 }

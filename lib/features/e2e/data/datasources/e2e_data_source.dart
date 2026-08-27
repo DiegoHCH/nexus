@@ -24,14 +24,17 @@ class E2eDataSource {
     return '${soporte.path}/pruebas';
   }
 
-  /// Los `.yaml` del `.maestro/` de un proyecto.
+  /// Los `.yaml` de la carpeta de pruebas, que ya llega resuelta.
   ///
-  /// **Solo la carpeta `.maestro/` y sin bajar más.** Es la convención de Maestro
-  /// y entrar más abajo metería en la lista los flows auxiliares que algunos
-  /// proyectos guardan en subcarpetas para llamarlos con `runFlow` — no son
-  /// pruebas que se lancen solas.
-  Future<List<Prueba>> pruebasDe(String proyecto) async {
-    final dir = Directory('$proyecto/.maestro');
+  /// **Plano y sin bajar, venga de donde venga.** Entrar más abajo metería en la lista los
+  /// flows auxiliares que casi todo proyecto guarda en un subdirectorio para llamarlos con
+  /// `runFlow` —`commons/`, `auth/`— y esos no se lanzan solos. Medido en un repo de
+  /// verdad: de sus 57 YAML, 38 son pruebas y 19 son piezas.
+  ///
+  /// Que la carpeta llegue decidida y no se componga aquí es lo que permite que las
+  /// pruebas vivan fuera del repo sin que este archivo sepa nada de proyectos.
+  Future<List<Prueba>> pruebasDe(String carpetaDePruebas) async {
+    final dir = Directory(carpetaDePruebas);
     if (!dir.existsSync()) return const [];
 
     try {
@@ -188,14 +191,27 @@ class E2eDataSource {
   /// Se lee **en el momento de usarlas** y no se guarda en ningún estado de la app:
   /// un valor que no está en memoria más tiempo del necesario no puede acabar en un
   /// volcado ni en un mensaje de error por accidente.
-  Map<String, String> variablesDe(String proyecto) {
-    final archivo = File('$proyecto/${LasVariablesDelProyecto.archivo}');
-    if (!archivo.existsSync()) return const {};
-    try {
-      return LasVariablesDelProyecto.leer(archivo.readAsStringSync());
-    } on FileSystemException {
-      return const {};
+  /// Las credenciales: **primero junto a las pruebas, y si no, en el proyecto**.
+  ///
+  /// El orden no es capricho. Cuando las pruebas viven fuera del repo —que es medio motivo
+  /// para sacarlas— sus credenciales viven con ellas; obligar a dejar un `.env.local`
+  /// dentro del repo del trabajo sería devolver justo lo que se quería quitar de ahí.
+  /// Y con las pruebas dentro, las dos rutas son la misma y no cambia nada.
+  Map<String, String> variablesDe(String proyecto, {String? carpetaDePruebas}) {
+    for (final donde in <String>{
+      if (carpetaDePruebas != null && carpetaDePruebas.isNotEmpty)
+        carpetaDePruebas,
+      proyecto,
+    }) {
+      final archivo = File('$donde/${LasVariablesDelProyecto.archivo}');
+      if (!archivo.existsSync()) continue;
+      try {
+        return LasVariablesDelProyecto.leer(archivo.readAsStringSync());
+      } on FileSystemException {
+        continue;
+      }
     }
+    return const {};
   }
 
   Future<Process?> lanzar({
@@ -242,7 +258,9 @@ class E2eDataSource {
   /// `==== Debug output (logs & screenshots) ====`. No sirve: **solo la imprime
   /// cuando la corrida falla.** En una que pasa no aparece esa línea.
   String? carpetaDeArtefactos({required String salida, required String flow}) {
-    final tests = Directory('$salida/${DondeVivenLasCorridas.loQueAnadeMaestro}');
+    final tests = Directory(
+      '$salida/${DondeVivenLasCorridas.loQueAnadeMaestro}',
+    );
     if (!tests.existsSync()) return null;
 
     Directory? masReciente;
@@ -251,9 +269,10 @@ class E2eDataSource {
       // Por nombre y no por fecha en disco: el nombre es la hora que puso Maestro
       // y ordena igual, sin depender de qué toque los archivos después.
       if (masReciente == null ||
-          fecha.path.split('/').last.compareTo(
-                masReciente.path.split('/').last,
-              ) >
+          fecha.path
+                  .split('/')
+                  .last
+                  .compareTo(masReciente.path.split('/').last) >
               0) {
         masReciente = fecha;
       }
@@ -377,7 +396,9 @@ class E2eDataSource {
   }) async {
     // Solo Android: un `emulator-…` o un número de serie. Un UDID de iPhone se
     // reconoce por sus guiones y por ahí no se puede preguntar con adb.
-    if (deviceId.contains('-') && !deviceId.startsWith('emulator-')) return null;
+    if (deviceId.contains('-') && !deviceId.startsWith('emulator-')) {
+      return null;
+    }
 
     final adb = await HerramientaExterna.donde(
       'adb',
@@ -542,7 +563,9 @@ class E2eDataSource {
             PasoDelFlow(
               linea: (crudo['n'] as num?)?.toInt() ?? n,
               texto: '${crudo['t'] ?? ''}',
-              detalle: [for (final d in (crudo['d'] as List?) ?? const []) '$d'],
+              detalle: [
+                for (final d in (crudo['d'] as List?) ?? const []) '$d',
+              ],
             ),
           );
         } else {
@@ -654,7 +677,14 @@ class E2eDataSource {
     try {
       final r = await Process.run(
         'git',
-        ['-C', ruta.substring(0, corte), 'ls-files', '--error-unmatch', '--', ruta],
+        [
+          '-C',
+          ruta.substring(0, corte),
+          'ls-files',
+          '--error-unmatch',
+          '--',
+          ruta,
+        ],
         runInShell: false,
         environment: ClaudeEnvironment.forTools(),
       );
