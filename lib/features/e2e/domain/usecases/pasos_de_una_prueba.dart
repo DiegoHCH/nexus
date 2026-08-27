@@ -206,6 +206,35 @@ abstract final class PasosDeUnaPrueba {
       };
       if (texto == null || texto.isEmpty) continue;
 
+      // **El cierre de un paso anunciado no es otro paso.** Un `runFlow` se imprime
+      // en tres tramos: el anuncio, los pasos de dentro indentados, y **otra vez el
+      // mismo `runFlow`** con su resultado:
+      //
+      // ```
+      // Run flow when id: input.pin is visible...
+      //   Tap on id: btn.pin_keypad_1... COMPLETED
+      // Run flow when id: input.pin is visible... COMPLETED
+      // ```
+      //
+      // Tomando cada línea como un paso, el anuncio se quedaba **girando para
+      // siempre** —nunca recibe estado en su propia línea— y su cierre aparecía como
+      // una fila más. Con dos flujos anidados se veían tres indicadores a la vez y la
+      // ventana se leía como colgada teniendo la corrida acabada. Se vio así.
+      //
+      // Se busca solo entre los que están en curso, y por eso dos pasos idénticos
+      // seguidos no se confunden: un paso que ya acabó no vuelve a casar.
+      final anunciado = pasos.lastIndexWhere(
+        (p) => p.estado == EstadoDePaso.enCurso && p.texto == texto,
+      );
+      if (anunciado >= 0 && estado != EstadoDePaso.enCurso) {
+        pasos[anunciado] = PasoParaPintar(
+          texto: texto,
+          estado: estado,
+          detalle: detalle,
+        );
+        continue;
+      }
+
       pasos.add(
         PasoParaPintar(texto: texto, estado: estado, detalle: detalle),
       );
