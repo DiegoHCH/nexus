@@ -27,6 +27,10 @@ abstract class ClaudeBridge {
     /// elegido carpeta, y entonces no se le dice nada.
     String? artifactsFolder,
 
+    /// Dónde van las pruebas de este proyecto, si lo declaró. `null` cuando vale la
+    /// convención de Maestro, y entonces tampoco se le dice nada: `.maestro/` la sabe.
+    String? carpetaDePruebas,
+
     /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
     List<String> disallowedTools,
   });

@@ -38,6 +38,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? model,
     String? effort,
     String? artifactsFolder,
+    String? carpetaDePruebas,
     List<String> disallowedTools = const [],
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
@@ -134,6 +135,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           rules: context.rules,
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,
+          carpetaDePruebas: carpetaDePruebas,
           // La cuenta sale **de aquí** y no de un parámetro nuevo: es donde el
           // perfil de la carpeta y el destino de los documentos se encuentran por
           // primera vez, y derivarla más arriba obligaría a llevarla de la mano por

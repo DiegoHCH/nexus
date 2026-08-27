@@ -291,17 +291,51 @@ class _CarpetaDePruebasState extends ConsumerState<_CarpetaDePruebas> {
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
-        TextField(
-          key: const ValueKey('carpeta-de-pruebas'),
-          controller: _controller,
-          style: NexusTypography.mono.copyWith(color: colors.ink),
-          decoration: InputDecoration(
-            hintText: strings.testsFolderHint,
-            hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
-          ),
-          onChanged: (valor) => ref
-              .read(workspaceControllerProvider.notifier)
-              .setCarpetaDePruebas(widget.folder.path, valor),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                key: const ValueKey('carpeta-de-pruebas'),
+                controller: _controller,
+                style: NexusTypography.mono.copyWith(color: colors.ink),
+                decoration: InputDecoration(
+                  hintText: strings.testsFolderHint,
+                  hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+                ),
+                onChanged: (valor) => ref
+                    .read(workspaceControllerProvider.notifier)
+                    .setCarpetaDePruebas(widget.folder.path, valor),
+              ),
+            ),
+            const SizedBox(width: NexusSpacing.s3),
+            // El selector del sistema, el mismo con el que se empareja una carpeta.
+            // Escribir la ruta a mano sigue valiendo —una relativa como «flows» no se
+            // puede elegir con el ratón— pero para una de fuera, teclearla entera es
+            // pedir una errata que después se ve como «aquí no hay pruebas».
+            //
+            // Y se guarda con `~` cuando cae en el home: es como se lee, y así el ajuste
+            // sigue valiendo si algún día el usuario se llama de otra forma.
+            TextButton(
+              key: const ValueKey('elegir-carpeta-de-pruebas'),
+              onPressed: () async {
+                final elegida = await ref
+                    .read(folderPickerProvider)
+                    .pickFolder();
+                if (elegida == null) return;
+                final conTilde = home.isNotEmpty && elegida.startsWith(home)
+                    ? '~${elegida.substring(home.length)}'
+                    : elegida;
+                _controller.text = conTilde;
+                await ref
+                    .read(workspaceControllerProvider.notifier)
+                    .setCarpetaDePruebas(widget.folder.path, conTilde);
+              },
+              child: Text(
+                strings.testsFolderPick,
+                style: NexusTypography.label.copyWith(color: colors.accent),
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: NexusSpacing.s2),
         // La ruta ya resuelta, y no solo lo escrito: es donde se ve que un «flows» acaba

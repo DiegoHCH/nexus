@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
@@ -93,6 +94,12 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         effort: paired?.claudeEffort,
         claudeProfile: paired?.claudeProfile,
         artifactsFolder: ref.read(artifactsFolderProvider),
+        // Solo lo declarado: `pruebasEn` siempre devuelve algo —`.maestro/` si no hay
+        // nada dicho— y pasar eso convertiría una convención que Claude ya conoce en
+        // una línea más en cada encargo.
+        carpetaDePruebas: (paired?.carpetaDePruebas ?? '').trim().isEmpty
+            ? null
+            : paired!.pruebasEn(Platform.environment['HOME'] ?? ''),
       );
     },
     ref.watch(conversationMemoryProvider),
