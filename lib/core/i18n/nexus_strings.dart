@@ -302,6 +302,9 @@ abstract class NexusStrings {
   String get flowsNoneHere;
   String flowsCount(int total);
 
+  /// El desplegable de qué proyecto mirar, cuando hay más de uno emparejado.
+  String get e2eWhichProject;
+
   /// Borrar una corrida viva pide confirmar. La huérfana no: ahí no hay nada que perder.
   String get corridasConfirmRemove;
   String corridasStretches(String building, String closing);
@@ -1081,6 +1084,8 @@ class NexusStringsEs extends NexusStrings {
   String get flowsNoneHere => 'ninguna';
   @override
   String flowsCount(int total) => total == 1 ? '1 prueba' : '$total pruebas';
+  @override
+  String get e2eWhichProject => 'De qué proyecto';
   @override
   String get corridasConfirmRemove => 'Pulsa otra vez para borrarla';
   @override
@@ -2465,6 +2470,8 @@ class NexusStringsEn extends NexusStrings {
   String get flowsNoneHere => 'none';
   @override
   String flowsCount(int total) => total == 1 ? '1 test' : '$total tests';
+  @override
+  String get e2eWhichProject => 'Which project';
   @override
   String get corridasConfirmRemove => 'Press again to delete it';
   @override

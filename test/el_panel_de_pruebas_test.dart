@@ -16,6 +16,9 @@ import 'package:nexus/features/e2e/presentation/widgets/pruebas_sheet.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El panel de pruebas: lanzar, ver correr, y el historial.
 class _Maquina extends EmuladoresDataSource {
@@ -200,6 +203,7 @@ Future<void> _abrir(
   Map<String, String> variables = const {},
   List<String>? lanzados,
   void Function()? alLeerElRepo,
+  List<String> emparejadas = const [],
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -219,6 +223,10 @@ Future<void> _abrir(
             variables: variables,
           ),
         ),
+        if (emparejadas.isNotEmpty)
+          workspaceControllerProvider.overrideWith(
+            () => _WorkspaceFijo(emparejadas),
+          ),
         pruebasProvider('/casa/tienda').overrideWith((ref) async {
           alLeerElRepo?.call();
           return pruebas;
@@ -754,9 +762,7 @@ void main() {
 
     await _abrir(
       tester,
-      pasadas: [
-        _corrida(flow: 'un_nombre_de_prueba_bastante_largo_de_verdad'),
-      ],
+      pasadas: [_corrida(flow: 'un_nombre_de_prueba_bastante_largo_de_verdad')],
     );
 
     expect(find.byIcon(Icons.replay), findsOneWidget);
@@ -934,4 +940,42 @@ void main() {
       expect(find.text('login'), findsOneWidget);
     });
   });
+
+  group('de qué proyecto', () {
+    testWidgets('con varios sale el desplegable y se puede cambiar', (
+      tester,
+    ) async {
+      await _abrir(tester, emparejadas: ['/casa/tienda', '/casa/almacen']);
+
+      expect(find.byKey(const ValueKey('de-que-proyecto')), findsOneWidget);
+      // De partida, el de la conversación: mirar otro es una consulta, y de partida
+      // uno mira donde está trabajando.
+      expect(find.text('tienda'), findsWidgets);
+    });
+
+    testWidgets('con uno solo no hay desplegable, solo su nombre', (
+      tester,
+    ) async {
+      // Un selector de una sola opción es pedir una decisión que no existe.
+      await _abrir(tester);
+      expect(find.byKey(const ValueKey('de-que-proyecto')), findsNothing);
+    });
+  });
+}
+
+/// Un espacio de trabajo con las carpetas que pida la prueba, para poder enseñar el
+/// selector de proyecto sin tocar el disco.
+class _WorkspaceFijo extends WorkspaceController {
+  _WorkspaceFijo(this.carpetas);
+
+  final List<String> carpetas;
+
+  @override
+  Workspace build() => Workspace(
+    folders: [
+      for (final ruta in carpetas)
+        PairedFolder(path: ruta, modality: FolderModality.textOnly),
+    ],
+    activePath: carpetas.first,
+  );
 }
