@@ -339,6 +339,18 @@ abstract class NexusStrings {
   String get e2eRepoRetry;
   String get e2eRepoNeedsDevice;
   String get e2eRepoSearch;
+  String get e2ePublish;
+  String get e2ePublishTitle;
+  String e2ePublishWhere(String slug, String ruta);
+  String get e2ePublishReplaces;
+  String get e2ePublishNew;
+  String get e2ePublishHow;
+  String get e2ePublishMessage;
+  String get e2ePublishDoing;
+  String get e2ePublishPushedOnly;
+  String get e2ePublishFailed;
+  String get e2ePublishNoRepo;
+  String get e2ePublishOpen;
   String get e2eRepoGroupTests;
   String get e2eRepoGroupPieces;
   String e2eRepoMatches(int cuantos, int total);
@@ -1160,6 +1172,34 @@ class NexusStringsEs extends NexusStrings {
       'Falta elegir dónde correr, en el selector de arriba.';
   @override
   String get e2eRepoSearch => 'Buscar una prueba';
+  @override
+  String get e2ePublish => 'Publicar al repo de pruebas';
+  @override
+  String get e2ePublishTitle => 'Publicar al repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Va a $slug, en $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'Ya hay un archivo con ese nombre: el PR lo reemplaza.';
+  @override
+  String get e2ePublishNew => 'Es un archivo nuevo en el repo.';
+  @override
+  String get e2ePublishHow =>
+      'Se crea una rama y se abre un PR contra main. No se mezcla nada: eso lo decide quien lo revise.';
+  @override
+  String get e2ePublishMessage => 'Mensaje del commit';
+  @override
+  String get e2ePublishDoing => 'Publicando…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Empujado a la rama. El PR ábrelo tú: no pude usar gh.';
+  @override
+  String get e2ePublishFailed => 'No se pudo publicar';
+  @override
+  String get e2ePublishNoRepo =>
+      'El repo de pruebas no está listo todavía. Abre el panel de pruebas y espera a que se clone.';
+  @override
+  String get e2ePublishOpen => 'Abrir el PR';
   @override
   String get e2eRepoGroupTests => 'Pruebas';
   @override
@@ -2380,6 +2420,34 @@ class NexusStringsEn extends NexusStrings {
       'Pick where to run it, in the selector above.';
   @override
   String get e2eRepoSearch => 'Find a test';
+  @override
+  String get e2ePublish => 'Publish to the tests repo';
+  @override
+  String get e2ePublishTitle => 'Publish to the repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Goes to $slug, at $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'A file with that name is already there: the PR replaces it.';
+  @override
+  String get e2ePublishNew => 'It is a new file in the repo.';
+  @override
+  String get e2ePublishHow =>
+      'A branch is created and a PR opened against main. Nothing is merged: whoever reviews it decides that.';
+  @override
+  String get e2ePublishMessage => 'Commit message';
+  @override
+  String get e2ePublishDoing => 'Publishing…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Pushed to the branch. Open the PR yourself: gh was not available.';
+  @override
+  String get e2ePublishFailed => 'Could not publish';
+  @override
+  String get e2ePublishNoRepo =>
+      'The tests repo is not ready yet. Open the tests panel and wait for the clone.';
+  @override
+  String get e2ePublishOpen => 'Open the PR';
   @override
   String get e2eRepoGroupTests => 'Tests';
   @override

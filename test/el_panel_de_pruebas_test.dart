@@ -314,6 +314,43 @@ void main() {
       expect(find.text(strings.e2eRun), findsOneWidget);
     });
 
+    testWidgets('la fila cabe con sus dos botones y los dos se pueden tocar', (
+      tester,
+    ) async {
+      // **La fila ya desbordó una vez**: con «Borrar la prueba» escrito se salía
+      // de la hoja y el toque no llegaba a ningún sitio, y a ojo el botón
+      // simplemente no estaba. Al añadir el de publicar vuelve a haber dos
+      // acciones compitiendo por el mismo ancho, así que se comprueba que los dos
+      // reciben el toque de verdad y no solo que existen.
+      await _abrir(tester);
+
+      // Por el icono y no por el tooltip: el icono es lo que se ve, y el tooltip
+      // vive en un envoltorio que cambia de tipo entre versiones de Flutter.
+      for (final (icono, que) in [
+        (Icons.upload_outlined, 'publicar'),
+        (Icons.delete_outline, 'borrar'),
+      ]) {
+        final boton = find.ancestor(
+          of: find.byIcon(icono),
+          matching: find.byType(IconButton),
+        );
+        expect(boton, findsOneWidget, reason: 'falta el botón de $que');
+
+        final caja = tester.getRect(boton);
+        final hoja = tester.getRect(find.byType(PruebasSheet));
+        expect(
+          caja.right,
+          lessThanOrEqualTo(hoja.right),
+          reason: 'el de $que se sale de la hoja',
+        );
+        expect(
+          tester.widget<IconButton>(boton).onPressed,
+          isNotNull,
+          reason: 'el de $que está muerto',
+        );
+      }
+    });
+
     testWidgets('un proyecto sin pruebas no ocupa sitio', (tester) async {
       // **Antes esta prueba esperaba el mensaje «no hay pruebas».** Se cambió el
       // requisito (27 ago 2026): una carpeta vacía pintaba cabecera, selector y

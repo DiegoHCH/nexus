@@ -11,6 +11,7 @@ import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.da
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
+import 'package:nexus/features/e2e/presentation/widgets/publicar_prueba_dialogo.dart';
 import 'package:nexus/features/e2e/presentation/widgets/repo_de_pruebas_seccion.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
@@ -619,6 +620,25 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
                     child: Text(
                       prueba.nombre,
                       style: NexusTypography.data.copyWith(color: colors.ink),
+                    ),
+                  ),
+                  // Mandarla al repo del equipo. **Icono y no palabra**, por lo
+                  // mismo que el de borrar: la fila no da para dos verbos. Y
+                  // abre un diálogo en vez de publicar al toque, porque esto sale
+                  // de tu máquina y lo va a ver alguien.
+                  IconButton(
+                    onPressed: () =>
+                        PublicarPruebaDialogo.abrir(context, prueba),
+                    tooltip: strings.e2ePublish,
+                    icon: Icon(
+                      Icons.upload_outlined,
+                      size: 14,
+                      color: colors.faint,
+                    ),
+                    padding: EdgeInsets.zero,
+                    constraints: const BoxConstraints(
+                      minWidth: 26,
+                      minHeight: 26,
                     ),
                   ),
                   // **Un icono y no dos palabras**, con la advertencia en su
