@@ -6,88 +6,55 @@ import 'package:nexus/features/e2e/domain/entities/cuenta_de_pruebas.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/presentation/providers/repo_de_pruebas_providers.dart';
 
-/// Las cuentas con las que corren las pruebas: verlas, añadirlas y editarlas.
+/// Las cuentas de **un** proyecto: verlas, añadirlas y editarlas.
 ///
-/// **Un sheet aparte y no un trozo del de pruebas.** Esto se toca una vez cada
-/// mucho —cuando entra una cuenta nueva o caduca una contraseña— y el de pruebas
-/// se abre a diario. Meter un formulario de credenciales en la pantalla que se usa
-/// para lanzar es cobrarle a todos los días el precio de un día suelto.
-class CuentasDePruebaSheet extends ConsumerWidget {
-  const CuentasDePruebaSheet({super.key});
+/// **Vive en Ajustes y no en el sheet de pruebas.** Esto se toca una vez cada
+/// mucho —una cuenta nueva, una contraseña que caducó— y el sheet de pruebas se
+/// abre a diario: meter un formulario de credenciales en la pantalla que se usa
+/// para lanzar le cobra a todos los días el precio de un día suelto.
+///
+/// 🔴 **Por proyecto, y eso no es un detalle de organización.** Una cuenta de
+/// `front-mobile-b2c` no sirve para otro repo: son credenciales de una app
+/// concreta, y ofrecerlas en otro sitio invita a correr una prueba con la cuenta
+/// de otra cosa, que no da un error sino un rojo que parece una regresión.
+class CuentasDeUnProyecto extends ConsumerWidget {
+  const CuentasDeUnProyecto({super.key, required this.proyecto});
 
-  static Future<void> open(BuildContext context) => showModalBottomSheet<void>(
-    context: context,
-    backgroundColor: Colors.transparent,
-    isScrollControlled: true,
-    builder: (_) => const CuentasDePruebaSheet(),
-  );
+  final String proyecto;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
     final strings = context.strings;
-    final cuentas = ref.watch(cuentasDePruebaProvider);
+    final cuentas = ref.watch(cuentasDePruebaProvider(proyecto));
 
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.8,
-      ),
-      decoration: BoxDecoration(
-        color: colors.deep,
-        border: Border(top: BorderSide(color: colors.rule)),
-      ),
-      padding: const EdgeInsets.all(NexusSpacing.s5),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            strings.e2eAccountsTitle,
-            style: NexusTypography.label.copyWith(color: colors.faint),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (final (i, cuenta) in cuentas.indexed)
+          _FilaDeCuenta(
+            cuenta: cuenta,
+            proyecto: proyecto,
+            porDefecto: i == 0,
           ),
-          const SizedBox(height: NexusSpacing.s2),
-          Text(
-            strings.e2eAccountsWhere,
-            style: NexusTypography.body.copyWith(color: colors.mute),
-          ),
-          const SizedBox(height: NexusSpacing.s4),
-
-          Flexible(
-            child: SingleChildScrollView(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (cuentas.isEmpty)
-                    Text(
-                      strings.e2eAccountsNone,
-                      style: NexusTypography.body.copyWith(color: colors.mute),
-                    )
-                  else
-                    for (final (i, cuenta) in cuentas.indexed)
-                      _FilaDeCuenta(cuenta: cuenta, porDefecto: i == 0),
-                  const SizedBox(height: NexusSpacing.s4),
-                  TextButton(
-                    onPressed: () => _editar(context, ref, null),
-                    child: Text(strings.e2eAccountAdd),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
+        TextButton(
+          onPressed: () => editarCuenta(context, proyecto, null),
+          child: Text(strings.e2eAccountAdd),
+        ),
+      ],
     );
   }
-
-  static Future<void> _editar(
-    BuildContext context,
-    WidgetRef ref,
-    CuentaDePruebas? cuenta,
-  ) => showDialog<void>(
-    context: context,
-    builder: (_) => _FormularioDeCuenta(cuenta: cuenta),
-  );
 }
+
+/// Abre el formulario de una cuenta. Fuera de las clases porque lo llaman tanto la
+/// lista como cada fila.
+Future<void> editarCuenta(
+  BuildContext context,
+  String proyecto,
+  CuentaDePruebas? cuenta,
+) => showDialog<void>(
+  context: context,
+  builder: (_) => _FormularioDeCuenta(proyecto: proyecto, cuenta: cuenta),
+);
 
 /// Una cuenta en la lista.
 ///
@@ -96,9 +63,14 @@ class CuentasDePruebaSheet extends ConsumerWidget {
 /// completa basta con los nombres, y un listado es justo el sitio donde una
 /// contraseña se queda a la vista de quien pasa por detrás.
 class _FilaDeCuenta extends ConsumerWidget {
-  const _FilaDeCuenta({required this.cuenta, required this.porDefecto});
+  const _FilaDeCuenta({
+    required this.cuenta,
+    required this.proyecto,
+    required this.porDefecto,
+  });
 
   final CuentaDePruebas cuenta;
+  final String proyecto;
   final bool porDefecto;
 
   @override
@@ -109,7 +81,7 @@ class _FilaDeCuenta extends ConsumerWidget {
     return Padding(
       padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
       child: InkWell(
-        onTap: () => CuentasDePruebaSheet._editar(context, ref, cuenta),
+        onTap: () => editarCuenta(context, proyecto, cuenta),
         child: Padding(
           padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s2),
           child: Column(
@@ -148,7 +120,7 @@ class _FilaDeCuenta extends ConsumerWidget {
               if (!porDefecto)
                 TextButton(
                   onPressed: () => ref
-                      .read(cuentasDePruebaProvider.notifier)
+                      .read(cuentasDePruebaProvider(proyecto).notifier)
                       .hacerPorDefecto(cuenta.clave),
                   child: Text(strings.e2eAccountMakeDefault),
                 ),
@@ -168,8 +140,9 @@ class _FilaDeCuenta extends ConsumerWidget {
 /// tecleado no es eso, y esconderlos haría imposible lo único que este formulario
 /// existe para hacer.
 class _FormularioDeCuenta extends ConsumerStatefulWidget {
-  const _FormularioDeCuenta({required this.cuenta});
+  const _FormularioDeCuenta({required this.proyecto, required this.cuenta});
 
+  final String proyecto;
   final CuentaDePruebas? cuenta;
 
   @override
@@ -262,7 +235,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           TextButton(
             onPressed: () {
               ref
-                  .read(cuentasDePruebaProvider.notifier)
+                  .read(cuentasDePruebaProvider(widget.proyecto).notifier)
                   .borrar(widget.cuenta!.clave);
               Navigator.of(context).pop();
             },
@@ -293,7 +266,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           t.trim().startsWith('acct-') ? t.trim().substring(5) : t.trim(),
     };
 
-    ref.read(cuentasDePruebaProvider.notifier).guardar(
+    ref.read(cuentasDePruebaProvider(widget.proyecto).notifier).guardar(
           CuentaDePruebas(
             clave: clave,
             tags: tags,

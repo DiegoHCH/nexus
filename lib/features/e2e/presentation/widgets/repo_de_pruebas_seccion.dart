@@ -6,7 +6,6 @@ import 'package:nexus/features/e2e/data/datasources/repo_de_pruebas_data_source.
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/e2e/presentation/providers/repo_de_pruebas_providers.dart';
-import 'package:nexus/features/e2e/presentation/widgets/cuentas_de_prueba_sheet.dart';
 
 /// Los flows que viven en el repo de pruebas del equipo.
 ///
@@ -17,7 +16,13 @@ import 'package:nexus/features/e2e/presentation/widgets/cuentas_de_prueba_sheet.
 /// filas idénticas que hacen cosas distintas, que es lo que hace que alguien lance
 /// la que no era.
 class RepoDePruebasSeccion extends ConsumerWidget {
-  const RepoDePruebasSeccion({super.key});
+  const RepoDePruebasSeccion({super.key, required this.proyecto});
+
+  /// El repo emparejado. **Las cuentas cuelgan de él y no de este repo de
+  /// pruebas**: estos flows son las pruebas de ese proyecto, así que corren con
+  /// sus credenciales. Configurarlas dos veces —una para sus pruebas locales y
+  /// otra para éstas— es el duplicado que acaba con las dos copias distintas.
+  final String proyecto;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -29,18 +34,9 @@ class RepoDePruebasSeccion extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Text(
-              strings.e2eRepoTitle,
-              style: NexusTypography.label.copyWith(color: colors.faint),
-            ),
-            const Spacer(),
-            TextButton(
-              onPressed: () => CuentasDePruebaSheet.open(context),
-              child: Text(strings.e2eAccounts),
-            ),
-          ],
+        Text(
+          strings.e2eRepoTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         Text(slug, style: NexusTypography.data.copyWith(color: colors.mute)),
         const SizedBox(height: NexusSpacing.s2),
@@ -54,7 +50,8 @@ class RepoDePruebasSeccion extends ConsumerWidget {
             style: NexusTypography.body.copyWith(color: colors.mute),
           ),
           error: (e, _) => _Problema(mensaje: '$e'),
-          data: (resultado) => _Estado(resultado: resultado),
+          data: (resultado) =>
+              _Estado(resultado: resultado, proyecto: proyecto),
         ),
       ],
     );
@@ -68,9 +65,10 @@ class RepoDePruebasSeccion extends ConsumerWidget {
 /// filas de scroll de distancia y deja de existir para quien abre el sheet. Lo que
 /// se necesita siempre es el estado y el número; la lista es lo que se pide.
 class _Estado extends ConsumerStatefulWidget {
-  const _Estado({required this.resultado});
+  const _Estado({required this.resultado, required this.proyecto});
 
   final ResultadoDeSync resultado;
+  final String proyecto;
 
   @override
   ConsumerState<_Estado> createState() => _EstadoState();
@@ -97,7 +95,9 @@ class _EstadoState extends ConsumerState<_Estado> {
     }
 
     final flows = ref.watch(flowsDelRepoProvider).value ?? const [];
-    final sinCuentas = ref.watch(cuentasDePruebaProvider).isEmpty;
+    final sinCuentas = ref
+        .watch(cuentasDePruebaProvider(widget.proyecto))
+        .isEmpty;
     // Lo que falta para poder correr, sea lo que sea. **Se mira aquí y no en la
     // fila**: el motivo es el mismo para las 57 y decirlo 57 veces ya se probó
     // que es un muro. Un botón apagado sin motivo es la otra mitad del mismo
@@ -146,19 +146,12 @@ class _EstadoState extends ConsumerState<_Estado> {
           if (sinCuentas)
             Padding(
               padding: const EdgeInsets.only(top: NexusSpacing.s2),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(
-                      strings.e2eAccountsNone,
-                      style: NexusTypography.body.copyWith(color: colors.warn),
-                    ),
-                  ),
-                  TextButton(
-                    onPressed: () => CuentasDePruebaSheet.open(context),
-                    child: Text(strings.e2eAccountAdd),
-                  ),
-                ],
+              child: Text(
+                // Ya no hay botón: el formulario se mudó a Ajustes y abrir un
+                // diálogo de credenciales desde aquí volvería a poner en la
+                // pantalla diaria justo lo que se sacó de ella.
+                strings.e2eAccountsNoneHere,
+                style: NexusTypography.body.copyWith(color: colors.warn),
               ),
             ),
           // El dispositivo se avisa aunque falten cuentas: son dos cosas que hay
@@ -182,6 +175,7 @@ class _EstadoState extends ConsumerState<_Estado> {
               _FilaDeFlow(
                 clon: resultado.clon!,
                 ruta: ruta,
+                proyecto: widget.proyecto,
                 sinCuentas: sinCuentas,
               ),
           ],
@@ -230,11 +224,13 @@ class _FilaDeFlow extends ConsumerWidget {
   const _FilaDeFlow({
     required this.clon,
     required this.ruta,
+    required this.proyecto,
     required this.sinCuentas,
   });
 
   final String clon;
   final String ruta;
+  final String proyecto;
 
   /// Si no hay ninguna cuenta configurada. La fila entonces se calla el motivo:
   /// ya lo dice la sección, una vez y con el botón para resolverlo.
@@ -245,7 +241,9 @@ class _FilaDeFlow extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
 
-    final leToca = ref.watch(cuentaDelFlowProvider(ruta)).value;
+    final leToca = ref
+        .watch(cuentaDelFlowProvider((proyecto: proyecto, ruta: ruta)))
+        .value;
     final dispositivo = ref.watch(elDispositivoProvider);
     final corriendo = ref.watch(pruebaEnMarchaProvider)?.viva ?? false;
 

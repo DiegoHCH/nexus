@@ -314,9 +314,14 @@ void main() {
       expect(find.text(strings.e2eRun), findsOneWidget);
     });
 
-    testWidgets('un proyecto sin pruebas lo dice', (tester) async {
+    testWidgets('un proyecto sin pruebas no ocupa sitio', (tester) async {
+      // **Antes esta prueba esperaba el mensaje «no hay pruebas».** Se cambió el
+      // requisito (27 ago 2026): una carpeta vacía pintaba cabecera, selector y
+      // aviso —tres filas para decir que no hay nada— justo encima de lo que sí
+      // hay. Si no hay, no se enseña.
       await _abrir(tester, pruebas: const []);
-      expect(find.text(strings.e2eNone), findsOneWidget);
+      expect(find.text(strings.e2eNone), findsNothing);
+      expect(find.text(strings.e2eRun), findsNothing);
     });
 
     testWidgets('sin dispositivo encendido, el botón no deja ni tocarlo', (

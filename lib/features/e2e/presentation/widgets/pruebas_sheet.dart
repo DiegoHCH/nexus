@@ -42,6 +42,8 @@ class PruebasSheet extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final enMarcha = ref.watch(pruebaEnMarchaProvider);
+    final hayLocales = proyecto != null &&
+        (ref.watch(pruebasProvider(proyecto!)).value ?? const []).isNotEmpty;
 
     return Container(
       constraints: BoxConstraints(
@@ -79,13 +81,24 @@ class PruebasSheet extends ConsumerWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  if (proyecto case final p?) _Lanzadera(proyecto: p),
-                  const SizedBox(height: NexusSpacing.s5),
+                  // 🔴 **Una carpeta sin pruebas no se enseña vacía.** La
+                  // lanzadera pintaba su cabecera, su selector y un «este
+                  // proyecto no tiene pruebas»: tres filas para decir que no hay
+                  // nada, justo encima de lo que sí hay. Si no hay, no ocupa.
+                  if (proyecto case final p? when hayLocales) ...[
+                    _Lanzadera(proyecto: p),
+                    const SizedBox(height: NexusSpacing.s5),
+                  ],
                   // Los del repo compartido van entre las del proyecto y el
                   // historial: son pruebas que se lanzan, así que pertenecen
                   // arriba con lo que se lanza y no abajo con lo que ya pasó.
-                  const RepoDePruebasSeccion(),
-                  const SizedBox(height: NexusSpacing.s5),
+                  //
+                  // Sin proyecto emparejado no se enseña: sus cuentas cuelgan de
+                  // uno, así que sin él no habría con qué correr ninguna.
+                  if (proyecto case final p?) ...[
+                    RepoDePruebasSeccion(proyecto: p),
+                    const SizedBox(height: NexusSpacing.s5),
+                  ],
                   const _Historial(),
                 ],
               ),

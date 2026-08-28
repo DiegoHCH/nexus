@@ -154,6 +154,7 @@ abstract class NexusStrings {
 
   // La sección de Pruebas: una raíz común y el listado por proyecto.
   String get sectionPruebas;
+  String get sectionCuentas;
   String get flowsRootExplainer;
   String get flowsRootHint;
   String get flowsByProject;
@@ -351,6 +352,9 @@ abstract class NexusStrings {
   String get e2eAccountTagsHint;
   String get e2eAccountDesc;
   String get e2eAccountDescHint;
+  String get e2eAccountsNoneAnywhere;
+  String get e2eAccountsAddTo;
+  String get e2eAccountsNoneHere;
   String get e2eAccountVars;
   String get e2eAccountVarsHint;
   String get e2eAccountSave;
@@ -773,6 +777,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get sectionPruebas => 'Pruebas';
   @override
+  String get sectionCuentas => 'Cuentas de prueba';
+  @override
   String get flowsRootExplainer =>
       'Una carpeta para las pruebas de todos los proyectos, con una subcarpeta por cada '
       'uno: «~/pruebas/nexus». Así están juntas y fuera de los repos —una prueba dentro '
@@ -1180,6 +1186,14 @@ class NexusStringsEs extends NexusStrings {
   String get e2eAccountDesc => 'Descripción';
   @override
   String get e2eAccountDescHint => 'Para qué sirve. Ej: PEN verificada, sin Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'Ningún proyecto tiene cuentas todavía. Sin una, sus pruebas no pueden correr.';
+  @override
+  String get e2eAccountsAddTo => 'Añadir a otro proyecto';
+  @override
+  String get e2eAccountsNoneHere =>
+      'Este proyecto no tiene cuentas. Se crean en Ajustes → Cuentas de prueba.';
   @override
   String get e2eAccountVars => 'Variables';
   @override
@@ -1976,6 +1990,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get sectionPruebas => 'Tests';
   @override
+  String get sectionCuentas => 'Test accounts';
+  @override
   String get flowsRootExplainer =>
       'One folder for every project\'s tests, with a subfolder per project: '
       '«~/tests/nexus». Together and outside the repos — a test inside a work repo is a '
@@ -2383,6 +2399,14 @@ class NexusStringsEn extends NexusStrings {
   String get e2eAccountDesc => 'Description';
   @override
   String get e2eAccountDescHint => 'What it is for. E.g. PEN verified, no Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'No project has accounts yet. Without one, its tests cannot run.';
+  @override
+  String get e2eAccountsAddTo => 'Add to another project';
+  @override
+  String get e2eAccountsNoneHere =>
+      'This project has no accounts. They are created in Settings → Test accounts.';
   @override
   String get e2eAccountVars => 'Variables';
   @override

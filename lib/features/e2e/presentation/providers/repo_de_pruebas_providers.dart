@@ -53,26 +53,55 @@ final slugDelRepoDePruebasProvider =
 /// 🔴 Guardadas en las preferencias de la app y **nunca dentro del clon**. Llevan
 /// contraseñas y PINs; el clon es de donde se empuja.
 class CuentasDePrueba extends Notifier<List<CuentaDePruebas>> {
-  static const _key = 'pruebas.cuentas';
+  CuentasDePrueba(this.proyecto);
+
+  /// El repo al que pertenecen. Es la ruta, no el nombre: dos proyectos pueden
+  /// llamarse igual y compartir cuentas sería justo el fallo que esto evita.
+  final String proyecto;
+
+  /// La clave vieja, de cuando las cuentas eran globales. Ver [_cargar].
+  static const _keyVieja = 'pruebas.cuentas';
+
+  static String _keyDe(String proyecto) => 'pruebas.cuentas.$proyecto';
 
   late final Future<void> cargadas;
 
   @override
   List<CuentaDePruebas> build() {
-    cargadas = _cargar().catchError((Object _) {});
+    cargadas = _cargar(proyecto).catchError((Object _) {});
     return const [];
   }
 
-  Future<void> _cargar() async {
+  /// 🔴 **Las cuentas cuelgan del proyecto.** Una cuenta de `front-mobile-b2c` no
+  /// sirve para otro repo: son credenciales de una app concreta, y ofrecerlas en
+  /// otro sitio invita a correr una prueba con la cuenta de otra cosa — que no da
+  /// un error, da un rojo que parece una regresión.
+  ///
+  /// **Adopción de las globales, una sola vez.** Las que se guardaron cuando esto
+  /// no tenía alcance viven en [_keyVieja]. Se las queda el primer proyecto que
+  /// pregunte y la clave vieja se borra: copiarlas a todos las repartiría por
+  /// proyectos que no son suyos, y tirarlas obligaría a reescribir credenciales
+  /// que alguien ya tecleó.
+  Future<void> _cargar(String proyecto) async {
     final prefs = await SharedPreferences.getInstance();
-    final crudo = prefs.getString(_key);
-    if (crudo == null || crudo.isEmpty) return;
-    state = LasCuentasDePrueba.deJson(jsonDecode(crudo));
+    final crudo = prefs.getString(_keyDe(proyecto));
+    if (crudo != null && crudo.isNotEmpty) {
+      state = LasCuentasDePrueba.deJson(jsonDecode(crudo));
+      return;
+    }
+    final heredado = prefs.getString(_keyVieja);
+    if (heredado == null || heredado.isEmpty) return;
+    await prefs.setString(_keyDe(proyecto), heredado);
+    await prefs.remove(_keyVieja);
+    state = LasCuentasDePrueba.deJson(jsonDecode(heredado));
   }
 
   Future<void> _guardar(List<CuentaDePruebas> cuentas) async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_key, jsonEncode(LasCuentasDePrueba.aJson(cuentas)));
+    await prefs.setString(
+      _keyDe(proyecto),
+      jsonEncode(LasCuentasDePrueba.aJson(cuentas)),
+    );
     state = cuentas;
   }
 
@@ -101,7 +130,7 @@ class CuentasDePrueba extends Notifier<List<CuentaDePruebas>> {
 }
 
 final cuentasDePruebaProvider =
-    NotifierProvider<CuentasDePrueba, List<CuentaDePruebas>>(
+    NotifierProvider.family<CuentasDePrueba, List<CuentaDePruebas>, String>(
       CuentasDePrueba.new,
     );
 
@@ -178,12 +207,18 @@ class QueCuentaLeToca {
   }
 }
 
-final cuentaDelFlowProvider = FutureProvider.family<QueCuentaLeToca, String>((
-  ref,
-  ruta,
-) async {
-  await ref.watch(cuentasDePruebaProvider.notifier).cargadas;
-  final cuentas = ref.watch(cuentasDePruebaProvider);
+/// Qué flow, y con las cuentas de qué proyecto. Los flows del repo compartido son
+/// las pruebas del proyecto emparejado, así que corren con **sus** cuentas y no
+/// con unas propias: configurar las credenciales de b2c dos veces —una para sus
+/// pruebas locales y otra para las del repo— es la clase de duplicado que acaba
+/// con las dos copias distintas.
+typedef FlowDeProyecto = ({String proyecto, String ruta});
+
+final cuentaDelFlowProvider =
+    FutureProvider.family<QueCuentaLeToca, FlowDeProyecto>((ref, cual) async {
+  final (:proyecto, :ruta) = cual;
+  await ref.watch(cuentasDePruebaProvider(proyecto).notifier).cargadas;
+  final cuentas = ref.watch(cuentasDePruebaProvider(proyecto));
   final contenido = await ref.watch(flowDelRepoProvider(ruta).future);
   if (contenido == null) return const QueCuentaLeToca();
 
