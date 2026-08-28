@@ -44,7 +44,7 @@ void main() {
   }
 
   group('la guía abre y se lee', () {
-    testWidgets('los cuatro bloques, desplazándose', (tester) async {
+    testWidgets('los cinco bloques, desplazándose', (tester) async {
       await abrirAyuda(tester);
       expect(tester.takeException(), isNull);
 
@@ -56,6 +56,11 @@ void main() {
         es.guideNeedsTitle,
         es.guidePrivacyTitle,
         es.guidePiecesTitle,
+        // El quinto, y el que más falta hace que esté: para qué **no** es
+        // Nexus. Se comprueba como los demás porque desaparecer es exactamente
+        // lo que le pasaría el día que alguien recorte la guía — es el único
+        // bloque que no vende nada.
+        es.guideNotForTitle,
         es.guideTroubleTitle,
       ]) {
         await tester.scrollUntilVisible(
@@ -128,6 +133,30 @@ void main() {
       expect(en.guidePrivacyBody, contains('Anthropic'));
       expect(es.guidePrivacyBody, contains('carpeta de salida'));
       expect(en.guidePrivacyBody, contains('output folder'));
+    });
+
+    test('el bloque que cede terreno nombra a dónde se cede', () {
+      // «Nexus no lo hace todo» no cede nada: es humildad de folleto. Lo que
+      // hace creíble el bloque es decir **dónde** se hace mejor, y el sitio es
+      // el terminal. Sin esa palabra el texto se puede vaciar hasta quedarse en
+      // una disculpa, que es justo lo que no sirve delante de un escéptico.
+      expect(es.guideNotForBody.toLowerCase(), contains('terminal'));
+      expect(en.guideNotForBody.toLowerCase(), contains('terminal'));
+
+      // Y el caso concreto que pedía el informe, no un genérico: el diff.
+      expect(es.guideNotForBody.toLowerCase(), contains('diff'));
+      expect(en.guideNotForBody.toLowerCase(), contains('diff'));
+    });
+
+    test('y lo que sí reclama para sí es lo que exige la máquina', () {
+      // La otra mitad del trato. Si el bloque solo cediera, estaría vendiendo
+      // en contra; lo que lo deja en pie es que lo que no cede es exactamente
+      // lo que la nube no puede tocar.
+      for (final cuerpo in [es.guideNotForBody, en.guideNotForBody]) {
+        expect(cuerpo, contains('.env.local'));
+        expect(cuerpo.toLowerCase(), contains('vpn'));
+        expect(cuerpo.toLowerCase(), contains('hot reload'));
+      }
     });
 
     test('los atajos que se prometen son los que hay', () {

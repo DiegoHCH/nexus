@@ -55,6 +55,8 @@ mixin ArranqueStrings {
   String get guidePrivacyBody;
   String get guidePiecesTitle;
   String get guidePiecesBody;
+  String get guideNotForTitle;
+  String get guideNotForBody;
   String get guideTroubleTitle;
   String get guideTroubleBody;
   String get tourMeterBody;
@@ -276,6 +278,26 @@ mixin ArranqueStringsEs implements ArranqueStrings {
       'no en el repo, así que valen en todas tus carpetas.\n\n'
       'Atajos: ⌥Espacio le habla sin traer la ventana al frente, ⌘Y abre el '
       'historial, ⌘, abre estos ajustes.';
+  @override
+  String get guideNotForTitle => 'Para qué no es Nexus';
+  @override
+  String get guideNotForBody =>
+      'Para revisar un diff línea a línea, el terminal o tu editor. Un diff no '
+      'se audita de oído, y tampoco de un vistazo a un panel: se lee entero y '
+      'con el archivo alrededor. Nexus sirve para despachar el encargo y para '
+      'supervisar cómo va; comprobar lo que salió es otra cosa, y se hace mejor '
+      'donde siempre.\n\n'
+      'Para una sesión larga delante de la pantalla, también el terminal. Nexus '
+      'está diseñado para que no estés mirando —el atajo sin traer la ventana, '
+      'el icono de la barra, el aviso al terminar—. Si vas a estar delante toda '
+      'la tarde, ahí tienes más sitio y menos intermediarios.\n\n'
+      'Y para nada que no necesite esta máquina. Lo que Nexus hace y la nube no '
+      'es justo eso: tus simuladores, tu VPN, el .env.local de tu proyecto, el '
+      'hot reload de un proceso vivo. Un encargo que solo necesita el '
+      'repositorio lo hará igual de bien cualquier otro cliente, y con menos '
+      'piezas por medio.\n\n'
+      'Decirlo es parte del trato: a una herramienta que dice para qué no sirve '
+      'es a la única a la que se le puede creer cuando dice para qué sí.';
   @override
   String get guideTroubleTitle => 'Cuando algo no va';
   @override
@@ -604,6 +626,27 @@ mixin ArranqueStringsEn implements ArranqueStrings {
       'the repo, so they apply across all your folders.\n\n'
       'Shortcuts: ⌥Space talks to it without bringing the window to the front, ⌘Y '
       'opens the history, ⌘, opens these settings.';
+  @override
+  String get guideNotForTitle => 'What Nexus is not for';
+  @override
+  String get guideNotForBody =>
+      'To review a diff line by line, the terminal or your editor. A diff is '
+      'not audited by ear, and not at a glance in a panel either: it is read '
+      'whole, with the file around it. Nexus is for dispatching the errand and '
+      'for supervising how it goes; checking what came out is another thing, '
+      'and it is done better where it always was.\n\n'
+      'For a long session in front of the screen, the terminal too. Nexus is '
+      'designed for you not to be watching — the shortcut that does not bring '
+      'the window forward, the menu bar icon, the notice when it finishes. If '
+      'you are going to sit there all afternoon, that gives you more room and '
+      'fewer middlemen.\n\n'
+      'And for anything that does not need this machine. What Nexus does and '
+      'the cloud cannot is exactly that: your simulators, your VPN, your '
+      "project's .env.local, hot reload of a live process. An errand that only "
+      'needs the repository will be done just as well by any other client, with '
+      'fewer pieces in the way.\n\n'
+      'Saying so is part of the deal: a tool that says what it is not for is '
+      'the only one you can believe when it says what it is for.';
   @override
   String get guideTroubleTitle => 'When something does not work';
   @override

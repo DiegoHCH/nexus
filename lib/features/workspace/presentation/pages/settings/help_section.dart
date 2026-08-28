@@ -62,8 +62,9 @@ class HelpSection extends ConsumerWidget {
         const _RegistroRow(),
         const SizedBox(height: NexusSpacing.s7),
 
-        // La guía en frío. Cuatro bloques y en este orden: qué hace falta, qué
-        // sale de tu Mac, qué hace cada pieza y qué hacer cuando algo falla.
+        // La guía en frío. Cinco bloques y en este orden: qué hace falta, qué
+        // sale de tu Mac, qué hace cada pieza, para qué **no** es, y qué hacer
+        // cuando algo falla.
         //
         // El segundo va tan arriba a propósito: es lo único de aquí que **no se
         // puede deducir mirando la app**, y decidirlo mal tiene consecuencias
@@ -79,6 +80,18 @@ class HelpSection extends ConsumerWidget {
         _GuideBlock(
           title: strings.guidePiecesTitle,
           body: strings.guidePiecesBody,
+        ),
+        // Justo después de qué hace cada pieza y antes de los fallos, porque es
+        // donde encaja leerlo: esto hace cada cosa, esto no lo hace ninguna,
+        // esto es lo que pasa cuando algo se rompe.
+        //
+        // Que exista es la mitad del valor. Una herramienta que se recomienda a
+        // sí misma para todo no se puede comprobar por dentro, así que decir en
+        // qué es peor que el terminal es lo que hace creíble el resto de esta
+        // guía — y quita de la demo la promesa que primero se cae.
+        _GuideBlock(
+          title: strings.guideNotForTitle,
+          body: strings.guideNotForBody,
         ),
         _GuideBlock(
           title: strings.guideTroubleTitle,
