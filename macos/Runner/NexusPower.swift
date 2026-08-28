@@ -26,6 +26,10 @@ final class NexusPower {
   /// corren a la vez.
   private static var assertion: IOPMAssertionID?
 
+  /// La aserción viva, para poder comprobar desde las pruebas que **hay una y
+  /// no dos**. Solo de lectura: pedirla y soltarla siguen siendo lo de abajo.
+  static var asercionViva: IOPMAssertionID? { assertion }
+
   static func register(with registrar: FlutterPluginRegistrar) {
     let channel = FlutterMethodChannel(
       name: "com.katanalabs.nexus/power",
@@ -35,9 +39,9 @@ final class NexusPower {
       switch call.method {
       case "keepAwake":
         let reason = (call.arguments as? [String: Any])?["reason"] as? String ?? "Nexus"
-        result(keepAwake(reason: reason))
+        result(mantenerDespierto(motivo: reason))
       case "allowSleep":
-        allowSleep()
+        permitirDormir()
         result(nil)
       default:
         result(FlutterMethodNotImplemented)
@@ -48,7 +52,7 @@ final class NexusPower {
 
   /// Idempotente: pedirlo dos veces no crea dos, porque el recuento de quién la
   /// necesita vive en Dart y aquí solo interesa que exista mientras haga falta.
-  private static func keepAwake(reason: String) -> Bool {
+  static func mantenerDespierto(motivo reason: String) -> Bool {
     if assertion != nil { return true }
 
     var id: IOPMAssertionID = IOPMAssertionID(0)
@@ -71,7 +75,7 @@ final class NexusPower {
     return true
   }
 
-  private static func allowSleep() {
+  static func permitirDormir() {
     guard let id = assertion else { return }
     IOPMAssertionRelease(id)
     assertion = nil

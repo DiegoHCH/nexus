@@ -55,10 +55,6 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// forma de fabricarlo— y sin él, cambiar el número sería adivinar.
   private var starvedAt: Date?
 
-  /// Por encima de esto ya no es un corte a media frase, es que la respuesta
-  /// se acabó. Dos segundos: ninguna frase hablada deja ese silencio dentro.
-  private static let maxGapMs = 2000
-
   private var gapCount = 0
   private var worstGapMs = 0
   private var playedAnything = false
@@ -741,18 +737,12 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     pendingLock.lock()
     // Si la cola se había vaciado y ya sonaba una respuesta, esto que llega
     // llega tarde: el altavoz estuvo callado en medio de una frase.
-    if let emptiedAt = starvedAt, playedAnything {
-      let gap = Int(Date().timeIntervalSince(emptiedAt) * 1000)
-      // Un silencio largo no es un corte: es que la respuesta terminó y lo que
-      // llega ya es del turno siguiente. Sin este tope, la primera medición
-      // apuntó un «hueco» de 9,5 s que en realidad era el rato entre una
-      // respuesta y la otra — y un número así ensucia justo la conclusión que
-      // se quiere sacar.
-      if gap < Self.maxGapMs {
-        gapCount += 1
-        worstGapMs = max(worstGapMs, gap)
-        Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
-      }
+    if let gap = HuecoDeReproduccion.mide(
+      vaciaDesde: starvedAt, ahora: Date(), yaSono: playedAnything
+    ) {
+      gapCount += 1
+      worstGapMs = max(worstGapMs, gap)
+      Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
     }
     starvedAt = nil
     pendingFrames += frameCount
@@ -793,5 +783,35 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     playedAnything = false
     pendingLock.unlock()
     player.play()
+  }
+}
+
+/// Cuándo un bloque que llega tarde es **un corte a media frase** y cuándo es
+/// simplemente el rato entre dos respuestas.
+///
+/// Vive fuera del motor porque es la única parte de todo esto que no necesita
+/// hardware: recibe dos fechas y un booleano. Y necesita estar fuera porque es
+/// la que puede empezar a contar basura sin que nadie lo note — el número que
+/// produce es el que decide el tamaño del colchón, y un número sucio ensucia
+/// justo la conclusión que se quiere sacar.
+enum HuecoDeReproduccion {
+  /// Por encima de esto ya no es un corte: es que la respuesta se acabó. Dos
+  /// segundos porque ninguna frase hablada deja ese silencio dentro.
+  ///
+  /// El número sale de una medición, no de una intuición: sin el tope, la
+  /// primera apuntó un «hueco» de 9,5 s que era el rato entre una respuesta y
+  /// la siguiente.
+  static let maxMs = 2000
+
+  /// Los milisegundos del corte, o `nil` si esto no cuenta como corte.
+  ///
+  /// - `vaciaDesde` a `nil`: la cola nunca llegó a vaciarse, así que no hubo
+  ///   silencio que medir.
+  /// - `yaSono` en `false`: es el primer bloque de la sesión. El silencio de
+  ///   antes de empezar a hablar no es un corte, es esperar.
+  static func mide(vaciaDesde: Date?, ahora: Date, yaSono: Bool) -> Int? {
+    guard let vaciaDesde, yaSono else { return nil }
+    let ms = Int(ahora.timeIntervalSince(vaciaDesde) * 1000)
+    return ms < maxMs ? ms : nil
   }
 }

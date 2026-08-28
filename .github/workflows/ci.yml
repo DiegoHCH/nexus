@@ -1,6 +1,6 @@
 # Lo que nadie corría salvo a mano.
 #
-# Hay 1.329 pruebas de Dart, 37 del protocolo y 33 nativas, y hasta ahora
+# Hay 1.356 pruebas de Dart, 37 del protocolo y 45 nativas, y hasta ahora
 # dependían de que quien mezclara se acordara de ejecutarlas. Aguanta por
 # disciplina y deja de aguantar el primer día con prisa — y son justo las que
 # pillan lo que el análisis estático no ve: una fila que desborda, un velo
@@ -92,8 +92,11 @@ jobs:
   # motivo para pagar un Mac por el análisis.
   #
   # Nacieron por la caída del visor —cerrar una ventana mataba la app entera y
-  # las de Dart no podían verlo, porque el fallo vive en AppKit— y ahora cubren
-  # además qué puede hacer un documento dentro de esa ventana.
+  # las de Dart no podían verlo, porque el fallo vive en AppKit—. Ahora cubren
+  # además qué puede hacer un documento dentro de esa ventana, la aserción de
+  # energía que si se escapa deja el Mac sin dormirse, la miniatura que nunca
+  # puede salir vacía, y la única decisión del motor de audio que no necesita
+  # hardware.
   nativas:
     name: pruebas nativas de macOS
     runs-on: macos-latest
