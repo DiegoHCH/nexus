@@ -252,6 +252,21 @@ class EventBridge {
       );
     }
 
+    // ── el aviso ────────────────────────────────────────────────────────────
+    //
+    // **El teléfono también lanza encargos**, así que también le cambian las
+    // reglas del repositorio bajo los pies. Sin esto, el delimitado se aplicaba
+    // igual pero no había forma de enterarse desde ahí.
+    if (antes?.notice != ahora.notice) {
+      salida.add(
+        log.emitir('notice', {
+          'conversation': id,
+          // Sin `?`, igual que el error: que se quite también es una noticia.
+          'message': ahora.notice,
+        }),
+      );
+    }
+
     // ── el error ────────────────────────────────────────────────────────────
     if (antes?.error != ahora.error) {
       salida.add(
@@ -294,6 +309,7 @@ class ConversationView {
     required this.orb,
     required this.title,
     this.error,
+    this.notice,
   });
 
   final String conversationId;
@@ -351,6 +367,14 @@ class ConversationView {
   final RemoteMeter meter;
   final String? error;
 
+  /// Algo que conviene saber y que **no es un fallo**: hoy, que los archivos de
+  /// reglas del repositorio cambiaron desde el encargo anterior.
+  ///
+  /// Viaja aparte del error y no reusa su hueco por lo mismo que en el
+  /// escritorio: pintarlo en rojo diría que algo se rompió, y lo que pasa es que
+  /// algo cambió. Y porque los dos pueden coincidir.
+  final String? notice;
+
   Map<String, Object?> toJson() => {
     'id': conversationId,
     'streaming': streaming,
@@ -360,6 +384,7 @@ class ConversationView {
     'steps': [for (final p in steps) p.toJson()],
     'meter': meter.toJson(),
     'error': ?error,
+    'notice': ?notice,
   };
 }
 

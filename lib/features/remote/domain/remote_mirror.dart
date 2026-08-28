@@ -90,6 +90,13 @@ class RemoteMirror {
         error: evento.data['message'] as String?,
         borrarError: evento.data['message'] == null,
       ),
+      // Mismo trato que el error, y por el mismo motivo: quitarlo es una noticia
+      // igual que ponerlo, y sin eso el aviso se queda en la pantalla para
+      // siempre.
+      'notice' => antes.copyWith(
+        notice: evento.data['message'] as String?,
+        borrarAviso: evento.data['message'] == null,
+      ),
       _ => antes,
     };
 
@@ -189,6 +196,7 @@ class MirroredConversation {
     this.contextTokens,
     this.percent,
     this.error,
+    this.notice,
     this.history = const [],
     this.masHistorial,
   });
@@ -212,6 +220,7 @@ class MirroredConversation {
       contextTokens: medidor['contextTokens'] as int?,
       percent: medidor['percent'] as int?,
       error: j['error'] as String?,
+      notice: j['notice'] as String?,
       history: [
         for (final m in (j['history'] as List? ?? const []))
           MirroredMessage.fromJson(m as Map<String, Object?>),
@@ -260,6 +269,13 @@ class MirroredConversation {
   final int? percent;
 
   final String? error;
+
+  /// Algo que cambió y conviene saber, que **no es un fallo** — hoy, que las
+  /// reglas del repositorio no son las mismas que en el encargo anterior.
+  ///
+  /// Aparte del error por lo mismo que en el escritorio: en rojo se leería como
+  /// que algo se rompió, y los dos pueden coincidir.
+  final String? notice;
 
   /// Lo dicho antes, **del más viejo al más nuevo**.
   ///
@@ -328,6 +344,7 @@ class MirroredConversation {
       'percent': ?percent,
     },
     'error': ?error,
+    'notice': ?notice,
     // El historial **también va a la caché**: es lo que permite abrir la app sin red
     // y leer lo que se dijo, que es la mitad del sentido de tener caché.
     'history': [for (final m in history) m.toJson()],
@@ -352,6 +369,8 @@ class MirroredConversation {
     int? percent,
     String? error,
     bool borrarError = false,
+    String? notice,
+    bool borrarAviso = false,
     List<MirroredMessage>? history,
     int? masHistorial,
     bool finDelHistorial = false,
@@ -373,6 +392,7 @@ class MirroredConversation {
     // borrar necesita decirse aparte. Sin esto, «ya no hay error» sería imposible de
     // expresar y el aviso se quedaría pegado.
     error: borrarError ? null : (error ?? this.error),
+    notice: borrarAviso ? null : (notice ?? this.notice),
     history: history ?? this.history,
     // Igual que el error: «ya no hay más» es un `null` que hay que poder decir, y un
     // `null` en un `copyWith` no se distingue de «no lo pases».
