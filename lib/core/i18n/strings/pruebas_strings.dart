@@ -142,6 +142,15 @@ mixin PruebasStrings {
   String get voiceExplainer;
   String get filePermissionsTitle;
   String get filePermissionsExplainer;
+  String get repoDeclaraTitle;
+  String get repoDeclaraExplainer;
+  String get repoSoloTexto;
+  String get repoSoloLectura;
+  String repoComandosVetados(int cuantos);
+  String repoCarpetaDePruebas(String carpeta);
+  String repoModelo(String modelo);
+  String get repoAvisosTitle;
+  String get repoLoFija;
   String get foldersWithPermission;
   String get noFoldersYet;
   String get addFolder;
@@ -486,6 +495,32 @@ mixin PruebasStringsEs implements PruebasStrings {
       'Este interruptor está siempre visible en la barra superior. En «solo '
       'leer», Nexus puede abrir archivos y correr comandos que no escriben; en '
       '«puede editar», también modifica archivos.';
+  @override
+  String get repoDeclaraTitle => 'LO QUE DECLARA ESTE REPOSITORIO';
+  @override
+  String get repoDeclaraExplainer =>
+      'Sale de su «.nexus/config.json», versionado dentro del repositorio y '
+      'revisable en un PR. Solo puede apretar: apaga cosas, nunca las '
+      'enciende, y tu cuenta de Claude no se lee nunca de ahí.';
+  @override
+  String get repoSoloTexto => 'Nada de aquí sale hacia el servicio de voz.';
+  @override
+  String get repoSoloLectura =>
+      'Aquí no se escribe, esté como esté el interruptor de arriba.';
+  @override
+  String repoComandosVetados(int cuantos) => cuantos == 1
+      ? 'Un comando vetado más, sumado a los tuyos.'
+      : '$cuantos comandos vetados más, sumados a los tuyos.';
+  @override
+  String repoCarpetaDePruebas(String carpeta) =>
+      'Sus pruebas están en «$carpeta».';
+  @override
+  String repoModelo(String modelo) =>
+      'Propone $modelo, y solo si tú no has elegido.';
+  @override
+  String get repoAvisosTitle => 'Y esto lo trae mal, así que no se aplica:';
+  @override
+  String get repoLoFija => 'Lo fija el repositorio';
   @override
   String get foldersWithPermission => 'CARPETAS CON PERMISO';
   @override
@@ -855,6 +890,32 @@ mixin PruebasStringsEn implements PruebasStrings {
       'This switch is always visible in the top bar. On “read only”, Nexus can '
       'open files and run commands that do not write; on “can edit”, it changes '
       'files too.';
+  @override
+  String get repoDeclaraTitle => 'WHAT THIS REPOSITORY DECLARES';
+  @override
+  String get repoDeclaraExplainer =>
+      'It comes from its “.nexus/config.json”, versioned inside the repository '
+      'and reviewable in a PR. It can only tighten: it turns things off, never '
+      'on, and your Claude account is never read from there.';
+  @override
+  String get repoSoloTexto => 'Nothing from here goes to the voice service.';
+  @override
+  String get repoSoloLectura =>
+      'Nothing is written here, whatever the switch above says.';
+  @override
+  String repoComandosVetados(int cuantos) => cuantos == 1
+      ? 'One more blocked command, added to yours.'
+      : '$cuantos more blocked commands, added to yours.';
+  @override
+  String repoCarpetaDePruebas(String carpeta) =>
+      'Its tests live in “$carpeta”.';
+  @override
+  String repoModelo(String modelo) =>
+      'It proposes $modelo, and only if you have not chosen.';
+  @override
+  String get repoAvisosTitle => 'And it gets this wrong, so it is not applied:';
+  @override
+  String get repoLoFija => 'The repository fixes this';
   @override
   String get foldersWithPermission => 'FOLDERS WITH PERMISSION';
   @override

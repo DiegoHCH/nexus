@@ -15,10 +15,19 @@ class PermissionSwitch extends StatelessWidget {
     super.key,
     required this.permission,
     required this.onChanged,
+    this.bloqueado = false,
   });
 
   final FilePermission permission;
   final ValueChanged<FilePermission> onChanged;
+
+  /// El repositorio sobre el que se trabaja declara solo lectura.
+  ///
+  /// Deja de responder en vez de responder y volver atrás: sin esto el
+  /// interruptor aceptaría «puede editar», se guardaría tu preferencia y la
+  /// pantalla se quedaría en «solo leer» sin decir por qué — que se lee como
+  /// un fallo y no como un permiso denegado.
+  final bool bloqueado;
 
   @override
   Widget build(BuildContext context) {
@@ -36,13 +45,15 @@ class PermissionSwitch extends StatelessWidget {
               label: context.strings.readOnly,
               selected: permission == FilePermission.readOnly,
               dotColor: colors.accent,
-              onTap: () => onChanged(FilePermission.readOnly),
+              onTap: bloqueado
+                  ? null
+                  : () => onChanged(FilePermission.readOnly),
             ),
             _Option(
               label: context.strings.canEdit,
               selected: permission == FilePermission.canEdit,
               dotColor: colors.warn,
-              onTap: () => onChanged(FilePermission.canEdit),
+              onTap: bloqueado ? null : () => onChanged(FilePermission.canEdit),
             ),
           ],
         ),
@@ -62,7 +73,9 @@ class _Option extends StatelessWidget {
   final String label;
   final bool selected;
   final Color dotColor;
-  final VoidCallback onTap;
+
+  /// `null` cuando el repositorio fija el permiso: el gesto no existe.
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
