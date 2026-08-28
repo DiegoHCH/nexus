@@ -64,6 +64,7 @@ void main() {
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    String? aviso,
     NexusOrbState orbe = NexusOrbState.sleep,
     String titulo = 'un encargo',
   }) => ConversationView(
@@ -75,6 +76,7 @@ void main() {
     steps: pasos,
     meter: medidor,
     error: error,
+    notice: aviso,
     orb: orbe,
     title: titulo,
   );
@@ -159,6 +161,35 @@ void main() {
       // gratis de expresar: un `null` en un `copyWith` no se distingue de «no lo
       // pases», así que borrar tiene que decirse aparte.
       expect(espejo.conversations['a']!.error, isNull);
+    });
+
+    // De punta a punta: el Mac lo pone en el estado, el puente lo emite, el
+    // espejo lo recoge. Sin esto, el teléfono lanza encargos sin poder enterarse
+    // de que las reglas del repositorio cambiaron bajo sus pies.
+    test('un aviso llega al teléfono, y también se retira', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', aviso: 'han cambiado las reglas'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+      expect(espejo.conversations['a']!.notice, 'han cambiado las reglas');
+
+      puente.observar(vista('a'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      expect(espejo.conversations['a']!.notice, isNull);
+    });
+
+    // Los dos a la vez, que es lo que pasa cuando un encargo falla justo el día
+    // que cambiaron las reglas: son dos casillas y ninguna pisa a la otra.
+    test('el aviso no pisa al error ni al revés', () {
+      var espejo = const RemoteMirror();
+      puente.observar(vista('a', error: 'no se pudo', aviso: 'y además esto'));
+      pasarElTiempo();
+      espejo = reflejar(espejo);
+
+      expect(espejo.conversations['a']!.error, 'no se pudo');
+      expect(espejo.conversations['a']!.notice, 'y además esto');
     });
 
     test('cerrar una conversación la quita del mapa y del orden', () {

@@ -51,6 +51,7 @@ void main() {
     List<RemoteStep> pasos = const [],
     RemoteMeter medidor = const RemoteMeter(),
     String? error,
+    String? aviso,
     NexusOrbState orbe = NexusOrbState.sleep,
     String titulo = 'un encargo',
   }) => ConversationView(
@@ -62,6 +63,7 @@ void main() {
     steps: pasos,
     meter: medidor,
     error: error,
+    notice: aviso,
     orb: orbe,
     title: titulo,
   );
@@ -267,6 +269,31 @@ void main() {
         'no se pudo',
         null,
       ]);
+    });
+
+    // **El teléfono también lanza encargos**, así que también le cambian las
+    // reglas del repositorio bajo los pies. Sin este evento, el delimitado se
+    // aplicaba igual pero desde ahí no había forma de enterarse.
+    test('el aviso viaja, y también su retirada', () async {
+      puente.observar(vista('a', aviso: 'han cambiado las reglas'));
+      pasarElTiempo();
+      puente.observar(vista('a'));
+      pasarElTiempo();
+
+      expect(deTipo('notice').map((e) => e.data['message']), [
+        'han cambiado las reglas',
+        null,
+      ]);
+    });
+
+    // Un encargo puede fallar justo el día que cambiaron las reglas, y el
+    // teléfono tiene que poder enseñar las dos cosas.
+    test('el aviso y el error son dos noticias distintas', () async {
+      puente.observar(vista('a', error: 'no se pudo', aviso: 'y además esto'));
+      pasarElTiempo();
+
+      expect(deTipo('error').single.data['message'], 'no se pudo');
+      expect(deTipo('notice').single.data['message'], 'y además esto');
     });
 
     test('cerrar una conversación se avisa', () async {
