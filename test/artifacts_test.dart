@@ -133,25 +133,25 @@ void main() {
     });
   });
 
-  // El tamaño se mide **antes** de leer, y eso no lo puede ver una prueba del
-  // despacho: la falsa de allí lanza el fallo a mano. Aquí se ata que la app
-  // llegue a lanzarlo, que es el hueco por el que se cuela este tipo de cosas.
+  // Que la app **rechace** lo que no cabe ya lo prueba de verdad
+  // `la_superficie_del_canal_test`, que construye la superficie entera y le pide
+  // un documento de medio mega. Aquí queda lo único que esa prueba no puede ver:
+  // el **orden**. Medir después de leer da el mismo resultado y el mismo fallo,
+  // y para cuando se mide, el pico de memoria y el marco de WebSocket ya han
+  // pasado — un comportamiento correcto por un camino que no lo es.
   group('lo que no cabe por el canal', () {
     final superficie = File(
       'lib/features/remote/presentation/assistant_surface.dart',
     ).readAsStringSync();
 
     test('se pregunta cuánto ocupa antes de abrirlo', () {
-      expect(
-        superficie,
-        contains('await archivo.length()'),
-        reason:
-            'medir despues de leerlo es medir cuando el pico de memoria y el '
-            'marco de WebSocket ya han pasado',
-      );
-      expect(superficie, contains('throw ArtifactTooLarge('));
-      // Y el `readAsString` que quedaba suelto ya no está: si vuelve, vuelve sin
-      // tope.
+      final mide = superficie.indexOf('await archivo.length()');
+      final lee = superficie.indexOf('return archivo.readAsString()');
+
+      expect(mide, isNot(-1), reason: 'ya no se pregunta el tamaño');
+      expect(lee, isNot(-1));
+      expect(mide, lessThan(lee), reason: 'medir después es medir tarde');
+      // Y el `readAsString` sin tope que había antes no puede volver.
       expect(superficie, isNot(contains('File(artifactId).readAsString()')));
     });
 
