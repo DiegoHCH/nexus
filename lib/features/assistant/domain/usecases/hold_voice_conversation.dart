@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 
 /// La conversación completa: micrófono → socket → altavoz, y Claude en medio
@@ -378,6 +379,23 @@ class HoldVoiceConversation {
           : answer.toString();
     }
 
+    /// El tope de lo que sale hacia el servicio de voz, aplicado **en los dos
+    /// sitios por los que sale** y no al devolver el encargo.
+    ///
+    /// La diferencia importa: lo que devuelve `runErrand` también alimenta la
+    /// pantalla, y ahí la respuesta se ve entera. Recortar en el origen
+    /// escondería en el Mac algo que el Mac sí puede enseñar; lo que se recorta
+    /// es lo que cruza la frontera.
+    String loQueCabe(String respuesta, String de) {
+      if (!LoQueSaleHaciaLaVoz.sobra(respuesta)) return respuesta;
+      _log(
+        'voz · «$de» devolvió ${respuesta.length} caracteres y hacia el '
+        'servicio de voz salen ${LoQueSaleHaciaLaVoz.maxCaracteres}: el resto '
+        'se queda en la pantalla',
+      );
+      return LoQueSaleHaciaLaVoz.recortar(respuesta);
+    }
+
     /// El modelo contestó por su cuenta algo que tenía que haber ido a Claude.
     ///
     /// Aquí está el candado que b6 pedía: la comprobación no la hace el modelo,
@@ -403,7 +421,9 @@ class HoldVoiceConversation {
         );
         return;
       }
-      session?.sendSystemNote(VoiceRouting.correction(answer));
+      session?.sendSystemNote(
+        VoiceRouting.correction(loQueCabe(answer, 'la corrección')),
+      );
     }
 
     Future<void> runTool(VoiceToolRequested request) async {
@@ -426,7 +446,7 @@ class HoldVoiceConversation {
       session?.sendToolResult(
         callId: request.callId,
         name: request.name,
-        result: answer,
+        result: loQueCabe(answer, request.name),
       );
     }
 
