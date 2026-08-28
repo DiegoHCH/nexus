@@ -65,6 +65,28 @@ class ArtifactsDataSource {
   /// se hace con un mockup terminado es mandárselo a alguien.
   Future<void> reveal(String path) => _invoke('reveal', path);
 
+  /// Los rótulos del interruptor del visor, en el idioma **de la app**.
+  ///
+  /// Se mandan desde aquí y no se escriben en Swift por el mismo motivo que los
+  /// del menú de la barra de estado: el idioma se elige en Ajustes y puede no
+  /// ser el del sistema. Una ventana en un idioma y su casilla en otro es de las
+  /// cosas que no se ven hasta que le pasa a alguien.
+  Future<void> textos({
+    required String permitir,
+    required String permitirAyuda,
+  }) async {
+    try {
+      await _channel.invokeMethod<bool>('textos', {
+        'permitir': permitir,
+        'permitirAyuda': permitirAyuda,
+      });
+    } on PlatformException {
+      // Sin rótulos el visor usa los suyos: se ve en otro idioma, no se rompe.
+    } on MissingPluginException {
+      // En pruebas no hay nadie al otro lado.
+    }
+  }
+
   Future<void> _invoke(String method, String path) async {
     try {
       await _channel.invokeMethod<bool>(method, {'path': path});

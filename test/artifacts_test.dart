@@ -167,10 +167,14 @@ void main() {
       final pagina = File(
         'lib/features/remote/presentation/pages/utility_pages.dart',
       ).readAsStringSync();
+      // Desde la pantalla hasta el final de su estado: `ArtifactPage` tiene
+      // estado desde que el permiso de scripts es por documento, así que lo que
+      // se quiere mirar vive en `_ArtifactPageState` y no en la clase de fuera.
       final desde = pagina.indexOf('class ArtifactPage');
+      final estado = pagina.indexOf('class _ArtifactPageState', desde);
       final cuerpo = pagina.substring(
         desde,
-        pagina.indexOf('\nclass ', desde + 10),
+        pagina.indexOf('\nclass ', estado + 10),
       );
 
       final pintado = cuerpo.indexOf('_Pintado(');
