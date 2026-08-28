@@ -6,6 +6,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+import 'package:nexus/features/onboarding/presentation/pages/initial_setup_page.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
@@ -99,6 +100,49 @@ void main() {
       await setup.finish();
       expect(llavero.guardadas, isEmpty);
     });
+  });
+
+  group('la pantalla cabe sin desplazarse', () {
+    late Directory support;
+
+    setUp(() => support = prepareScreenTest());
+    tearDown(() => support.deleteSync(recursive: true));
+
+    // Es la primera pantalla de la app y la única que se ve antes de decidir si
+    // se sigue. Pedía tres cosas en una columna de 520 dentro de una ventana de
+    // 1280, así que la tercera quedaba **500 píxeles por debajo del borde** y
+    // había que ir a buscarla. Una configuración con scroll esconde justo el
+    // paso que falta.
+    //
+    // La más pequeña de la lista es la ventana mínima que permite
+    // `MainFlutterWindow` —1024×768—: por debajo de eso no hay ventana posible,
+    // así que si cabe ahí, cabe siempre.
+    for (final ventana in const [
+      Size(1024, 768),
+      Size(1280, 800),
+      Size(1440, 900),
+      Size(1920, 1080),
+    ]) {
+      testWidgets('en ${ventana.width.toInt()}x${ventana.height.toInt()}', (
+        tester,
+      ) async {
+        await pumpScreen(tester, const InitialSetupPage(), size: ventana);
+        await tester.pump(const Duration(milliseconds: 200));
+
+        final scroll = tester
+            .state<ScrollableState>(find.byType(Scrollable).first)
+            .position;
+
+        expect(
+          scroll.maxScrollExtent,
+          0,
+          reason:
+              'sobran ${scroll.maxScrollExtent} px por debajo del borde: algo '
+              'creció y volvió a hacer falta desplazarse para verlo',
+        );
+        expect(tester.takeException(), isNull, reason: 'y sin desbordar');
+      });
+    }
   });
 
   group('la promesa de «cámbialo después en Ajustes»', () {

@@ -14,9 +14,19 @@ import 'package:url_launcher/url_launcher.dart';
 /// demás pantallas no aparece aquí porque todavía no hay ninguna carpeta
 /// emparejada sobre la que decidir "solo leer" o "puede editar".
 ///
-/// El orbe vive en una franja fija arriba (altura [_orbZoneHeight]); el
-/// contenido siempre arranca por debajo de esa franja — nunca centrado en
-/// toda la pantalla — para que no se monten cuando la ventana es baja.
+/// El orbe vive en una franja arriba; el contenido siempre arranca por debajo
+/// de esa franja —nunca centrado en toda la pantalla— para que no se monten
+/// cuando la ventana es baja.
+///
+/// **Y no se desplaza.** Esta es la primera pantalla de la app y la única que
+/// se ve antes de decidir si se sigue: pedía tres cosas en una columna de 520
+/// dentro de una ventana de 1280, así que la tercera quedaba 500 píxeles por
+/// debajo del borde y había que buscarla. Una pantalla de configuración con
+/// scroll esconde justo el paso que falta.
+///
+/// El desplazamiento sigue existiendo por debajo, pero como red y no como
+/// diseño: en una ventana de verdad no llega a haber nada que desplazar, y en
+/// una diminuta es mejor tener que bajar que ver un desbordamiento rojo.
 class InitialSetupPage extends ConsumerStatefulWidget {
   const InitialSetupPage({super.key});
 
@@ -27,6 +37,34 @@ class InitialSetupPage extends ConsumerStatefulWidget {
   static const _orbZoneTop = 32.0;
   static const _orbZoneHeight = 170.0;
   static const _contentTopPadding = 210.0 + _orbZoneTop;
+
+  /// La misma franja, encogida, cuando la ventana es baja.
+  ///
+  /// El orbe es lo primero que se ve y no se quita —es la marca de la
+  /// pantalla—, pero ocupa 242 píxeles antes de la primera palabra y en una
+  /// ventana de 800 de alto eso es casi un tercio. Se recorta, no desaparece.
+  static const _orbZoneShort = 108.0;
+  static const _contentTopShort = 132.0 + _orbZoneTop;
+
+  /// Y una talla más para la ventana mínima, 1024×768, que es donde esto se
+  /// decide de verdad: por debajo de ese tamaño no hay ventana posible, así que
+  /// si cabe ahí cabe siempre.
+  static const _orbZoneTiny = 84.0;
+  static const _contentTopTiny = 100.0 + _orbZoneTop;
+
+  /// Por debajo de esto la franja del orbe se encoge; por debajo de
+  /// [_tinyWindow], además se aprieta el aire entre bloques.
+  static const _shortWindow = 900.0;
+  static const _tinyWindow = 800.0;
+
+  /// A partir de este ancho los campos van en dos columnas.
+  ///
+  /// **1024, que es el ancho mínimo de la ventana** —lo fija
+  /// `MainFlutterWindow`—, así que en la práctica van siempre en dos: no hay
+  /// ninguna ventana real más estrecha. La rama de una sola columna se queda
+  /// por si ese mínimo baja algún día, y porque una pantalla de configuración
+  /// que se rompe en vez de apilarse es peor que una que se desplaza.
+  static const _twoColumns = 1024.0;
 
   @override
   ConsumerState<InitialSetupPage> createState() => _InitialSetupPageState();
@@ -68,6 +106,38 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
         setup.canFinish &&
         ref.watch(workspaceControllerProvider).folders.isNotEmpty;
 
+    final ventana = MediaQuery.sizeOf(context);
+    final baja = ventana.height < InitialSetupPage._shortWindow;
+    final minima = ventana.height < InitialSetupPage._tinyWindow;
+    final franja = minima
+        ? InitialSetupPage._orbZoneTiny
+        : baja
+        ? InitialSetupPage._orbZoneShort
+        : InitialSetupPage._orbZoneHeight;
+    final desdeArriba = minima
+        ? InitialSetupPage._contentTopTiny
+        : baja
+        ? InitialSetupPage._contentTopShort
+        : InitialSetupPage._contentTopPadding;
+    // El aire entre bloques. Se aprieta solo en la ventana mínima: es lo último
+    // que se toca, porque apretarlo siempre haría fea la pantalla en la ventana
+    // en la que de verdad se abre.
+    final hueco = minima ? NexusSpacing.s5 : NexusSpacing.s6;
+    final dosColumnas = ventana.width >= InitialSetupPage._twoColumns;
+
+    final micro = _MicrophoneField(
+      status: setup.micStatus,
+      amplitude: setup.amplitude,
+      onRequest: () =>
+          ref.read(setupControllerProvider.notifier).requestMicrophoneAccess(),
+    );
+    final llave = _GeminiKeyField(
+      controller: _keyController,
+      onChanged: (value) =>
+          ref.read(setupControllerProvider.notifier).updateKeyText(value),
+      onGetKey: _openApiKeyPage,
+    );
+
     return Scaffold(
       body: Stack(
         children: [
@@ -75,7 +145,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
             top: InitialSetupPage._orbZoneTop,
             left: 0,
             right: 0,
-            height: InitialSetupPage._orbZoneHeight,
+            height: franja,
             child: const NexusOrb(
               state: NexusOrbState.sleep,
               showHorizon: false,
@@ -96,12 +166,20 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
               child: Align(
                 alignment: Alignment.topCenter,
                 child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(
-                    top: InitialSetupPage._contentTopPadding,
-                    bottom: NexusSpacing.s9,
+                  padding: EdgeInsets.only(
+                    top: desdeArriba,
+                    // Aire por debajo del último texto, no una franja: los 96
+                    // de antes eran para una pantalla que ya se desplazaba.
+                    bottom: NexusSpacing.s4,
                   ),
+                  // El ancho se adapta a la ventana en vez de quedarse en 520:
+                  // es lo que convierte una columna larguísima en algo que cabe.
+                  // Con tope, porque una línea de texto de 1200 píxeles no se
+                  // lee — se pierde el renglón al volver.
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
+                    constraints: BoxConstraints(
+                      maxWidth: dosColumnas ? 1120 : 560,
+                    ),
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisSize: MainAxisSize.min,
@@ -127,24 +205,34 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                             color: colors.mute,
                           ),
                         ),
-                        const SizedBox(height: NexusSpacing.s7),
-                        _MicrophoneField(
-                          status: setup.micStatus,
-                          amplitude: setup.amplitude,
-                          onRequest: () => ref
-                              .read(setupControllerProvider.notifier)
-                              .requestMicrophoneAccess(),
-                        ),
-                        const SizedBox(height: NexusSpacing.s6),
+                        SizedBox(height: hueco),
+                        // **La carpeta primero y sola.** Es lo único
+                        // obligatorio, así que es lo que tiene que leerse antes
+                        // — y desde que las otras dos son opcionales, ponerlas
+                        // delante hacía que lo prescindible pareciera el
+                        // trámite y lo necesario, un extra al final.
                         const _WorkFolderField(),
-                        const SizedBox(height: NexusSpacing.s6),
-                        _GeminiKeyField(
-                          controller: _keyController,
-                          onChanged: (value) => ref
-                              .read(setupControllerProvider.notifier)
-                              .updateKeyText(value),
-                          onGetKey: _openApiKeyPage,
-                        ),
+                        SizedBox(height: hueco),
+                        // Y las dos de la voz juntas, en paralelo si hay ancho:
+                        // son la misma decisión —encender la voz o no— tomada
+                        // en dos sitios, y en columna ocupaban lo que ocupan
+                        // dos pasos distintos.
+                        if (dosColumnas)
+                          IntrinsicHeight(
+                            child: Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(child: micro),
+                                const SizedBox(width: NexusSpacing.s7),
+                                Expanded(child: llave),
+                              ],
+                            ),
+                          )
+                        else ...[
+                          micro,
+                          SizedBox(height: hueco),
+                          llave,
+                        ],
                         if (setup.errorMessage != null) ...[
                           const SizedBox(height: NexusSpacing.s4),
                           Text(
@@ -157,7 +245,7 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                             ),
                           ),
                         ],
-                        const SizedBox(height: NexusSpacing.s6),
+                        SizedBox(height: hueco),
                         // El tema global del botón usa un solo color para todos
                         // los estados (`WidgetStatePropertyAll`), así que
                         // deshabilitado y habilitado se ven igual sin este
@@ -181,7 +269,9 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
                             ),
                           ),
                         ),
-                        const SizedBox(height: NexusSpacing.s5),
+                        SizedBox(
+                          height: minima ? NexusSpacing.s3 : NexusSpacing.s5,
+                        ),
                         Text(
                           context.strings.changeLaterHint,
                           textAlign: TextAlign.center,
@@ -451,22 +541,34 @@ class _GeminiKeyField extends StatelessWidget {
       children: [
         _EtiquetaOpcional(context.strings.geminiKey),
         const SizedBox(height: NexusSpacing.s3),
-        TextField(
-          controller: controller,
-          onChanged: onChanged,
-          obscureText: true,
-          style: NexusTypography.mono.copyWith(color: colors.ink),
-          decoration: InputDecoration(hintText: context.strings.geminiKeyHint),
+        // El botón al lado del campo y no debajo: es la forma de rellenar ese
+        // campo, no un paso aparte, y apilado costaba una fila entera de alto
+        // en la pantalla que no debe desplazarse. Es además la misma forma que
+        // tiene ya la llave en Ajustes.
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: controller,
+                onChanged: onChanged,
+                obscureText: true,
+                style: NexusTypography.mono.copyWith(color: colors.ink),
+                decoration: InputDecoration(
+                  hintText: context.strings.geminiKeyHint,
+                ),
+              ),
+            ),
+            const SizedBox(width: NexusSpacing.s3),
+            OutlinedButton(
+              onPressed: onGetKey,
+              child: Text(context.strings.getFreeKey),
+            ),
+          ],
         ),
         const SizedBox(height: NexusSpacing.s2),
         Text(
           context.strings.geminiKeyExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s2),
-        OutlinedButton(
-          onPressed: onGetKey,
-          child: Text(context.strings.getFreeKey),
         ),
       ],
     );
