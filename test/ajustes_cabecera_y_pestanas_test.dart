@@ -78,6 +78,7 @@ void main() {
         'emulators',
         'appearance',
         'language',
+        'salidas',
         'help',
       ]) {
         final actual = tester.getRect(find.byKey(ValueKey('seccion-$nombre')));

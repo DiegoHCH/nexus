@@ -126,7 +126,9 @@ class _DispositivosPanelState extends ConsumerState<DispositivosPanel> {
           children: [
             Expanded(
               child: Text(
-                widget.compacto ? strings.sectionEmulators : strings.emulatorsTitle,
+                widget.compacto
+                    ? strings.sectionEmulators
+                    : strings.emulatorsTitle,
                 style: NexusTypography.label.copyWith(color: colors.faint),
               ),
             ),
@@ -352,12 +354,10 @@ class _FilaDeDispositivo extends ConsumerWidget {
               constraints: const BoxConstraints(),
               visualDensity: VisualDensity.compact,
               color: colors.faint,
-              icon: Icon(
-                switch (como) {
-                  ComoVerElIphone.duplicado => Icons.phone_iphone,
-                  ComoVerElIphone.quickTime => Icons.videocam_outlined,
-                },
-              ),
+              icon: Icon(switch (como) {
+                ComoVerElIphone.duplicado => Icons.phone_iphone,
+                ComoVerElIphone.quickTime => Icons.videocam_outlined,
+              }),
             ),
         ],
       ),

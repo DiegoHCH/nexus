@@ -76,13 +76,16 @@ void main() {
       expect(LectorDeConfigs.leer(sinRequest).single.nombre, 'Suelta');
     });
 
-    test('un archivo que no existe o está roto da lista vacía, no una excepción', () {
-      // Un `launch.json` a medio escribir no puede tumbar la pantalla que ofrece
-      // las configuraciones.
-      expect(LectorDeConfigs.leer('{ roto'), isEmpty);
-      expect(LectorDeConfigs.leer(''), isEmpty);
-      expect(LectorDeConfigs.leer('[]'), isEmpty);
-    });
+    test(
+      'un archivo que no existe o está roto da lista vacía, no una excepción',
+      () {
+        // Un `launch.json` a medio escribir no puede tumbar la pantalla que ofrece
+        // las configuraciones.
+        expect(LectorDeConfigs.leer('{ roto'), isEmpty);
+        expect(LectorDeConfigs.leer(''), isEmpty);
+        expect(LectorDeConfigs.leer('[]'), isEmpty);
+      },
+    );
   });
 
   group('los comentarios y las comas', () {
@@ -193,10 +196,9 @@ void main() {
 
       const ds = ConfigsDataSource();
 
-      expect(
-        (await ds.deProyecto(tienda)).map((c) => c.nombre),
-        ['Tienda (dev)'],
-      );
+      expect((await ds.deProyecto(tienda)).map((c) => c.nombre), [
+        'Tienda (dev)',
+      ]);
       expect((await ds.deProyecto(banco)).map((c) => c.nombre), ['Banco (qa)']);
     });
 

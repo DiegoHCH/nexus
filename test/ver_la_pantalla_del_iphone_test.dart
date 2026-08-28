@@ -8,14 +8,14 @@ import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_iphone.da
 /// no se elige entre construir y lanzar — solo se puede lanzar.
 void main() {
   test('cada forma se abre por el nombre de su app', () {
-    expect(
-      ElEspejoDelIphone.argumentos(ComoVerElIphone.duplicado),
-      ['-a', 'iPhone Mirroring'],
-    );
-    expect(
-      ElEspejoDelIphone.argumentos(ComoVerElIphone.quickTime),
-      ['-a', 'QuickTime Player'],
-    );
+    expect(ElEspejoDelIphone.argumentos(ComoVerElIphone.duplicado), [
+      '-a',
+      'iPhone Mirroring',
+    ]);
+    expect(ElEspejoDelIphone.argumentos(ComoVerElIphone.quickTime), [
+      '-a',
+      'QuickTime Player',
+    ]);
   });
 
   group('qué se puede ofrecer', () {

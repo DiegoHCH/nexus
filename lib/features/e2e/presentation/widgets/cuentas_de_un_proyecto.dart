@@ -33,11 +33,7 @@ class CuentasDeUnProyecto extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         for (final (i, cuenta) in cuentas.indexed)
-          _FilaDeCuenta(
-            cuenta: cuenta,
-            proyecto: proyecto,
-            porDefecto: i == 0,
-          ),
+          _FilaDeCuenta(cuenta: cuenta, proyecto: proyecto, porDefecto: i == 0),
         TextButton(
           onPressed: () => editarCuenta(context, proyecto, null),
           child: Text(strings.e2eAccountAdd),
@@ -99,7 +95,9 @@ class _FilaDeCuenta extends ConsumerWidget {
                     const SizedBox(width: NexusSpacing.s2),
                     Text(
                       strings.e2eAccountDefault,
-                      style: NexusTypography.label.copyWith(color: colors.accent),
+                      style: NexusTypography.label.copyWith(
+                        color: colors.accent,
+                      ),
                     ),
                   ],
                   const Spacer(),
@@ -116,7 +114,9 @@ class _FilaDeCuenta extends ConsumerWidget {
                   style: NexusTypography.body.copyWith(color: colors.mute),
                 ),
               Text(
-                (cuenta.tags.toList()..sort()).map((t) => 'acct-$t').join(' · '),
+                (cuenta.tags.toList()..sort())
+                    .map((t) => 'acct-$t')
+                    .join(' · '),
                 style: NexusTypography.label.copyWith(color: colors.faint),
               ),
               if (!porDefecto)
@@ -148,7 +148,8 @@ class _FormularioDeCuenta extends ConsumerStatefulWidget {
   final CuentaDePruebas? cuenta;
 
   @override
-  ConsumerState<_FormularioDeCuenta> createState() => _FormularioDeCuentaState();
+  ConsumerState<_FormularioDeCuenta> createState() =>
+      _FormularioDeCuentaState();
 }
 
 class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
@@ -178,8 +179,8 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           ? ''
           : (c.variables.entries.toList()
                   ..sort((a, b) => a.key.compareTo(b.key)))
-              .map((e) => '${e.key}=${e.value}')
-              .join('\n'),
+                .map((e) => '${e.key}=${e.value}')
+                .join('\n'),
     );
   }
 
@@ -282,10 +283,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
               style: TextStyle(color: colors.err),
             ),
           ),
-        TextButton(
-          onPressed: _guardar,
-          child: Text(strings.e2eAccountSave),
-        ),
+        TextButton(onPressed: _guardar, child: Text(strings.e2eAccountSave)),
       ],
     );
   }
@@ -304,7 +302,9 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           t.trim().startsWith('acct-') ? t.trim().substring(5) : t.trim(),
     };
 
-    ref.read(cuentasDePruebaProvider(_proyecto).notifier).guardar(
+    ref
+        .read(cuentasDePruebaProvider(_proyecto).notifier)
+        .guardar(
           CuentaDePruebas(
             clave: clave,
             tags: tags,

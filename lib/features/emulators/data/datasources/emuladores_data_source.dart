@@ -166,13 +166,13 @@ class EmuladoresDataSource {
   ) async {
     if (dispositivos.isEmpty) return dispositivos;
 
-    final nombresIos = dispositivos.any(
-          (d) => d.plataforma == PlataformaEmulador.ios,
-        )
+    final nombresIos =
+        dispositivos.any((d) => d.plataforma == PlataformaEmulador.ios)
         ? await _nombresDeIos()
         : const <String, String>{};
 
-    final adb = dispositivos.any((d) => d.plataforma == PlataformaEmulador.android)
+    final adb =
+        dispositivos.any((d) => d.plataforma == PlataformaEmulador.android)
         ? await _adb()
         : null;
 
@@ -292,9 +292,7 @@ class EmuladoresDataSource {
     if (emulador.plataforma == PlataformaEmulador.ios) return _hayIosArriba();
 
     final avds = await _avdsArriba();
-    return avds.keys.any(
-      (avd) => avd == emulador.id || avd == emulador.nombre,
-    );
+    return avds.keys.any((avd) => avd == emulador.id || avd == emulador.nombre);
   }
 
   /// Cierra uno. `null` si salió bien.

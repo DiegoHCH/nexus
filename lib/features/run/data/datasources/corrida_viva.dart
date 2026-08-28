@@ -18,7 +18,12 @@ import 'package:nexus/features/run/domain/usecases/protocolo_del_daemon.dart';
 /// sale la forma, con una diferencia que importa: **aquí el stdin no se cierra**,
 /// porque por ahí van las recargas.
 class CorridaViva {
-  CorridaViva._(this._proceso, this._peticiones, this.onEvento, this.onRegistro);
+  CorridaViva._(
+    this._proceso,
+    this._peticiones,
+    this.onEvento,
+    this.onRegistro,
+  );
 
   final Process _proceso;
   final PeticionesPendientes _peticiones;
@@ -74,16 +79,18 @@ class CorridaViva {
     // para que no espere entrada que nadie va a mandar; aquí es el canal por el
     // que se pide recargar y parar.
     final lineas = LineasDelDaemon();
-    proceso.stdout.transform(utf8.decoder).listen(
-      (trozo) {
-        for (final mensaje in lineas.add(trozo)) {
-          viva._reparte(mensaje);
-        }
-      },
-      onDone: () {
-        if (lineas.cierra() case final ultimo?) viva._reparte(ultimo);
-      },
-    );
+    proceso.stdout
+        .transform(utf8.decoder)
+        .listen(
+          (trozo) {
+            for (final mensaje in lineas.add(trozo)) {
+              viva._reparte(mensaje);
+            }
+          },
+          onDone: () {
+            if (lineas.cierra() case final ultimo?) viva._reparte(ultimo);
+          },
+        );
 
     // stderr entero como registro: ahí sale lo de Gradle y lo de CocoaPods, que
     // es lo que se lee cuando algo no compila.
@@ -153,8 +160,6 @@ class CorridaViva {
       _proceso.kill();
       return (ok: true, error: null);
     }
-    return _peticiones.pedir(
-      (n) => ProtocoloDelDaemon.peticionDeParada(n, id),
-    );
+    return _peticiones.pedir((n) => ProtocoloDelDaemon.peticionDeParada(n, id));
   }
 }

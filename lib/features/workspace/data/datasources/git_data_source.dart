@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 
 /// En qué repositorio y en qué rama está una carpeta.
@@ -223,11 +224,11 @@ class GitDataSource {
     String entrada,
   ) async {
     try {
-      final proceso = await Process.start('git', [
-        '-C',
-        folderPath,
-        ...arguments,
-      ], environment: ClaudeEnvironment.forTools());
+      final proceso = await Process.start(
+        await HerramientaExterna.rutaDeGit(),
+        ['-C', folderPath, ...arguments],
+        environment: ClaudeEnvironment.forTools(),
+      );
       proceso.stdin.write(entrada);
       await proceso.stdin.close();
       final salida = await proceso.stdout.transform(utf8.decoder).join();
@@ -243,7 +244,7 @@ class GitDataSource {
   Future<String?> _run(String folderPath, List<String> arguments) async {
     try {
       final result = await Process.run(
-        'git',
+        await HerramientaExterna.rutaDeGit(),
         ['-C', folderPath, ...arguments],
         runInShell: false,
         environment: ClaudeEnvironment.forTools(),

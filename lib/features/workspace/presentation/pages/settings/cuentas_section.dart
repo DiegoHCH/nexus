@@ -28,7 +28,9 @@ class CuentasSection extends ConsumerWidget {
 
     final conCuentas = [
       for (final carpeta in carpetas)
-        if (ref.watch(cuentasDePruebaProvider(carpeta.workingDirectory)).isNotEmpty)
+        if (ref
+            .watch(cuentasDePruebaProvider(carpeta.workingDirectory))
+            .isNotEmpty)
           carpeta,
     ];
 
@@ -79,7 +81,9 @@ class CuentasSection extends ConsumerWidget {
               onPressed: () => editarCuenta(
                 context,
                 // El emparejado arranca elegido: es el proyecto en el que estás.
-                ref.read(workspaceControllerProvider).active
+                ref
+                        .read(workspaceControllerProvider)
+                        .active
                         ?.workingDirectory ??
                     carpetas.first.workingDirectory,
                 null,

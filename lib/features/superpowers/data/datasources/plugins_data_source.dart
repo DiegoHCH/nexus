@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/claude_plugin.dart';
 import 'package:nexus/features/superpowers/domain/usecases/plugin_command.dart';
@@ -69,7 +70,7 @@ class PluginsDataSource {
     if (args == null) return 'Datos inválidos';
     try {
       final result = await Process.run(
-        'claude',
+        await HerramientaExterna.rutaDeClaude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
@@ -85,7 +86,7 @@ class PluginsDataSource {
   Future<String?> _run(String configDir, List<String> args) async {
     try {
       final result = await Process.run(
-        'claude',
+        await HerramientaExterna.rutaDeClaude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,

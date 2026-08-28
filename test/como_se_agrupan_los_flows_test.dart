@@ -113,7 +113,9 @@ void main() {
 
     test('incluirse a sí mismo no te convierte en pieza', () {
       final piezas = ComoSeAgrupanLosFlows.piezasDe(
-        referenciasPorFlow: {'flows/a.yaml': ['a.yaml']},
+        referenciasPorFlow: {
+          'flows/a.yaml': ['a.yaml'],
+        },
       );
       expect(piezas, isEmpty);
     });

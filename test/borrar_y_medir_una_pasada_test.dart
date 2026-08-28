@@ -49,37 +49,43 @@ void main() {
     );
   });
 
-  test('borra la carpeta de una pasada de Maestro, con lo que tenga dentro', () async {
-    final carpeta = Directory('${casa.path}/login')..createSync();
-    File('${carpeta.path}/commands.json').writeAsStringSync('[]');
-    Directory('${carpeta.path}/takeScreenshot').createSync();
+  test(
+    'borra la carpeta de una pasada de Maestro, con lo que tenga dentro',
+    () async {
+      final carpeta = Directory('${casa.path}/login')..createSync();
+      File('${carpeta.path}/commands.json').writeAsStringSync('[]');
+      Directory('${carpeta.path}/takeScreenshot').createSync();
 
-    expect(await ds.borrar(carpeta.path), isNull);
-    expect(carpeta.existsSync(), isFalse);
-  });
+      expect(await ds.borrar(carpeta.path), isNull);
+      expect(carpeta.existsSync(), isFalse);
+    },
+  );
 
-  test('lo que no está no da error: ya no está, que es lo que se pedía', () async {
-    expect(await ds.borrar('${casa.path}/no_existe.json'), isNull);
-  });
+  test(
+    'lo que no está no da error: ya no está, que es lo que se pedía',
+    () async {
+      expect(await ds.borrar('${casa.path}/no_existe.json'), isNull);
+    },
+  );
 
-  test('mide un registro y su página, no cero', () {
+  test('mide un registro y su página, no cero', () async {
     final registro = File('${casa.path}/login 2026-08-26 09h3507.json')
       ..writeAsStringSync('12345');
     File(E2eDataSource.paginaDe(registro.path)).writeAsStringSync('123');
 
-    expect(ds.bytesDe(registro.path), 8);
+    expect(await ds.bytesDe(registro.path), 8);
   });
 
-  test('mide una carpeta entera, bajando por dentro', () {
+  test('mide una carpeta entera, bajando por dentro', () async {
     final carpeta = Directory('${casa.path}/login')..createSync();
     File('${carpeta.path}/commands.json').writeAsStringSync('1234');
     Directory('${carpeta.path}/takeScreenshot').createSync();
     File('${carpeta.path}/takeScreenshot/uno.png').writeAsStringSync('123456');
 
-    expect(ds.bytesDe(carpeta.path), 10);
+    expect(await ds.bytesDe(carpeta.path), 10);
   });
 
-  test('lo que no existe mide cero', () {
-    expect(ds.bytesDe('${casa.path}/no_existe'), 0);
+  test('lo que no existe mide cero', () async {
+    expect(await ds.bytesDe('${casa.path}/no_existe'), 0);
   });
 }

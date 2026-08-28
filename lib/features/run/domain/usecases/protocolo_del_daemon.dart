@@ -42,7 +42,7 @@ abstract final class ProtocoloDelDaemon {
       return EventoDelDaemon(
         nombre: nombre,
         params: switch (mensaje['params']) {
-          final Map params => params.cast<String, Object?>(),
+          final Map<Object?, Object?> params => params.cast<String, Object?>(),
           _ => const {},
         },
       );
@@ -64,11 +64,8 @@ abstract final class ProtocoloDelDaemon {
 
   /// Una petición, ya con su salto de línea: una por línea, como espera el otro
   /// lado.
-  static String peticion(
-    int id,
-    String metodo,
-    Map<String, Object?> params,
-  ) => '${jsonEncode([
+  static String peticion(int id, String metodo, Map<String, Object?> params) =>
+      '${jsonEncode([
         {'id': id, 'method': metodo, 'params': params},
       ])}\n';
 
@@ -100,10 +97,7 @@ abstract final class ProtocoloDelDaemon {
   ///   `message`, que es lo que hay que enseñar.
   /// - **`app.stop` contesta `true` pelado**, sin objeto ni código. Tratarlo con
   ///   la regla del `code` lo daría por fallido.
-  static ({bool ok, String? error}) resultadoDe(
-    Object? result,
-    Object? error,
-  ) {
+  static ({bool ok, String? error}) resultadoDe(Object? result, Object? error) {
     if (error != null) return (ok: false, error: '$error');
 
     if (result is Map && result.containsKey('code')) {

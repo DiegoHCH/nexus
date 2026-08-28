@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/core/platform/status_item_channel.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
@@ -49,6 +50,15 @@ class _StatusPresenceState extends ConsumerState<StatusPresence> {
           ? strings.updateAvailable(aviso.latest ?? '')
           : null,
     );
+    // Y los del visor de documentos, que es la otra ventana nativa con texto
+    // propio. Va aquí porque este es el sitio que ya se rehace cuando cambia el
+    // idioma: montar otra máquina igual al lado sería tener dos que mantener.
+    ref
+        .read(artifactsDataSourceProvider)
+        .textos(
+          permitir: strings.allowScriptsAndNetwork,
+          permitirAyuda: strings.allowScriptsExplainer,
+        );
     StatusItemChannel.onAction(
       talk: () => ref
           .read(assistantControllerProvider(widget.conversationId).notifier)

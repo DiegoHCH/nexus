@@ -278,14 +278,35 @@ class _HomePageState extends ConsumerState<HomePage> {
                         child: ConversationDock(),
                       ),
                     ),
-                    if (hud.errorMessage != null)
+                    // El fallo y el aviso son dos cosas distintas y pueden
+                    // coincidir, así que se apilan en vez de competir por el
+                    // mismo hueco. El fallo va arriba: es el que urge.
+                    if (hud.errorMessage != null || hud.notice != null)
                       Positioned(
                         top: NexusSpacing.s5,
                         left: NexusSpacing.s6,
                         right: NexusSpacing.s6,
-                        child: _ErrorChip(
-                          message: hud.errorMessage!,
-                          onDismiss: controller.dismissError,
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            if (hud.errorMessage != null)
+                              _AvisoChip(
+                                message: hud.errorMessage!,
+                                color: context.colors.err,
+                                onDismiss: controller.dismissError,
+                              ),
+                            if (hud.errorMessage != null && hud.notice != null)
+                              const SizedBox(height: NexusSpacing.s2),
+                            if (hud.notice != null)
+                              _AvisoChip(
+                                message: hud.notice!,
+                                // Ámbar y no rojo: algo cambió, no algo se
+                                // rompió. En rojo se lee como un fallo del
+                                // encargo, que es justo lo que no es.
+                                color: context.colors.warn,
+                                onDismiss: controller.dismissNotice,
+                              ),
+                          ],
                         ),
                       ),
                   ],
@@ -542,22 +563,31 @@ class _LiveBadge extends StatelessWidget {
 /// Va acotado y con punto delante —el mismo recurso del interruptor de
 /// permisos— y se puede descartar: un error que no se va obliga a convivir con
 /// él aunque ya lo hayas leído.
-class _ErrorChip extends StatelessWidget {
-  const _ErrorChip({required this.message, required this.onDismiss});
+/// Una línea que se puede cerrar, del color de lo que cuenta.
+///
+/// El color entra por parámetro y no por el tipo del mensaje: son el mismo
+/// objeto en pantalla y solo cambia lo que significan, así que duplicar el
+/// widget para pintarlo en ámbar habría dejado dos sitios que arreglar.
+class _AvisoChip extends StatelessWidget {
+  const _AvisoChip({
+    required this.message,
+    required this.color,
+    required this.onDismiss,
+  });
 
   final String message;
+  final Color color;
   final VoidCallback onDismiss;
 
   @override
   Widget build(BuildContext context) {
-    final colors = context.colors;
     return Center(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 620),
         child: DecoratedBox(
           decoration: BoxDecoration(
-            color: colors.err.withValues(alpha: 0.1),
-            border: Border.all(color: colors.err.withValues(alpha: 0.35)),
+            color: color.withValues(alpha: 0.1),
+            border: Border.all(color: color.withValues(alpha: 0.35)),
             borderRadius: BorderRadius.circular(NexusRadius.sm),
           ),
           child: Padding(
@@ -575,7 +605,7 @@ class _ErrorChip extends StatelessWidget {
                   height: 6,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: colors.err,
+                    color: color,
                   ),
                 ),
                 const SizedBox(width: NexusSpacing.s3),
@@ -583,7 +613,7 @@ class _ErrorChip extends StatelessWidget {
                   child: Text(
                     message,
                     style: NexusTypography.mono.copyWith(
-                      color: colors.err,
+                      color: color,
                       height: 1.4,
                     ),
                   ),
@@ -594,7 +624,7 @@ class _ErrorChip extends StatelessWidget {
                   child: Icon(
                     Icons.close,
                     size: 13,
-                    color: colors.err.withValues(alpha: 0.7),
+                    color: color.withValues(alpha: 0.7),
                   ),
                 ),
               ],

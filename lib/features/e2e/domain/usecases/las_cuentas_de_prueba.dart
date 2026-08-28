@@ -74,8 +74,9 @@ abstract final class LasCuentasDePrueba {
     return reparto;
   }
 
-  static List<Map<String, Object?>> aJson(List<CuentaDePruebas> cuentas) =>
-      [for (final cuenta in cuentas) cuenta.aJson()];
+  static List<Map<String, Object?>> aJson(List<CuentaDePruebas> cuentas) => [
+    for (final cuenta in cuentas) cuenta.aJson(),
+  ];
 
   static List<CuentaDePruebas> deJson(Object? crudo) {
     if (crudo is! List) return const [];

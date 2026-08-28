@@ -25,15 +25,14 @@ void main() {
   test('cada paso lleva la clase de su estado', () {
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([
-        PasoDelFlow(linea: 11, texto: 'uno'),
-        PasoDelFlow(linea: 12, texto: 'dos'),
-        PasoDelFlow(linea: 13, texto: 'tres'),
-      ], [
-        EstadoDePaso.hecho,
-        EstadoDePaso.fallado,
-        EstadoDePaso.pendiente,
-      ]),
+      pasos: _pasos(
+        [
+          PasoDelFlow(linea: 11, texto: 'uno'),
+          PasoDelFlow(linea: 12, texto: 'dos'),
+          PasoDelFlow(linea: 13, texto: 'tres'),
+        ],
+        [EstadoDePaso.hecho, EstadoDePaso.fallado, EstadoDePaso.pendiente],
+      ),
       lineas: const [],
       terminados: 2,
       viva: false,
@@ -75,10 +74,13 @@ void main() {
   test('sin total se usa el número de pasos, que es lo de en vivo', () {
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([
-        PasoDelFlow(linea: 1, texto: 'uno'),
-        PasoDelFlow(linea: 2, texto: 'dos'),
-      ], [EstadoDePaso.hecho, EstadoDePaso.enCurso]),
+      pasos: _pasos(
+        [
+          PasoDelFlow(linea: 1, texto: 'uno'),
+          PasoDelFlow(linea: 2, texto: 'dos'),
+        ],
+        [EstadoDePaso.hecho, EstadoDePaso.enCurso],
+      ),
       lineas: const ['Launch app... COMPLETED'],
       terminados: 1,
       viva: true,
@@ -92,7 +94,10 @@ void main() {
     // Maestro, acaban dentro de esta página.
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'assertVisible: "<b>hola</b>"')], [EstadoDePaso.hecho]),
+      pasos: _pasos(
+        [PasoDelFlow(linea: 1, texto: 'assertVisible: "<b>hola</b>"')],
+        [EstadoDePaso.hecho],
+      ),
       lineas: const ['algo & otro <cosa>'],
       terminados: 1,
       viva: false,
@@ -107,7 +112,10 @@ void main() {
   test('sin salida no se pinta su sección vacía', () {
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
+      pasos: _pasos(
+        [PasoDelFlow(linea: 1, texto: 'uno')],
+        [EstadoDePaso.hecho],
+      ),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -121,7 +129,10 @@ void main() {
     // hueco en blanco.
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
+      pasos: _pasos(
+        [PasoDelFlow(linea: 1, texto: 'uno')],
+        [EstadoDePaso.hecho],
+      ),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -135,7 +146,10 @@ void main() {
     String pagina({required bool viva, required bool fallo}) =>
         LaPasadaComoHtml.escribe(
           flow: 'login',
-          pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.hecho]),
+          pasos: _pasos(
+            [PasoDelFlow(linea: 1, texto: 'uno')],
+            [EstadoDePaso.hecho],
+          ),
           lineas: const [],
           terminados: 1,
           viva: viva,
@@ -172,20 +186,20 @@ void main() {
         pagina(viva: true, fallo: false),
         contains('href="${LaPasadaComoHtml.esquema}://parar"'),
       );
-      expect(
-        pagina(viva: false, fallo: false),
-        isNot(contains('://parar')),
-      );
+      expect(pagina(viva: false, fallo: false), isNot(contains('://parar')));
     });
   });
 
   test('la fila en curso se sombrea, para decir dónde va', () {
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([
-        PasoDelFlow(linea: 1, texto: 'uno'),
-        PasoDelFlow(linea: 2, texto: 'dos'),
-      ], [EstadoDePaso.hecho, EstadoDePaso.enCurso]),
+      pasos: _pasos(
+        [
+          PasoDelFlow(linea: 1, texto: 'uno'),
+          PasoDelFlow(linea: 2, texto: 'dos'),
+        ],
+        [EstadoDePaso.hecho, EstadoDePaso.enCurso],
+      ),
       lineas: const [],
       terminados: 1,
       viva: true,
@@ -199,13 +213,12 @@ void main() {
     // Un `tapOn:` a secas no dice nada; el `id:` de debajo es todo el contenido.
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([
-        PasoDelFlow(
-          linea: 34,
-          texto: 'tapOn:',
-          detalle: ['    id: toolbar'],
-        ),
-      ], [EstadoDePaso.hecho]),
+      pasos: _pasos(
+        [
+          PasoDelFlow(linea: 34, texto: 'tapOn:', detalle: ['    id: toolbar']),
+        ],
+        [EstadoDePaso.hecho],
+      ),
       lineas: const [],
       terminados: 1,
       viva: false,
@@ -224,7 +237,10 @@ void main() {
     // `inline-flex`, así que el fallo solo aparecía en la lista.
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
+      pasos: _pasos(
+        [PasoDelFlow(linea: 1, texto: 'uno')],
+        [EstadoDePaso.enCurso],
+      ),
       lineas: const [],
       terminados: 0,
       viva: true,
@@ -240,15 +256,26 @@ void main() {
     // con acento, y el texto se queda en tinta plena en todos los estados.
     final html = LaPasadaComoHtml.escribe(
       flow: 'login',
-      pasos: _pasos([PasoDelFlow(linea: 1, texto: 'uno')], [EstadoDePaso.enCurso]),
+      pasos: _pasos(
+        [PasoDelFlow(linea: 1, texto: 'uno')],
+        [EstadoDePaso.enCurso],
+      ),
       lineas: const [],
       terminados: 0,
       viva: true,
       fallo: false,
     );
 
-    expect(html, contains('li.curso{background:color-mix(in srgb,var(--acento)'));
-    expect(html, contains('.texto{white-space:pre-wrap;word-break:break-word;color:var(--ink)}'));
+    expect(
+      html,
+      contains('li.curso{background:color-mix(in srgb,var(--acento)'),
+    );
+    expect(
+      html,
+      contains(
+        '.texto{white-space:pre-wrap;word-break:break-word;color:var(--ink)}',
+      ),
+    );
     expect(html, isNot(contains('.texto{color:var(--faint)}')));
   });
 }

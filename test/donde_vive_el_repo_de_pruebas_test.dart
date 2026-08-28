@@ -39,7 +39,10 @@ void main() {
     });
 
     test('dos cambios el mismo día no chocan si cambia el minuto', () {
-      final a = DondeViveElRepoDePruebas.ramaPara(flow: 'x.yaml', cuando: cuando);
+      final a = DondeViveElRepoDePruebas.ramaPara(
+        flow: 'x.yaml',
+        cuando: cuando,
+      );
       final b = DondeViveElRepoDePruebas.ramaPara(
         flow: 'x.yaml',
         cuando: cuando.add(const Duration(minutes: 1)),

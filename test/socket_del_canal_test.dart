@@ -161,6 +161,84 @@ void main() {
     });
   });
 
+  // Post-autenticación, así que solo importa si el token se filtra o alguien se
+  // lleva el teléfono desbloqueado — que es exactamente el escenario contra el
+  // que se diseñó la frase de escritura. En esa ventana, abrir conexiones sin
+  // tope era hinchar el proceso.
+  group('cuántos caben dentro', () {
+    Future<WebSocket> conectar(ChannelServer s) => WebSocket.connect(
+      'ws://127.0.0.1:${s.puerto}/',
+      headers: {HttpHeaders.authorizationHeader: 'Bearer $token'},
+    );
+
+    test('la lista de conexiones no crece sin límite', () async {
+      servidor = await servidorListo();
+
+      final abiertas = <WebSocket>[];
+      for (var i = 0; i < ChannelServer.maxConexiones + 3; i++) {
+        abiertas.add(await conectar(servidor));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      addTearDown(() async {
+        for (final ws in abiertas) {
+          await ws.close();
+        }
+      });
+
+      expect(servidor.clientes, hasLength(ChannelServer.maxConexiones));
+    });
+
+    // Se cierra la más vieja y no se rechaza la nueva: rechazar dejaría fuera a
+    // un teléfono que reconecta por culpa de su propia conexión anterior, que es
+    // la que suele estar muerta sin saberlo.
+    test('la que sobra es la más vieja, no la que acaba de llegar', () async {
+      servidor = await servidorListo();
+
+      final primera = await conectar(servidor);
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      final cerrada = Completer<void>();
+      primera.listen((_) {}, onDone: cerrada.complete);
+
+      final resto = <WebSocket>[];
+      for (var i = 0; i < ChannelServer.maxConexiones; i++) {
+        resto.add(await conectar(servidor));
+        await Future<void>.delayed(const Duration(milliseconds: 20));
+      }
+      addTearDown(() async {
+        for (final ws in resto) {
+          await ws.close();
+        }
+      });
+
+      await cerrada.future.timeout(const Duration(seconds: 5));
+      expect(
+        servidor.clientes,
+        hasLength(ChannelServer.maxConexiones),
+        reason: 'la nueva entró y la vieja se fue',
+      );
+    });
+
+    test(
+      'y el desalojo queda anotado, que si no es un corte sin motivo',
+      () async {
+        servidor = await servidorListo();
+
+        final abiertas = <WebSocket>[];
+        for (var i = 0; i < ChannelServer.maxConexiones + 1; i++) {
+          abiertas.add(await conectar(servidor));
+          await Future<void>.delayed(const Duration(milliseconds: 20));
+        }
+        addTearDown(() async {
+          for (final ws in abiertas) {
+            await ws.close();
+          }
+        });
+
+        expect(anotado, contains(startsWith('desalojado')));
+      },
+    );
+  });
+
   group('el saludo', () {
     Future<WebSocket> conectar(ChannelServer s) => WebSocket.connect(
       'ws://127.0.0.1:${s.puerto}/',

@@ -20,6 +20,7 @@ import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
@@ -118,9 +119,14 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _folder;
     if (folder == null) return;
 
-    final List<ConversationRecord> guardadas;
+    // El almacén se coge **antes de cualquier espera**. Después ya no se puede:
+    // esta conversación puede haberse cerrado mientras se leía el disco, y
+    // preguntarle nada a un `ref` desechado revienta.
+    final almacen = ref.read(localConversationStoreProvider);
+
+    final List<ConversationSummary> guardadas;
     try {
-      guardadas = await ref.read(localConversationStoreProvider).list(folder);
+      guardadas = await almacen.list(folder);
     } catch (error) {
       // Un historial ilegible no puede impedir abrir la conversación: se sigue en
       // blanco, que es lo que había antes de esto.
@@ -128,9 +134,15 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
 
+    // **Que la pestaña siga viva.** Entre pedir el disco y volver puede haberse
+    // cerrado, y a un `ref` desechado no se le puede preguntar nada. Recuperar
+    // lo dicho en una conversación que ya no está no le sirve a nadie.
+    if (!ref.mounted) return;
+
     // La lista, leída del disco antes de preguntarle nada: recién construida está
     // vacía, y preguntar ahí devolvía «no adoptó ningún registro» siempre.
     await ref.read(conversationsProvider.notifier).asegurarCargado();
+    if (!ref.mounted) return;
 
     // **El registro adoptado primero.** Una conversación retomada del archivo escribe
     // en el id de ese registro, no en el suyo: buscar por el propio no encontraba nada
@@ -143,8 +155,23 @@ class AssistantController extends Notifier<AssistantHudState> {
             .firstOrNull
             ?.recordId ??
         conversationId;
-    final mia = guardadas.where((r) => r.id == buscado).firstOrNull;
+    final ficha = guardadas.where((r) => r.id == buscado).firstOrNull;
+    if (ficha == null) return;
+    if (state.messages.isNotEmpty) return;
+
+    // Los mensajes se leen **solo de la que se busca**. La lista trae fichas
+    // sin turnos dentro; pintar esta necesita la conversación entera, y es una
+    // lectura, no todas.
+    final ConversationRecord? mia;
+    try {
+      mia = await almacen.read(ficha);
+    } catch (error) {
+      debugPrint('archivo · no se pudo leer lo dicho: $error');
+      return;
+    }
     if (mia == null || mia.messages.isEmpty) return;
+    // Se vuelve a mirar después de leer: entre una cosa y otra ha habido una
+    // espera, y en ese hueco el usuario puede haber empezado a hablar.
     if (state.messages.isNotEmpty) return;
 
     resume(mia);
@@ -245,6 +272,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      // El aviso también es del turno anterior. Si las reglas siguen
+      // cambiadas, este encargo lo vuelve a decir; si no, ya se leyó.
+      notice: null,
       // Los cambios del turno anterior se van con él: son de esa tarea.
       changes: null,
       history: _remember(paraClaude),
@@ -259,6 +289,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
       (event) => switch (event) {
         ClaudeQueued() => _onQueued(),
+        ClaudeRulesChanged() => _onRulesChanged(event.paths),
         ClaudeSessionStarted() => _onSessionStarted(event.model),
         ClaudeTextDelta() => _onTextDelta(buffer, event),
         ClaudeToolUsed() => _onClaudeToolUsed(event),
@@ -588,6 +619,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       subtitle: '',
       activity: const [],
       errorMessage: null,
+      notice: null,
       // Con lo que decía el medidor al guardarla. Si no, retomar una
       // conversación dejaba la barra superior en blanco hasta el siguiente
       // turno, como si el contexto se hubiera perdido — y no se ha perdido:
@@ -848,9 +880,24 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
   }
 
+  /// Las reglas del repositorio cambiaron desde el encargo anterior.
+  ///
+  /// No detiene nada ni pinta un error: el encargo ya está en marcha y el
+  /// cambio puede ser perfectamente normal —un `git pull`, cambiar de rama—.
+  /// Lo que no puede ser es que pase sin que se vea, porque ese texto entra en
+  /// el prompt de sistema de **cada** encargo.
+  void _onRulesChanged(List<String> paths) {
+    state = state.copyWith(
+      notice: ref.read(stringsProvider).rulesChanged(paths),
+    );
+  }
+
   /// Quita el aviso ya leído. Un error que no se puede cerrar obliga a
   /// convivir con él el resto de la sesión.
   void dismissError() => state = state.copyWith(errorMessage: null);
+
+  /// Lo mismo para el aviso que no es un fallo.
+  void dismissNotice() => state = state.copyWith(notice: null);
 
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();

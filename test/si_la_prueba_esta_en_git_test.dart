@@ -16,11 +16,8 @@ void main() {
   setUp(() => casa = Directory.systemTemp.createTempSync('engit'));
   tearDown(() => casa.deleteSync(recursive: true));
 
-  Future<void> git(List<String> argumentos) => Process.run('git', [
-    '-C',
-    casa.path,
-    ...argumentos,
-  ]);
+  Future<void> git(List<String> argumentos) =>
+      Process.run('git', ['-C', casa.path, ...argumentos]);
 
   test('un flow commiteado se puede recuperar', () async {
     await git(['init', '-q']);

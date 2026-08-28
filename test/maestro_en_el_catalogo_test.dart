@@ -16,9 +16,7 @@ import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
 /// algo que no está.
 void main() {
   group('la entrada del catálogo', () {
-    final maestro = McpCatalog.entries.firstWhere(
-      (e) => e.name == 'maestro',
-    );
+    final maestro = McpCatalog.entries.firstWhere((e) => e.name == 'maestro');
 
     test('se instala como servidor de comando, no como URL', () {
       // `maestro mcp` habla por stdio. Puesto como URL, `claude mcp add` lo
@@ -31,27 +29,39 @@ void main() {
       // Estos argumentos acaban en un proceso: un nombre que no pasa por aquí no
       // falla, hace otra cosa.
       expect(McpCommand.validName('maestro'), isTrue);
-      expect(
-        McpCommand.add(name: 'maestro', command: maestro.command),
-        ['mcp', 'add', '-s', 'user', 'maestro', '--', 'maestro', 'mcp'],
-      );
+      expect(McpCommand.add(name: 'maestro', command: maestro.command), [
+        'mcp',
+        'add',
+        '-s',
+        'user',
+        'maestro',
+        '--',
+        'maestro',
+        'mcp',
+      ]);
     });
 
-    test('es el único que dice cómo instalarse, y lo dice porque hace falta', () {
-      // Los de `npx` se bajan solos en la primera ejecución; este no. Si algún
-      // día se añade otro binario previo sin instrucciones, esta prueba no lo
-      // pilla — lo que fija es que el que las necesita las tenga.
-      expect(maestro.comoSeInstala, isNotNull);
-      expect(maestro.comoSeInstala, contains('get.maestro.mobile.dev'));
+    test(
+      'es el único que dice cómo instalarse, y lo dice porque hace falta',
+      () {
+        // Los de `npx` se bajan solos en la primera ejecución; este no. Si algún
+        // día se añade otro binario previo sin instrucciones, esta prueba no lo
+        // pilla — lo que fija es que el que las necesita las tenga.
+        expect(maestro.comoSeInstala, isNotNull);
+        expect(maestro.comoSeInstala, contains('get.maestro.mobile.dev'));
 
-      for (final otro in McpCatalog.entries.where((e) => e.name != 'maestro')) {
-        expect(
-          otro.comoSeInstala,
-          isNull,
-          reason: '${otro.name} no necesita instalación previa: es npx o una URL',
-        );
-      }
-    });
+        for (final otro in McpCatalog.entries.where(
+          (e) => e.name != 'maestro',
+        )) {
+          expect(
+            otro.comoSeInstala,
+            isNull,
+            reason:
+                '${otro.name} no necesita instalación previa: es npx o una URL',
+          );
+        }
+      },
+    );
   });
 
   group('el PATH con el que la app lanza procesos', () {
@@ -80,7 +90,8 @@ void main() {
         'maestro',
         path: '/vacio:/opt/homebrew/bin:/casa/.maestro/bin',
         existe: (r) =>
-            r == '/opt/homebrew/bin/maestro' || r == '/casa/.maestro/bin/maestro',
+            r == '/opt/homebrew/bin/maestro' ||
+            r == '/casa/.maestro/bin/maestro',
       );
 
       expect(ruta, '/opt/homebrew/bin/maestro');
@@ -138,7 +149,7 @@ void main() {
       );
     });
 
-    test('y el servidor sigue permitido, que es el punto', () {
+    test('y el servidor sigue permitido, que es el punto', () async {
       // La denegación gana al permiso —medido—, así que quitarle una herramienta
       // no cuesta el resto: mirar la pantalla y correr un flow en el emulador de
       // casa siguen valiendo en una carpeta que no escribe. Si esto se cayera,
@@ -151,7 +162,7 @@ void main() {
       );
 
       expect(
-        McpPermissions.permitidosPara(perfil.path, puedeEscribir: false),
+        await McpPermissions.permitidosPara(perfil.path, puedeEscribir: false),
         contains('maestro'),
       );
     });

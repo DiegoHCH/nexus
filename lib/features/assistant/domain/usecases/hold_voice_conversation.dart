@@ -7,7 +7,9 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 
 /// La conversación completa: micrófono → socket → altavoz, y Claude en medio
@@ -28,7 +30,11 @@ class HoldVoiceConversation {
     this._output,
     this._askClaude,
     this._log,
+    this._correrUnaPrueba,
   );
+
+  /// Quien sabe lanzar una prueba sin pasar por Claude. Ver [CorrerUnaPrueba].
+  final CorrerUnaPrueba _correrUnaPrueba;
 
   /// A dónde van los diagnósticos de la sesión. **Se inyecta y no se elige
   /// aquí** por una razón medida: los de b11 se escribieron con
@@ -279,6 +285,17 @@ class HoldVoiceConversation {
                   'carpeta.',
                 ),
               );
+            // Hablando, la pantalla puede estar detrás: el mismo motivo por el
+            // que la cola se dice en voz alta. Que las reglas del repositorio
+            // hayan cambiado desde la última vez es justo lo que no puede
+            // quedarse en un chip que nadie está mirando.
+            case ClaudeRulesChanged(:final paths):
+              controller.add(
+                VoiceToolProgress(
+                  'Aviso: han cambiado las reglas del repositorio '
+                  '(${paths.length} archivo(s)). Sigo con el encargo.',
+                ),
+              );
             case ClaudeTextDelta(:final text):
               answer.write(text);
               controller.add(VoiceToolProgress(text));
@@ -367,6 +384,23 @@ class HoldVoiceConversation {
           : answer.toString();
     }
 
+    /// El tope de lo que sale hacia el servicio de voz, aplicado **en los dos
+    /// sitios por los que sale** y no al devolver el encargo.
+    ///
+    /// La diferencia importa: lo que devuelve `runErrand` también alimenta la
+    /// pantalla, y ahí la respuesta se ve entera. Recortar en el origen
+    /// escondería en el Mac algo que el Mac sí puede enseñar; lo que se recorta
+    /// es lo que cruza la frontera.
+    String loQueCabe(String respuesta, String de) {
+      if (!LoQueSaleHaciaLaVoz.sobra(respuesta)) return respuesta;
+      _log(
+        'voz · «$de» devolvió ${respuesta.length} caracteres y hacia el '
+        'servicio de voz salen ${LoQueSaleHaciaLaVoz.maxCaracteres}: el resto '
+        'se queda en la pantalla',
+      );
+      return LoQueSaleHaciaLaVoz.recortar(respuesta);
+    }
+
     /// El modelo contestó por su cuenta algo que tenía que haber ido a Claude.
     ///
     /// Aquí está el candado que b6 pedía: la comprobación no la hace el modelo,
@@ -392,10 +426,29 @@ class HoldVoiceConversation {
         );
         return;
       }
-      session?.sendSystemNote(VoiceRouting.correction(answer));
+      session?.sendSystemNote(
+        VoiceRouting.correction(loQueCabe(answer, 'la corrección')),
+      );
     }
 
     Future<void> runTool(VoiceToolRequested request) async {
+      // La de las pruebas se atiende aquí y no acaba en Claude: va al lanzador
+      // de Nexus, así que no depende de que un MCP esté vivo ni del modo de
+      // permisos. Va delante del resto porque `ClaudeErrand.forTool` no la
+      // conoce y la trataría como una herramienta inventada.
+      if (request.name == ClaudeErrand.testTool) {
+        final pedido = (request.arguments['prueba'] as String?)?.trim() ?? '';
+        controller.add(VoiceToolStarted('Pruebas: $pedido'));
+        final dicho = await _correrUnaPrueba.loQuePidieron(pedido);
+        controller.add(const VoiceToolFinished(ok: true));
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result: loQueCabe(dicho, request.name),
+        );
+        return;
+      }
+
       final instruction = ClaudeErrand.forTool(request.name, request.arguments);
       // Herramienta desconocida o argumentos incompletos: se contesta igual.
       // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
@@ -415,7 +468,7 @@ class HoldVoiceConversation {
       session?.sendToolResult(
         callId: request.callId,
         name: request.name,
-        result: answer,
+        result: loQueCabe(answer, request.name),
       );
     }
 

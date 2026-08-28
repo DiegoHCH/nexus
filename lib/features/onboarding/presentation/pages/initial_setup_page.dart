@@ -17,6 +17,17 @@ import 'package:url_launcher/url_launcher.dart';
 /// El orbe vive en una franja fija arriba (altura [_orbZoneHeight]); el
 /// contenido siempre arranca por debajo de esa franja — nunca centrado en
 /// toda la pantalla — para que no se monten cuando la ventana es baja.
+///
+/// **Se desplaza, y lo dice con una flecha en vez de con una barra.** En una
+/// ventana de 1280×800 hay medio metro de pantalla por debajo del borde, así
+/// que lo que falta hay que ir a buscarlo y hace falta que se note. La barra
+/// del sistema no lo consigue: en macOS se pinta al desplazar y desaparece
+/// sola, o sea que aparece cuando ya sabes que hay más y no antes.
+///
+/// La flecha parpadea porque tiene que llamar sin gritar —está sobre el botón
+/// de entrar, que es lo importante— y **solo existe mientras quede algo
+/// debajo**: al llegar al final desaparece. Una que se quede fija cuando ya no
+/// hay nada más se convierte en un adorno, y la próxima vez ya no se mira.
 class InitialSetupPage extends ConsumerStatefulWidget {
   const InitialSetupPage({super.key});
 
@@ -32,13 +43,39 @@ class InitialSetupPage extends ConsumerStatefulWidget {
   ConsumerState<InitialSetupPage> createState() => _InitialSetupPageState();
 }
 
-class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
+class _InitialSetupPageState extends ConsumerState<InitialSetupPage>
+    with SingleTickerProviderStateMixin {
   final _keyController = TextEditingController();
+
+  /// El parpadeo de la flecha. Lento a propósito: a este ritmo se ve por el
+  /// rabillo del ojo y no interrumpe la lectura de lo que hay arriba.
+  late final _parpadeo = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+    lowerBound: 0.25,
+  )..repeat(reverse: true);
+
+  /// Si queda algo por debajo del borde.
+  bool _quedaAbajo = false;
 
   @override
   void dispose() {
+    _parpadeo.dispose();
     _keyController.dispose();
     super.dispose();
+  }
+
+  /// Los ocho píxeles de margen no son manía: al llegar al final, el `extentAfter`
+  /// se queda a veces en una fracción por el redondeo del scroll, y sin margen la
+  /// flecha seguiría parpadeando abajo del todo diciendo que falta algo.
+  void _mirar(ScrollMetrics metricas) {
+    final queda = metricas.extentAfter > 8;
+    if (queda == _quedaAbajo) return;
+    // Fuera del reparto de la notificación: llega durante el layout, y un
+    // `setState` ahí dentro reconstruye el árbol que se está midiendo.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) setState(() => _quedaAbajo = queda);
+    });
   }
 
   Future<void> _openApiKeyPage() async {
@@ -57,9 +94,13 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final setup = ref.watch(setupControllerProvider);
-    // Las tres cosas: micrófono, llave y carpeta. Sin la tercera la app
-    // arrancaría sin sitio donde trabajar, y el primer encargo respondería
-    // sobre la raíz del disco.
+    // **Solo la carpeta.** El micrófono y la llave se piden aquí porque este es
+    // el sitio natural para ponerlos, no porque hagan falta para entrar: los dos
+    // son de la voz, y la voz está apagada en toda carpeta hasta que alguien la
+    // encienda. Se pueden dejar en blanco y añadirlos luego en Ajustes.
+    //
+    // La carpeta no: sin ella la app arrancaría sin sitio donde trabajar y el
+    // primer encargo respondería sobre la raíz del disco.
     final canFinish =
         setup.canFinish &&
         ref.watch(workspaceControllerProvider).folders.isNotEmpty;
@@ -91,107 +132,157 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
             child: SafeArea(
               child: Align(
                 alignment: Alignment.topCenter,
-                child: SingleChildScrollView(
-                  padding: const EdgeInsets.only(
-                    top: InitialSetupPage._contentTopPadding,
-                    bottom: NexusSpacing.s9,
-                  ),
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 520),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Text(
-                          context.strings.beforeWeStart,
-                          style: NexusTypography.label.copyWith(
-                            color: colors.accent,
+                // Sin barra: la pinta el comportamiento de scroll de la
+                // plataforma, y aquí la sustituye la flecha de abajo.
+                child: ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  // Dos escuchas y no una: `ScrollNotification` avisa al
+                  // desplazar, y `ScrollMetricsNotification` avisa cuando cambia
+                  // lo que hay que desplazar sin que nadie lo mueva — que es lo
+                  // que pasa al conceder el micrófono, que añade la onda y hace
+                  // crecer el contenido.
+                  child: NotificationListener<ScrollMetricsNotification>(
+                    onNotification: (aviso) {
+                      _mirar(aviso.metrics);
+                      return false;
+                    },
+                    child: NotificationListener<ScrollNotification>(
+                      onNotification: (aviso) {
+                        _mirar(aviso.metrics);
+                        return false;
+                      },
+                      child: SingleChildScrollView(
+                        padding: const EdgeInsets.only(
+                          top: InitialSetupPage._contentTopPadding,
+                          bottom: NexusSpacing.s9,
+                        ),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 520),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                context.strings.beforeWeStart,
+                                style: NexusTypography.label.copyWith(
+                                  color: colors.accent,
+                                ),
+                              ),
+                              const SizedBox(height: NexusSpacing.s3),
+                              Text(
+                                context.strings.setupTitle,
+                                style: NexusTypography.title.copyWith(
+                                  color: colors.ink,
+                                  fontSize: 26,
+                                ),
+                              ),
+                              const SizedBox(height: NexusSpacing.s3),
+                              Text(
+                                context.strings.setupExplainer,
+                                style: NexusTypography.body.copyWith(
+                                  color: colors.mute,
+                                ),
+                              ),
+                              const SizedBox(height: NexusSpacing.s7),
+                              _MicrophoneField(
+                                status: setup.micStatus,
+                                amplitude: setup.amplitude,
+                                onRequest: () => ref
+                                    .read(setupControllerProvider.notifier)
+                                    .requestMicrophoneAccess(),
+                              ),
+                              const SizedBox(height: NexusSpacing.s6),
+                              const _WorkFolderField(),
+                              const SizedBox(height: NexusSpacing.s6),
+                              _GeminiKeyField(
+                                controller: _keyController,
+                                onChanged: (value) => ref
+                                    .read(setupControllerProvider.notifier)
+                                    .updateKeyText(value),
+                                onGetKey: _openApiKeyPage,
+                              ),
+                              if (setup.errorMessage != null) ...[
+                                const SizedBox(height: NexusSpacing.s4),
+                                Text(
+                                  context.strings.keySaveFailed(
+                                    setup.errorMessage ?? '',
+                                  ),
+                                  style: NexusTypography.label.copyWith(
+                                    color: colors.err,
+                                    letterSpacing: 0.4,
+                                  ),
+                                ),
+                              ],
+                              const SizedBox(height: NexusSpacing.s6),
+                              // El tema global del botón usa un solo color para todos
+                              // los estados (`WidgetStatePropertyAll`), así que
+                              // deshabilitado y habilitado se ven igual sin este
+                              // opacity — el mockup marca el bloqueado con .38.
+                              Opacity(
+                                opacity: canFinish ? 1 : 0.38,
+                                child: SizedBox(
+                                  width: double.infinity,
+                                  child: ElevatedButton(
+                                    onPressed: canFinish ? _finish : null,
+                                    child: setup.saving
+                                        ? SizedBox(
+                                            width: 16,
+                                            height: 16,
+                                            child: CircularProgressIndicator(
+                                              strokeWidth: 2,
+                                              color: colors.void_,
+                                            ),
+                                          )
+                                        : Text(context.strings.startUsingNexus),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: NexusSpacing.s5),
+                              Text(
+                                context.strings.changeLaterHint,
+                                textAlign: TextAlign.center,
+                                style: NexusTypography.mono.copyWith(
+                                  color: colors.faint,
+                                ),
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(height: NexusSpacing.s3),
-                        Text(
-                          context.strings.setupTitle,
-                          style: NexusTypography.title.copyWith(
-                            color: colors.ink,
-                            fontSize: 26,
-                          ),
-                        ),
-                        const SizedBox(height: NexusSpacing.s3),
-                        Text(
-                          context.strings.setupExplainer,
-                          style: NexusTypography.body.copyWith(
-                            color: colors.mute,
-                          ),
-                        ),
-                        const SizedBox(height: NexusSpacing.s7),
-                        _MicrophoneField(
-                          status: setup.micStatus,
-                          amplitude: setup.amplitude,
-                          onRequest: () => ref
-                              .read(setupControllerProvider.notifier)
-                              .requestMicrophoneAccess(),
-                        ),
-                        const SizedBox(height: NexusSpacing.s6),
-                        const _WorkFolderField(),
-                        const SizedBox(height: NexusSpacing.s6),
-                        _GeminiKeyField(
-                          controller: _keyController,
-                          onChanged: (value) => ref
-                              .read(setupControllerProvider.notifier)
-                              .updateKeyText(value),
-                          onGetKey: _openApiKeyPage,
-                        ),
-                        if (setup.errorMessage != null) ...[
-                          const SizedBox(height: NexusSpacing.s4),
-                          Text(
-                            context.strings.keySaveFailed(
-                              setup.errorMessage ?? '',
-                            ),
-                            style: NexusTypography.label.copyWith(
-                              color: colors.err,
-                              letterSpacing: 0.4,
-                            ),
-                          ),
-                        ],
-                        const SizedBox(height: NexusSpacing.s6),
-                        // El tema global del botón usa un solo color para todos
-                        // los estados (`WidgetStatePropertyAll`), así que
-                        // deshabilitado y habilitado se ven igual sin este
-                        // opacity — el mockup marca el bloqueado con .38.
-                        Opacity(
-                          opacity: canFinish ? 1 : 0.38,
-                          child: SizedBox(
-                            width: double.infinity,
-                            child: ElevatedButton(
-                              onPressed: canFinish ? _finish : null,
-                              child: setup.saving
-                                  ? SizedBox(
-                                      width: 16,
-                                      height: 16,
-                                      child: CircularProgressIndicator(
-                                        strokeWidth: 2,
-                                        color: colors.void_,
-                                      ),
-                                    )
-                                  : Text(context.strings.startUsingNexus),
-                            ),
-                          ),
-                        ),
-                        const SizedBox(height: NexusSpacing.s5),
-                        Text(
-                          context.strings.changeLaterHint,
-                          textAlign: TextAlign.center,
-                          style: NexusTypography.mono.copyWith(
-                            color: colors.faint,
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
                   ),
                 ),
               ),
             ),
           ),
+          // La flecha. Sobre todo lo demás, abajo del centro, y sin capturar el
+          // ratón: es un aviso, no un botón — pulsarla no hace nada, así que no
+          // puede parecer que sí.
+          if (_quedaAbajo)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: NexusSpacing.s4,
+              child: IgnorePointer(
+                child: Center(
+                  child: FadeTransition(
+                    // Con el sistema en «reducir movimiento» se queda quieta y
+                    // visible: sigue diciendo lo mismo sin parpadear a nadie.
+                    opacity: MediaQuery.disableAnimationsOf(context)
+                        ? const AlwaysStoppedAnimation(1.0)
+                        : _parpadeo,
+                    child: Icon(
+                      Icons.keyboard_arrow_down,
+                      size: 28,
+                      color: colors.accent,
+                      semanticLabel: context.strings.hayMasAbajo,
+                    ),
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
     );
@@ -242,10 +333,7 @@ class _MicrophoneField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.strings.microphone,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
+        _EtiquetaOpcional(context.strings.microphone),
         const SizedBox(height: NexusSpacing.s3),
         Row(
           children: [
@@ -448,10 +536,7 @@ class _GeminiKeyField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.strings.geminiKey,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
+        _EtiquetaOpcional(context.strings.geminiKey),
         const SizedBox(height: NexusSpacing.s3),
         TextField(
           controller: controller,
@@ -469,6 +554,33 @@ class _GeminiKeyField extends StatelessWidget {
         OutlinedButton(
           onPressed: onGetKey,
           child: Text(context.strings.getFreeKey),
+        ),
+      ],
+    );
+  }
+}
+
+/// Una etiqueta de campo con su «OPCIONAL» al lado.
+///
+/// Se ve a la primera y no en letra pequeña debajo: quien llega a esta pantalla
+/// con la app recién instalada está decidiendo si le da una llave de Google a
+/// algo que acaba de conocer, y esa decisión se toma en el segundo en que se lee
+/// la etiqueta.
+class _EtiquetaOpcional extends StatelessWidget {
+  const _EtiquetaOpcional(this.texto);
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Text(texto, style: NexusTypography.label.copyWith(color: colors.faint)),
+        const SizedBox(width: NexusSpacing.s2),
+        Text(
+          context.strings.setupOptional,
+          style: NexusTypography.label.copyWith(color: colors.accent),
         ),
       ],
     );

@@ -206,6 +206,29 @@ class GeminiVoiceGateway implements VoiceGateway {
               'required': ['nombre', 'para_que'],
             },
           },
+          {
+            'name': testToolName,
+            'description':
+                'Lanza una prueba de Maestro del proyecto y la enseña en '
+                'pantalla, paso a paso. Úsala **siempre** que te pidan correr, '
+                'lanzar o ejecutar una prueba, un flow o el suite, en vez de '
+                'pedírselo a Claude: la lanza Nexus directamente, así que '
+                'funciona con el permiso en solo lectura y sin depender de nada '
+                'más. Si lo que dijeron encaja en varias pruebas te lo diré, y '
+                'entonces pregunta cuál en vez de elegir tú.',
+            'parameters': {
+              'type': 'OBJECT',
+              'properties': {
+                'prueba': {
+                  'type': 'STRING',
+                  'description':
+                      'El nombre de la prueba tal como lo dijeron, sin '
+                      'inventarse la extensión ni la ruta.',
+                },
+              },
+              'required': ['prueba'],
+            },
+          },
         ],
       },
     ],
@@ -215,6 +238,7 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// tiene que reconocerlos cuando el modelo los llama.
   static const toolName = 'pedir_a_claude';
   static const skillToolName = 'crear_skill';
+  static const testToolName = 'correr_prueba';
 }
 
 class _GeminiVoiceSession implements VoiceSession {

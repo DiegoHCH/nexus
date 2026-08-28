@@ -47,16 +47,17 @@ abstract final class LectorDePasadas {
       if (entrada is! Map) continue;
 
       // El entorno viaja dentro del primer comando, no en la raíz.
-      if (entrada['command'] case final Map orden) {
-        if (orden['defineVariablesCommand'] case final Map definicion) {
-          if (definicion['env'] case final Map entorno) {
+      if (entrada['command'] case final Map<Object?, Object?> orden) {
+        if (orden['defineVariablesCommand']
+            case final Map<Object?, Object?> definicion) {
+          if (definicion['env'] case final Map<Object?, Object?> entorno) {
             dispositivo ??= entorno['MAESTRO_DEVICE_UDID'] as String?;
           }
         }
       }
 
       final estado = switch (entrada['metadata']) {
-        final Map metadatos => '${metadatos['status'] ?? ''}',
+        final Map<Object?, Object?> metadatos => '${metadatos['status'] ?? ''}',
         _ => '',
       };
 
@@ -103,10 +104,7 @@ abstract final class LectorDePasadas {
   /// mientras la prueba corría, que es lo único de lo que se puede depender: la
   /// carpeta del flow con su `commands.json` no siempre llega —medido— y sin esto
   /// una pasada que pasó entera desaparecía del historial.
-  static PasadaDePrueba? leerRegistro(
-    String json, {
-    required String carpeta,
-  }) {
+  static PasadaDePrueba? leerRegistro(String json, {required String carpeta}) {
     final Object? leido;
     try {
       leido = jsonDecode(json);

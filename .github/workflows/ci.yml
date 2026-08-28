@@ -1,9 +1,10 @@
 # Lo que nadie corría salvo a mano.
 #
-# Hay 374 pruebas de Dart y 5 nativas, y hasta ahora dependían de que quien
-# mezclara se acordara de ejecutarlas. Aguanta por disciplina y deja de aguantar
-# el primer día con prisa — y son justo las que pillan lo que el análisis
-# estático no ve: una fila que desborda, un velo colapsado a tamaño cero.
+# Hay 1.356 pruebas de Dart, 37 del protocolo y 45 nativas, y hasta ahora
+# dependían de que quien mezclara se acordara de ejecutarlas. Aguanta por
+# disciplina y deja de aguantar el primer día con prisa — y son justo las que
+# pillan lo que el análisis estático no ve: una fila que desborda, un velo
+# colapsado a tamaño cero.
 name: CI
 
 on:
@@ -25,7 +26,7 @@ jobs:
     name: análisis y pruebas
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -54,11 +55,26 @@ jobs:
 
       # Uno solo desde la raíz: cubre la app y el paquete, y así los dos obedecen
       # las mismas reglas sin tener que repetirlas.
+      #
+      # `--fatal-infos` porque si no, la mitad de lo que dicen los modos estrictos
+      # no para nada: `strict-raw-types` avisa con severidad *info*, y un aviso que
+      # no rompe el CI es un aviso que se acumula. Hoy el análisis sale en cero, así
+      # que exigirlo no cuesta nada — y ese es justo el momento de exigirlo.
       - name: flutter analyze
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
+
+      # Y el formato, por el mismo motivo que `--fatal-infos`: 55 archivos
+      # habían quedado sin formatear, y el precio no era la estética — era que
+      # cada rama que tocara uno arrastraba cien líneas de reindentado ajeno al
+      # cambio. Tres veces hubo que revertirlo a mano para que un PR de
+      # seguridad se pudiera leer.
+      #
+      # `--output=none` no toca nada: solo dice si algo está sin formatear.
+      - name: dart format
+        run: dart format --output=none --set-exit-if-changed lib test packages
 
       # Y sus pruebas, que `flutter test` **no mira**: es Dart puro con su propio
-      # `pubspec`. Sin este paso sus 31 pruebas existirían y no las correría nadie,
+      # `pubspec`. Sin este paso sus 37 pruebas existirían y no las correría nadie,
       # que es el problema que este workflow vino a resolver. Una de ellas compara
       # el código con `docs/PROTOCOL.md`: si se queda sin ejecutar, el documento y
       # el contrato pueden separarse en silencio.
@@ -67,18 +83,54 @@ jobs:
         run: dart test
 
       - name: flutter test
-        run: flutter test
+        run: flutter test --coverage
+
+      # El número, dicho en voz alta — y **por capa**, que es lo que lo hace
+      # significar algo.
+      #
+      # Nació sin umbral a propósito: ponerlo sin haber mirado qué estaba sin
+      # cubrir habría sido elegir un número al azar y luego trabajar para él. Ya
+      # se ha mirado, y el agregado engaña: 60 % en global, pero **90 % en
+      # `domain`** — la capa donde viven las decisiones— frente a 57 % en los
+      # widgets.
+      #
+      # Así que el suelo va donde importa y no en el total. Un umbral global se
+      # contentaría con pruebas de widgets y bajaría solo con que alguien añada
+      # una pantalla grande, castigando lo que no toca; uno sobre `domain` dice
+      # lo único que se quiere decir: **la capa donde se decide no retrocede**.
+      #
+      # 85 y no 90: el margen es para que un caso de uso nuevo y a medio cubrir
+      # no rompa el CI del PR que lo introduce, no para tolerar que se erosione.
+      - name: cobertura
+        run: |
+          awk -F: '
+            /^SF:/ { dominio = ($2 ~ /\/domain\//) }
+            /^LF:/ { t += $2; if (dominio) dt += $2 }
+            /^LH:/ { c += $2; if (dominio) dc += $2 }
+            END {
+              printf "Cobertura de líneas: **%.1f %%** — %d de %d\n", 100*c/t, c, t
+              printf "En `domain`: **%.1f %%** — %d de %d\n", 100*dc/dt, dc, dt
+              if (100*dc/dt < 85) {
+                printf "\n**Por debajo del suelo de 85 %% en `domain`.**\n"
+                exit 1
+              }
+            }
+          ' coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Aparte porque pide macOS: es el único sitio donde se pueden correr, y no hay
   # motivo para pagar un Mac por el análisis.
   #
-  # Estas cinco existen por la caída del visor: cerrar una ventana mataba la app
-  # entera y las 374 de Dart no podían verlo, porque el fallo vive en AppKit.
+  # Nacieron por la caída del visor —cerrar una ventana mataba la app entera y
+  # las de Dart no podían verlo, porque el fallo vive en AppKit—. Ahora cubren
+  # además qué puede hacer un documento dentro de esa ventana, la aserción de
+  # energía que si se escapa deja el Mac sin dormirse, la miniatura que nunca
+  # puede salir vacía, y la única decisión del motor de audio que no necesita
+  # hardware.
   nativas:
     name: pruebas nativas de macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:

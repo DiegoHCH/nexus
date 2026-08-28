@@ -1,3 +1,4 @@
+import AppKit
 import FlutterMacOS
 import Foundation
 import os
@@ -18,9 +19,20 @@ final class NexusFiles {
       binaryMessenger: registrar.messenger
     )
     channel.setMethodCallHandler { call, result in
-      guard call.method == "moveToTrash",
-            let path = (call.arguments as? [String: Any])?["path"] as? String
-      else {
+      guard let path = (call.arguments as? [String: Any])?["path"] as? String else {
+        result(FlutterMethodNotImplemented)
+        return
+      }
+
+      // Enseñarlo en el Finder, seleccionado. Es lo que se hace con un registro:
+      // no se lee dentro de la app —para eso hay editores— se abre donde está.
+      if call.method == "reveal" {
+        NSWorkspace.shared.activateFileViewerSelecting([URL(fileURLWithPath: path)])
+        result(true)
+        return
+      }
+
+      guard call.method == "moveToTrash" else {
         result(FlutterMethodNotImplemented)
         return
       }

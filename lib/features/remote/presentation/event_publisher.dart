@@ -146,6 +146,7 @@ class EventPublisher {
         contextWindow: hud.meter.contextWindow,
       ),
       error: hud.errorMessage,
+      notice: hud.notice,
     );
   }
 }

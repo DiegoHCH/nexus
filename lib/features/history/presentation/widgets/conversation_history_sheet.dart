@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
-import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -23,7 +23,7 @@ class ConversationHistorySheet extends ConsumerStatefulWidget {
     this.forgetFolder,
   });
 
-  final void Function(ConversationRecord record) onPick;
+  final void Function(ConversationSummary record) onPick;
   final VoidCallback onForget;
 
   /// La carpeta cuya sesión de Claude se olvidaría, o `null` si no hay ninguna
@@ -39,7 +39,7 @@ class ConversationHistorySheet extends ConsumerStatefulWidget {
 
   static Future<void> open(
     BuildContext context, {
-    required void Function(ConversationRecord record) onPick,
+    required void Function(ConversationSummary record) onPick,
     required VoidCallback onForget,
     String? forgetFolder,
   }) {
@@ -123,7 +123,7 @@ class _ConversationHistorySheetState
     );
   }
 
-  Widget _body(List<ConversationRecord> records) {
+  Widget _body(List<ConversationSummary> records) {
     final colors = context.colors;
     if (records.isEmpty) {
       return Text(
@@ -132,7 +132,7 @@ class _ConversationHistorySheetState
       );
     }
 
-    final byProfile = <String, List<ConversationRecord>>{};
+    final byProfile = <String, List<ConversationSummary>>{};
     for (final record in records) {
       final profile = record.profileName?.trim();
       byProfile
@@ -263,7 +263,7 @@ class _Row extends StatefulWidget {
     required this.onDelete,
   });
 
-  final ConversationRecord record;
+  final ConversationSummary record;
   final VoidCallback onTap;
   final Future<void> Function() onDelete;
 
@@ -323,11 +323,17 @@ class _RowState extends State<_Row> {
               ),
             ),
             const SizedBox(width: NexusSpacing.s3),
-            Text(
-              '${record.messages.length}',
-              style: NexusTypography.data.copyWith(color: colors.faint),
-            ),
-            const SizedBox(width: NexusSpacing.s3),
+            // Los turnos, cuando constan. Una nota escrita por una versión
+            // anterior no los lleva en la cabecera, y ahí se prefiere no decir
+            // nada a decir cero: cero mensajes es una conversación que no se
+            // habría guardado.
+            if (record.turns > 0) ...[
+              Text(
+                '${record.turns}',
+                style: NexusTypography.data.copyWith(color: colors.faint),
+              ),
+              const SizedBox(width: NexusSpacing.s3),
+            ],
             if (_confirming) ...[
               TextButton(
                 onPressed: () => setState(() => _confirming = false),

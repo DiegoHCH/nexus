@@ -31,10 +31,10 @@ void main() {
     });
 
     test('entiende la forma en línea', () {
-      expect(
-        LosTagsDeUnFlow.leer('tags: [acct-co, smoke]\n---\n- launchApp'),
-        {'acct-co', 'smoke'},
-      );
+      expect(LosTagsDeUnFlow.leer('tags: [acct-co, smoke]\n---\n- launchApp'), {
+        'acct-co',
+        'smoke',
+      });
     });
 
     test('cierra el bloque cuando llega otra clave', () {
@@ -47,10 +47,9 @@ void main() {
     });
 
     test('ignora un comentario pegado a la etiqueta', () {
-      expect(
-        LosTagsDeUnFlow.leer('tags:\n  - acct-pe # la peruana\n---\n'),
-        {'acct-pe'},
-      );
+      expect(LosTagsDeUnFlow.leer('tags:\n  - acct-pe # la peruana\n---\n'), {
+        'acct-pe',
+      });
     });
 
     test('quita las comillas', () {
@@ -67,12 +66,21 @@ void main() {
     });
 
     test('un acct- pelado no es una clave', () {
-      expect(LosTagsDeUnFlow.cuentasQuePide('tags:\n  - acct-\n---\n'), isEmpty);
+      expect(
+        LosTagsDeUnFlow.cuentasQuePide('tags:\n  - acct-\n---\n'),
+        isEmpty,
+      );
     });
 
-    test('lee el name: de la cabecera, que es como Maestro nombra la carpeta', () {
-      expect(LosTagsDeUnFlow.nombreDeclarado(_flowReal), 'Login To Home Flow');
-    });
+    test(
+      'lee el name: de la cabecera, que es como Maestro nombra la carpeta',
+      () {
+        expect(
+          LosTagsDeUnFlow.nombreDeclarado(_flowReal),
+          'Login To Home Flow',
+        );
+      },
+    );
 
     test('un name: sangrado es de otra cosa, no del documento', () {
       const flow = 'appId: x\n- runFlow:\n    name: interno\n---\n';

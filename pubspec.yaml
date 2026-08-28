@@ -1,7 +1,7 @@
 name: nexus
 description: "A new Flutter project."
 publish_to: 'none'
-version: 0.3.0+14
+version: 0.4.0+15
 
 environment:
   sdk: ^3.12.2
@@ -13,7 +13,11 @@ dependencies:
   nexus_protocol:
     path: packages/nexus_protocol
   crypto: ^3.0.7
-  desktop_drop: ^0.7.1
+  # 0.8 trae un cambio ruptura, y **es de Android**: exige Android Gradle Plugin
+  # 9 o superior. Se subió porque este proyecto ya va por delante —AGP 9.0.1 y
+  # Kotlin 2.3.20 en `android/settings.gradle.kts`—, no porque el aviso pareciera
+  # inofensivo. Si algún día hay que bajar el AGP, esto vuelve a 0.7.
+  desktop_drop: ^0.8.2
   file_selector: ^1.1.0
   flutter:
     sdk: flutter

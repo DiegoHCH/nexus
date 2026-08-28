@@ -301,6 +301,18 @@ class _ConversationPageState extends ConsumerState<ConversationPage> {
                         style: TextStyle(color: colors.err),
                       ),
                     ),
+                  // El aviso, en ámbar y debajo del error. Los dos pueden
+                  // coincidir —un encargo puede fallar justo el día que
+                  // cambiaron las reglas— y en rojo se leería como que algo se
+                  // rompió, cuando lo que pasa es que algo cambió.
+                  if (conv.notice != null)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 16),
+                      child: Text(
+                        conv.notice!,
+                        style: TextStyle(color: colors.warn),
+                      ),
+                    ),
                   // Lo que está esperando salir. Se enseña **aquí y no en un cajón
                   // aparte**: un encargo escrito sin cobertura que no se ve por
                   // ninguna parte se da por perdido y se vuelve a escribir.

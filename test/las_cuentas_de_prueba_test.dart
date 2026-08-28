@@ -81,18 +81,25 @@ void main() {
         },
         cuentas: [_pe, _co],
       );
-      expect(reparto['pe'], ['flows/02.yaml', 'flows/15.yaml', 'flows/99.yaml']);
+      expect(reparto['pe'], [
+        'flows/02.yaml',
+        'flows/15.yaml',
+        'flows/99.yaml',
+      ]);
       expect(reparto['co'], ['flows/38.yaml']);
     });
 
-    test('un flow sin cuenta que lo cubra no se cuela en la pasada de otra', () {
-      final reparto = LasCuentasDePrueba.repartir(
-        flows: {'flows/70.yaml': _flow('  - acct-mx\n')},
-        cuentas: [_pe, _co],
-      );
-      expect(reparto['pe'], isEmpty);
-      expect(reparto['co'], isEmpty);
-    });
+    test(
+      'un flow sin cuenta que lo cubra no se cuela en la pasada de otra',
+      () {
+        final reparto = LasCuentasDePrueba.repartir(
+          flows: {'flows/70.yaml': _flow('  - acct-mx\n')},
+          cuentas: [_pe, _co],
+        );
+        expect(reparto['pe'], isEmpty);
+        expect(reparto['co'], isEmpty);
+      },
+    );
   });
 
   group('guardar y releer las cuentas', () {
@@ -108,8 +115,16 @@ void main() {
 
     test('dos cuentas con la misma clave: gana la primera', () {
       final leidas = LasCuentasDePrueba.deJson([
-        {'clave': 'pe', 'tags': ['pe'], 'variables': {'EMAIL': 'buena'}},
-        {'clave': 'pe', 'tags': ['co'], 'variables': {'EMAIL': 'pisada'}},
+        {
+          'clave': 'pe',
+          'tags': ['pe'],
+          'variables': {'EMAIL': 'buena'},
+        },
+        {
+          'clave': 'pe',
+          'tags': ['co'],
+          'variables': {'EMAIL': 'pisada'},
+        },
       ]);
       expect(leidas, hasLength(1));
       expect(leidas.single.variables['EMAIL'], 'buena');
@@ -120,7 +135,10 @@ void main() {
         'no soy una cuenta',
         {'sin': 'clave'},
         {'clave': '  '},
-        {'clave': 'ok', 'tags': ['ok']},
+        {
+          'clave': 'ok',
+          'tags': ['ok'],
+        },
       ]);
       expect(leidas.map((c) => c.clave), ['ok']);
     });

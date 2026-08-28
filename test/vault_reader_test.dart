@@ -117,13 +117,16 @@ void main() {
         ),
       );
 
-      final leidas = await const VaultReader().read(
+      final leidas = await VaultReader().list(
         vault.path,
         folderPath: '/Users/diego.hoyos/Workspace',
       );
 
       expect(leidas, hasLength(1));
       expect(leidas.single.profileName, 'work');
+      // La cabecera de La Oficina ya trae cuántos turnos, así que la lista los
+      // sabe sin abrir la nota.
+      expect(leidas.single.turns, 2);
     });
 
     // `_memoria.md` es la nota de memoria de La Oficina, y la del proyecto
@@ -131,7 +134,7 @@ void main() {
     test('las notas de servicio no se cuelan', () async {
       escribe('work/Workspace/_memoria.md', notaDeLaOficina);
 
-      final leidas = await const VaultReader().read(
+      final leidas = await VaultReader().list(
         vault.path,
         folderPath: '/Users/diego.hoyos/Workspace',
       );
@@ -139,8 +142,65 @@ void main() {
       expect(leidas, isEmpty);
     });
 
+    // El motivo de que el lector guarde estado. Refrescar el historial pasa en
+    // cada turno, y un vault de verdad son miles de notas: releerlas todas
+    // cada vez era el trabajo que más crecía con el uso.
+    //
+    // Se comprueba cambiando la nota **sin que el disco lo note**: mismo
+    // tamaño y misma fecha de modificación. Si el lector la releyera, vería el
+    // título nuevo; como se fía de lo que ya sabe, sigue diciendo el viejo.
+    test('una nota que no cambió no se vuelve a leer', () async {
+      escribe('work/Workspace/una.md', notaDeLaOficina);
+      final lector = VaultReader();
+      await lector.list(vault.path);
+
+      final nota = File('${vault.path}/work/Workspace/una.md');
+      final antes = nota.statSync();
+      nota.writeAsStringSync(
+        notaDeLaOficina.replaceAll(
+          'ay alguna forma de hacer esto en mac?',
+          'AY ALGUNA FORMA DE HACER ESTO EN MAC?',
+        ),
+      );
+      nota.setLastModifiedSync(antes.modified);
+
+      final leidas = await lector.list(vault.path);
+
+      expect(leidas.single.title, 'ay alguna forma de hacer esto en mac?');
+    });
+
+    test('y una que sí cambió, sí', () async {
+      escribe('work/Workspace/una.md', notaDeLaOficina);
+      final lector = VaultReader();
+      await lector.list(vault.path);
+
+      escribe(
+        'work/Workspace/una.md',
+        notaDeLaOficina.replaceAll(
+          'titulo: "ay alguna forma de hacer esto en mac?"',
+          'titulo: "otra cosa"',
+        ),
+      );
+
+      final leidas = await lector.list(vault.path);
+
+      expect(leidas.single.title, 'otra cosa');
+    });
+
+    // Lo que ya no está en el disco tampoco puede seguir apareciendo en la
+    // lista: la memoria del lector no puede resucitar una nota borrada.
+    test('una nota borrada desaparece de la lista', () async {
+      escribe('work/Workspace/una.md', notaDeLaOficina);
+      final lector = VaultReader();
+      expect(await lector.list(vault.path), hasLength(1));
+
+      File('${vault.path}/work/Workspace/una.md').deleteSync();
+
+      expect(await lector.list(vault.path), isEmpty);
+    });
+
     test('una carpeta que ya no existe no rompe el historial', () async {
-      final leidas = await const VaultReader().read(
+      final leidas = await VaultReader().list(
         '${vault.path}/lo-que-sea',
         folderPath: '/x',
       );

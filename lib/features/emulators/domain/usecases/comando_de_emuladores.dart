@@ -223,7 +223,9 @@ abstract final class ComandoDeEmuladores {
         for (final entrada in leido)
           if (entrada is Map)
             if (entrada['emulator'] != true)
-              if (PlataformaEmulador.desdeObjetivo('${entrada['targetPlatform']}')
+              if (PlataformaEmulador.desdeObjetivo(
+                    '${entrada['targetPlatform']}',
+                  )
                   case final plataforma?)
                 DispositivoConectado(
                   id: '${entrada['id']}',

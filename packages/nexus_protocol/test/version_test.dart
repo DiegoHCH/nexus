@@ -8,8 +8,14 @@ import 'package:test/test.dart';
 // siempre, y lo que no puede pasar es que esa divergencia se vea como «no
 // responde».
 void main() {
-  const vieja = ProtocolRange(min: ProtocolVersion(1), current: ProtocolVersion(1));
-  const nueva = ProtocolRange(min: ProtocolVersion(2), current: ProtocolVersion(3));
+  const vieja = ProtocolRange(
+    min: ProtocolVersion(1),
+    current: ProtocolVersion(1),
+  );
+  const nueva = ProtocolRange(
+    min: ProtocolVersion(2),
+    current: ProtocolVersion(3),
+  );
 
   test('con la misma versión se entienden', () {
     expect(
@@ -19,19 +25,31 @@ void main() {
   });
 
   test('un cliente por debajo del mínimo del servidor se actualiza', () {
-    expect(negotiate(client: vieja, server: nueva), Negotiation.clientMustUpdate);
+    expect(
+      negotiate(client: vieja, server: nueva),
+      Negotiation.clientMustUpdate,
+    );
   });
 
   test('y el caso simétrico, que es el que se olvida', () {
     // Pasa de verdad: la tienda empuja el móvil sin preguntar mientras el Mac
     // lleva semanas sin abrirse. Si solo se comprobara un sentido, el móvil diría
     // «no responde» sobre un Mac que contesta perfectamente en otro idioma.
-    expect(negotiate(client: nueva, server: vieja), Negotiation.serverMustUpdate);
+    expect(
+      negotiate(client: nueva, server: vieja),
+      Negotiation.serverMustUpdate,
+    );
   });
 
   test('se habla la más nueva que los dos entienden', () {
-    const cliente = ProtocolRange(min: ProtocolVersion(1), current: ProtocolVersion(5));
-    const servidor = ProtocolRange(min: ProtocolVersion(1), current: ProtocolVersion(3));
+    const cliente = ProtocolRange(
+      min: ProtocolVersion(1),
+      current: ProtocolVersion(5),
+    );
+    const servidor = ProtocolRange(
+      min: ProtocolVersion(1),
+      current: ProtocolVersion(3),
+    );
     expect(negotiate(client: cliente, server: servidor), Negotiation.ok);
     expect(agreed(client: cliente, server: servidor), const ProtocolVersion(3));
     // Y da igual quién sea el más nuevo.

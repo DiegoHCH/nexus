@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
@@ -35,6 +36,14 @@ const folderPath = '/Users/alguien/General';
 ///
 /// Se sustituye `call()` entero, así que las piezas que recibe el padre no se
 /// usan: van dobles vacíos, que es más honesto que fingir un micrófono.
+/// Aquí no se lanzan pruebas: esta prueba va del archivado.
+class _SinPruebas implements CorrerUnaPrueba {
+  const _SinPruebas();
+
+  @override
+  Future<String> loQuePidieron(String pedido) async => 'no';
+}
+
 class _Guionizada extends HoldVoiceConversation {
   _Guionizada()
     : super(
@@ -49,6 +58,7 @@ class _Guionizada extends HoldVoiceConversation {
           _Nada(),
         ),
         (_) {},
+        const _SinPruebas(),
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();

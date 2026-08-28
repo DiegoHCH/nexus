@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
@@ -132,6 +133,35 @@ void main() {
     });
   });
 
+  // Que la app **rechace** lo que no cabe ya lo prueba de verdad
+  // `la_superficie_del_canal_test`, que construye la superficie entera y le pide
+  // un documento de medio mega. Aquí queda lo único que esa prueba no puede ver:
+  // el **orden**. Medir después de leer da el mismo resultado y el mismo fallo,
+  // y para cuando se mide, el pico de memoria y el marco de WebSocket ya han
+  // pasado — un comportamiento correcto por un camino que no lo es.
+  group('lo que no cabe por el canal', () {
+    final superficie = File(
+      'lib/features/remote/presentation/assistant_surface.dart',
+    ).readAsStringSync();
+
+    test('se pregunta cuánto ocupa antes de abrirlo', () {
+      final mide = superficie.indexOf('await archivo.length()');
+      final lee = superficie.indexOf('return archivo.readAsString()');
+
+      expect(mide, isNot(-1), reason: 'ya no se pregunta el tamaño');
+      expect(lee, isNot(-1));
+      expect(mide, lessThan(lee), reason: 'medir después es medir tarde');
+      // Y el `readAsString` sin tope que había antes no puede volver.
+      expect(superficie, isNot(contains('File(artifactId).readAsString()')));
+    });
+
+    test('medio mega, que es generoso para texto', () {
+      // Un informe largo son treinta kilobytes. El tope esta para lo que no es un
+      // documento, no para recortar los que si lo son.
+      expect(Dispatcher.maxBytesDeDocumento, 512 * 1024);
+    });
+  });
+
   group('donde se abre cada documento', () {
     // Las dos son comprobaciones **sobre el codigo** y no sobre pixeles, y se dice:
     // una hoja de macOS con miniaturas de QuickLook y un visor web con vista de
@@ -167,10 +197,14 @@ void main() {
       final pagina = File(
         'lib/features/remote/presentation/pages/utility_pages.dart',
       ).readAsStringSync();
+      // Desde la pantalla hasta el final de su estado: `ArtifactPage` tiene
+      // estado desde que el permiso de scripts es por documento, así que lo que
+      // se quiere mirar vive en `_ArtifactPageState` y no en la clase de fuera.
       final desde = pagina.indexOf('class ArtifactPage');
+      final estado = pagina.indexOf('class _ArtifactPageState', desde);
       final cuerpo = pagina.substring(
         desde,
-        pagina.indexOf('\nclass ', desde + 10),
+        pagina.indexOf('\nclass ', estado + 10),
       );
 
       final pintado = cuerpo.indexOf('_Pintado(');

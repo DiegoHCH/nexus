@@ -81,8 +81,9 @@ void main() {
     tearDown(() => proyecto.deleteSync(recursive: true));
 
     test('sale del .env.local de su raíz', () {
-      File('${proyecto.path}/${LasVariablesDelProyecto.archivo}')
-          .writeAsStringSync('CORREO=a@b.c\n');
+      File(
+        '${proyecto.path}/${LasVariablesDelProyecto.archivo}',
+      ).writeAsStringSync('CORREO=a@b.c\n');
 
       expect(ds.variablesDe(proyecto.path), {'CORREO': 'a@b.c'});
     });

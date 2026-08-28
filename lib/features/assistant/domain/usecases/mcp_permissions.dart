@@ -33,17 +33,27 @@ abstract final class McpPermissions {
   /// suelen ser procesos locales —documentación, memoria—, mientras los conectores de la
   /// cuenta **actúan sobre servicios de fuera**: correo, calendario, canales de un
   /// equipo. El riesgo de conceder de más está todo en los segundos.
-  static ({List<String> propios, List<String> deLaCuenta}) porProcedencia(
-    String? configDir,
-  ) {
+  /// **Asíncrono porque esto corre en la ruta de cada encargo.** Leer y parsear
+  /// `.claude.json` con `readAsStringSync` bloqueaba el isolate que dibuja justo
+  /// al lanzar, que es cuando el orbe se pone a animar.
+  ///
+  /// Y se sigue leyendo **cada vez**, sin caché: es la misma regla que la frase de
+  /// escritura —«se lee en cada intento y no se cachea»— y por el mismo motivo.
+  /// Un permiso cacheado no se cierra hasta reiniciar.
+  static Future<({List<String> propios, List<String> deLaCuenta})>
+  porProcedencia(String? configDir) async {
     if (configDir == null || configDir.isEmpty) {
-      return (propios: const [], deLaCuenta: const []);
+      return (propios: const <String>[], deLaCuenta: const <String>[]);
     }
     final file = File('$configDir/.claude.json');
-    if (!file.existsSync()) return (propios: const [], deLaCuenta: const []);
+    if (!file.existsSync()) {
+      return (propios: const <String>[], deLaCuenta: const <String>[]);
+    }
     try {
-      final leido = jsonDecode(file.readAsStringSync());
-      if (leido is! Map) return (propios: const [], deLaCuenta: const []);
+      final leido = jsonDecode(await file.readAsString());
+      if (leido is! Map) {
+        return (propios: const <String>[], deLaCuenta: const <String>[]);
+      }
 
       final propios = <String>{};
       final suyos = leido['mcpServers'];
@@ -61,9 +71,9 @@ abstract final class McpPermissions {
         deLaCuenta: [for (final n in deLaCuenta) comoSeLlamaLaHerramienta(n)],
       );
     } on FormatException {
-      return (propios: const [], deLaCuenta: const []);
+      return (propios: const <String>[], deLaCuenta: const <String>[]);
     } on FileSystemException {
-      return (propios: const [], deLaCuenta: const []);
+      return (propios: const <String>[], deLaCuenta: const <String>[]);
     }
   }
 
@@ -92,11 +102,11 @@ abstract final class McpPermissions {
   /// Los del propio usuario van siempre: los eligió él y son procesos suyos. Los
   /// conectores de la cuenta van todos si la carpeta puede escribir, y solo los
   /// catalogados si no — ver [conectoresCatalogados].
-  static List<String> permitidosPara(
+  static Future<List<String>> permitidosPara(
     String? configDir, {
     required bool puedeEscribir,
-  }) {
-    final (propios: propios, deLaCuenta: deLaCuenta) = porProcedencia(
+  }) async {
+    final (propios: propios, deLaCuenta: deLaCuenta) = await porProcedencia(
       configDir,
     );
     final catalogados = conectoresCatalogados;

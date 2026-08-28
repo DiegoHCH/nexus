@@ -4,7 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/conversations_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
-import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 
 final conversationsDataSourceProvider = Provider<ConversationsDataSource>(
@@ -266,16 +267,25 @@ final conversationFolderProvider = Provider.family<String?, String>(
 /// - **No cabe** → se dice. Antes no hacía nada, y no hacer nada en silencio se lee
 ///   como que la app se colgó.
 final retomarDelArchivoProvider =
-    Provider<Future<RetomarResultado> Function(ConversationRecord)>((ref) {
-      return (registro) async {
+    Provider<Future<RetomarResultado> Function(ConversationSummary)>((ref) {
+      return (ficha) async {
         for (final item in ref.read(conversationsProvider).items) {
           final controlador = ref.read(
             assistantControllerProvider(item.id).notifier,
           );
-          if (!controlador.isShowing(registro.id)) continue;
+          if (!controlador.isShowing(ficha.id)) continue;
           ref.read(conversationsProvider.notifier).focus(item.id);
           return RetomarResultado.yaEstaba;
         }
+
+        // La conversación entera se lee **aquí**, y solo aquí: las listas
+        // manejan fichas —sin mensajes— para no pagarlas todas por enseñar
+        // treinta líneas. Retomar es el momento en que hacen falta de verdad.
+        //
+        // Se lee antes de abrir la pestaña: si la nota ya no está, no se deja
+        // una pestaña vacía abierta sobre una carpeta.
+        final registro = await ref.read(conversationDetailProvider)(ficha);
+        if (registro == null) return RetomarResultado.noEsta;
 
         final id = await ref
             .read(conversationsProvider.notifier)
@@ -296,4 +306,10 @@ enum RetomarResultado {
 
   /// El muelle está lleno. Quien llama tiene que **decirlo**.
   noCabe,
+
+  /// La conversación ya no está donde decía su ficha: la nota se borró desde
+  /// Obsidian, o el archivo de la app se fue con una limpieza. Quien llama
+  /// tiene que **decirlo** también — abrir una pestaña vacía y callar sería
+  /// peor que el error.
+  noEsta,
 }

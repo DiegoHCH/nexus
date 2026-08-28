@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart';
 
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
@@ -39,7 +40,7 @@ class ClaudeCliDataSource {
     List<String> herramientasMcp = const [],
   }) async* {
     final process = await Process.start(
-      'claude',
+      await HerramientaExterna.rutaDeClaude(),
       [
         '-p',
         instruction,

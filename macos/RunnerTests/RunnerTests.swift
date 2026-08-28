@@ -95,6 +95,251 @@ final class VisorDeArtefactosTests: XCTestCase {
     XCTAssertTrue(cerrado, "pero tiene que correr: si no, la ventana no se olvida y no se reabre")
   }
 
+  // MARK: - Lo que el documento puede hacer, y lo que no
+
+  /// Un documento con un script que se delata: si corre, deja una marca en el
+  /// DOM. Se mira el DOM y no una consola porque lo que importa es si el efecto
+  /// llegó a pasar.
+  private func documentoConScript() throws -> String {
+    let archivo = carpeta.appendingPathComponent("con-script.html")
+    try """
+      <html><body><p id="p">hola</p>
+      <script>document.getElementById('p').setAttribute('data-corrio','si')</script>
+      </body></html>
+      """.write(to: archivo, atomically: true, encoding: .utf8)
+    return archivo.path
+  }
+
+  /// Espera a que el documento esté parseado y devuelve si el script dejó marca.
+  ///
+  /// Se espera al `<p>` y no al `didFinish`: cargar y maquetar son dos momentos
+  /// distintos, y preguntar en el primero devuelve nulo tanto si el script no
+  /// corrió como si el DOM todavía no estaba — que son cosas muy distintas.
+  private func corrioElScript(en web: WKWebView, timeout: TimeInterval = 15) throws -> Bool {
+    var corrio = false
+    var resuelto = false
+    let listo = expectation(description: "el documento, ya parseado")
+
+    func mirar() {
+      web.evaluateJavaScript(
+        """
+        (function () {
+          var p = document.getElementById('p');
+          if (!p) { return null; }
+          return p.getAttribute('data-corrio') || 'no';
+        })()
+        """
+      ) { valor, _ in
+        if let texto = valor as? String, !resuelto {
+          corrio = texto == "si"
+          resuelto = true
+          listo.fulfill()
+          return
+        }
+        guard !resuelto else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: mirar)
+      }
+    }
+    mirar()
+
+    wait(for: [listo], timeout: timeout)
+    return corrio
+  }
+
+  /// Espera hasta que el script deje su marca. Devuelve si llegó a dejarla.
+  private func esperaAQueCorra(en web: WKWebView, timeout: TimeInterval = 10) -> Bool {
+    let limite = Date().addingTimeInterval(timeout)
+    var corrio = false
+    var resuelto = false
+    let listo = expectation(description: "el script, ya corrido")
+
+    func mirar() {
+      web.evaluateJavaScript(
+        """
+        (function () {
+          var p = document.getElementById('p');
+          return p ? (p.getAttribute('data-corrio') || 'no') : null;
+        })()
+        """
+      ) { valor, _ in
+        guard !resuelto else { return }
+        if let texto = valor as? String, texto == "si" {
+          corrio = true
+          resuelto = true
+          listo.fulfill()
+          return
+        }
+        if Date() > limite {
+          resuelto = true
+          listo.fulfill()
+          return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: mirar)
+      }
+    }
+    mirar()
+
+    wait(for: [listo], timeout: timeout + 5)
+    return corrio
+  }
+
+  /// El HTML lo escribe Claude, y lo que Claude escribe puede venir influido por
+  /// lo que leyó en un repositorio. Con lectura de toda la carpeta —que hace
+  /// falta para el `assets/` de al lado— un script podía leer al vecino y
+  /// mandarlo fuera.
+  func testElVisorNaceSinPermitirScripts() throws {
+    let visor = Viewer(path: try documento(), onClose: {})
+    defer { visor.window.close() }
+
+    XCTAssertFalse(visor.permitido, "un documento recién abierto no ejecuta nada")
+  }
+
+  /// El interruptor tiene que **verse**, o el apagado es una amputación: un
+  /// mockup con su gráfica dejaría de funcionar y no habría forma de arreglarlo
+  /// desde la ventana.
+  func testLaCasillaEstaEnLaBarraDeTitulo() throws {
+    let visor = Viewer(path: try documento(), onClose: {})
+    defer { visor.window.close() }
+
+    XCTAssertEqual(
+      visor.window.titlebarAccessoryViewControllers.count, 1,
+      "sin la casilla, apagar los scripts no se puede deshacer desde la ventana"
+    )
+  }
+
+  func testElScriptDelDocumentoNoCorre() throws {
+    let visor = Viewer(path: try documentoConScript(), onClose: {})
+    defer { visor.window.close() }
+
+    guard let web = visor.window.contentView as? WKWebView else {
+      return XCTFail("el contenido del visor debería ser el WKWebView")
+    }
+
+    XCTAssertFalse(
+      try corrioElScript(en: web),
+      "el script del documento no puede ejecutarse sin que nadie lo permita"
+    )
+  }
+
+  /// Y esto es lo que hace que lo anterior no sea una amputación: el mockup que
+  /// necesita su gráfica se puede encender.
+  func testConElPermisoDadoSiCorre() throws {
+    let visor = Viewer(path: try documentoConScript(), onClose: {})
+    defer { visor.window.close() }
+
+    guard let web = visor.window.contentView as? WKWebView else {
+      return XCTFail("el contenido del visor debería ser el WKWebView")
+    }
+    _ = try corrioElScript(en: web)
+
+    visor.permitir(true)
+
+    // Se **espera** a que corra en vez de mirar una vez: marcar la casilla
+    // recarga, y recargar es asíncrono. Preguntar en el instante siguiente ve
+    // todavía el DOM de antes y diría que no corre nunca.
+    XCTAssertTrue(
+      esperaAQueCorra(en: web),
+      "marcada la casilla, el documento vuelve a ser un documento normal"
+    )
+  }
+
+  /// La app sigue pudiendo preguntarle cosas a la página aunque la página no
+  /// ejecute las suyas. De eso dependen el reencuadre de las imágenes y el
+  /// scroll que se devuelve al recargar: si esto dejara de ser verdad, las dos
+  /// cosas se romperían en silencio.
+  func testLaAppSiPuedeEjecutarLoSuyo() throws {
+    let visor = Viewer(path: try documentoConScript(), onClose: {})
+    defer { visor.window.close() }
+
+    guard let web = visor.window.contentView as? WKWebView else {
+      return XCTFail("el contenido del visor debería ser el WKWebView")
+    }
+    _ = try corrioElScript(en: web)
+
+    let respondio = expectation(description: "el webview contesta a la app")
+    var texto: String?
+    web.evaluateJavaScript("document.getElementById('p').textContent") { valor, _ in
+      texto = valor as? String
+      respondio.fulfill()
+    }
+    wait(for: [respondio], timeout: 10)
+
+    XCTAssertEqual(texto, "hola")
+  }
+
+  // MARK: - El bloqueo de red
+
+  /// Que la lista de bloqueo **se compile**. Es el fallo realista: un JSON mal
+  /// escrito no rompe nada al compilar el proyecto y deja el visor sin bloqueo.
+  func testLaListaDeBloqueoCompila() throws {
+    guard let almacen = WKContentRuleListStore.default() else {
+      return XCTFail("sin almacén de reglas no hay bloqueo que poner")
+    }
+    let compilada = expectation(description: "la lista, compilada")
+    var lista: WKContentRuleList?
+    var fallo: Error?
+    almacen.compileContentRuleList(
+      forIdentifier: "\(Viewer.reglaId)-prueba", encodedContentRuleList: Viewer.sinRed
+    ) { resultado, error in
+      lista = resultado
+      fallo = error
+      compilada.fulfill()
+    }
+    wait(for: [compilada], timeout: 15)
+
+    XCTAssertNil(fallo, "la lista no compiló: \(fallo?.localizedDescription ?? "")")
+    XCTAssertNotNil(lista)
+  }
+
+  /// Y que las listas **surtan efecto en este visor**, que es la duda de verdad:
+  /// un bloqueo instalado que el motor ignora se ve exactamente igual que uno
+  /// que funciona.
+  ///
+  /// Se comprueba al revés, bloqueando `file:` —lo único que hay en una prueba
+  /// sin red— y viendo que entonces el documento no llega a pintarse. Con la
+  /// lista de verdad, que deja pasar `file:`, sí se pinta: eso lo dicen las
+  /// otras pruebas de este archivo.
+  func testUnaListaDeBloqueoSurteEfectoEnElVisor() throws {
+    guard let almacen = WKContentRuleListStore.default() else {
+      return XCTFail("sin almacén de reglas no hay bloqueo que poner")
+    }
+    let compilada = expectation(description: "la lista, compilada")
+    var lista: WKContentRuleList?
+    almacen.compileContentRuleList(
+      forIdentifier: "nexus-prueba-bloquea-todo",
+      encodedContentRuleList: #"[{"trigger": {"url-filter": ".*"}, "action": {"type": "block"}}]"#
+    ) { resultado, _ in
+      lista = resultado
+      compilada.fulfill()
+    }
+    wait(for: [compilada], timeout: 15)
+    guard let lista else { return XCTFail("no compiló la lista de la prueba") }
+
+    let web = WKWebView()
+    web.configuration.userContentController.add(lista)
+    let archivo = URL(fileURLWithPath: try documentoConScript())
+    web.loadFileURL(archivo, allowingReadAccessTo: archivo.deletingLastPathComponent())
+
+    // Se le da tiempo de sobra a cargar y luego se mira: con todo bloqueado, el
+    // documento no llega al DOM.
+    let espera = expectation(description: "tiempo para que cargara, si pudiera")
+    DispatchQueue.main.asyncAfter(deadline: .now() + 2) { espera.fulfill() }
+    wait(for: [espera], timeout: 5)
+
+    let mirado = expectation(description: "qué hay en el DOM")
+    var hayParrafo = true
+    web.evaluateJavaScript("document.getElementById('p') !== null") { valor, _ in
+      hayParrafo = (valor as? Bool) ?? false
+      mirado.fulfill()
+    }
+    wait(for: [mirado], timeout: 10)
+
+    XCTAssertFalse(
+      hayParrafo,
+      "si una lista que bloquea todo deja pasar el documento, el bloqueo no lo aplica nadie"
+    )
+  }
+
   // MARK: - Cómo se ve la imagen dentro de la ventana
 
   func testSoloLasImagenesSeReencuadran() {
@@ -479,5 +724,172 @@ final class AcentoDeLaBarraTests: XCTestCase {
     let ambar = NexusStatusItem.currentImage?.tiffRepresentation
     XCTAssertNotNil(violeta)
     XCTAssertNotEqual(violeta, ambar)
+  }
+}
+
+/// El motor de audio son 797 líneas y **ninguna prueba** hasta ahora: es la
+/// parte donde un fallo mata la app entera en vez de enseñar un error, y la
+/// única que las pruebas de Dart no pueden ver.
+///
+/// Casi todo él necesita hardware. Lo que sí se puede fijar es la decisión que
+/// no lo necesita —cuándo un bloque tardío es un corte— y el contrato de
+/// formatos con el servicio de voz, que si cambia en silencio se oye como ruido.
+final class MotorDeAudioTests: XCTestCase {
+  private let momento = Date(timeIntervalSince1970: 1_800_000_000)
+
+  func testUnCorteAMediaFraseSeCuenta() {
+    let ms = HuecoDeReproduccion.mide(
+      vaciaDesde: momento,
+      ahora: momento.addingTimeInterval(0.5),
+      yaSono: true
+    )
+
+    XCTAssertEqual(ms, 500)
+  }
+
+  /// El número que motivó el tope: sin él, la primera medición apuntó un
+  /// «hueco» de 9,5 s que era el rato entre una respuesta y la siguiente.
+  func testElRatoEntreDosRespuestasNoEsUnCorte() {
+    XCTAssertNil(
+      HuecoDeReproduccion.mide(
+        vaciaDesde: momento,
+        ahora: momento.addingTimeInterval(9.5),
+        yaSono: true
+      ),
+      "un silencio así no es un corte a media frase: es que la respuesta acabó"
+    )
+  }
+
+  func testJustoEnElTopeYaNoCuenta() {
+    let limite = Double(HuecoDeReproduccion.maxMs) / 1000
+    XCTAssertNil(
+      HuecoDeReproduccion.mide(
+        vaciaDesde: momento, ahora: momento.addingTimeInterval(limite), yaSono: true
+      )
+    )
+    XCTAssertNotNil(
+      HuecoDeReproduccion.mide(
+        vaciaDesde: momento,
+        ahora: momento.addingTimeInterval(limite - 0.001),
+        yaSono: true
+      )
+    )
+  }
+
+  /// El silencio de antes de que empiece a hablar no es un corte, es esperar.
+  func testAntesDelPrimerSonidoNoHayCortes() {
+    XCTAssertNil(
+      HuecoDeReproduccion.mide(
+        vaciaDesde: momento,
+        ahora: momento.addingTimeInterval(0.5),
+        yaSono: false
+      )
+    )
+  }
+
+  /// La cola nunca llegó a vaciarse: no hubo silencio que medir.
+  func testSinColaVaciaNoHayNadaQueMedir() {
+    XCTAssertNil(
+      HuecoDeReproduccion.mide(vaciaDesde: nil, ahora: momento, yaSono: true)
+    )
+  }
+}
+
+/// Impedir que el Mac se duerma es lo único de aquí que se **queda puesto** si
+/// alguien se equivoca: una aserción sin soltar deja el Mac despierto para
+/// siempre, y el síntoma —«mi Mac ya no se duerme»— no apunta a esta app.
+final class EnergiaTests: XCTestCase {
+  override func tearDown() {
+    NexusPower.permitirDormir()
+    super.tearDown()
+  }
+
+  func testPedirloDosVecesNoCreaDos() {
+    XCTAssertTrue(NexusPower.mantenerDespierto(motivo: "una prueba"))
+    let primera = NexusPower.asercionViva
+
+    XCTAssertTrue(NexusPower.mantenerDespierto(motivo: "otra vez"))
+
+    XCTAssertEqual(
+      NexusPower.asercionViva, primera,
+      "la segunda petición tiene que reusar la que ya hay: dos aserciones son una que nadie suelta"
+    )
+  }
+
+  func testSoltarlaLaSuelta() {
+    _ = NexusPower.mantenerDespierto(motivo: "una prueba")
+    XCTAssertNotNil(NexusPower.asercionViva)
+
+    NexusPower.permitirDormir()
+
+    XCTAssertNil(NexusPower.asercionViva)
+  }
+
+  func testSoltarSinHaberPedidoNoRompe() {
+    NexusPower.permitirDormir()
+    NexusPower.permitirDormir()
+  }
+}
+
+/// «Quedarse sin imagen es el único resultado inservible», dice el propio
+/// archivo. Esto lo comprueba: para lo que QuickLook no sabe representar tiene
+/// que caer al icono del sistema y devolver algo igual.
+final class MiniaturasTests: XCTestCase {
+  private var carpeta: URL!
+
+  override func setUpWithError() throws {
+    carpeta = URL(fileURLWithPath: NSTemporaryDirectory())
+      .appendingPathComponent("nexus-miniaturas-\(UUID().uuidString)")
+    try FileManager.default.createDirectory(at: carpeta, withIntermediateDirectories: true)
+  }
+
+  override func tearDownWithError() throws {
+    try? FileManager.default.removeItem(at: carpeta)
+  }
+
+  private func pedirMiniatura(de archivo: URL, timeout: TimeInterval = 20) throws -> Data? {
+    var datos: Data?
+    let lista = expectation(description: "la miniatura")
+    NexusThumbnails.miniatura(ruta: archivo.path, tamano: 64, escala: 2) { png in
+      datos = png
+      lista.fulfill()
+    }
+    wait(for: [lista], timeout: timeout)
+    return datos
+  }
+
+  func testUnCodigoSinPreviaCaeAlIconoDelSistema() throws {
+    let archivo = carpeta.appendingPathComponent("main.dart")
+    try "void main() {}".write(to: archivo, atomically: true, encoding: .utf8)
+
+    let png = try pedirMiniatura(de: archivo)
+
+    XCTAssertNotNil(png, "sin imagen no hay nada que enseñar, que es el único final inservible")
+    // Y es un PNG de verdad, no bytes cualesquiera: los ocho de su firma.
+    XCTAssertEqual(png?.prefix(8), Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]))
+  }
+
+  func testUnaImagenTambienDevuelveAlgo() throws {
+    let rep = NSBitmapImageRep(
+      bitmapDataPlanes: nil, pixelsWide: 40, pixelsHigh: 40,
+      bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+      colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0
+    )!
+    NSGraphicsContext.saveGraphicsState()
+    NSGraphicsContext.current = NSGraphicsContext(bitmapImageRep: rep)
+    NSColor.systemTeal.setFill()
+    NSRect(x: 0, y: 0, width: 40, height: 40).fill()
+    NSGraphicsContext.restoreGraphicsState()
+
+    let archivo = carpeta.appendingPathComponent("captura.png")
+    try rep.representation(using: .png, properties: [:])!.write(to: archivo)
+
+    XCTAssertNotNil(try pedirMiniatura(de: archivo))
+  }
+
+  func testUnArchivoQueNoExisteNoDejaColgado() throws {
+    // Sin miniatura ni icono, el resultado puede ser nulo — lo que no puede es
+    // no llegar: quien pidió se quedaría esperando para siempre.
+    _ = try pedirMiniatura(de: carpeta.appendingPathComponent("no-existe.zip"))
   }
 }

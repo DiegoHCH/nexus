@@ -52,10 +52,8 @@ abstract final class ElEspejoDelIphone {
   ///
   /// [existe] entra como parámetro por lo mismo que en [BinarioEnElPath]: lo que se
   /// puede romper al editar esto es el mapa de rutas, no `Directory`.
-  static bool hay(
-    ComoVerElIphone como, {
-    bool Function(String ruta)? existe,
-  }) => (existe ?? (ruta) => Directory(ruta).existsSync())(donde[como]!);
+  static bool hay(ComoVerElIphone como, {bool Function(String ruta)? existe}) =>
+      (existe ?? (ruta) => Directory(ruta).existsSync())(donde[como]!);
 
   /// Las que se pueden ofrecer aquí y ahora.
   static List<ComoVerElIphone> lasQueHay({

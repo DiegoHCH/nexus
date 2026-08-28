@@ -18,11 +18,7 @@ import 'package:nexus/features/emulators/presentation/widgets/emuladores_section
 /// funcione: eso ya está probado contra las salidas reales en
 /// `los_emuladores_de_la_maquina_test.dart`.
 class _Falsa extends EmuladoresDataSource {
-  _Falsa(
-    this._emuladores, {
-    this.errorAlListar,
-    this.dispositivos = const [],
-  });
+  _Falsa(this._emuladores, {this.errorAlListar, this.dispositivos = const []});
 
   final List<Emulador> _emuladores;
   final List<DispositivoConectado> dispositivos;

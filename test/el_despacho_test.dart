@@ -199,9 +199,16 @@ class _Falsa implements RemoteSurface {
     ];
   }
 
+  /// Un documento que existe y no cabe por el canal. Lo decide la app, no el
+  /// despacho: aquí solo se comprueba cómo se cuenta.
+  String? demasiadoGrande;
+
   @override
   Future<String> artifact(String artifactId) async {
     diario.add('app:artifact($artifactId)');
+    if (artifactId == demasiadoGrande) {
+      throw ArtifactTooLarge(artifactId, 3 * 1024 * 1024);
+    }
     final contenido = documentos[artifactId];
     if (contenido == null) throw UnknownConversation(artifactId);
     return contenido;
@@ -504,6 +511,25 @@ void main() {
         pedir(RemoteMethod.artifact, con: {'artifact': '/etc/passwd'}),
       );
       expect((fuera.last as Failure).code, 'unknownConversation');
+    });
+
+    // Un documento de cientos de megas es un pico de memoria en el Mac y un marco
+    // de WebSocket que el teléfono traga entero por 4G. Es el mismo tipo de límite
+    // que la paginación ya se puso, y aquí faltaba.
+    test('un artifact que no cabe se dice, y se dice cuánto ocupa', () async {
+      app.demasiadoGrande = '/x/enorme.md';
+
+      final salida = await atender(
+        pedir(RemoteMethod.artifact, con: {'artifact': '/x/enorme.md'}),
+      );
+
+      final fallo = salida.last as Failure;
+      expect(fallo.code, 'artifactTooLarge');
+      // El tamaño en el mensaje: «es muy grande» sin un número deja a quien
+      // pregunta sin saber si son dos megas o doscientos.
+      expect(fallo.message, contains('3072 KB'));
+      // Y la salida que ya existe para los binarios, que es la misma: el Mac.
+      expect(fallo.message, contains('se abre en el Mac'));
     });
 
     test('el archivo pagina y dice cuál ya está abierta', () async {

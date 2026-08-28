@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/usecases/skill_source.dart';
@@ -22,7 +23,7 @@ class SkillsDataSource {
     if (!dir.existsSync()) return const [];
 
     final skills = <Skill>[];
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final file = File('${entry.path}/SKILL.md');
       if (!file.existsSync()) continue;
@@ -171,7 +172,7 @@ class SkillsDataSource {
 
     try {
       if (Directory('${cache.path}/.git').existsSync()) {
-        final pull = await Process.run('git', [
+        final pull = await Process.run(await HerramientaExterna.rutaDeGit(), [
           '-C',
           cache.path,
           'pull',
@@ -183,7 +184,7 @@ class SkillsDataSource {
         return cache;
       }
       cache.parent.createSync(recursive: true);
-      final clone = await Process.run('git', [
+      final clone = await Process.run(await HerramientaExterna.rutaDeGit(), [
         'clone',
         '--depth',
         '1',
@@ -218,7 +219,7 @@ class SkillsDataSource {
 
   Future<void> _walk(Directory dir, int depth, List<Skill> found) async {
     if (depth > _maxDepth || found.length >= _maxSkills) return;
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
       if (_nuncaMirar.contains(name)) continue;
@@ -239,7 +240,7 @@ class SkillsDataSource {
 
   Future<Directory?> _find(Directory dir, String id, int depth) async {
     if (depth > _maxDepth) return null;
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
       if (_nuncaMirar.contains(name)) continue;
@@ -254,7 +255,7 @@ class SkillsDataSource {
 
   Future<void> _copy(Directory source, Directory target) async {
     target.createSync(recursive: true);
-    for (final entry in source.listSync(recursive: true)) {
+    await for (final entry in source.list(recursive: true)) {
       final relative = entry.path.substring(source.path.length + 1);
       if (entry is Directory) {
         Directory('${target.path}/$relative').createSync(recursive: true);

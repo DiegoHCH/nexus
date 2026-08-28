@@ -13,6 +13,21 @@ final class ClaudeQueued extends ClaudeEvent {
   const ClaudeQueued();
 }
 
+/// Los archivos de reglas de esta carpeta no son los mismos que la última vez.
+///
+/// Llega antes de que Claude empiece, y **no detiene nada**: el encargo sigue.
+/// Es lo que convierte un cambio silencioso en lo que Claude lee antes de cada
+/// encargo —alguien commiteó un `CLAUDE.md`, cambiaste de rama, el clon se
+/// actualizó— en algo que se ve.
+final class ClaudeRulesChanged extends ClaudeEvent {
+  const ClaudeRulesChanged(this.paths);
+
+  /// Los archivos que cambiaron o aparecieron, con su ruta entera: cuál es
+  /// **el** dato, porque uno del proyecto y uno de tres carpetas más arriba no
+  /// se leen igual.
+  final List<String> paths;
+}
+
 /// Arrancó la sesión: llega una sola vez, al principio.
 final class ClaudeSessionStarted extends ClaudeEvent {
   const ClaudeSessionStarted({required this.sessionId, required this.model});

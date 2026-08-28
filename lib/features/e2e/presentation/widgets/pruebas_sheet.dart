@@ -7,6 +7,7 @@ import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/el_numero_de_las_pruebas.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -43,7 +44,8 @@ class PruebasSheet extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final enMarcha = ref.watch(pruebaEnMarchaProvider);
-    final hayLocales = proyecto != null &&
+    final hayLocales =
+        proyecto != null &&
         (ref.watch(pruebasProvider(proyecto!)).value ?? const []).isNotEmpty;
 
     return Container(
@@ -331,7 +333,9 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   /// falta un dispositivo» se ofrece encenderlo.
   /// Los que hay definidos y apagados, que son los que se pueden encender.
   List<Emulador> get _apagados => [
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+    for (final e
+        in ref.watch(emuladoresProvider).value?.emuladores ??
+            const <Emulador>[])
       if (!e.corriendo) e,
   ];
 
@@ -798,6 +802,7 @@ class _HistorialState extends ConsumerState<_Historial> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        _ElNumero(pasadas: lista),
         for (final clave in claves) ...[
           Padding(
             padding: const EdgeInsets.only(top: NexusSpacing.s4, bottom: 4),
@@ -844,6 +849,80 @@ class _HistorialState extends ConsumerState<_Historial> {
             _FilaDePasada(pasada: pasada),
         ],
       ],
+    );
+  }
+}
+
+/// Lo que suman las pasadas, encima de la lista.
+///
+/// Existe por el encargo de la propuesta de valor —«un número antes de la
+/// reunión»— y por lo que ese encargo obligaba a decidir: **la frase que se
+/// quería llevar era «lo corre cualquiera a diario», y la mitad de eso no se
+/// puede medir desde aquí**. Nexus ve las pasadas de esta máquina. Cuántas
+/// veces, sí; cuánta gente, no.
+///
+/// Así que el límite se escribe debajo del número, con el mismo tamaño que el
+/// número. Una pantalla de adopción que se pasa de lista es la que primero
+/// pierde la reunión.
+class _ElNumero extends StatelessWidget {
+  const _ElNumero({required this.pasadas});
+
+  final List<PasadaDePrueba> pasadas;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final numero = ElNumeroDeLasPruebas.de(pasadas, ahora: DateTime.now());
+
+    final lineas = <String>[
+      strings.e2eNumeroPasadas(numero.ultimos30, numero.dias),
+      if (numero.veces case final veces?)
+        strings.e2eNumeroContra(veces.toStringAsFixed(1), numero.previos30)
+      else
+        strings.e2eNumeroSinComparar,
+      if (numero.bien + numero.mal > 0)
+        strings.e2eNumeroResultado(numero.bien, numero.mal),
+      if (numero.proyectos > 0) strings.e2eNumeroProyectos(numero.proyectos),
+      if (numero.desde case final desde?)
+        strings.e2eNumeroDesde('${desde.day}/${desde.month}/${desde.year}'),
+    ];
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // El número grande y el resto al lado, no debajo: esto va encima de
+          // una lista que es lo que la gente viene a mirar, y un bloque alto la
+          // empuja fuera de la pantalla — que es justo lo que hizo la primera
+          // versión, y lo dijeron las pruebas del panel.
+          Text(
+            numero.ultimos30.toString(),
+            style: NexusTypography.title.copyWith(color: colors.ink),
+          ),
+          const SizedBox(width: NexusSpacing.s3),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  strings.e2eNumeroTitle,
+                  style: NexusTypography.label.copyWith(color: colors.faint),
+                ),
+                Text(
+                  lineas.join(' '),
+                  style: NexusTypography.mono.copyWith(color: colors.mute),
+                ),
+                Text(
+                  strings.e2eNumeroLimite,
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
