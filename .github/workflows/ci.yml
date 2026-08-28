@@ -26,7 +26,7 @@ jobs:
     name: análisis y pruebas
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
@@ -85,18 +85,37 @@ jobs:
       - name: flutter test
         run: flutter test --coverage
 
-      # El número, dicho en voz alta.
+      # El número, dicho en voz alta — y **por capa**, que es lo que lo hace
+      # significar algo.
       #
-      # Sin servicio de terceros y sin mandar nada fuera: se suma el `lcov` que
-      # `--coverage` acaba de escribir y se pone en el resumen del job. No hay
-      # umbral que rompa la corrida a propósito — poner uno hoy, sin haber mirado
-      # qué está sin cubrir, sería elegir un número al azar y luego trabajar para
-      # el número. Lo que hace falta primero es verlo moverse.
+      # Nació sin umbral a propósito: ponerlo sin haber mirado qué estaba sin
+      # cubrir habría sido elegir un número al azar y luego trabajar para él. Ya
+      # se ha mirado, y el agregado engaña: 60 % en global, pero **90 % en
+      # `domain`** — la capa donde viven las decisiones— frente a 57 % en los
+      # widgets.
+      #
+      # Así que el suelo va donde importa y no en el total. Un umbral global se
+      # contentaría con pruebas de widgets y bajaría solo con que alguien añada
+      # una pantalla grande, castigando lo que no toca; uno sobre `domain` dice
+      # lo único que se quiere decir: **la capa donde se decide no retrocede**.
+      #
+      # 85 y no 90: el margen es para que un caso de uso nuevo y a medio cubrir
+      # no rompa el CI del PR que lo introduce, no para tolerar que se erosione.
       - name: cobertura
         run: |
-          awk -F: '/^LF:/ {t+=$2} /^LH:/ {c+=$2} END {
-            printf "Cobertura de líneas: **%.1f %%** — %d de %d\n", 100*c/t, c, t
-          }' coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
+          awk -F: '
+            /^SF:/ { dominio = ($2 ~ /\/domain\//) }
+            /^LF:/ { t += $2; if (dominio) dt += $2 }
+            /^LH:/ { c += $2; if (dominio) dc += $2 }
+            END {
+              printf "Cobertura de líneas: **%.1f %%** — %d de %d\n", 100*c/t, c, t
+              printf "En `domain`: **%.1f %%** — %d de %d\n", 100*dc/dt, dc, dt
+              if (100*dc/dt < 85) {
+                printf "\n**Por debajo del suelo de 85 %% en `domain`.**\n"
+                exit 1
+              }
+            }
+          ' coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Aparte porque pide macOS: es el único sitio donde se pueden correr, y no hay
   # motivo para pagar un Mac por el análisis.
@@ -111,7 +130,7 @@ jobs:
     name: pruebas nativas de macOS
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - uses: subosito/flutter-action@v2
         with:
