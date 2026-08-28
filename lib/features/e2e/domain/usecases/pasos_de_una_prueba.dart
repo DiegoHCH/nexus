@@ -1,5 +1,9 @@
 /// Cómo va una prueba paso a paso, mientras corre.
-enum EstadoDePaso { hecho, enCurso, pendiente, fallado }
+/// Cómo acabó un paso. `omitido` es su propio estado y no una variante de
+/// `fallado`: un `runFlow` con `when:` que no aplica —la rama de iOS corriendo en
+/// Android— sale `SKIPPED`, y **no tenerlo aquí teñía de Error una pasada con los
+/// trece pasos completos**. Medido el 2026-08-27.
+enum EstadoDePaso { hecho, enCurso, pendiente, fallado, omitido }
 
 /// Un paso tal como está escrito en el flow.
 ///
@@ -122,6 +126,9 @@ abstract final class PasosDeUnaPrueba {
     for (final linea in lineas) {
       final t = linea.trim();
       if (t.endsWith('COMPLETED')) terminados++;
+      // Un paso omitido terminó: no haberlo contado dejaba la barra corta para
+      // siempre en cualquier flow con una rama por plataforma.
+      if (t.endsWith('SKIPPED')) terminados++;
       if (t.endsWith('FAILED') || t.endsWith('ERROR')) {
         terminados++;
         fallo = true;
@@ -179,6 +186,15 @@ abstract final class PasosDeUnaPrueba {
         _ when linea.endsWith('ERROR') => (
           _sinSufijo(linea, 'ERROR'),
           EstadoDePaso.fallado,
+          const <String>[],
+        ),
+        // **`SKIPPED` no es un fallo.** Un `runFlow` con `when:` que no aplica
+        // —la rama de iOS corriendo en Android— sale así. Sin este caso caía en
+        // `_reventado` de más abajo, que asume que la línea trae una excepción
+        // pegada, y la pasada entera se marcaba Error con todo completo.
+        _ when linea.endsWith('SKIPPED') => (
+          _sinSufijo(linea, 'SKIPPED'),
+          EstadoDePaso.omitido,
           const <String>[],
         ),
         // Sin resultado todavía: es el anuncio, el paso que corre ahora.

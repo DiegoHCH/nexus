@@ -264,8 +264,10 @@ class E2eDataSource {
     if (!tests.existsSync()) return null;
 
     Directory? masReciente;
+    String? dentro;
     for (final fecha in _carpetas(tests)) {
-      if (!Directory('${fecha.path}/$flow').existsSync()) continue;
+      final elegida = _laDelFlow(fecha, flow);
+      if (elegida == null) continue;
       // Por nombre y no por fecha en disco: el nombre es la hora que puso Maestro
       // y ordena igual, sin depender de qué toque los archivos después.
       if (masReciente == null ||
@@ -275,9 +277,30 @@ class E2eDataSource {
                   .compareTo(masReciente.path.split('/').last) >
               0) {
         masReciente = fecha;
+        dentro = elegida;
       }
     }
-    return masReciente == null ? null : '${masReciente.path}/$flow';
+    return dentro;
+  }
+
+  /// La carpeta de artefactos del flow dentro de una pasada de Maestro.
+  ///
+  /// 🔴 **Maestro la nombra con el `name:` del YAML, no con el del archivo.** Se
+  /// midió: `01-login-error-flow.yaml` con `name: Login Error Flow` deja la
+  /// carpeta `Login Error Flow`. Buscando por el nombre del archivo no se
+  /// encontraba nada y las capturas no salían — invisible hasta ahora porque en
+  /// las pruebas locales el archivo y el `name:` coincidían (`login` ↔ `login`).
+  ///
+  /// Se prefiere la coincidencia exacta, y si no la hay se coge **la única que
+  /// haya**: Nexus lanza un flow por pasada, así que una sola carpeta ahí dentro
+  /// es ese flow y no hay ambigüedad que resolver. Con varias y ninguna que case,
+  /// se prefiere no adivinar.
+  String? _laDelFlow(Directory fecha, String flow) {
+    final hijas = _carpetas(fecha);
+    for (final hija in hijas) {
+      if (hija.path.split('/').last == flow) return hija.path;
+    }
+    return hijas.length == 1 ? hijas.single.path : null;
   }
 
   /// Las capturas de una pasada, **ya embebidas** para poder pintarlas.

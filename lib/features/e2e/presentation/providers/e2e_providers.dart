@@ -265,7 +265,9 @@ class PruebaEnMarcha {
   int get terminados => pasos
       .where(
         (p) =>
-            p.estado == EstadoDePaso.hecho || p.estado == EstadoDePaso.fallado,
+            p.estado == EstadoDePaso.hecho ||
+            p.estado == EstadoDePaso.fallado ||
+            p.estado == EstadoDePaso.omitido,
       )
       .length;
 
