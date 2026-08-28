@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
@@ -29,7 +30,11 @@ class HoldVoiceConversation {
     this._output,
     this._askClaude,
     this._log,
+    this._correrUnaPrueba,
   );
+
+  /// Quien sabe lanzar una prueba sin pasar por Claude. Ver [CorrerUnaPrueba].
+  final CorrerUnaPrueba _correrUnaPrueba;
 
   /// A dónde van los diagnósticos de la sesión. **Se inyecta y no se elige
   /// aquí** por una razón medida: los de b11 se escribieron con
@@ -427,6 +432,23 @@ class HoldVoiceConversation {
     }
 
     Future<void> runTool(VoiceToolRequested request) async {
+      // La de las pruebas se atiende aquí y no acaba en Claude: va al lanzador
+      // de Nexus, así que no depende de que un MCP esté vivo ni del modo de
+      // permisos. Va delante del resto porque `ClaudeErrand.forTool` no la
+      // conoce y la trataría como una herramienta inventada.
+      if (request.name == ClaudeErrand.testTool) {
+        final pedido = (request.arguments['prueba'] as String?)?.trim() ?? '';
+        controller.add(VoiceToolStarted('Pruebas: $pedido'));
+        final dicho = await _correrUnaPrueba.loQuePidieron(pedido);
+        controller.add(const VoiceToolFinished(ok: true));
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result: loQueCabe(dicho, request.name),
+        );
+        return;
+      }
+
       final instruction = ClaudeErrand.forTool(request.name, request.arguments);
       // Herramienta desconocida o argumentos incompletos: se contesta igual.
       // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
