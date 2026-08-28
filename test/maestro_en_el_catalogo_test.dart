@@ -138,7 +138,7 @@ void main() {
       );
     });
 
-    test('y el servidor sigue permitido, que es el punto', () {
+    test('y el servidor sigue permitido, que es el punto', () async {
       // La denegación gana al permiso —medido—, así que quitarle una herramienta
       // no cuesta el resto: mirar la pantalla y correr un flow en el emulador de
       // casa siguen valiendo en una carpeta que no escribe. Si esto se cayera,
@@ -151,7 +151,7 @@ void main() {
       );
 
       expect(
-        McpPermissions.permitidosPara(perfil.path, puedeEscribir: false),
+        await McpPermissions.permitidosPara(perfil.path, puedeEscribir: false),
         contains('maestro'),
       );
     });

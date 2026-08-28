@@ -14,15 +14,29 @@ import 'package:nexus_protocol/nexus_protocol.dart';
 /// decenas de miles de deltas. Al pasarse se tira lo viejo, y quien pida desde ahí
 /// recibe el snapshot completo — que es el camino de excepción, no el normal.
 class EventLog {
-  EventLog({this.capacidad = 512});
+  EventLog({this.capacidad = porConversacion});
+
+  /// Cuántos eventos hacen falta **por conversación viva**.
+  ///
+  /// 512 sale de la cadencia: los deltas se agrupan cada ~100 ms —decisión 4.5—
+  /// así que 512 eventos son unos cincuenta segundos de escritura continua.
+  /// Suficiente para cubrir un túnel o un cambio de wifi, que es lo que un
+  /// resync tiene que salvar; una caída de diez minutos ya no se arregla
+  /// reenviando, se arregla con el snapshot.
+  ///
+  /// **Por conversación, y ese era el fallo.** El registro es uno solo para
+  /// todas las que la app sostiene a la vez, así que con varias vivas esos
+  /// cincuenta segundos se reparten: con seis eran ocho. Por debajo de eso,
+  /// reconectar caía al snapshot completo —el camino que la decisión 4.4 declaró
+  /// excepcional— y en 4G eso es justo lo que se quería evitar.
+  ///
+  /// Quien construye el registro multiplica por cuántas caben. Se hace ahí y no
+  /// aquí porque el número de conversaciones es del muelle, y este archivo no
+  /// tiene por qué saber de muelles — pero sobre todo para que no se vuelva a
+  /// quedar viejo: el tope pasó de tres a seis y este número no se enteró.
+  static const porConversacion = 512;
 
   /// Cuántos eventos se recuerdan.
-  ///
-  /// 512 sale de la cadencia: los deltas se agrupan cada ~100 ms —decisión 4.5— así
-  /// que 512 eventos son unos cincuenta segundos de escritura continua. Suficiente
-  /// para cubrir un túnel o un cambio de wifi, que es lo que un resync tiene que
-  /// salvar; una caída de diez minutos ya no se arregla reenviando, se arregla con
-  /// el snapshot.
   final int capacidad;
 
   final _buffer = Queue<Event>();

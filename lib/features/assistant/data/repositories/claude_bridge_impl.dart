@@ -102,6 +102,15 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         debugPrint('claude · no se pudo mirar si las reglas cambiaron: $error');
       }
 
+      // **Se resuelve antes de arrancar, no dentro de la llamada.** Leer y
+      // parsear `.claude.json` es trabajo de disco, y pedirlo aquí lo saca del
+      // camino síncrono que antes bloqueaba el isolate que dibuja justo al
+      // lanzar el encargo.
+      final servidoresMcp = await McpPermissions.permitidosPara(
+        claudeProfile,
+        puedeEscribir: canEdit,
+      );
+
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
@@ -135,11 +144,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         // no puede adivinar herramientas que no conoce. Los servidores del propio
         // usuario van siempre: los eligió él y son procesos suyos.
         herramientasMcp: [
-          for (final servidor in McpPermissions.permitidosPara(
-            claudeProfile,
-            puedeEscribir: canEdit,
-          ))
-            'mcp__$servidor',
+          for (final servidor in servidoresMcp) 'mcp__$servidor',
         ],
         // Los comandos bloqueados de la carpeta y, **si no puede escribir**, las
         // herramientas MCP que actúan fuera de la máquina.

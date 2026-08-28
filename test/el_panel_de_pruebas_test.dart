@@ -143,7 +143,7 @@ class _Borrados extends E2eDataSource {
   /// Un tamaño fijo por pasada: lo que se comprueba es que el grupo lo sume y lo
   /// enseñe, no cómo se mide —eso tiene su propia prueba contra el disco.
   @override
-  int bytesDe(String ruta) => 2048;
+  Future<int> bytesDe(String ruta) async => 2048;
 }
 
 /// Un controlador que apunta los lanzamientos en vez de lanzar.

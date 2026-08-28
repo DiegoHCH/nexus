@@ -155,7 +155,7 @@ final tamanoPorProyectoProvider = FutureProvider<Map<String, int>>((ref) async {
   final total = <String, int>{};
   for (final pasada in pasadas) {
     final clave = pasada.proyecto ?? '';
-    total[clave] = (total[clave] ?? 0) + ds.bytesDe(pasada.carpeta);
+    total[clave] = (total[clave] ?? 0) + await ds.bytesDe(pasada.carpeta);
   }
   return total;
 });
