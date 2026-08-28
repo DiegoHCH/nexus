@@ -580,6 +580,23 @@ abstract class NexusStrings {
   /// Lo mismo, en el ancho de un teléfono.
   String get allowScriptsShort;
 
+  /// Qué sale de la máquina: la sección y sus cuatro puertas.
+  String get sectionExits;
+  String get exitsExplainer;
+  String get exitsNoFolder;
+  String exitsForFolder(String carpeta);
+  String get exitClosed;
+  String get exitAvailable;
+  String get exitOpen;
+  String get exitAnthropic;
+  String get exitAnthropicWhat;
+  String get exitGemini;
+  String get exitGeminiWhat;
+  String get exitNotion;
+  String get exitNotionWhat;
+  String get exitChannel;
+  String get exitChannelWhat;
+
   /// El registro de la app, en Ajustes › Ayuda.
   String get logTitle;
   String get logExplainer;
@@ -1825,6 +1842,48 @@ class NexusStringsEs extends NexusStrings {
       'carga nada de internet.';
   @override
   String get allowScriptsShort => 'Scripts y red';
+  @override
+  String get sectionExits => 'Qué sale';
+  @override
+  String get exitsExplainer =>
+      'Las cuatro puertas por las que algo puede salir de este Mac, con lo que '
+      'viaja por cada una y si está saliendo ahora. Aquí no se configura nada: '
+      'cada puerta se decide en su propio ajuste. Esto es para poder mirarlas '
+      'juntas.';
+  @override
+  String get exitsNoFolder => 'SIN CARPETA ENFOCADA';
+  @override
+  String exitsForFolder(String carpeta) => 'PARA $carpeta';
+  @override
+  String get exitClosed => 'cerrada';
+  @override
+  String get exitAvailable => 'puede abrirse';
+  @override
+  String get exitOpen => 'saliendo';
+  @override
+  String get exitAnthropic => 'Anthropic';
+  @override
+  String get exitAnthropicWhat =>
+      'Lo que Claude lee de tu carpeta, en cada encargo. Es cómo trabaja: sin '
+      'esto no hay producto.';
+  @override
+  String get exitGemini => 'Google · voz';
+  @override
+  String get exitGeminiWhat =>
+      'Tu micrófono y lo que Claude leyó, porque una respuesta narrada lo lleva '
+      'dentro. En una carpeta de solo texto no participa.';
+  @override
+  String get exitNotion => 'Notion';
+  @override
+  String get exitNotionWhat =>
+      'Conversaciones enteras, al terminar cada turno. Archivar en una carpeta '
+      'o en Obsidian no sale de aquí: es disco de este Mac.';
+  @override
+  String get exitChannel => 'El canal del teléfono';
+  @override
+  String get exitChannelWhat =>
+      'Lo que se ve y se dice en la app, dentro de tu tailnet. Escribir pide '
+      'además la frase, y caduca sola.';
   @override
   String get logTitle => 'REGISTRO';
   @override
@@ -3093,6 +3152,48 @@ class NexusStringsEn extends NexusStrings {
       'nothing from the internet.';
   @override
   String get allowScriptsShort => 'Scripts & network';
+  @override
+  String get sectionExits => 'What leaves';
+  @override
+  String get exitsExplainer =>
+      'The four doors anything can leave this Mac through, what travels out of '
+      'each and whether it is leaving right now. Nothing is configured here: '
+      'each door is decided in its own setting. This is for seeing them '
+      'together.';
+  @override
+  String get exitsNoFolder => 'NO FOLDER IN FOCUS';
+  @override
+  String exitsForFolder(String carpeta) => 'FOR $carpeta';
+  @override
+  String get exitClosed => 'closed';
+  @override
+  String get exitAvailable => 'can open';
+  @override
+  String get exitOpen => 'leaving';
+  @override
+  String get exitAnthropic => 'Anthropic';
+  @override
+  String get exitAnthropicWhat =>
+      'What Claude reads from your folder, on every errand. It is how it works: '
+      'without this there is no product.';
+  @override
+  String get exitGemini => 'Google · voice';
+  @override
+  String get exitGeminiWhat =>
+      'Your microphone and what Claude read, because a narrated answer carries '
+      'it inside. In a text-only folder it takes no part.';
+  @override
+  String get exitNotion => 'Notion';
+  @override
+  String get exitNotionWhat =>
+      'Whole conversations, at the end of every turn. Archiving to a folder or '
+      'to Obsidian does not leave here: that is this Mac\'s disk.';
+  @override
+  String get exitChannel => 'The phone channel';
+  @override
+  String get exitChannelWhat =>
+      'What the app shows and says, inside your tailnet. Writing also takes the '
+      'phrase, and it expires on its own.';
   @override
   String get logTitle => 'LOG';
   @override
