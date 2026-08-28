@@ -47,6 +47,25 @@ abstract final class DondeViveElRepoDePruebas {
   static String nombreDeCarpeta(String slug) =>
       slug.trim().replaceAll('/', '--');
 
+  /// Qué forma tiene un slug de GitHub: `owner/nombre`.
+  ///
+  /// Vive aquí y no en quien lo elige porque **la ruta se construye aquí**, y una
+  /// validación que solo corre al elegir deja fuera el otro camino: lo guardado
+  /// en las preferencias, que es un plist en el disco y no un almacén de
+  /// confianza. A tres líneas de donde se usa el slug hay un
+  /// `delete(recursive: true)`, y esa vecindad merece que comprobar no dependa
+  /// de por dónde entró el valor.
+  static final _forma = RegExp(r'^[\w.-]+/[\w.-]+$');
+
+  /// El slug si tiene forma de slug; si no, `null`.
+  ///
+  /// Quien elige puede decir por qué no vale; quien carga se cae al de por
+  /// defecto en silencio, porque nadie está mirando.
+  static String? valido(String slug) {
+    final limpio = slug.trim();
+    return _forma.hasMatch(limpio) ? limpio : null;
+  }
+
   /// La URL de clonado. **Por HTTPS y no por SSH**: el `gh` de la máquina ya está
   /// autenticado —se comprobó, con permiso ADMIN sobre el repo— y su credential
   /// helper resuelve el push sin pedir una clave que quizá no exista.

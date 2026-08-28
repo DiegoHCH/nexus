@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 
@@ -80,6 +81,21 @@ abstract final class HerramientaExterna {
     '/usr/local/bin/gh',
   ];
 
+  /// Donde vive el CLI de Claude.
+  ///
+  /// Su instalador lo deja en `~/.local/bin` —ahí está en esta máquina— y añade
+  /// ese directorio editando el perfil de la shell, que una app de escritorio no
+  /// lee. Los dos prefijos de Homebrew detrás, y el `local/` que usa la
+  /// instalación gestionada por el propio Claude Code.
+  static List<String> candidatosDeClaude(String home) => [
+    if (home.isNotEmpty) ...[
+      '$home/.local/bin/claude',
+      '$home/.claude/local/claude',
+    ],
+    '/opt/homebrew/bin/claude',
+    '/usr/local/bin/claude',
+  ];
+
   /// git viene con las herramientas de línea de comandos de Xcode y siempre está
   /// en el mismo sitio. Se listan igual por si alguien usa el de Homebrew, que es
   /// más nuevo y va antes en su PATH.
@@ -116,6 +132,66 @@ abstract final class HerramientaExterna {
 
     return (preguntaAlShell ?? _alShellDeLogin)(nombre);
   }
+
+  /// La ruta absoluta de una herramienta, resuelta **una vez** y recordada.
+  ///
+  /// Lanzar por nombre —`Process.start('git', …)`— deja que el sistema resuelva
+  /// el `PATH` en **cada** arranque, y ese `PATH` antepone `/opt/homebrew/bin` y
+  /// `/usr/local/bin`, que en un Mac con Homebrew los escribe el usuario sin
+  /// pedir contraseña. Cualquier proceso suyo —incluido un encargo anterior que
+  /// salió mal— puede dejar ahí un `git` falso.
+  ///
+  /// Anteponerlos sigue siendo lo correcto: una app de GUI no hereda el `PATH`
+  /// de la shell, y sin eso no arranca nada. Lo que faltaba es que la
+  /// **preferencia sea consciente**: se decide una vez, se anota cuál salió, y a
+  /// partir de ahí se lanza por ruta absoluta.
+  ///
+  /// Si no se encuentra en ningún sitio se devuelve el nombre a secas. Es a
+  /// propósito: entonces falla exactamente como fallaba antes, con su
+  /// `ProcessException`, en vez de estrenar una forma nueva de romperse.
+  static Future<String> ruta(
+    String nombre, {
+    required List<String> candidatos,
+    bool Function(String ruta)? existe,
+    Future<String?> Function(String nombre)? preguntaAlShell,
+    String? path,
+  }) async {
+    final ya = _resueltas[nombre];
+    if (ya != null) return ya;
+
+    final encontrada =
+        await donde(
+          nombre,
+          candidatos: candidatos,
+          existe: existe,
+          preguntaAlShell: preguntaAlShell,
+          path: path,
+        ) ??
+        nombre;
+    _resueltas[nombre] = encontrada;
+    // Qué binario se eligió, dicho una vez. Es la mitad de «consciente»: sin
+    // esto, saber cuál de los tres `git` de la máquina está corriendo pide
+    // reproducir el `PATH` a mano.
+    debugPrint('herramienta · $nombre → $encontrada');
+    return encontrada;
+  }
+
+  static final _resueltas = <String, String>{};
+
+  /// Olvida lo resuelto. Solo para las pruebas: la caché es de por vida y dos
+  /// pruebas seguidas se contaminarían.
+  @visibleForTesting
+  static void olvidar() => _resueltas.clear();
+
+  /// El `claude` de esta máquina, por ruta absoluta.
+  static Future<String> rutaDeClaude() => ruta(
+    'claude',
+    candidatos: candidatosDeClaude(Platform.environment['HOME'] ?? ''),
+  );
+
+  /// El `git` de esta máquina, por ruta absoluta.
+  static Future<String> rutaDeGit() =>
+      ruta('git', candidatos: candidatosDeGit());
 
   /// `zsh -lc 'command -v flutter'`.
   ///

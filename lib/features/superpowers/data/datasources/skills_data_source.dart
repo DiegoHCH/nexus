@@ -1,5 +1,6 @@
 import 'dart:io';
 
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
 import 'package:nexus/features/superpowers/domain/usecases/skill_source.dart';
@@ -171,7 +172,7 @@ class SkillsDataSource {
 
     try {
       if (Directory('${cache.path}/.git').existsSync()) {
-        final pull = await Process.run('git', [
+        final pull = await Process.run(await HerramientaExterna.rutaDeGit(), [
           '-C',
           cache.path,
           'pull',
@@ -183,7 +184,7 @@ class SkillsDataSource {
         return cache;
       }
       cache.parent.createSync(recursive: true);
-      final clone = await Process.run('git', [
+      final clone = await Process.run(await HerramientaExterna.rutaDeGit(), [
         'clone',
         '--depth',
         '1',

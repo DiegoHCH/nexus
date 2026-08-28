@@ -18,11 +18,24 @@ class GeminiLiveDataSource {
   static const _endpoint =
       'wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContent';
 
+  /// La dirección del socket con la llave dentro.
+  ///
+  /// **Por `queryParameters`, no interpolada.** Que la llave viaje en la query es
+  /// lo que documenta Google, así que ahí sigue; lo que faltaba es escaparla. Una
+  /// llave pegada con un espacio o un salto de línea producía una URL rota y un
+  /// error de conexión que no se parece en nada a «revisa la llave» — que es lo
+  /// que de verdad había pasado.
+  ///
+  /// Aparte de [open] para poder mirarla: conectar de verdad no se puede probar,
+  /// y lo que se rompe aquí es cómo se arma la dirección.
+  static Uri urlPara(String apiKey) =>
+      Uri.parse(_endpoint).replace(queryParameters: {'key': apiKey.trim()});
+
   Future<GeminiLiveConnection> open({
     required String apiKey,
     required Map<String, dynamic> setup,
   }) async {
-    final socket = await WebSocket.connect('$_endpoint?key=$apiKey');
+    final socket = await WebSocket.connect(urlPara(apiKey).toString());
     final connection = GeminiLiveConnection._(socket);
     connection.send({'setup': setup});
     return connection;
