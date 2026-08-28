@@ -98,6 +98,13 @@ class _EstadoState extends ConsumerState<_Estado> {
 
     final flows = ref.watch(flowsDelRepoProvider).value ?? const [];
     final sinCuentas = ref.watch(cuentasDePruebaProvider).isEmpty;
+    // Lo que falta para poder correr, sea lo que sea. **Se mira aquí y no en la
+    // fila**: el motivo es el mismo para las 57 y decirlo 57 veces ya se probó
+    // que es un muro. Un botón apagado sin motivo es la otra mitad del mismo
+    // error — el dev se queda mirando por qué no pasa nada.
+    final buscando = ref.watch(buscandoDispositivosProvider);
+    final sinDispositivo = !buscando && ref.watch(elDispositivoProvider) == null;
+    final hayDestinos = ref.watch(dondeCorrerProvider).isNotEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -152,6 +159,21 @@ class _EstadoState extends ConsumerState<_Estado> {
                     child: Text(strings.e2eAccountAdd),
                   ),
                 ],
+              ),
+            ),
+          // El dispositivo se avisa aunque falten cuentas: son dos cosas que hay
+          // que resolver y enseñar solo la primera obliga a descubrir la segunda
+          // después de arreglar la primera.
+          if (sinDispositivo)
+            Padding(
+              padding: const EdgeInsets.only(top: NexusSpacing.s2),
+              child: Text(
+                // Sin ninguno encendido el arreglo es otro: encender uno, no
+                // elegir entre los que hay.
+                hayDestinos
+                    ? strings.e2eRepoNeedsDevice
+                    : strings.e2eNoDevice,
+                style: NexusTypography.body.copyWith(color: colors.warn),
               ),
             ),
           if (_abierta) ...[
@@ -231,7 +253,11 @@ class _FilaDeFlow extends ConsumerWidget {
     // del proyecto: sin dispositivo, sin cuenta o con otra corriendo, se apaga y
     // el motivo se lee debajo en vez de llegar después de tocarlo.
     final cuenta = leToca?.cuenta;
-    final sePuede = !corriendo && dispositivo != null && cuenta != null;
+    // `sePuede` de la cuenta, no `cuenta != null`: tener cuenta no basta si le
+    // faltan variables que el flow nombra. Dejar lanzar ahí cuesta la pasada
+    // entera y manda a buscar al sitio equivocado.
+    final sePuede =
+        !corriendo && dispositivo != null && (leToca?.sePuede ?? false);
     final porQueNo = leToca?.porQueNo;
 
     return Padding(
@@ -249,21 +275,27 @@ class _FilaDeFlow extends ConsumerWidget {
                   ruta.startsWith('flows/') ? ruta.substring(6) : ruta,
                   style: NexusTypography.data.copyWith(color: colors.ink),
                 ),
-                if (cuenta != null)
-                  Text(
-                    'acct-${(cuenta.tags.toList()..sort()).join(' · acct-')}',
-                    style: NexusTypography.label.copyWith(color: colors.faint),
-                  )
-                else if (porQueNo != null && !sinCuentas)
+                // El motivo manda sobre la etiqueta: si no se puede correr, lo
+                // que hace falta saber es por qué, no con qué cuenta iba a ir.
+                if (porQueNo != null && !(sinCuentas && cuenta == null))
                   Text(
                     porQueNo,
                     style: NexusTypography.label.copyWith(color: colors.warn),
+                  )
+                else if (cuenta != null)
+                  Text(
+                    'acct-${(cuenta.tags.toList()..sort()).join(' · acct-')}',
+                    style: NexusTypography.label.copyWith(color: colors.faint),
                   ),
               ],
             ),
           ),
           TextButton(
-            onPressed: sePuede
+            // `sePuede` ya garantiza que hay cuenta y dispositivo, pero el
+            // compilador no lo deduce a través de un booleano: se comprueba aquí
+            // para que el día que `sePuede` cambie, esto no lance en tiempo de
+            // ejecución.
+            onPressed: sePuede && cuenta != null
                 ? () => ref
                       .read(pruebaEnMarchaProvider.notifier)
                       .lanzar(

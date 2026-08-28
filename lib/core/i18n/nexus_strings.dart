@@ -336,6 +336,7 @@ abstract class NexusStrings {
   String get e2eRepoFailed;
   String get e2eRepoNoFlows;
   String get e2eRepoRetry;
+  String get e2eRepoNeedsDevice;
   String e2eRepoFlows(int total);
   String get e2eAccounts;
   String get e2eAccountsTitle;
@@ -1145,6 +1146,9 @@ class NexusStringsEs extends NexusStrings {
   String get e2eRepoNoFlows => 'El repo no tiene flows todavía.';
   @override
   String get e2eRepoRetry => 'Reintentar';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Falta elegir dónde correr, en el selector de arriba.';
   @override
   String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
   @override
@@ -2345,6 +2349,9 @@ class NexusStringsEn extends NexusStrings {
   String get e2eRepoNoFlows => 'The repo has no flows yet.';
   @override
   String get e2eRepoRetry => 'Retry';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Pick where to run it, in the selector above.';
   @override
   String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
   @override

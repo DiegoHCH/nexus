@@ -4,6 +4,7 @@ import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
 
 import '../../domain/usecases/donde_vive_el_repo_de_pruebas.dart';
+import '../../domain/usecases/el_arbol_de_un_flow.dart';
 
 /// Cómo acabó una sincronización con el remoto.
 enum ComoFueLaSync {
@@ -152,6 +153,19 @@ class RepoDePruebasDataSource {
     rutas.sort();
     return rutas;
   }
+
+  /// El YAML del flow **y el de todo lo que arrastra con `runFlow`**.
+  ///
+  /// Es lo que hay que mirar para saber qué variables hace falta pasarle: en este
+  /// repo las credenciales viven en subflows, no en el flow que se lanza.
+  String arbolDe({required String clon, required String ruta}) =>
+      ElArbolDeUnFlow.texto(
+        ruta: '$clon/$ruta',
+        leer: (r) {
+          final archivo = File(r);
+          return archivo.existsSync() ? archivo.readAsStringSync() : null;
+        },
+      );
 
   Future<String?> leer({required String clon, required String ruta}) async {
     final archivo = File('$clon/$ruta');

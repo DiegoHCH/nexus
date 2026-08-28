@@ -8,6 +8,7 @@ import '../../data/datasources/repo_de_pruebas_data_source.dart';
 import '../../domain/entities/cuenta_de_pruebas.dart';
 import '../../domain/usecases/donde_vive_el_repo_de_pruebas.dart';
 import '../../domain/usecases/las_cuentas_de_prueba.dart';
+import '../../domain/usecases/las_variables_del_proyecto.dart';
 
 final repoDePruebasDataSourceProvider = Provider<RepoDePruebasDataSource>(
   (ref) => const RepoDePruebasDataSource(),
@@ -136,21 +137,44 @@ final flowDelRepoProvider = FutureProvider.family<String?, String>((
 
 /// Con qué cuenta hay que correr un flow, y qué falta si no se puede decidir.
 class QueCuentaLeToca {
-  const QueCuentaLeToca({this.cuenta, this.sinCubrir = const {}});
+  const QueCuentaLeToca({
+    this.cuenta,
+    this.sinCubrir = const {},
+    this.faltan = const [],
+  });
 
   final CuentaDePruebas? cuenta;
 
   /// Las claves de cuenta que el flow pide y ninguna configurada cubre.
   final Set<String> sinCubrir;
 
+  /// 🔴 Las variables que el flow **y sus subflows** nombran y la cuenta no
+  /// tiene. Solo los nombres, nunca los valores.
+  ///
+  /// Sin esto, una que falte se convierte en el fallo desconcertante que
+  /// `LasVariablesDelProyecto.faltan` ya describe: Maestro recibe el literal
+  /// `${APP_ID}`, intenta lanzar una app con ese nombre y contesta que no está
+  /// instalada. Un mensaje correcto sobre un síntoma equivocado, y el dev se va a
+  /// mirar el dispositivo. Medido el 2026-08-27, con esa variable exacta.
+  final List<String> faltan;
+
+  /// Si se puede lanzar. Una variable que falta no es un aviso: es la pasada
+  /// perdida y quince minutos buscando en el sitio que no era.
+  bool get sePuede => cuenta != null && faltan.isEmpty;
+
   /// Por qué no se puede correr, o `null` si sí se puede.
   String? get porQueNo {
-    if (cuenta != null) return null;
-    if (sinCubrir.isNotEmpty) {
-      final claves = (sinCubrir.toList()..sort()).join(', ');
-      return 'Este flow pide la cuenta «$claves» y no tienes ninguna con esa etiqueta.';
+    if (cuenta == null) {
+      if (sinCubrir.isNotEmpty) {
+        final claves = (sinCubrir.toList()..sort()).join(', ');
+        return 'Este flow pide la cuenta «$claves» y no tienes ninguna con esa etiqueta.';
+      }
+      return 'No hay ninguna cuenta de prueba configurada.';
     }
-    return 'No hay ninguna cuenta de prueba configurada.';
+    if (faltan.isNotEmpty) {
+      return 'A la cuenta «${cuenta!.clave}» le faltan: ${faltan.join(', ')}.';
+    }
+    return null;
   }
 }
 
@@ -162,8 +186,31 @@ final cuentaDelFlowProvider = FutureProvider.family<QueCuentaLeToca, String>((
   final cuentas = ref.watch(cuentasDePruebaProvider);
   final contenido = await ref.watch(flowDelRepoProvider(ruta).future);
   if (contenido == null) return const QueCuentaLeToca();
+
+  // Las etiquetas salen del flow **propio** —las de un subflow no son suyas—,
+  // pero las variables salen del árbol entero, que es donde viven.
+  final cuenta = LasCuentasDePrueba.paraElFlow(
+    contenido: contenido,
+    cuentas: cuentas,
+  );
+  final sync = await ref.watch(clonDelRepoProvider.future);
+  final arbol = sync.clon == null
+      ? contenido
+      : ref
+            .watch(repoDePruebasDataSourceProvider)
+            .arbolDe(clon: sync.clon!, ruta: ruta);
+
   return QueCuentaLeToca(
-    cuenta: LasCuentasDePrueba.paraElFlow(contenido: contenido, cuentas: cuentas),
+    cuenta: cuenta,
     sinCubrir: LasCuentasDePrueba.sinCubrir(contenido: contenido, cuentas: cuentas),
+    faltan: cuenta == null
+        ? const []
+        : LasVariablesDelProyecto.faltan(
+            yaml: arbol,
+            tiene: cuenta.variables.entries
+                .where((e) => e.value.isNotEmpty)
+                .map((e) => e.key)
+                .toSet(),
+          ),
   );
 });
