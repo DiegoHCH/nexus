@@ -158,12 +158,17 @@ class RepoDePruebasDataSource {
   ///
   /// Es lo que hay que mirar para saber qué variables hace falta pasarle: en este
   /// repo las credenciales viven en subflows, no en el flow que se lanza.
-  String arbolDe({required String clon, required String ruta}) =>
-      ElArbolDeUnFlow.texto(
+  Future<String> arbolDe({required String clon, required String ruta}) =>
+      ElArbolDeUnFlow.textoAsync(
         ruta: '$clon/$ruta',
-        leer: (r) {
+        leer: (r) async {
           final archivo = File(r);
-          return archivo.existsSync() ? archivo.readAsStringSync() : null;
+          if (!await archivo.exists()) return null;
+          try {
+            return await archivo.readAsString();
+          } on FileSystemException {
+            return null;
+          }
         },
       );
 

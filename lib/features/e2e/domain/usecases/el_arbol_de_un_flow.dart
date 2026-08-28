@@ -40,6 +40,52 @@ abstract final class ElArbolDeUnFlow {
     return trozos.join('\n');
   }
 
+  /// Igual que [texto], pero leyendo sin bloquear.
+  ///
+  /// 🔴 **Para la lista del repo, que resuelve 57 árboles de golpe.** Medido: son
+  /// 300 lecturas de archivo al desplegarla. En su versión síncrona todas caen en
+  /// el hilo de la interfaz y en el mismo fotograma; aquí no. La síncrona se
+  /// queda para lanzar una prueba, que es un árbol y una vez.
+  static Future<String> textoAsync({
+    required String ruta,
+    required Future<String?> Function(String ruta) leer,
+  }) async {
+    final visto = <String>{};
+    final trozos = <String>[];
+    await _juntarAsync(
+      ruta: ruta,
+      leer: leer,
+      visto: visto,
+      trozos: trozos,
+      queda: _fondo,
+    );
+    return trozos.join('\n');
+  }
+
+  static Future<void> _juntarAsync({
+    required String ruta,
+    required Future<String?> Function(String ruta) leer,
+    required Set<String> visto,
+    required List<String> trozos,
+    required int queda,
+  }) async {
+    if (queda <= 0 || !visto.add(ruta)) return;
+    final contenido = await leer(ruta);
+    if (contenido == null) return;
+    trozos.add(contenido);
+
+    final carpeta = _carpetaDe(ruta);
+    for (final referida in referencias(contenido)) {
+      await _juntarAsync(
+        ruta: _resolver(carpeta, referida),
+        leer: leer,
+        visto: visto,
+        trozos: trozos,
+        queda: queda - 1,
+      );
+    }
+  }
+
   static void _juntar({
     required String ruta,
     required String? Function(String ruta) leer,

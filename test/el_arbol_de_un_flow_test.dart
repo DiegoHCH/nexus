@@ -131,6 +131,33 @@ void main() {
       expect(texto, contains('TOKEN'));
     });
 
+
+    test('la versión que no bloquea da lo mismo que la síncrona', () async {
+      // Son dos caminos para el mismo resultado y la lista del repo usa el
+      // asíncrono: si divergen, el aviso de «le faltan» diría una cosa y el
+      // lanzamiento pasaría otra.
+      const ruta = '/r/flows/04-account-detail-flow.yaml';
+      expect(
+        await ElArbolDeUnFlow.textoAsync(
+          ruta: ruta,
+          leer: (r) async => _repo[r],
+        ),
+        ElArbolDeUnFlow.texto(ruta: ruta, leer: _leer),
+      );
+    });
+
+    test('async: un ciclo tampoco cuelga', () async {
+      final ciclo = {
+        '/a.yaml': '- runFlow: b.yaml',
+        '/b.yaml': '- runFlow: a.yaml\n- inputText: \${TOKEN}',
+      };
+      final texto = await ElArbolDeUnFlow.textoAsync(
+        ruta: '/a.yaml',
+        leer: (r) async => ciclo[r],
+      );
+      expect(texto, contains('TOKEN'));
+    });
+
     test('un flow sin subflows es él mismo', () {
       expect(
         ElArbolDeUnFlow.texto(ruta: '/r/flows/auth/01-pin.yaml', leer: _leer),

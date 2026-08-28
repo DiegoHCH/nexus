@@ -41,6 +41,9 @@ class SlugDelRepoDePruebas extends Notifier<String> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, limpio);
     state = limpio;
+    // Cambiar de repo sí obliga a volver a clonar. Se invalida aquí, a mano,
+    // porque `clonDelRepoProvider` dejó de observar este valor a propósito.
+    ref.invalidate(clonDelRepoProvider);
   }
 }
 
@@ -136,13 +139,25 @@ final cuentasDePruebaProvider =
 
 /// El clon, listo para usar. **Es lo que hace que la conexión sea automática**:
 /// quien pida esto se encuentra el repo clonado y al día sin haber hecho nada.
+///
+/// 🔴 **El slug se lee con `read` y no con `watch`, y eso es el arreglo de un
+/// cuelgue.** Con `watch`, este provider dependía del valor: el notifier arranca
+/// con el de por defecto, `_cargar()` lo cambia al guardado, y eso disparaba
+/// `asegurar()` **una segunda vez** en cada arranque — otro `git fetch` y otro
+/// `reset --hard`—. Y cada recálculo invalida los 57 `flowDelRepo` y los 57
+/// `cuentaDelFlow`, o sea las 300 lecturas de archivo otra vez. El coste no era
+/// el doble: era el doble de todo lo que cuelga de él.
+///
+/// La reactividad no se pierde: [SlugDelRepoDePruebas.elegir] invalida esto a
+/// mano cuando alguien cambia el repo de verdad, que es la única vez que hay que
+/// volver a clonar.
 final clonDelRepoProvider = FutureProvider<ResultadoDeSync>((ref) async {
   final slugs = ref.watch(slugDelRepoDePruebasProvider.notifier);
   await slugs.cargada;
   final soporte = await getApplicationSupportDirectory();
   return ref
-      .watch(repoDePruebasDataSourceProvider)
-      .asegurar(soporte: soporte.path, slug: ref.watch(slugDelRepoDePruebasProvider));
+      .read(repoDePruebasDataSourceProvider)
+      .asegurar(soporte: soporte.path, slug: ref.read(slugDelRepoDePruebasProvider));
 });
 
 /// Los flows del repo, como rutas relativas. Vacío mientras no haya clon.
@@ -231,7 +246,7 @@ final cuentaDelFlowProvider =
   final sync = await ref.watch(clonDelRepoProvider.future);
   final arbol = sync.clon == null
       ? contenido
-      : ref
+      : await ref
             .watch(repoDePruebasDataSourceProvider)
             .arbolDe(clon: sync.clon!, ruta: ruta);
 
