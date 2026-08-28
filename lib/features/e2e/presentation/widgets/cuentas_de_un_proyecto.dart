@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/domain/entities/cuenta_de_pruebas.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/presentation/providers/repo_de_pruebas_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Las cuentas de **un** proyecto: verlas, añadirlas y editarlas.
 ///
@@ -150,6 +152,12 @@ class _FormularioDeCuenta extends ConsumerStatefulWidget {
 }
 
 class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
+  /// A qué proyecto va. **Se elige aquí y no antes**: la pregunta «¿de qué
+  /// proyecto es esta cuenta?» es parte de crearla, y sacarla fuera obligaba a
+  /// una lista de botones —uno por proyecto— que crecía con el workspace y no
+  /// decía qué iba a pasar al pulsarlos.
+  late String _proyecto;
+
   late final TextEditingController _clave;
   late final TextEditingController _tags;
   late final TextEditingController _descripcion;
@@ -159,6 +167,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
   void initState() {
     super.initState();
     final c = widget.cuenta;
+    _proyecto = widget.proyecto;
     _clave = TextEditingController(text: c?.clave ?? '');
     _tags = TextEditingController(
       text: c == null ? '' : (c.tags.toList()..sort()).join(', '),
@@ -188,6 +197,10 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
     final colors = context.colors;
     final strings = context.strings;
     final esNueva = widget.cuenta == null;
+    final proyectos = [
+      for (final c in ref.watch(workspaceControllerProvider).folders)
+        c.workingDirectory,
+    ];
 
     return AlertDialog(
       backgroundColor: colors.deep,
@@ -202,6 +215,31 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Solo al crear: mover una cuenta de proyecto no es editarla, es
+              // otra cosa —y hacerlo desde aquí la dejaría duplicada o perdida
+              // según cómo se guarde—.
+              if (esNueva && proyectos.length > 1)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+                  child: SelectorCompacto(
+                    key: const ValueKey('para-que-proyecto'),
+                    valor: _proyecto,
+                    opciones: proyectos,
+                    pista: strings.e2eWhichProject,
+                    etiqueta: (ruta) => ruta.split('/').last,
+                    onElegir: (ruta) => setState(() => _proyecto = ruta),
+                  ),
+                )
+              else if (esNueva)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: NexusSpacing.s3),
+                  child: Text(
+                    // Con uno solo es un rótulo: un selector de una opción pide
+                    // una decisión que no existe.
+                    _proyecto.split('/').last,
+                    style: NexusTypography.label.copyWith(color: colors.faint),
+                  ),
+                ),
               _campo(
                 controlador: _clave,
                 etiqueta: strings.e2eAccountKey,
@@ -235,7 +273,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           TextButton(
             onPressed: () {
               ref
-                  .read(cuentasDePruebaProvider(widget.proyecto).notifier)
+                  .read(cuentasDePruebaProvider(_proyecto).notifier)
                   .borrar(widget.cuenta!.clave);
               Navigator.of(context).pop();
             },
@@ -266,7 +304,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
           t.trim().startsWith('acct-') ? t.trim().substring(5) : t.trim(),
     };
 
-    ref.read(cuentasDePruebaProvider(widget.proyecto).notifier).guardar(
+    ref.read(cuentasDePruebaProvider(_proyecto).notifier).guardar(
           CuentaDePruebas(
             clave: clave,
             tags: tags,

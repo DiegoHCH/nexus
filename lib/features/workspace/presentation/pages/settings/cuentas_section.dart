@@ -66,25 +66,27 @@ class CuentasSection extends ConsumerWidget {
             ),
           ),
 
-        // La puerta para los que todavía no tienen ninguna. Va al final porque es
-        // la acción rara: lo normal es venir a mirar o corregir una que ya está.
+        // **Una sola acción, y el proyecto se elige dentro.** Antes había un botón
+        // por proyecto sin cuentas: una lista que crece con el workspace y en la
+        // que cada botón dice el nombre de un repo pero no qué va a pasar al
+        // pulsarlo. La pregunta «¿de qué proyecto es?» es parte de crear la
+        // cuenta, así que se hace en el formulario.
         if (carpetas.isNotEmpty) ...[
           const Divider(),
-          Text(
-            strings.e2eAccountsAddTo,
-            style: NexusTypography.label.copyWith(color: colors.faint),
-          ),
-          const SizedBox(height: NexusSpacing.s2),
-          for (final carpeta in carpetas)
-            if (!conCuentas.contains(carpeta))
-              Align(
-                alignment: Alignment.centerLeft,
-                child: TextButton(
-                  onPressed: () =>
-                      editarCuenta(context, carpeta.workingDirectory, null),
-                  child: Text(carpeta.nombreDelRepo),
-                ),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: TextButton(
+              onPressed: () => editarCuenta(
+                context,
+                // El emparejado arranca elegido: es el proyecto en el que estás.
+                ref.read(workspaceControllerProvider).active
+                        ?.workingDirectory ??
+                    carpetas.first.workingDirectory,
+                null,
               ),
+              child: Text(strings.e2eAccountAdd),
+            ),
+          ),
         ],
       ],
     );

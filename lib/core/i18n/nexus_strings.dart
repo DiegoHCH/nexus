@@ -353,7 +353,6 @@ abstract class NexusStrings {
   String get e2eAccountDesc;
   String get e2eAccountDescHint;
   String get e2eAccountsNoneAnywhere;
-  String get e2eAccountsAddTo;
   String get e2eAccountsNoneHere;
   String get e2eAccountVars;
   String get e2eAccountVarsHint;
@@ -1189,8 +1188,6 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eAccountsNoneAnywhere =>
       'Ningún proyecto tiene cuentas todavía. Sin una, sus pruebas no pueden correr.';
-  @override
-  String get e2eAccountsAddTo => 'Añadir a otro proyecto';
   @override
   String get e2eAccountsNoneHere =>
       'Este proyecto no tiene cuentas. Se crean en Ajustes → Cuentas de prueba.';
@@ -2402,8 +2399,6 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eAccountsNoneAnywhere =>
       'No project has accounts yet. Without one, its tests cannot run.';
-  @override
-  String get e2eAccountsAddTo => 'Add to another project';
   @override
   String get e2eAccountsNoneHere =>
       'This project has no accounts. They are created in Settings → Test accounts.';
