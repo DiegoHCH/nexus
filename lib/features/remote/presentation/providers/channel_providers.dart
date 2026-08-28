@@ -3,6 +3,7 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/remote/data/channel_server.dart';
@@ -102,7 +103,13 @@ class ChannelController extends Notifier<ChannelState> {
   /// El registro de eventos vive aquí y no en el servidor: sobrevive a apagar y
   /// encender, así que un móvil que reconecta después de un reinicio del canal
   /// puede seguir pidiendo desde su `lastSeq` en vez de tragarse un snapshot.
-  final EventLog _eventos = EventLog();
+  /// Uno para todas las conversaciones, así que su tamaño se multiplica por
+  /// cuántas caben: si no, los cincuenta segundos que cubre se reparten entre
+  /// las vivas y con el muelle lleno quedan ocho. Un evento son unos cientos de
+  /// bytes — recordar de más es despreciable comparado con un snapshot.
+  final EventLog _eventos = EventLog(
+    capacidad: EventLog.porConversacion * Conversations.max,
+  );
 
   /// El número de los trozos que bajan. Lo lleva el canal y no el altavoz porque el
   /// altavoz no sabe de transporte, que es lo que le permite ser un `AudioOutput` más.

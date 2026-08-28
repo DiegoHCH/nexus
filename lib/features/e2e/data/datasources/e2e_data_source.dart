@@ -735,20 +735,26 @@ class E2eDataSource {
   /// un archivo, el `Directory` de antes daba `0`. Y un tamaño que sale `0`
   /// **cuando sí ocupa** es peor que no enseñarlo, porque se lee como «esto no
   /// pesa nada, bórralo tranquilo».
-  int bytesDe(String ruta) {
+  /// **Asíncrono, y eso no es cosmético.** Recorrer una carpeta recursivamente y
+  /// pedir el tamaño de cada archivo, todo síncrono, bloquea el isolate que
+  /// dibuja — y con el orbe animando a 60 fps, cada archivo es un fotograma que
+  /// no se pinta. Con `list()` y `stat()` el recorrido cede entre archivo y
+  /// archivo, que es lo único que hacía falta: aquí no hay cálculo que llevarse
+  /// a otro isolate, solo espera de disco.
+  Future<int> bytesDe(String ruta) async {
     try {
       final registro = File(ruta);
       if (registro.existsSync()) {
         final pagina = File(paginaDe(ruta));
-        return registro.lengthSync() +
-            (pagina.existsSync() ? pagina.lengthSync() : 0);
+        return await registro.length() +
+            (pagina.existsSync() ? await pagina.length() : 0);
       }
 
       final dir = Directory(ruta);
       if (!dir.existsSync()) return 0;
       var total = 0;
-      for (final e in dir.listSync(recursive: true, followLinks: false)) {
-        if (e is File) total += e.lengthSync();
+      await for (final e in dir.list(recursive: true, followLinks: false)) {
+        if (e is File) total += await e.length();
       }
       return total;
     } on FileSystemException {
