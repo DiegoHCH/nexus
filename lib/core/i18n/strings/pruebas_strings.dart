@@ -99,6 +99,14 @@ mixin PruebasStrings {
   String get e2eDeleteProject;
   String get e2eDeleteProjectAsk;
   String e2eRunsSize(int cuantas, String tamano);
+  String get e2eNumeroTitle;
+  String e2eNumeroPasadas(int cuantas, int dias);
+  String e2eNumeroContra(String veces, int previos);
+  String get e2eNumeroSinComparar;
+  String e2eNumeroResultado(int bien, int mal);
+  String e2eNumeroProyectos(int cuantos);
+  String e2eNumeroDesde(String fecha);
+  String get e2eNumeroLimite;
   String e2eMissingVars(String claves);
   String e2eVarsLoaded(int cuantas);
   String get e2eEnvInGit;
@@ -366,6 +374,30 @@ mixin PruebasStringsEs implements PruebasStrings {
   @override
   String get e2eDeleteProjectAsk =>
       'Borra todas las pasadas de este proyecto. Las pruebas no se tocan.';
+  @override
+  String get e2eNumeroTitle => 'EL NÚMERO';
+  @override
+  String e2eNumeroPasadas(int cuantas, int dias) => cuantas == 1
+      ? 'Una pasada en los últimos 30 días.'
+      : '$cuantas pasadas en los últimos 30 días, en $dias días distintos.';
+  @override
+  String e2eNumeroContra(String veces, int previos) =>
+      '×$veces frente a las $previos del mes anterior.';
+  @override
+  String get e2eNumeroSinComparar =>
+      'Todavía no hay un mes anterior con el que comparar.';
+  @override
+  String e2eNumeroResultado(int bien, int mal) =>
+      'De las que acabaron: $bien bien, $mal mal.';
+  @override
+  String e2eNumeroProyectos(int cuantos) =>
+      cuantos == 1 ? 'Sobre un proyecto.' : 'Sobre $cuantos proyectos.';
+  @override
+  String e2eNumeroDesde(String fecha) => 'Con registro desde el $fecha.';
+  @override
+  String get e2eNumeroLimite =>
+      'Es lo que ve esta máquina: cuántas veces y en cuántos días. Cuánta '
+      'gente las corre no lo sabe, y no se inventa.';
   @override
   String e2eRunsSize(int cuantas, String tamano) =>
       '${cuantas == 1 ? '1 pasada' : '$cuantas pasadas'} · $tamano';
@@ -760,6 +792,30 @@ mixin PruebasStringsEn implements PruebasStrings {
   @override
   String get e2eDeleteProjectAsk =>
       "Deletes every run of this project. The tests are left alone.";
+  @override
+  String get e2eNumeroTitle => 'THE NUMBER';
+  @override
+  String e2eNumeroPasadas(int cuantas, int dias) => cuantas == 1
+      ? 'One run in the last 30 days.'
+      : '$cuantas runs in the last 30 days, across $dias different days.';
+  @override
+  String e2eNumeroContra(String veces, int previos) =>
+      '×$veces against the $previos of the month before.';
+  @override
+  String get e2eNumeroSinComparar =>
+      'There is no earlier month to compare against yet.';
+  @override
+  String e2eNumeroResultado(int bien, int mal) =>
+      'Of those that finished: $bien passed, $mal failed.';
+  @override
+  String e2eNumeroProyectos(int cuantos) =>
+      cuantos == 1 ? 'Across one project.' : 'Across $cuantos projects.';
+  @override
+  String e2eNumeroDesde(String fecha) => 'Recorded since $fecha.';
+  @override
+  String get e2eNumeroLimite =>
+      'This is what this machine can see: how many times and on how many days. '
+      'How many people run them, it does not know, and does not invent.';
   @override
   String e2eRunsSize(int cuantas, String tamano) =>
       '${cuantas == 1 ? '1 run' : '$cuantas runs'} · $tamano';

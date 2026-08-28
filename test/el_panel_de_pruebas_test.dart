@@ -294,6 +294,13 @@ String _hecho(String texto) => '$texto... COMPLETED\n';
 /// —que a su vez le pregunta a git— y comprobar la instalación. Con una sola espera
 /// se quedaba a medias y la prueba decía que no se había lanzado nada.
 Future<void> _tocarYEsperar(WidgetTester tester, Finder que) async {
+  // El historial vive dentro de un `SingleChildScrollView` y la hoja mide 800×600
+  // en las pruebas, así que lo de abajo puede quedar fuera del viewport — pasó al
+  // añadir el resumen de arriba. Se desplaza hasta el botón en vez de recortar lo
+  // que se pinta: la hoja de verdad se desplaza, y una prueba que exige que todo
+  // quepa a la primera prohíbe crecer.
+  await tester.ensureVisible(que);
+  await tester.pump();
   await tester.runAsync(() async {
     await tester.tap(que);
     for (var i = 0; i < 10; i++) {
@@ -436,6 +443,8 @@ void main() {
         borrados: borrados,
       );
 
+      await tester.ensureVisible(find.text(strings.e2eDelete));
+      await tester.pump();
       await tester.tap(find.text(strings.e2eDelete));
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
@@ -620,6 +629,8 @@ void main() {
 
       // Ver abre su informe en la misma ventana aparte, no una segunda forma de
       // enseñar lo mismo.
+      await tester.ensureVisible(find.text(strings.e2eSee));
+      await tester.pump();
       await tester.tap(find.text(strings.e2eSee));
       await tester.pump();
       expect(borrados, ['ver:/donde/sea/login.json']);
