@@ -23,7 +23,7 @@ class SkillsDataSource {
     if (!dir.existsSync()) return const [];
 
     final skills = <Skill>[];
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final file = File('${entry.path}/SKILL.md');
       if (!file.existsSync()) continue;
@@ -219,7 +219,7 @@ class SkillsDataSource {
 
   Future<void> _walk(Directory dir, int depth, List<Skill> found) async {
     if (depth > _maxDepth || found.length >= _maxSkills) return;
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
       if (_nuncaMirar.contains(name)) continue;
@@ -240,7 +240,7 @@ class SkillsDataSource {
 
   Future<Directory?> _find(Directory dir, String id, int depth) async {
     if (depth > _maxDepth) return null;
-    for (final entry in dir.listSync()) {
+    await for (final entry in dir.list()) {
       if (entry is! Directory) continue;
       final name = entry.path.split('/').last;
       if (_nuncaMirar.contains(name)) continue;
@@ -255,7 +255,7 @@ class SkillsDataSource {
 
   Future<void> _copy(Directory source, Directory target) async {
     target.createSync(recursive: true);
-    for (final entry in source.listSync(recursive: true)) {
+    await for (final entry in source.list(recursive: true)) {
       final relative = entry.path.substring(source.path.length + 1);
       if (entry is Directory) {
         Directory('${target.path}/$relative').createSync(recursive: true);

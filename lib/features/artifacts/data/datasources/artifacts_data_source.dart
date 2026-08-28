@@ -28,25 +28,31 @@ class ArtifactsDataSource {
     if (!dir.existsSync()) return const [];
 
     final artifacts = <Artifact>[
-      ..._enUnaCarpeta(dir, null),
+      ...await _enUnaCarpeta(dir, null),
       for (final cuenta in cuentas)
-        ..._enUnaCarpeta(Directory('$directory/$cuenta'), cuenta),
+        ...await _enUnaCarpeta(Directory('$directory/$cuenta'), cuenta),
     ]..sort((a, b) => b.at.compareTo(a.at));
     return artifacts;
   }
 
-  List<Artifact> _enUnaCarpeta(Directory dir, String? cuenta) {
+  /// **Asíncrono, y no por gusto.** Esta lista la pide también el teléfono por
+  /// el canal, así que recorrer la carpeta y pedir la fecha de cada archivo de
+  /// forma síncrona bloquea el isolate que dibuja justo cuando alguien abre los
+  /// documentos. Con `list()` y `stat()` el recorrido cede entre archivo y
+  /// archivo, que es todo lo que hacía falta: aquí no hay cálculo, solo espera
+  /// de disco.
+  Future<List<Artifact>> _enUnaCarpeta(Directory dir, String? cuenta) async {
     if (!dir.existsSync()) return const [];
     try {
       return [
-        for (final entry in dir.listSync(followLinks: false))
+        await for (final entry in dir.list(followLinks: false))
           if (entry is File)
             if (!entry.path.split('/').last.startsWith('.') &&
                 Artifact.isListable(entry.path))
               Artifact(
                 path: entry.path,
                 name: entry.path.split('/').last,
-                at: entry.statSync().modified,
+                at: (await entry.stat()).modified,
                 account: cuenta,
               ),
       ];
