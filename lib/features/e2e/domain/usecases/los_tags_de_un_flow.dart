@@ -1,4 +1,4 @@
-/// Las etiquetas declaradas en la cabecera de un flow de Maestro.
+/// La cabecera de un flow de Maestro: sus etiquetas y su `name:`.
 ///
 /// **Para qué**: el tag `acct-<x>` es lo que dice con qué cuenta hay que correr ese
 /// flow. Sin leerlo, Nexus tendría que preguntar la cuenta en cada pasada o correr
@@ -15,6 +15,27 @@
 /// archivo que escribimos nosotros, no un documento arbitrario. Lo que no se
 /// entiende se ignora en vez de adivinarse.
 abstract final class LosTagsDeUnFlow {
+  /// El `name:` que declara el flow, o `null` si no declara ninguno.
+  ///
+  /// 🔴 **Maestro nombra con esto la carpeta de artefactos de la pasada**, no con
+  /// el nombre del archivo: `01-login-error-flow.yaml` con `name: Login Error
+  /// Flow` deja la carpeta `Login Error Flow`. Sin leerlo no se encuentran las
+  /// capturas.
+  static String? nombreDeclarado(String contenido) {
+    for (final cruda in contenido.split('\n')) {
+      if (cruda.trimRight() == '---') break;
+      final linea = cruda.trim();
+      if (linea.isEmpty || linea.startsWith('#')) continue;
+      // Con la línea sin indentar: un `name:` sangrado es de otra cosa —el de un
+      // `runFlow`, por ejemplo— y no el del documento.
+      if (cruda.startsWith(' ') || cruda.startsWith('\t')) continue;
+      if (!linea.startsWith('name:')) continue;
+      final valor = _limpio(linea.substring('name:'.length));
+      return valor.isEmpty ? null : valor;
+    }
+    return null;
+  }
+
   /// Lee las etiquetas del contenido de un flow. Devuelve vacío si no declara.
   static Set<String> leer(String contenido) {
     final tags = <String>{};

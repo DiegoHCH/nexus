@@ -10,6 +10,7 @@ import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_pasadas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
 import 'package:nexus/features/e2e/domain/usecases/el_arbol_de_un_flow.dart';
+import 'package:nexus/features/e2e/domain/usecases/los_tags_de_un_flow.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -428,7 +429,11 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
         );
         // Las capturas, ahora que la pasada acabó y existen en disco.
         final ds = ref.read(e2eDataSourceProvider);
-        _artefactos = ds.carpetaDeArtefactos(salida: salida, flow: actual.flow);
+        _artefactos = ds.carpetaDeArtefactos(
+          salida: salida,
+          flow: actual.flow,
+          nombreDeclarado: LosTagsDeUnFlow.nombreDeclarado(yaml),
+        );
         _capturas = ds.capturasDe(_artefactos);
 
         unawaited(_pinta());

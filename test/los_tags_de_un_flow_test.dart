@@ -69,5 +69,18 @@ void main() {
     test('un acct- pelado no es una clave', () {
       expect(LosTagsDeUnFlow.cuentasQuePide('tags:\n  - acct-\n---\n'), isEmpty);
     });
+
+    test('lee el name: de la cabecera, que es como Maestro nombra la carpeta', () {
+      expect(LosTagsDeUnFlow.nombreDeclarado(_flowReal), 'Login To Home Flow');
+    });
+
+    test('un name: sangrado es de otra cosa, no del documento', () {
+      const flow = 'appId: x\n- runFlow:\n    name: interno\n---\n';
+      expect(LosTagsDeUnFlow.nombreDeclarado(flow), isNull);
+    });
+
+    test('sin name: no se inventa uno', () {
+      expect(LosTagsDeUnFlow.nombreDeclarado('appId: x\n---\n'), isNull);
+    });
   });
 }

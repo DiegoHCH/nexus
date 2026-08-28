@@ -25,7 +25,11 @@ void main() {
     addTearDown(() => raiz.deleteSync(recursive: true));
 
     expect(
-      ds.carpetaDeArtefactos(salida: raiz.path, flow: '01-login-error-flow'),
+      ds.carpetaDeArtefactos(
+        salida: raiz.path,
+        flow: '01-login-error-flow',
+        nombreDeclarado: 'Login Error Flow',
+      ),
       endsWith('/2026-08-27_203911/Login Error Flow'),
     );
   });
@@ -42,14 +46,20 @@ void main() {
     );
   });
 
-  test('con varias y ninguna que case, no se adivina', () {
+  test('ninguna que case: no se adivina, ni con una sola', () {
+    // El atajo de coger «la única carpeta que haya» le atribuiría a un flow las
+    // capturas de otro. Se prefiere no enseñar ninguna.
     final raiz = _monta([
-      ('2026-08-27_120000', ['Uno', 'Dos']),
+      ('2026-08-27_120000', ['Otro Flow']),
     ]);
     addTearDown(() => raiz.deleteSync(recursive: true));
 
     expect(
-      ds.carpetaDeArtefactos(salida: raiz.path, flow: 'no-esta'),
+      ds.carpetaDeArtefactos(
+        salida: raiz.path,
+        flow: 'no-esta',
+        nombreDeclarado: 'Tampoco Este',
+      ),
       isNull,
     );
   });
@@ -62,7 +72,11 @@ void main() {
     addTearDown(() => raiz.deleteSync(recursive: true));
 
     expect(
-      ds.carpetaDeArtefactos(salida: raiz.path, flow: '01-login-error-flow'),
+      ds.carpetaDeArtefactos(
+        salida: raiz.path,
+        flow: '01-login-error-flow',
+        nombreDeclarado: 'Login Error Flow',
+      ),
       contains('203911'),
     );
   });

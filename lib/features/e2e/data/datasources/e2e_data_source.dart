@@ -257,7 +257,11 @@ class E2eDataSource {
   /// Se intentó primero leerla de la salida, que Maestro la imprime:
   /// `==== Debug output (logs & screenshots) ====`. No sirve: **solo la imprime
   /// cuando la pasada falla.** En una que pasa no aparece esa línea.
-  String? carpetaDeArtefactos({required String salida, required String flow}) {
+  String? carpetaDeArtefactos({
+    required String salida,
+    required String flow,
+    String? nombreDeclarado,
+  }) {
     final tests = Directory(
       '$salida/${DondeVivenLasPasadas.loQueAnadeMaestro}',
     );
@@ -266,7 +270,7 @@ class E2eDataSource {
     Directory? masReciente;
     String? dentro;
     for (final fecha in _carpetas(tests)) {
-      final elegida = _laDelFlow(fecha, flow);
+      final elegida = _laDelFlow(fecha, flow, nombreDeclarado);
       if (elegida == null) continue;
       // Por nombre y no por fecha en disco: el nombre es la hora que puso Maestro
       // y ordena igual, sin depender de qué toque los archivos después.
@@ -291,16 +295,18 @@ class E2eDataSource {
   /// encontraba nada y las capturas no salían — invisible hasta ahora porque en
   /// las pruebas locales el archivo y el `name:` coincidían (`login` ↔ `login`).
   ///
-  /// Se prefiere la coincidencia exacta, y si no la hay se coge **la única que
-  /// haya**: Nexus lanza un flow por pasada, así que una sola carpeta ahí dentro
-  /// es ese flow y no hay ambigüedad que resolver. Con varias y ninguna que case,
-  /// se prefiere no adivinar.
-  String? _laDelFlow(Directory fecha, String flow) {
-    final hijas = _carpetas(fecha);
-    for (final hija in hijas) {
-      if (hija.path.split('/').last == flow) return hija.path;
+  /// Se busca por el nombre del archivo **y** por el declarado, y por nada más.
+  /// Coger «la única carpeta que haya» era el atajo obvio y está mal: le
+  /// atribuiría a un flow las capturas de otro, que es justo lo que la prueba
+  /// «no se coge la de otro flow» lleva cubriendo desde antes de esto.
+  String? _laDelFlow(Directory fecha, String flow, String? declarado) {
+    for (final hija in _carpetas(fecha)) {
+      final nombre = hija.path.split('/').last;
+      if (nombre == flow || (declarado != null && nombre == declarado)) {
+        return hija.path;
+      }
     }
-    return hijas.length == 1 ? hijas.single.path : null;
+    return null;
   }
 
   /// Las capturas de una pasada, **ya embebidas** para poder pintarlas.
