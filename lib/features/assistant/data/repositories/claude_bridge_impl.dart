@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/datasources/project_context_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
@@ -37,7 +38,9 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? model,
     String? effort,
     String? artifactsFolder,
+    String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
     /// duplicaría trabajo ya hecho.
@@ -67,6 +70,18 @@ class ClaudeBridgeImpl implements ClaudeBridge {
 
     try {
       final context = await _projectContext.read(workingDirectory);
+      // **Qué sabe Claude antes de empezar, dicho una vez por encargo.**
+      //
+      // Va aparte de la línea del CLI porque es otra pregunta: aquella dice cómo se
+      // lanzó y esta qué se le puso delante. Y hace falta porque las reglas que un
+      // repo declara pueden no existir o no caber, y sin verlo el síntoma es trabajo
+      // que ignora una regla sin que nadie sepa por qué.
+      debugPrint(
+        'claude · ${context.rules.length} archivos de reglas · '
+        '${context.rules.fold(0, (t, f) => t + f.content.length)} caracteres'
+        '${context.sharedContext == null ? '' : ' · con contexto compartido'}',
+      );
+
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
@@ -121,11 +136,13 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           rules: context.rules,
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,
+          carpetaDePruebas: carpetaDePruebas,
           // La cuenta sale **de aquí** y no de un parámetro nuevo: es donde el
           // perfil de la carpeta y el destino de los documentos se encuentran por
           // primera vez, y derivarla más arriba obligaría a llevarla de la mano por
           // tres sitios que no la usan.
           artifactsAccount: ClaudeProfile.nameFromPath(claudeProfile),
+          language: language,
         ),
       )) {
         // Cada mensaje del asistente es una petición: su `usage` dice cuánto

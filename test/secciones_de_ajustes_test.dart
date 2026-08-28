@@ -25,7 +25,7 @@ void main() {
   setUp(() => support = prepareScreenTest());
   tearDown(() => support.deleteSync(recursive: true));
 
-  testWidgets('las ocho secciones se abren sin reventar', (tester) async {
+  testWidgets('todas las secciones se abren sin reventar', (tester) async {
     await pumpScreen(
       tester,
       const SettingsPage(),
@@ -48,13 +48,19 @@ void main() {
     final cuantas = tester.widgetList(pestanas).length;
     expect(
       cuantas,
-      // Nueve desde que «Móvil» dejó de estar apagada: el canal del teléfono ya se
-      // enciende, así que la sección tiene contenido. Este número se sube **a
-      // mano y a propósito** — es lo que hace que añadir una sección pase por
-      // aquí, y esta prueba avisó de la novena en el primer intento.
-      9,
+      // Doce desde que entró «Cuentas de prueba», que sacó el formulario de
+      // credenciales del sheet de pruebas. Este número se toca **a
+      // mano y a propósito** — es lo que hace que añadir o quitar una sección pase
+      // por aquí, y ya avisó cinco veces: de la novena («Móvil», al dejar de estar
+      // apagada), de la décima, de «Corridas» al entrar, de «Pruebas», y de
+      // «Corridas» otra vez al salir.
+      //
+      // El título de la prueba no lleva el número justamente por eso: decía
+      // «ocho» cuando ya esperaba nueve, y un nombre que miente es peor que uno
+      // vago.
+      12,
       reason:
-          'se esperaban nueve secciones y hay $cuantas: si se añade una al enum, '
+          'se esperaban doce secciones y hay $cuantas: si se añade una al enum, '
           'esta prueba tiene que verla — y si desaparece, también',
     );
 

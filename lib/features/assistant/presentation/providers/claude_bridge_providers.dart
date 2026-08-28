@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
@@ -14,6 +15,8 @@ import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dar
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/usecases/blocked_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/repo_from_instruction.dart';
+import 'package:nexus/features/e2e/presentation/providers/raiz_de_los_flows_provider.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final claudeCliDataSourceProvider = Provider<ClaudeCliDataSource>(
@@ -93,6 +96,11 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         effort: paired?.claudeEffort,
         claudeProfile: paired?.claudeProfile,
         artifactsFolder: ref.read(artifactsFolderProvider),
+        // Solo cuando hay algo elegido —la carpeta declarada o la raíz común—. Sin
+        // nada, vale `.maestro/`, que es la convención de Maestro y Claude ya conoce:
+        // decirlo en cada encargo de cada proyecto sería ruido para quien no tiene
+        // pruebas.
+        carpetaDePruebas: _dondeVanLasPruebas(ref, paired),
       );
     },
     ref.watch(conversationMemoryProvider),
@@ -100,6 +108,19 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
     ref.watch(staysAwakeProvider),
   );
 });
+
+/// La carpeta de pruebas que se le nombra al encargo, o `null` si no hay nada elegido.
+///
+/// Aparte del contexto porque decide **si se dice o no**, que es una regla y no un dato:
+/// con `.maestro/` no hace falta decir nada, y con una carpeta elegida hace falta decirlo
+/// o Claude escribe la prueba donde Nexus no mira.
+String? _dondeVanLasPruebas(Ref ref, PairedFolder? paired) {
+  if (paired == null) return null;
+  final raiz = ref.read(raizDeLosFlowsProvider);
+  final declarada = (paired.carpetaDePruebas ?? '').trim();
+  if (declarada.isEmpty && (raiz == null || raiz.trim().isEmpty)) return null;
+  return paired.pruebasEn(Platform.environment['HOME'] ?? '', raiz: raiz);
+}
 
 /// Uno solo para toda la app, por el mismo motivo que la cola: lleva la cuenta
 /// de cuántos encargos hay en marcha, y esa cuenta cruza conversaciones.

@@ -27,7 +27,21 @@ abstract class ClaudeBridge {
     /// elegido carpeta, y entonces no se le dice nada.
     String? artifactsFolder,
 
+    /// Dónde van las pruebas de este proyecto, si lo declaró. `null` cuando vale la
+    /// convención de Maestro, y entonces tampoco se le dice nada: `.maestro/` la sabe.
+    String? carpetaDePruebas,
+
     /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
     List<String> disallowedTools,
+
+    /// En qué idioma contestar si el encargo no pide otra cosa.
+    ///
+    /// **Va por aquí y no pegada al encargo**, y la diferencia no es de estilo. Lo que
+    /// escribe la persona puede ser un comando de otra herramienta —el plugin del marco
+    /// de trabajo lee el prompt y `flow start <título>` toma como título todo lo que va
+    /// detrás—, así que añadirle una frase convertía la preferencia de idioma en el
+    /// título de la tarea. Medido: un flow abierto llamado «(Si no se te pide otra cosa,
+    /// responde en español.)».
+    String? language,
   });
 }

@@ -20,6 +20,9 @@ class ProjectContextDataSource {
   Future<({List<ContextFile> rules, ContextFile? sharedContext})> read(
     String workingDirectory,
   ) async {
+    // **Aquí se leía también un `.nexus-reglas` del repo, y se fue con el marco flow.**
+    // Las reglas por capa las inyecta ahora el plugin `flash-flutter`, que sabe qué
+    // archivo se está tocando; esto solo mira los `CLAUDE.md` del árbol.
     final rules = await _rules(workingDirectory);
     final shared = await _sharedContext(workingDirectory);
     return (rules: rules, sharedContext: shared);

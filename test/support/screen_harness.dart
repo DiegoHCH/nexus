@@ -10,6 +10,9 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
+import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -41,6 +44,29 @@ class FakeVoiceInput implements VoiceInput {
 
   @override
   Stream<AudioFrame> listen() => const Stream.empty();
+}
+
+/// La máquina, que en una prueba tampoco existe.
+///
+/// **Hace falta desde que los dispositivos están en el compositor**: el icono
+/// mira la lista para saber si enciende su punto, y el compositor se monta en
+/// casi todas las pruebas de pantalla. Sin esto, cada una lanzaría
+/// `flutter emulators` y un par de `adb` de verdad —segundos por prueba— y su
+/// plazo de espera deja un `Timer` vivo cuando el árbol ya se tiró: «A Timer is
+/// still pending even after the widget tree was disposed». Diecisiete pruebas a
+/// la vez, y ninguna por su culpa.
+///
+/// Va aquí y no en cada archivo por el mismo motivo que el micrófono falso: es
+/// una puerta al sistema, y este arnés existe para cerrarlas todas de una vez.
+class SinDispositivos extends EmuladoresDataSource {
+  const SinDispositivos();
+
+  @override
+  Future<({List<Emulador> emuladores, String? error})> listar() async =>
+      (emuladores: const <Emulador>[], error: null);
+
+  @override
+  Future<List<DispositivoConectado>> listarDispositivos() async => const [];
 }
 
 class FixedWorkspace extends WorkspaceController {
@@ -124,6 +150,7 @@ Future<void> pumpScreen(
     ProviderScope(
       overrides: [
         voiceInputProvider.overrideWithValue(const FakeVoiceInput()),
+        emuladoresDataSourceProvider.overrideWithValue(const SinDispositivos()),
         ...overrides.cast(),
       ],
       child: MaterialApp(

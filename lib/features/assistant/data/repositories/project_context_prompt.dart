@@ -39,8 +39,27 @@ abstract final class ProjectContextPrompt {
     ContextFile? sharedContext,
     String? artifactsFolder,
     String? artifactsAccount,
+    String? carpetaDePruebas,
+    String? language,
   }) {
     final sections = <String>[];
+
+    // El idioma **es una preferencia, no una orden**: si escribes en otro idioma, gana lo
+    // que escribiste. Imponerlo haría que preguntar en español con la app en inglés te
+    // contestara en inglés, que es lo contrario de lo que se pidió.
+    //
+    // 🔴 **Y va aquí y no pegado al encargo, que es donde estaba.** Lo que la persona
+    // escribe puede ser el comando de otra herramienta: el plugin del marco de trabajo
+    // lee el prompt, y `flow start <título>` toma como título todo lo que va detrás. Con
+    // la frase colgando del encargo, abrir una tarea la bautizaba «(Si no se te pide otra
+    // cosa, responde en español.)» — pasó de verdad, y el mismo fallo habría metido esa
+    // línea dentro de una narrativa de cierre o del motivo de un `cancel`.
+    if (language != null && language.isNotEmpty) {
+      sections.add(
+        'Si el encargo no pide otra cosa, responde en $language. Es una preferencia: '
+        'si te escriben en otro idioma, contesta en el idioma en que te escribieron.',
+      );
+    }
 
     // Dónde dejar lo que genere. Va aquí y no en cada encargo porque es una
     // regla del sitio, no de la petición: sin decirlo, un mockup acaba en la
@@ -66,6 +85,23 @@ abstract final class ProjectContextPrompt {
         '$destino con un nombre que se entienda de aquí a un mes. '
         'Lo que es código del proyecto NO va ahí: eso va donde le toque dentro '
         'del repositorio.',
+      );
+    }
+
+    // Dónde van las pruebas, **solo si el proyecto lo declaró**. Misma regla que los
+    // documentos y por el mismo motivo: sin declarar vale `.maestro/`, que Claude ya
+    // conoce porque es la convención de Maestro, y decirlo en cada encargo de cada
+    // proyecto sería ruido para los que no tienen pruebas.
+    //
+    // Cuando sí está declarada hace falta decirlo o el ajuste queda a medias: Nexus
+    // buscaría en una carpeta y Claude escribiría en otra, la prueba existiría y la
+    // lista saldría vacía. Ese es justo el final que no se puede diagnosticar mirando.
+    if (carpetaDePruebas != null && carpetaDePruebas.isNotEmpty) {
+      sections.add(
+        'Las pruebas de este proyecto viven en $carpetaDePruebas: si escribes una, '
+        'va ahí y no dentro del repositorio. Los flows auxiliares que otra prueba '
+        'llame con `runFlow` van en un subdirectorio de esa carpeta, porque lo que '
+        'quede suelto en ella se ofrece como una prueba que se lanza sola.',
       );
     }
 

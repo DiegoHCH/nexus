@@ -21,7 +21,11 @@ class SuperpowersSection extends ConsumerStatefulWidget {
   ConsumerState<SuperpowersSection> createState() => _SuperpowersSectionState();
 }
 
-/// Las dos mitades: manos fuera del disco y procedimientos aprendidos.
+/// Manos fuera del disco, procedimientos aprendidos y paquetes de los dos.
+///
+/// **Aquí hubo una cuarta, los ganchos, y se fue con el marco flow.** Nexus dejó de traer
+/// los suyos cuando el plugin `flash-flutter` pasó a poner los de verdad: dos juegos sobre
+/// los mismos matchers se pisan, y el que gana no es el que uno cree.
 enum _Kind { mcp, skills, plugins }
 
 class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {

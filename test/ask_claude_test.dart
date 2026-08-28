@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dar
 class _Bridge implements ClaudeBridge {
   final asked = <String>[];
   final resumed = <String?>[];
+  final idiomas = <String?>[];
 
   @override
   Stream<ClaudeEvent> ask(
@@ -21,10 +22,13 @@ class _Bridge implements ClaudeBridge {
     String? model,
     String? effort,
     String? artifactsFolder,
+    String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    String? language,
   }) async* {
     asked.add(instruction);
     resumed.add(resumeSessionId);
+    idiomas.add(language);
     yield const ClaudeSessionStarted(sessionId: 'sesion-1', model: 'x');
     yield const ClaudeTurnCompleted(result: 'listo');
   }
@@ -82,6 +86,7 @@ AskClaude _askWith(
           model: null,
           effort: null,
           artifactsFolder: null,
+          carpetaDePruebas: null,
           disallowedTools: const <String>[],
           constraintsNotice: null,
         ),
@@ -104,15 +109,33 @@ void main() {
     },
   );
 
-  test('lo pedido se recuerda, y el idioma viaja como preferencia', () async {
+  test('lo pedido se recuerda, y el idioma viaja aparte', () async {
     final bridge = _Bridge();
     final memory = _Memory();
 
     await _askWith(bridge, memory)('mira el historial').toList();
 
     expect(memory.prompts, ['mira el historial']);
-    expect(bridge.asked.single, startsWith('mira el historial'));
-    expect(bridge.asked.single, contains('español'));
+    expect(bridge.asked.single, 'mira el historial');
+    expect(bridge.idiomas.single, 'español');
+  });
+
+  // **El encargo llega tal cual, letra por letra.** Aquí se le pegaba la preferencia de
+  // idioma, y eso rompe a cualquiera que lea el prompt como un comando: el plugin del
+  // marco de trabajo abrió una tarea titulada «(Si no se te pide otra cosa, responde en
+  // español.)», porque `flow start <título>` toma como título todo lo que va detrás.
+  //
+  // Se comprueba con igualdad y no con `startsWith` a propósito: lo que rompió no fue el
+  // principio del encargo, fue la cola.
+  test('el encargo llega sin nada pegado, ni siquiera el idioma', () async {
+    final bridge = _Bridge();
+
+    await _askWith(bridge, _Memory())(
+      'flow start SU-601 los hallazgos',
+    ).toList();
+
+    expect(bridge.asked.single, 'flow start SU-601 los hallazgos');
+    expect(bridge.asked.single, isNot(contains('responde en')));
   });
 
   // El identificador se guarda en cuanto arranca, no al terminar: si el encargo

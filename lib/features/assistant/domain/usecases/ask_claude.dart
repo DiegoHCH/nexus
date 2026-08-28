@@ -18,6 +18,7 @@ typedef ClaudeWorkContext = ({
   List<String> disallowedTools,
   String? constraintsNotice,
   String? artifactsFolder,
+  String? carpetaDePruebas,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -113,12 +114,12 @@ class AskClaude {
         if (remember) await _memory.rememberPrompt(folder, instruction);
 
         await for (final event in _bridge.ask(
-          // La preferencia de idioma va como preferencia, no como orden: si
-          // escribes en otro idioma, gana lo que escribiste. Imponerlo haría que
-          // preguntar algo en español con la app en inglés te contestara en
-          // inglés, que es exactamente lo contrario de lo que se pidió.
-          '$instruction\n\n(Si no se te pide otra cosa, responde en '
-          '${context.language}.)',
+          // **El encargo va tal cual, sin una coma de Nexus encima.** Aquí se le pegaba
+          // la preferencia de idioma y eso rompía cualquier herramienta que lea el
+          // prompt como un comando — el plugin del marco abrió una tarea titulada con
+          // esa frase. Ahora viaja en el prompt de sistema, que es donde vive una
+          // preferencia.
+          instruction,
           workingDirectory: folder,
           // El AND, y **el único sitio donde se decide**: lo que concede la
           // carpeta y lo que el origen del encargo permite. Gana el más estricto.
@@ -129,7 +130,9 @@ class AskClaude {
           model: context.model,
           effort: context.effort,
           disallowedTools: context.disallowedTools,
+          language: context.language,
           artifactsFolder: context.artifactsFolder,
+          carpetaDePruebas: context.carpetaDePruebas,
         )) {
           // El identificador se guarda en cuanto arranca, no al terminar: si el
           // encargo se cancela a media ejecución —cerrar la conversación mata el

@@ -70,6 +70,7 @@ abstract class NexusStrings {
 
   // Superpoderes: servidores MCP de cada cuenta.
   String get sectionSuperpowers;
+  String get sectionEmulators;
   String get sectionAppearance;
   String get themeTitle;
   String get accentTitle;
@@ -113,6 +114,7 @@ abstract class NexusStrings {
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
 
+
   /// Instalar en todas las cuentas de golpe.
   ///
   /// Existe porque lo instalado en una cuenta es **invisible** para las carpetas de
@@ -138,6 +140,30 @@ abstract class NexusStrings {
   String get skillsOwn;
   String get skillsOwnHint;
   String get skillsCreate;
+
+  String durationMinutes(int minutes);
+  String durationHoursMinutes(int hours, int minutes);
+
+
+  // Dónde viven las pruebas de una carpeta.
+  String testsFolderTitle(String folder);
+  String get testsFolderExplainer;
+  String get testsFolderHint;
+  String testsFolderResolved(String path);
+  String get testsFolderPick;
+
+  // La sección de Pruebas: una raíz común y el listado por proyecto.
+  String get sectionPruebas;
+  String get sectionCuentas;
+  String get flowsRootExplainer;
+  String get flowsRootHint;
+  String get flowsByProject;
+  String get flowsNoProjects;
+  String get flowsNoneHere;
+  String flowsCount(int total);
+
+  /// El desplegable de qué proyecto mirar, cuando hay más de uno emparejado.
+  String get e2eWhichProject;
 
   // Superpoderes: plugins y marketplaces.
   String get superpowersPlugins;
@@ -273,6 +299,118 @@ abstract class NexusStrings {
   String get sectionLanguage;
   String get sectionHistory;
   String get sectionMobile;
+
+  // Emuladores
+  String get emulatorsTitle;
+  String get emulatorsExplainer;
+  String get emulatorsLaunch;
+  String get emulatorsClose;
+  String get emulatorsRunning;
+  String get emulatorsColdBoot;
+  String get emulatorsRefresh;
+  String get emulatorsEmpty;
+  String get emulatorsConnected;
+
+  // Correr la app
+  String get runTitle;
+  String get runNoConfigs;
+  String get runChooseDevice;
+  String get runStart;
+  String get runStop;
+  String get runReload;
+  String get runRestart;
+  String get runCompiling;
+  String get runRunning;
+  String get runStopping;
+  String get runNoProject;
+  String get runLogs;
+  String get runAuto;
+
+  // Pruebas de la app
+  String get e2eTitle;
+  // Repo de pruebas remoto
+  String get e2eRepoTitle;
+  String get e2eRepoUpdating;
+  String get e2eRepoUpToDate;
+  String get e2eRepoCloned;
+  String get e2eRepoDirty;
+  String get e2eRepoFailed;
+  String get e2eRepoNoFlows;
+  String get e2eRepoRetry;
+  String get e2eRepoNeedsDevice;
+  String get e2eRepoSearch;
+  String get e2ePublish;
+  String get e2ePublishTitle;
+  String e2ePublishWhere(String slug, String ruta);
+  String get e2ePublishReplaces;
+  String get e2ePublishNew;
+  String get e2ePublishHow;
+  String get e2ePublishMessage;
+  String get e2ePublishDoing;
+  String get e2ePublishPushedOnly;
+  String get e2ePublishFailed;
+  String get e2ePublishNoRepo;
+  String get e2ePublishOpen;
+  String get e2eRepoGroupTests;
+  String get e2eRepoGroupPieces;
+  String e2eRepoMatches(int cuantos, int total);
+  String e2eRepoFlows(int total);
+  String get e2eAccounts;
+  String get e2eAccountsTitle;
+  String get e2eAccountsNone;
+  String get e2eAccountsWhere;
+  String get e2eAccountDefault;
+  String get e2eAccountMakeDefault;
+  String get e2eAccountAdd;
+  String get e2eAccountKey;
+  String get e2eAccountKeyHint;
+  String get e2eAccountTags;
+  String get e2eAccountTagsHint;
+  String get e2eAccountDesc;
+  String get e2eAccountDescHint;
+  String get e2eAccountsNoneAnywhere;
+  String get e2eAccountsNoneHere;
+  String get e2eAccountVars;
+  String get e2eAccountVarsHint;
+  String get e2eAccountSave;
+  String get e2eAccountDelete;
+  String get e2eNone;
+  String get e2eNoRuns;
+  String get e2eRun;
+  String get e2eStop;
+  String get e2eDelete;
+  String get e2eUnattributed;
+  String get e2ePassed;
+  String get e2eFailed;
+  String get e2eRunningNow;
+  String get e2eUnknown;
+  String get e2eNoDevice;
+  String get e2eDevice;
+  String get e2eDeleteTest;
+  String get e2eDeleteTestAsk;
+  String get e2eDeleteTestAskLost;
+  String get e2eDeleteTestAskPlain;
+  String get e2eSee;
+  String get e2eRunningTitle;
+  String get e2eStartDevice;
+  String get e2eStarting;
+  String get e2eNotInstalled;
+  String get e2eRepeat;
+  String get e2eFlowGone;
+  String get e2eDeleteProject;
+  String get e2eDeleteProjectAsk;
+  String e2eRunsSize(int cuantas, String tamano);
+  String e2eMissingVars(String claves);
+  String e2eVarsLoaded(int cuantas);
+  String get e2eEnvInGit;
+  String get e2eDriverBlocked;
+  String get e2eNoTapPermission;
+  String get e2eAppMissing;
+  String get e2eSearchingDevices;
+  String get verLaPantalla;
+  String get verLaPantallaSinTocar;
+  String get verElIphoneDuplicado;
+  String get verElIphoneQuickTime;
   String get channelTitle;
   String get channelExplainer;
   String get channelSwitch;
@@ -538,6 +676,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get sectionSuperpowers => 'Superpoderes';
   @override
+  String get sectionEmulators => 'Emuladores';
+  @override
   String get sectionAppearance => 'Apariencia';
   @override
   String get themeTitle => 'Claro u oscuro';
@@ -630,6 +770,51 @@ class NexusStringsEs extends NexusStrings {
   String get superpowersMcp => 'Servidores MCP';
 
   @override
+  String durationMinutes(int minutes) => '$minutes min';
+  @override
+  String durationHoursMinutes(int hours, int minutes) =>
+      minutes == 0 ? '$hours h' : '$hours h $minutes min';
+
+  @override
+  String testsFolderTitle(String folder) => 'Las pruebas de «$folder»';
+  @override
+  String get testsFolderExplainer =>
+      'Dónde buscarlas. Vacío es «.maestro/» dentro del proyecto, que es la convención '
+      'de Maestro. Apuntando cada proyecto a su propia carpeta, sus pruebas no se '
+      'mezclan con las de otro: Nexus lista esa y no ve las demás. Se lista plano, así '
+      'que lo que guardes en subcarpetas —los flows que otros llaman— queda fuera.';
+  @override
+  String get testsFolderHint => '~/Escritorio/e2e/global66   ·   o «flows»';
+  @override
+  String testsFolderResolved(String path) => 'Buscará en $path';
+  @override
+  String get testsFolderPick => 'Elegir…';
+  @override
+  String get sectionPruebas => 'Pruebas';
+  @override
+  String get sectionCuentas => 'Cuentas de prueba';
+  @override
+  String get flowsRootExplainer =>
+      'Una carpeta para las pruebas de todos los proyectos, con una subcarpeta por cada '
+      'uno: «~/pruebas/nexus». Así están juntas y fuera de los repos —una prueba dentro '
+      'de un repo del trabajo es un archivo que alguien acaba commiteando— y aun así no '
+      'se mezclan, porque cada proyecto lista la suya. Vacío deja a cada uno con su '
+      '«.maestro/», que es la convención de Maestro.';
+  @override
+  String get flowsRootHint => '~/pruebas';
+  @override
+  String get flowsByProject => 'Por proyecto';
+  @override
+  String get flowsNoProjects => 'No hay ninguna carpeta emparejada todavía.';
+  @override
+  String get flowsNoneHere => 'ninguna';
+  @override
+  String flowsCount(int total) => total == 1 ? '1 prueba' : '$total pruebas';
+  @override
+  String get e2eWhichProject => 'De qué proyecto';
+
+
+  @override
   String get superpowersEverywhere => 'En todas las cuentas';
 
   @override
@@ -673,6 +858,7 @@ class NexusStringsEs extends NexusStrings {
   String get skillsOwnHint => 'cómo se llama';
   @override
   String get skillsCreate => 'Crear y abrir';
+
   @override
   String get superpowersPlugins => 'Plugins';
   @override
@@ -915,6 +1101,255 @@ class NexusStringsEs extends NexusStrings {
   String get sectionLanguage => 'Idioma';
   @override
   String get sectionMobile => 'Móvil';
+
+  @override
+  String get emulatorsTitle => 'Emuladores y simuladores';
+  @override
+  String get emulatorsExplainer =>
+      'Los de esta máquina, con cuáles están arriba. Se arrancan aquí y siguen '
+      'vivos aunque cierres Nexus: cerrar la app no te cuesta la sesión.';
+  @override
+  String get emulatorsLaunch => 'Arrancar';
+  @override
+  String get emulatorsClose => 'Cerrar';
+  @override
+  String get emulatorsRunning => 'arriba';
+  @override
+  String get emulatorsColdBoot => 'en frío';
+  @override
+  String get emulatorsRefresh => 'Comprobar';
+  @override
+  String get emulatorsEmpty => 'No hay ninguno en esta máquina.';
+  @override
+  String get emulatorsConnected => 'Enchufados';
+
+  @override
+  String get runTitle => 'Correr la app';
+  @override
+  String get runNoConfigs =>
+      'Este proyecto no declara configuraciones en .vscode/launch.json';
+  @override
+  String get runChooseDevice => 'Elige un dispositivo';
+  @override
+  String get runStart => 'Correr';
+  @override
+  String get runStop => 'Parar';
+  @override
+  String get runReload => 'Recargar';
+  @override
+  String get runRestart => 'Reiniciar';
+  @override
+  String get runCompiling => 'Compilando';
+  @override
+  String get runRunning => 'corriendo';
+  @override
+  String get runStopping => 'parando';
+  @override
+  String get runNoProject => 'Sin proyecto no hay nada que correr';
+  @override
+  String get runLogs => 'Registro';
+
+  @override
+  String get e2eTitle => 'Pruebas de la app';
+  @override
+  String get e2eRepoTitle => 'Repo de pruebas';
+  @override
+  String get e2eRepoUpdating => 'Poniendo al día…';
+  @override
+  String get e2eRepoUpToDate => 'Al día';
+  @override
+  String get e2eRepoCloned => 'Clonado';
+  @override
+  String get e2eRepoDirty => 'Con cambios sin publicar; no lo toco';
+  @override
+  String get e2eRepoFailed => 'No pude sincronizar';
+  @override
+  String get e2eRepoNoFlows => 'El repo no tiene flows todavía.';
+  @override
+  String get e2eRepoRetry => 'Reintentar';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Falta elegir dónde correr, en el selector de arriba.';
+  @override
+  String get e2eRepoSearch => 'Buscar una prueba';
+  @override
+  String get e2ePublish => 'Publicar al repo de pruebas';
+  @override
+  String get e2ePublishTitle => 'Publicar al repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Va a $slug, en $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'Ya hay un archivo con ese nombre: el PR lo reemplaza.';
+  @override
+  String get e2ePublishNew => 'Es un archivo nuevo en el repo.';
+  @override
+  String get e2ePublishHow =>
+      'Se crea una rama y se abre un PR contra main. No se mezcla nada: eso lo decide quien lo revise.';
+  @override
+  String get e2ePublishMessage => 'Mensaje del commit';
+  @override
+  String get e2ePublishDoing => 'Publicando…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Empujado a la rama. El PR ábrelo tú: no pude usar gh.';
+  @override
+  String get e2ePublishFailed => 'No se pudo publicar';
+  @override
+  String get e2ePublishNoRepo =>
+      'El repo de pruebas no está listo todavía. Abre el panel de pruebas y espera a que se clone.';
+  @override
+  String get e2ePublishOpen => 'Abrir el PR';
+  @override
+  String get e2eRepoGroupTests => 'Pruebas';
+  @override
+  String get e2eRepoGroupPieces => 'Piezas de otros flows';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos de $total';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Cuentas';
+  @override
+  String get e2eAccountsTitle => 'Cuentas de prueba';
+  @override
+  String get e2eAccountsNone =>
+      'No hay ninguna cuenta. Sin una, ningún flow puede correr: Maestro necesita las credenciales una por una.';
+  @override
+  String get e2eAccountsWhere =>
+      'Se guardan en esta máquina y nunca dentro del repo, que es de donde se empuja.';
+  @override
+  String get e2eAccountDefault => 'por defecto';
+  @override
+  String get e2eAccountMakeDefault => 'Hacer por defecto';
+  @override
+  String get e2eAccountAdd => 'Añadir cuenta';
+  @override
+  String get e2eAccountKey => 'Clave';
+  @override
+  String get e2eAccountKeyHint => 'El nombre corto de la cuenta: pe, co, mx';
+  @override
+  String get e2eAccountTags => 'Etiquetas';
+  @override
+  String get e2eAccountTagsHint =>
+      'Separadas por coma y sin el acct- de delante. Ej: pe, any';
+  @override
+  String get e2eAccountDesc => 'Descripción';
+  @override
+  String get e2eAccountDescHint => 'Para qué sirve. Ej: PEN verificada, sin Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'Ningún proyecto tiene cuentas todavía. Sin una, sus pruebas no pueden correr.';
+  @override
+  String get e2eAccountsNoneHere =>
+      'Este proyecto no tiene cuentas. Se crean en Ajustes → Cuentas de prueba.';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint =>
+      'Una por línea, CLAVE=valor. Mínimo: APP_ID, EMAIL, PASSWORD, PIN_1..4';
+  @override
+  String get e2eAccountSave => 'Guardar';
+  @override
+  String get e2eAccountDelete => 'Borrar cuenta';
+  @override
+  String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
+  @override
+  String get e2eNoRuns =>
+      'Todavía no hay pasadas. Las que lances desde aquí aparecerán con su proyecto.';
+  @override
+  String get e2eRun => 'Correr';
+  @override
+  String get e2eStop => 'Cortar';
+  @override
+  String get e2eDelete => 'Borrar';
+  @override
+  String get e2eUnattributed => 'Sin proyecto';
+  @override
+  String get e2ePassed => 'pasó';
+  @override
+  String get e2eFailed => 'falló';
+  @override
+  String get e2eRunningNow => 'corriendo';
+  @override
+  String get e2eUnknown => 'sin saber';
+  @override
+  String get e2eNoDevice => 'Hace falta un dispositivo encendido';
+  @override
+  String get e2eDevice => 'Dónde correrla';
+  @override
+  String get e2eDeleteTest => 'Borrar la prueba';
+  @override
+  String get e2eDeleteTestAsk =>
+      'Borra el archivo del repo. Se recupera con git.';
+  @override
+  String get e2eDeleteTestAskLost =>
+      'Este archivo no está en git: si lo borras, se pierde.';
+  @override
+  String get e2eDeleteTestAskPlain => 'Borra el archivo del repo.';
+  @override
+  String get e2eSee => 'Ver';
+  @override
+  String get e2eRunningTitle => 'Corriendo';
+  @override
+  String get e2eStartDevice => 'Arrancar un emulador';
+  @override
+  String get e2eStarting => 'Arrancando el emulador…';
+  @override
+  String get e2eNotInstalled =>
+      'La app no está instalada en ese dispositivo. Maestro no la instala: córrela primero con ▶.';
+  @override
+  String get e2eRepeat => 'Repetir';
+  @override
+  String get e2eFlowGone =>
+      'Esa prueba ya no está en el repo, así que no se puede repetir.';
+  @override
+  String get e2eDeleteProject => 'Borrar las pasadas de este proyecto';
+  @override
+  String get e2eDeleteProjectAsk =>
+      'Borra todas las pasadas de este proyecto. Las pruebas no se tocan.';
+  @override
+  String e2eRunsSize(int cuantas, String tamano) =>
+      '${cuantas == 1 ? '1 pasada' : '$cuantas pasadas'} · $tamano';
+  @override
+  String e2eMissingVars(String claves) => 'Faltan en .env.local: $claves';
+  @override
+  String e2eVarsLoaded(int cuantas) => cuantas == 1
+      ? '1 variable de .env.local'
+      : '$cuantas variables de .env.local';
+  @override
+  String get e2eEnvInGit =>
+      '.env.local está en git. Sácalo: lleva credenciales.';
+  @override
+  String get e2eDriverBlocked =>
+      'El dispositivo no dejó instalar el driver de Maestro. En Xiaomi hace falta '
+      '«Instalar vía USB» y «Depuración USB (Ajustes de seguridad)» en opciones de '
+      'desarrollador; se apagan solas cada cierto tiempo.';
+  @override
+  String get e2eNoTapPermission =>
+      'El dispositivo deja leer la pantalla pero no tocarla. En Xiaomi es '
+      '«Depuración USB (Ajustes de seguridad)»: sin ella los assert pasan y el tap '
+      'falla.';
+  @override
+  String get e2eAppMissing =>
+      'La app no estaba en el dispositivo. Maestro no la instala: córrela primero.';
+  @override
+  String get e2eSearchingDevices => 'Buscando dispositivos…';
+  @override
+  String get verLaPantalla => 'Ver la pantalla del móvil';
+  @override
+  String get verLaPantallaSinTocar =>
+      'Ver la pantalla, sin control: hay una prueba corriendo';
+  @override
+  String get verElIphoneDuplicado =>
+      'Duplicado de iPhone: con control. Pide el mismo Apple ID y el teléfono '
+      'bloqueado y cerca.';
+  @override
+  String get verElIphoneQuickTime =>
+      'QuickTime: por cable y sin control. La fuente se elige dentro de QuickTime.';
+  @override
+  String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
   String get channelTitle => 'El canal del teléfono';
   @override
@@ -1489,6 +1924,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get sectionSuperpowers => 'Superpowers';
   @override
+  String get sectionEmulators => 'Emulators';
+  @override
   String get sectionAppearance => 'Appearance';
   @override
   String get themeTitle => 'Light or dark';
@@ -1581,6 +2018,51 @@ class NexusStringsEn extends NexusStrings {
   String get superpowersMcp => 'MCP servers';
 
   @override
+  String durationMinutes(int minutes) => '$minutes min';
+  @override
+  String durationHoursMinutes(int hours, int minutes) =>
+      minutes == 0 ? '$hours h' : '$hours h $minutes min';
+
+  @override
+  String testsFolderTitle(String folder) => 'The tests for «$folder»';
+  @override
+  String get testsFolderExplainer =>
+      'Where to look for them. Empty means «.maestro/» inside the project, which is '
+      "Maestro's convention. Point each project at its own folder and its tests cannot "
+      'mix with another\'s: Nexus lists that one and never sees the rest. Listing is '
+      'flat, so whatever you keep in subfolders — the flows others call — stays out.';
+  @override
+  String get testsFolderHint => '~/Desktop/e2e/global66   ·   or «flows»';
+  @override
+  String testsFolderResolved(String path) => 'Will look in $path';
+  @override
+  String get testsFolderPick => 'Choose…';
+  @override
+  String get sectionPruebas => 'Tests';
+  @override
+  String get sectionCuentas => 'Test accounts';
+  @override
+  String get flowsRootExplainer =>
+      'One folder for every project\'s tests, with a subfolder per project: '
+      '«~/tests/nexus». Together and outside the repos — a test inside a work repo is a '
+      'file somebody eventually commits — and still not mixed, because each project '
+      'lists its own. Empty leaves each one with its «.maestro/», which is Maestro\'s '
+      'convention.';
+  @override
+  String get flowsRootHint => '~/tests';
+  @override
+  String get flowsByProject => 'By project';
+  @override
+  String get flowsNoProjects => 'No folder paired yet.';
+  @override
+  String get flowsNoneHere => 'none';
+  @override
+  String flowsCount(int total) => total == 1 ? '1 test' : '$total tests';
+  @override
+  String get e2eWhichProject => 'Which project';
+
+
+  @override
   String get superpowersEverywhere => 'In every account';
 
   @override
@@ -1624,6 +2106,7 @@ class NexusStringsEn extends NexusStrings {
   String get skillsOwnHint => 'what it is called';
   @override
   String get skillsCreate => 'Create and open';
+
   @override
   String get superpowersPlugins => 'Plugins';
   @override
@@ -1865,6 +2348,256 @@ class NexusStringsEn extends NexusStrings {
   String get sectionLanguage => 'Language';
   @override
   String get sectionMobile => 'Mobile';
+
+  @override
+  String get emulatorsTitle => 'Emulators and simulators';
+  @override
+  String get emulatorsExplainer =>
+      "The ones on this machine, and which are up. Launch them here and they "
+      "stay alive after you quit Nexus: closing the app won't cost you your "
+      'session.';
+  @override
+  String get emulatorsLaunch => 'Launch';
+  @override
+  String get emulatorsClose => 'Close';
+  @override
+  String get emulatorsRunning => 'up';
+  @override
+  String get emulatorsColdBoot => 'cold boot';
+  @override
+  String get emulatorsRefresh => 'Check';
+  @override
+  String get emulatorsEmpty => 'None on this machine.';
+  @override
+  String get emulatorsConnected => 'Plugged in';
+
+  @override
+  String get runTitle => 'Run the app';
+  @override
+  String get runNoConfigs =>
+      'This project declares no configurations in .vscode/launch.json';
+  @override
+  String get runChooseDevice => 'Pick a device';
+  @override
+  String get runStart => 'Run';
+  @override
+  String get runStop => 'Stop';
+  @override
+  String get runReload => 'Reload';
+  @override
+  String get runRestart => 'Restart';
+  @override
+  String get runCompiling => 'Compiling';
+  @override
+  String get runRunning => 'running';
+  @override
+  String get runStopping => 'stopping';
+  @override
+  String get runNoProject => 'No project, nothing to run';
+  @override
+  String get runLogs => 'Log';
+
+  @override
+  String get e2eTitle => 'App tests';
+  @override
+  String get e2eRepoTitle => 'Tests repo';
+  @override
+  String get e2eRepoUpdating => 'Syncing…';
+  @override
+  String get e2eRepoUpToDate => 'Up to date';
+  @override
+  String get e2eRepoCloned => 'Cloned';
+  @override
+  String get e2eRepoDirty => 'Has unpublished changes; leaving it alone';
+  @override
+  String get e2eRepoFailed => 'Could not sync';
+  @override
+  String get e2eRepoNoFlows => 'The repo has no flows yet.';
+  @override
+  String get e2eRepoRetry => 'Retry';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Pick where to run it, in the selector above.';
+  @override
+  String get e2eRepoSearch => 'Find a test';
+  @override
+  String get e2ePublish => 'Publish to the tests repo';
+  @override
+  String get e2ePublishTitle => 'Publish to the repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Goes to $slug, at $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'A file with that name is already there: the PR replaces it.';
+  @override
+  String get e2ePublishNew => 'It is a new file in the repo.';
+  @override
+  String get e2ePublishHow =>
+      'A branch is created and a PR opened against main. Nothing is merged: whoever reviews it decides that.';
+  @override
+  String get e2ePublishMessage => 'Commit message';
+  @override
+  String get e2ePublishDoing => 'Publishing…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Pushed to the branch. Open the PR yourself: gh was not available.';
+  @override
+  String get e2ePublishFailed => 'Could not publish';
+  @override
+  String get e2ePublishNoRepo =>
+      'The tests repo is not ready yet. Open the tests panel and wait for the clone.';
+  @override
+  String get e2ePublishOpen => 'Open the PR';
+  @override
+  String get e2eRepoGroupTests => 'Tests';
+  @override
+  String get e2eRepoGroupPieces => 'Pieces other flows use';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos of $total';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Accounts';
+  @override
+  String get e2eAccountsTitle => 'Test accounts';
+  @override
+  String get e2eAccountsNone =>
+      'No accounts yet. Without one no flow can run: Maestro needs the credentials one by one.';
+  @override
+  String get e2eAccountsWhere =>
+      'Kept on this machine and never inside the repo, which is what gets pushed.';
+  @override
+  String get e2eAccountDefault => 'default';
+  @override
+  String get e2eAccountMakeDefault => 'Make default';
+  @override
+  String get e2eAccountAdd => 'Add account';
+  @override
+  String get e2eAccountKey => 'Key';
+  @override
+  String get e2eAccountKeyHint => 'The account short name: pe, co, mx';
+  @override
+  String get e2eAccountTags => 'Tags';
+  @override
+  String get e2eAccountTagsHint =>
+      'Comma separated, without the leading acct-. E.g. pe, any';
+  @override
+  String get e2eAccountDesc => 'Description';
+  @override
+  String get e2eAccountDescHint => 'What it is for. E.g. PEN verified, no Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'No project has accounts yet. Without one, its tests cannot run.';
+  @override
+  String get e2eAccountsNoneHere =>
+      'This project has no accounts. They are created in Settings → Test accounts.';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint =>
+      'One per line, KEY=value. At least: APP_ID, EMAIL, PASSWORD, PIN_1..4';
+  @override
+  String get e2eAccountSave => 'Save';
+  @override
+  String get e2eAccountDelete => 'Delete account';
+  @override
+  String get e2eNone => 'This project has no tests in .maestro/';
+  @override
+  String get e2eNoRuns =>
+      'No runs yet. The ones you launch here will show up with their project.';
+  @override
+  String get e2eRun => 'Run';
+  @override
+  String get e2eStop => 'Stop';
+  @override
+  String get e2eDelete => 'Delete';
+  @override
+  String get e2eUnattributed => 'No project';
+  @override
+  String get e2ePassed => 'passed';
+  @override
+  String get e2eFailed => 'failed';
+  @override
+  String get e2eRunningNow => 'running';
+  @override
+  String get e2eUnknown => 'unknown';
+  @override
+  String get e2eNoDevice => 'A running device is needed';
+  @override
+  String get e2eDevice => 'Where to run it';
+  @override
+  String get e2eDeleteTest => 'Delete the test';
+  @override
+  String get e2eDeleteTestAsk =>
+      'Deletes the file from the repo. Recoverable with git.';
+  @override
+  String get e2eDeleteTestAskLost =>
+      'This file is not in git: deleting it loses it.';
+  @override
+  String get e2eDeleteTestAskPlain => 'Deletes the file from the repo.';
+  @override
+  String get e2eSee => 'Open';
+  @override
+  String get e2eRunningTitle => 'Running';
+  @override
+  String get e2eStartDevice => "Start an emulator";
+  @override
+  String get e2eStarting => "Starting the emulator…";
+  @override
+  String get e2eNotInstalled =>
+      "The app is not installed on that device. Maestro will not install it: run it first with ▶.";
+  @override
+  String get e2eRepeat => 'Repeat';
+  @override
+  String get e2eFlowGone =>
+      'That test is no longer in the repo, so it cannot be repeated.';
+  @override
+  String get e2eDeleteProject => "Delete this project's runs";
+  @override
+  String get e2eDeleteProjectAsk =>
+      "Deletes every run of this project. The tests are left alone.";
+  @override
+  String e2eRunsSize(int cuantas, String tamano) =>
+      '${cuantas == 1 ? '1 run' : '$cuantas runs'} · $tamano';
+  @override
+  String e2eMissingVars(String claves) => 'Missing from .env.local: $claves';
+  @override
+  String e2eVarsLoaded(int cuantas) => cuantas == 1
+      ? '1 variable from .env.local'
+      : '$cuantas variables from .env.local';
+  @override
+  String get e2eEnvInGit =>
+      '.env.local is in git. Take it out: it holds credentials.';
+  @override
+  String get e2eDriverBlocked =>
+      "The device refused to install Maestro's driver. On Xiaomi this needs "
+      '"Install via USB" and "USB debugging (Security settings)" in developer '
+      'options; both switch themselves off periodically.';
+  @override
+  String get e2eNoTapPermission =>
+      'The device lets the screen be read but not touched. On Xiaomi that is '
+      '"USB debugging (Security settings)": without it asserts pass and the tap '
+      'fails.';
+  @override
+  String get e2eAppMissing =>
+      'The app was not on the device. Maestro does not install it: run it first.';
+  @override
+  String get e2eSearchingDevices => 'Looking for devices…';
+  @override
+  String get verLaPantalla => "See the phone's screen";
+  @override
+  String get verLaPantallaSinTocar =>
+      'See the screen, no control: a test is running';
+  @override
+  String get verElIphoneDuplicado =>
+      'iPhone Mirroring: with control. Needs the same Apple ID and the phone '
+      'locked and nearby.';
+  @override
+  String get verElIphoneQuickTime =>
+      'QuickTime: over cable, no control. You pick the source inside QuickTime.';
+  @override
+  String get runAuto => 'Reload on its own when an errand finishes';
   @override
   String get channelTitle => 'The phone channel';
   @override

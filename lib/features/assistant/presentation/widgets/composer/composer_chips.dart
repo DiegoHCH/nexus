@@ -228,6 +228,8 @@ class ComposerChips extends ConsumerWidget {
           // carpeta dice una cosa y el repo otra.
           _Chip(icon: Icons.hub_outlined, label: git.repository),
         ],
+        // La rama, a secas. **Abría la hoja de la corrida y ya no**: eso era del marco
+        // flow, que se fue entero al plugin.
         if (git?.branch case final branch?)
           _Chip(icon: Icons.alt_route, label: branch),
         if (git == null && paired != null)
