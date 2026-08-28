@@ -9,6 +9,7 @@ import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_pasadas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/el_arbol_de_un_flow.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -377,7 +378,14 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       // los dos casos `paraElFlow` deja pasar **solo las claves que el flow
       // nombra**, que es la propiedad que hace esto seguro y no el origen.
       variables: LasVariablesDelProyecto.paraElFlow(
-        yaml: yaml,
+        // 🔴 El árbol entero y no solo este archivo. El filtro deja pasar lo que
+        // el YAML nombra, y las credenciales suelen vivir **en un subflow**: en
+        // automated-test, `04-account-detail` → `commons/setup-authed` →
+        // `../auth/00-login`, que es donde están EMAIL y PASSWORD. Mirando solo
+        // el primero llegaba APP_ID y nada más, el login tecleaba el literal
+        // `${EMAIL}` y la prueba moría tres pasos después. Vale para cualquier
+        // flow con subflows, no solo para los del repo remoto.
+        yaml: ElArbolDeUnFlow.texto(ruta: prueba.ruta, leer: _leerSiEsta),
         variables:
             credenciales ??
             ds.variablesDe(
@@ -577,6 +585,20 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       return await File(ruta).readAsString();
     } on FileSystemException {
       return '';
+    }
+  }
+
+  /// El lector que usa el resolutor del árbol. **Síncrono a propósito**: son un
+  /// puñado de archivos pequeños, una sola vez por lanzamiento, y así el caso de
+  /// uso se queda puro —recibe una función, no toca disco— y se puede probar sin
+  /// escribir nada. `null` cuando no está, que es lo que le dice al resolutor que
+  /// se lo salte en vez de romper.
+  static String? _leerSiEsta(String ruta) {
+    try {
+      final archivo = File(ruta);
+      return archivo.existsSync() ? archivo.readAsStringSync() : null;
+    } on FileSystemException {
+      return null;
     }
   }
 }

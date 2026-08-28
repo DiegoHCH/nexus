@@ -97,6 +97,7 @@ class _EstadoState extends ConsumerState<_Estado> {
     }
 
     final flows = ref.watch(flowsDelRepoProvider).value ?? const [];
+    final sinCuentas = ref.watch(cuentasDePruebaProvider).isEmpty;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,10 +131,38 @@ class _EstadoState extends ConsumerState<_Estado> {
               style: NexusTypography.body.copyWith(color: colors.mute),
             ),
           )
-        else if (_abierta) ...[
-          const SizedBox(height: NexusSpacing.s3),
-          for (final ruta in flows)
-            _FilaDeFlow(clon: resultado.clon!, ruta: ruta),
+        else ...[
+          // **Sin ninguna cuenta el aviso va aquí y una sola vez.** Puesto por
+          // fila se repetía 57 veces, que es un muro y no un aviso: el motivo es
+          // el mismo para todas y la salida también. Con el botón al lado, porque
+          // decir qué falta sin decir dónde se arregla obliga a buscarlo.
+          if (sinCuentas)
+            Padding(
+              padding: const EdgeInsets.only(top: NexusSpacing.s2),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      strings.e2eAccountsNone,
+                      style: NexusTypography.body.copyWith(color: colors.warn),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => CuentasDePruebaSheet.open(context),
+                    child: Text(strings.e2eAccountAdd),
+                  ),
+                ],
+              ),
+            ),
+          if (_abierta) ...[
+            const SizedBox(height: NexusSpacing.s3),
+            for (final ruta in flows)
+              _FilaDeFlow(
+                clon: resultado.clon!,
+                ruta: ruta,
+                sinCuentas: sinCuentas,
+              ),
+          ],
         ],
       ],
     );
@@ -176,10 +205,18 @@ class _Problema extends ConsumerWidget {
 
 /// Un flow del repo: cómo se llama, con qué cuenta corre y el botón de correrlo.
 class _FilaDeFlow extends ConsumerWidget {
-  const _FilaDeFlow({required this.clon, required this.ruta});
+  const _FilaDeFlow({
+    required this.clon,
+    required this.ruta,
+    required this.sinCuentas,
+  });
 
   final String clon;
   final String ruta;
+
+  /// Si no hay ninguna cuenta configurada. La fila entonces se calla el motivo:
+  /// ya lo dice la sección, una vez y con el botón para resolverlo.
+  final bool sinCuentas;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -217,7 +254,7 @@ class _FilaDeFlow extends ConsumerWidget {
                     'acct-${(cuenta.tags.toList()..sort()).join(' · acct-')}',
                     style: NexusTypography.label.copyWith(color: colors.faint),
                   )
-                else if (porQueNo != null)
+                else if (porQueNo != null && !sinCuentas)
                   Text(
                     porQueNo,
                     style: NexusTypography.label.copyWith(color: colors.warn),
