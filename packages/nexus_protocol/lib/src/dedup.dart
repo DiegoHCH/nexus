@@ -13,9 +13,26 @@ import 'package:meta/meta.dart';
 /// Con caducidad y no para siempre: la memoria de un servidor que nunca olvida
 /// crece sin tope, y un `clientMsgId` de hace tres días no se va a reenviar. El TTL
 /// es lo que convierte «recordar» en «recordar lo que puede volver».
+///
+/// **Y con tope de entradas, además del TTL.** La caducidad acota el tiempo pero
+/// no la cantidad: dentro de la misma ventana de diez minutos, un cliente puede
+/// mandar identificadores nuevos tan rápido como quiera. Los dos límites hacen
+/// falta porque acotan cosas distintas.
 class Deduplicator {
-  Deduplicator({required this.ttl, DateTime Function()? reloj})
-    : _reloj = reloj ?? DateTime.now;
+  Deduplicator({
+    required this.ttl,
+    this.maximo = 4096,
+    DateTime Function()? reloj,
+  }) : _reloj = reloj ?? DateTime.now;
+
+  /// Cuántas peticiones se recuerdan como mucho.
+  ///
+  /// Cuatro mil son muchas más de las que caben en una ventana de TTL de uso
+  /// normal —un encargo por vez, y los reintentos de un móvil con mala
+  /// cobertura son unos pocos— así que en la práctica nunca se toca. Está para
+  /// el caso en que sí: entonces se olvida lo más viejo, que es también lo que
+  /// menos probable es que vuelva.
+  final int maximo;
 
   /// Cuánto se recuerda una petición.
   ///
@@ -38,6 +55,7 @@ class Deduplicator {
     _limpiar();
     if (_vistas.containsKey(id)) return false;
     _vistas[id] = _reloj();
+    _recortar();
     return true;
   }
 
@@ -59,5 +77,16 @@ class Deduplicator {
   void _limpiar() {
     final ahora = _reloj();
     _vistas.removeWhere((_, cuando) => ahora.difference(cuando) > ttl);
+  }
+
+  /// Deja el recuerdo dentro del tope, tirando lo más antiguo.
+  ///
+  /// Por orden de inserción, que en un `Map` de Dart es el orden de iteración y
+  /// aquí coincide con el orden temporal: lo primero que entró es lo primero que
+  /// se va. Recorrer buscando la fecha más vieja daría lo mismo y costaría más.
+  void _recortar() {
+    while (_vistas.length > maximo) {
+      _vistas.remove(_vistas.keys.first);
+    }
   }
 }

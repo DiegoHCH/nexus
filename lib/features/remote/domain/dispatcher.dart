@@ -36,6 +36,15 @@ class Dispatcher {
   /// de que se la pidan.
   static const maxPagina = 200;
 
+  /// El tope de lo que se manda de un documento.
+  ///
+  /// Es el mismo tipo de límite que [maxPagina] y faltaba: leer un archivo entero
+  /// en memoria es un pico en el Mac, y mandarlo entero es un marco de WebSocket
+  /// que el teléfono va a tragar por 4G. Medio mega es generoso para texto —un
+  /// informe largo son treinta kilobytes— y el que no quepa se abre en el Mac,
+  /// que es lo que ya se contesta de un binario.
+  static const maxBytesDeDocumento = 512 * 1024;
+
   /// Los marcos a enviar, en orden.
   Stream<Frame> attend(Call call) async* {
     // **El ack antes de ejecutar, y esto es el orden y no un detalle.**
@@ -84,6 +93,14 @@ class Dispatcher {
         id: call.id,
         code: 'binaryArtifact',
         message: 'ese documento no es texto: ${error.id} se abre en el Mac',
+      );
+    } on ArtifactTooLarge catch (error) {
+      yield Failure(
+        id: call.id,
+        code: 'artifactTooLarge',
+        message:
+            'ese documento ocupa ${error.bytes ~/ 1024} KB y no cabe por aquí: '
+            '${error.id} se abre en el Mac',
       );
     } on FormatException catch (error) {
       yield Failure(id: call.id, code: 'badParams', message: error.message);
