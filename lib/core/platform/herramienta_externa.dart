@@ -73,6 +73,22 @@ abstract final class HerramientaExterna {
     '/usr/local/bin/maestro',
   ];
 
+  /// Donde deja Homebrew el CLI de GitHub. No hay instalador propio que edite el
+  /// perfil, así que con los dos prefijos de brew está cubierto.
+  static List<String> candidatosDeGh() => const [
+    '/opt/homebrew/bin/gh',
+    '/usr/local/bin/gh',
+  ];
+
+  /// git viene con las herramientas de línea de comandos de Xcode y siempre está
+  /// en el mismo sitio. Se listan igual por si alguien usa el de Homebrew, que es
+  /// más nuevo y va antes en su PATH.
+  static List<String> candidatosDeGit() => const [
+    '/opt/homebrew/bin/git',
+    '/usr/local/bin/git',
+    '/usr/bin/git',
+  ];
+
   /// La ruta del binario, o `null` si no está en ningún sitio conocido.
   ///
   /// [existe] y [preguntaAlShell] entran como parámetros para poder probar el
