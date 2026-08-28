@@ -32,14 +32,21 @@ class SlugDelRepoDePruebas extends Notifier<String> {
   Future<void> _cargar() async {
     final prefs = await SharedPreferences.getInstance();
     final guardado = prefs.getString(_key);
-    if (guardado != null && guardado.trim().isNotEmpty) state = guardado.trim();
+    if (guardado == null) return;
+    // **Se comprueba también al leer, no solo al elegir.** Las preferencias son
+    // un plist en el disco: lo que salga de ahí no es más de fiar que lo que
+    // escriba alguien en la caja. Lo que no pasa se queda en el de por defecto,
+    // que es lo que había antes de configurar nada.
+    final valido = DondeViveElRepoDePruebas.valido(guardado);
+    if (valido != null) state = valido;
   }
 
   Future<void> elegir(String slug) async {
-    final limpio = slug.trim();
     // Un slug sin barra no es un repo de GitHub y clonarlo falla con un error que
-    // no se entiende. Se rechaza aquí, donde se puede decir por qué.
-    if (!RegExp(r'^[\w.-]+/[\w.-]+$').hasMatch(limpio)) return;
+    // no se entiende. La forma la sabe quien construye la ruta con ella; aquí solo
+    // se rechaza, que es donde se puede decir por qué.
+    final limpio = DondeViveElRepoDePruebas.valido(slug);
+    if (limpio == null) return;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_key, limpio);
     state = limpio;

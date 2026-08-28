@@ -705,7 +705,7 @@ class E2eDataSource {
 
     try {
       final r = await Process.run(
-        'git',
+        await HerramientaExterna.rutaDeGit(),
         [
           '-C',
           ruta.substring(0, corte),

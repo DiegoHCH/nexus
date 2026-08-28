@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
@@ -54,7 +55,7 @@ class McpDataSource {
   Future<List<McpServer>?> check(String configDir) async {
     try {
       final result = await Process.run(
-        'claude',
+        await HerramientaExterna.rutaDeClaude(),
         ['mcp', 'list'],
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
@@ -125,7 +126,7 @@ class McpDataSource {
     if (args == null) return 'Datos inválidos';
     try {
       final result = await Process.run(
-        'claude',
+        await HerramientaExterna.rutaDeClaude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
