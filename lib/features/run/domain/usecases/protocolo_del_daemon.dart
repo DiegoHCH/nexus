@@ -42,7 +42,7 @@ abstract final class ProtocoloDelDaemon {
       return EventoDelDaemon(
         nombre: nombre,
         params: switch (mensaje['params']) {
-          final Map params => params.cast<String, Object?>(),
+          final Map<Object?, Object?> params => params.cast<String, Object?>(),
           _ => const {},
         },
       );

@@ -331,7 +331,9 @@ class _LanzaderaState extends ConsumerState<_Lanzadera> {
   /// falta un dispositivo» se ofrece encenderlo.
   /// Los que hay definidos y apagados, que son los que se pueden encender.
   List<Emulador> get _apagados => [
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+    for (final e
+        in ref.watch(emuladoresProvider).value?.emuladores ??
+            const <Emulador>[])
       if (!e.corriendo) e,
   ];
 

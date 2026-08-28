@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
@@ -172,10 +173,14 @@ final tamanoPorProyectoProvider = FutureProvider<Map<String, int>>((ref) async {
 /// sí tiene, y nadie se entera hasta que falla en el sitio raro.
 final dondeCorrerProvider = Provider<List<({String id, String nombre})>>((ref) {
   return [
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+    for (final e
+        in ref.watch(emuladoresProvider).value?.emuladores ??
+            const <Emulador>[])
       if (e.corriendo && e.deviceId != null)
         (id: e.deviceId!, nombre: e.nombre),
-    for (final d in ref.watch(dispositivosProvider).value ?? const [])
+    for (final d
+        in ref.watch(dispositivosProvider).value ??
+            const <DispositivoConectado>[])
       (id: d.id, nombre: d.nombre),
   ];
 });

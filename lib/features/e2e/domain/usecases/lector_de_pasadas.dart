@@ -47,16 +47,16 @@ abstract final class LectorDePasadas {
       if (entrada is! Map) continue;
 
       // El entorno viaja dentro del primer comando, no en la raíz.
-      if (entrada['command'] case final Map orden) {
-        if (orden['defineVariablesCommand'] case final Map definicion) {
-          if (definicion['env'] case final Map entorno) {
+      if (entrada['command'] case final Map<Object?, Object?> orden) {
+        if (orden['defineVariablesCommand'] case final Map<Object?, Object?> definicion) {
+          if (definicion['env'] case final Map<Object?, Object?> entorno) {
             dispositivo ??= entorno['MAESTRO_DEVICE_UDID'] as String?;
           }
         }
       }
 
       final estado = switch (entrada['metadata']) {
-        final Map metadatos => '${metadatos['status'] ?? ''}',
+        final Map<Object?, Object?> metadatos => '${metadatos['status'] ?? ''}',
         _ => '',
       };
 
