@@ -327,6 +327,32 @@ abstract class NexusStrings {
 
   // Pruebas de la app
   String get e2eTitle;
+  // Repo de pruebas remoto
+  String get e2eRepoTitle;
+  String get e2eRepoUpdating;
+  String get e2eRepoUpToDate;
+  String get e2eRepoCloned;
+  String get e2eRepoDirty;
+  String get e2eRepoFailed;
+  String get e2eRepoNoFlows;
+  String get e2eRepoRetry;
+  String e2eRepoFlows(int total);
+  String get e2eAccounts;
+  String get e2eAccountsTitle;
+  String get e2eAccountsNone;
+  String get e2eAccountsWhere;
+  String get e2eAccountDefault;
+  String get e2eAccountMakeDefault;
+  String get e2eAccountAdd;
+  String get e2eAccountKey;
+  String get e2eAccountKeyHint;
+  String get e2eAccountTags;
+  String get e2eAccountTagsHint;
+  String get e2eAccountDesc;
+  String get e2eAccountVars;
+  String get e2eAccountVarsHint;
+  String get e2eAccountSave;
+  String get e2eAccountDelete;
   String get e2eNone;
   String get e2eNoRuns;
   String get e2eRun;
@@ -1102,6 +1128,58 @@ class NexusStringsEs extends NexusStrings {
 
   @override
   String get e2eTitle => 'Pruebas de la app';
+  @override
+  String get e2eRepoTitle => 'Repo de pruebas';
+  @override
+  String get e2eRepoUpdating => 'Poniendo al día…';
+  @override
+  String get e2eRepoUpToDate => 'Al día';
+  @override
+  String get e2eRepoCloned => 'Clonado';
+  @override
+  String get e2eRepoDirty => 'Con cambios sin publicar; no lo toco';
+  @override
+  String get e2eRepoFailed => 'No pude sincronizar';
+  @override
+  String get e2eRepoNoFlows => 'El repo no tiene flows todavía.';
+  @override
+  String get e2eRepoRetry => 'Reintentar';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Cuentas';
+  @override
+  String get e2eAccountsTitle => 'Cuentas de prueba';
+  @override
+  String get e2eAccountsNone =>
+      'No hay ninguna cuenta. Sin una, ningún flow puede correr: Maestro necesita las credenciales una por una.';
+  @override
+  String get e2eAccountsWhere =>
+      'Se guardan en esta máquina y nunca dentro del repo, que es de donde se empuja.';
+  @override
+  String get e2eAccountDefault => 'por defecto';
+  @override
+  String get e2eAccountMakeDefault => 'Hacer por defecto';
+  @override
+  String get e2eAccountAdd => 'Añadir cuenta';
+  @override
+  String get e2eAccountKey => 'Clave';
+  @override
+  String get e2eAccountKeyHint => 'pe, co, mx…';
+  @override
+  String get e2eAccountTags => 'Etiquetas';
+  @override
+  String get e2eAccountTagsHint => 'pe, any — sin el prefijo acct-';
+  @override
+  String get e2eAccountDesc => 'Descripción';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint => 'EMAIL=…, una por línea';
+  @override
+  String get e2eAccountSave => 'Guardar';
+  @override
+  String get e2eAccountDelete => 'Borrar cuenta';
   @override
   String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
   @override
@@ -2246,6 +2324,58 @@ class NexusStringsEn extends NexusStrings {
 
   @override
   String get e2eTitle => 'App tests';
+  @override
+  String get e2eRepoTitle => 'Tests repo';
+  @override
+  String get e2eRepoUpdating => 'Syncing…';
+  @override
+  String get e2eRepoUpToDate => 'Up to date';
+  @override
+  String get e2eRepoCloned => 'Cloned';
+  @override
+  String get e2eRepoDirty => 'Has unpublished changes; leaving it alone';
+  @override
+  String get e2eRepoFailed => 'Could not sync';
+  @override
+  String get e2eRepoNoFlows => 'The repo has no flows yet.';
+  @override
+  String get e2eRepoRetry => 'Retry';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Accounts';
+  @override
+  String get e2eAccountsTitle => 'Test accounts';
+  @override
+  String get e2eAccountsNone =>
+      'No accounts yet. Without one no flow can run: Maestro needs the credentials one by one.';
+  @override
+  String get e2eAccountsWhere =>
+      'Kept on this machine and never inside the repo, which is what gets pushed.';
+  @override
+  String get e2eAccountDefault => 'default';
+  @override
+  String get e2eAccountMakeDefault => 'Make default';
+  @override
+  String get e2eAccountAdd => 'Add account';
+  @override
+  String get e2eAccountKey => 'Key';
+  @override
+  String get e2eAccountKeyHint => 'pe, co, mx…';
+  @override
+  String get e2eAccountTags => 'Tags';
+  @override
+  String get e2eAccountTagsHint => 'pe, any — without the acct- prefix';
+  @override
+  String get e2eAccountDesc => 'Description';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint => 'EMAIL=…, one per line';
+  @override
+  String get e2eAccountSave => 'Save';
+  @override
+  String get e2eAccountDelete => 'Delete account';
   @override
   String get e2eNone => 'This project has no tests in .maestro/';
   @override

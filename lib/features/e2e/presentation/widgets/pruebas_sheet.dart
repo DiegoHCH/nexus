@@ -11,6 +11,7 @@ import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.da
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
+import 'package:nexus/features/e2e/presentation/widgets/repo_de_pruebas_seccion.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -79,6 +80,11 @@ class PruebasSheet extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   if (proyecto case final p?) _Lanzadera(proyecto: p),
+                  const SizedBox(height: NexusSpacing.s5),
+                  // Los del repo compartido van entre las del proyecto y el
+                  // historial: son pruebas que se lanzan, así que pertenecen
+                  // arriba con lo que se lanza y no abajo con lo que ya pasó.
+                  const RepoDePruebasSeccion(),
                   const SizedBox(height: NexusSpacing.s5),
                   const _Historial(),
                 ],

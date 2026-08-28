@@ -161,8 +161,15 @@ class _Lanzamientos extends PruebaEnMarchaController {
     required String proyecto,
     required String deviceId,
     required String perfil,
+    Map<String, String>? credenciales,
   }) async {
-    lanzados.add('${prueba.nombre}@$deviceId');
+    // El perfil y el origen de las credenciales se apuntan también: es lo que
+    // distingue una pasada del proyecto de una del repo de pruebas, y sin eso el
+    // doble no podría notar que se lanzó la que no era.
+    lanzados.add(
+      '${prueba.nombre}@$deviceId'
+      '${credenciales == null ? '' : ' con $perfil (${credenciales.length})'}',
+    );
     return null;
   }
 }
@@ -737,6 +744,11 @@ void main() {
 
         // Los grupos van ordenados por proyecto: «otra» antes que «tienda».
         final sweep = find.byIcon(Icons.delete_sweep_outlined);
+        // El historial vive debajo de la sección del repo, así que puede quedar
+        // fuera de la ventana del test. Se acerca antes de tocar: el fallo que
+        // daba sin esto era del viewport, no de la pantalla.
+        await tester.ensureVisible(sweep.at(1));
+        await tester.pump();
         await tester.tap(sweep.at(1));
         await tester.pump();
         await tester.tap(sweep.at(1));

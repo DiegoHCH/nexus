@@ -337,6 +337,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     required String proyecto,
     required String deviceId,
     required String perfil,
+    Map<String, String>? credenciales,
   }) async {
     if (state?.viva ?? false) return 'Ya hay una prueba corriendo';
 
@@ -371,12 +372,18 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       proyecto: proyecto,
       deviceId: deviceId,
       salida: salida,
+      // Con [credenciales] vienen de una cuenta del repo de pruebas; sin ellas,
+      // del `.env.local` del proyecto, que es como se lanzaba hasta ahora. En
+      // los dos casos `paraElFlow` deja pasar **solo las claves que el flow
+      // nombra**, que es la propiedad que hace esto seguro y no el origen.
       variables: LasVariablesDelProyecto.paraElFlow(
         yaml: yaml,
-        variables: ds.variablesDe(
-          proyecto,
-          carpetaDePruebas: ref.read(carpetaDePruebasProvider(proyecto)),
-        ),
+        variables:
+            credenciales ??
+            ds.variablesDe(
+              proyecto,
+              carpetaDePruebas: ref.read(carpetaDePruebasProvider(proyecto)),
+            ),
       ),
     );
     if (proceso == null) {
