@@ -245,7 +245,7 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
               _campo(
                 controlador: _descripcion,
                 etiqueta: strings.e2eAccountDesc,
-                pista: '',
+                pista: strings.e2eAccountDescHint,
               ),
               _campo(
                 controlador: _variables,
@@ -323,9 +323,15 @@ class _FormularioDeCuentaState extends ConsumerState<_FormularioDeCuenta> {
         style: NexusTypography.data.copyWith(color: colors.ink),
         decoration: InputDecoration(
           labelText: etiqueta,
-          hintText: pista.isEmpty ? null : pista,
+          // 🔴 `helperText` y no `hintText`. El hint de Material solo se enseña
+          // con el campo enfocado, así que la pista aparecía justo después de
+          // que hiciera falta: quien abre el formulario ve cuatro cajas mudas y
+          // tiene que adivinar el formato. Medido en la primera vez que alguien
+          // lo usó — preguntó qué escribir teniendo las pistas escritas.
+          helperText: pista.isEmpty ? null : pista,
+          helperMaxLines: 2,
           labelStyle: NexusTypography.label.copyWith(color: colors.faint),
-          hintStyle: NexusTypography.body.copyWith(color: colors.faint),
+          helperStyle: NexusTypography.label.copyWith(color: colors.faint),
           enabledBorder: UnderlineInputBorder(
             borderSide: BorderSide(color: colors.rule),
           ),

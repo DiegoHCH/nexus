@@ -349,6 +349,7 @@ abstract class NexusStrings {
   String get e2eAccountTags;
   String get e2eAccountTagsHint;
   String get e2eAccountDesc;
+  String get e2eAccountDescHint;
   String get e2eAccountVars;
   String get e2eAccountVarsHint;
   String get e2eAccountSave;
@@ -1165,17 +1166,21 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eAccountKey => 'Clave';
   @override
-  String get e2eAccountKeyHint => 'pe, co, mx…';
+  String get e2eAccountKeyHint => 'El nombre corto de la cuenta: pe, co, mx';
   @override
   String get e2eAccountTags => 'Etiquetas';
   @override
-  String get e2eAccountTagsHint => 'pe, any — sin el prefijo acct-';
+  String get e2eAccountTagsHint =>
+      'Separadas por coma y sin el acct- de delante. Ej: pe, any';
   @override
   String get e2eAccountDesc => 'Descripción';
   @override
+  String get e2eAccountDescHint => 'Para qué sirve. Ej: PEN verificada, sin Bre-B';
+  @override
   String get e2eAccountVars => 'Variables';
   @override
-  String get e2eAccountVarsHint => 'EMAIL=…, una por línea';
+  String get e2eAccountVarsHint =>
+      'Una por línea, CLAVE=valor. Mínimo: APP_ID, EMAIL, PASSWORD, PIN_1..4';
   @override
   String get e2eAccountSave => 'Guardar';
   @override
@@ -2361,17 +2366,21 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eAccountKey => 'Key';
   @override
-  String get e2eAccountKeyHint => 'pe, co, mx…';
+  String get e2eAccountKeyHint => 'The account short name: pe, co, mx';
   @override
   String get e2eAccountTags => 'Tags';
   @override
-  String get e2eAccountTagsHint => 'pe, any — without the acct- prefix';
+  String get e2eAccountTagsHint =>
+      'Comma separated, without the leading acct-. E.g. pe, any';
   @override
   String get e2eAccountDesc => 'Description';
   @override
+  String get e2eAccountDescHint => 'What it is for. E.g. PEN verified, no Bre-B';
+  @override
   String get e2eAccountVars => 'Variables';
   @override
-  String get e2eAccountVarsHint => 'EMAIL=…, one per line';
+  String get e2eAccountVarsHint =>
+      'One per line, KEY=value. At least: APP_ID, EMAIL, PASSWORD, PIN_1..4';
   @override
   String get e2eAccountSave => 'Save';
   @override
