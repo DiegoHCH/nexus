@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -441,7 +442,17 @@ class AssistantSurface implements RemoteSurface {
     // Y solo los de texto: sin esto, pedir un `.png` acaba en un error de
     // codificación a mitad de leer, que el teléfono no puede explicar.
     if (!Artifact.isTextual(artifactId)) throw BinaryArtifact(artifactId);
-    return File(artifactId).readAsString();
+
+    // **El tamaño antes de leer, no después.** `readAsString` de un archivo de
+    // cientos de megas es un pico de memoria en el Mac y un marco de WebSocket
+    // que el teléfono traga entero por 4G — y para cuando se pudiera medir el
+    // resultado, las dos cosas ya han pasado. `length()` no lo abre.
+    final archivo = File(artifactId);
+    final bytes = await archivo.length();
+    if (bytes > Dispatcher.maxBytesDeDocumento) {
+      throw ArtifactTooLarge(artifactId, bytes);
+    }
+    return archivo.readAsString();
   }
 }
 

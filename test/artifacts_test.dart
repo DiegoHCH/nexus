@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/remote/domain/dispatcher.dart';
 import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
@@ -129,6 +130,35 @@ void main() {
 
     test('un .zip no es nada de esto', () {
       expect(Artifact.isListable('/x/todo.zip'), isFalse);
+    });
+  });
+
+  // El tamaño se mide **antes** de leer, y eso no lo puede ver una prueba del
+  // despacho: la falsa de allí lanza el fallo a mano. Aquí se ata que la app
+  // llegue a lanzarlo, que es el hueco por el que se cuela este tipo de cosas.
+  group('lo que no cabe por el canal', () {
+    final superficie = File(
+      'lib/features/remote/presentation/assistant_surface.dart',
+    ).readAsStringSync();
+
+    test('se pregunta cuánto ocupa antes de abrirlo', () {
+      expect(
+        superficie,
+        contains('await archivo.length()'),
+        reason:
+            'medir despues de leerlo es medir cuando el pico de memoria y el '
+            'marco de WebSocket ya han pasado',
+      );
+      expect(superficie, contains('throw ArtifactTooLarge('));
+      // Y el `readAsString` que quedaba suelto ya no está: si vuelve, vuelve sin
+      // tope.
+      expect(superficie, isNot(contains('File(artifactId).readAsString()')));
+    });
+
+    test('medio mega, que es generoso para texto', () {
+      // Un informe largo son treinta kilobytes. El tope esta para lo que no es un
+      // documento, no para recortar los que si lo son.
+      expect(Dispatcher.maxBytesDeDocumento, 512 * 1024);
     });
   });
 

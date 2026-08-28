@@ -82,6 +82,18 @@ class ChannelServer {
   HttpServer? _http;
   final _conexiones = <ChannelClient>[];
 
+  /// Cuántos teléfonos caben dentro a la vez.
+  ///
+  /// Cuatro es más de lo que necesita ningún montaje real —un teléfono, una
+  /// tableta, y sitio de sobra para una reconexión que todavía no se ha
+  /// enterado de que la anterior murió—, y a la vez es un número.
+  ///
+  /// Sin tope, la lista crecía sin límite. Es post-autenticación, así que solo
+  /// importa si el token se filtra o alguien se lleva el teléfono desbloqueado
+  /// —que es exactamente el escenario contra el que se diseñó la frase de
+  /// escritura—: en esa ventana, abrir conexiones era hinchar el proceso.
+  static const maxConexiones = 4;
+
   /// La cabecera del token: `Authorization: Bearer …`.
   ///
   /// La estándar y no una propia, y no por elegancia: los registros y los proxies
@@ -206,6 +218,17 @@ class ChannelServer {
 
     final socket = await WebSocketTransformer.upgrade(peticion);
     final cliente = ChannelClient(socket: socket, ip: ip);
+
+    // **Se cierra la más vieja, no se rechaza la nueva.** Rechazar dejaría a un
+    // teléfono que reconecta fuera por culpa de su propia conexión anterior, que
+    // es la que suele estar muerta sin saberlo. Y quien acaba de autenticarse es
+    // quien está delante del teléfono ahora mismo.
+    while (_conexiones.length >= maxConexiones) {
+      final vieja = _conexiones.removeAt(0);
+      _anotar('desalojado', ip: vieja.ip, motivo: 'demasiadas conexiones');
+      unawaited(vieja.close());
+    }
+
     _conexiones.add(cliente);
     _anotar('conectado', ip: ip);
     unawaited(_saludar(cliente));

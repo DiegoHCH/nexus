@@ -269,6 +269,25 @@ class BinaryArtifact implements Exception {
   String toString() => 'BinaryArtifact($id)';
 }
 
+/// Se pidió un documento que no cabe por el canal.
+///
+/// Hermano de [BinaryArtifact] y por el mismo motivo: **es una respuesta, no una
+/// avería**. El documento existe y está en la lista; lo que no se puede es
+/// leerlo entero en memoria y mandarlo entero por un socket que al otro lado
+/// puede estar en 4G.
+class ArtifactTooLarge implements Exception {
+  const ArtifactTooLarge(this.id, this.bytes);
+
+  final String id;
+
+  /// Lo que ocupa. Va en el mensaje porque «es muy grande» sin un número deja a
+  /// quien pregunta sin saber si son dos megas o doscientos.
+  final int bytes;
+
+  @override
+  String toString() => 'ArtifactTooLarge($id, $bytes)';
+}
+
 @immutable
 class RemoteConversation {
   const RemoteConversation({
