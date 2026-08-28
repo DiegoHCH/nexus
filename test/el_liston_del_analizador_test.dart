@@ -49,5 +49,25 @@ void main() {
         reason: 'medirla y no enseñarla es medirla para nadie',
       );
     });
+
+    // El suelo va sobre `domain` y no sobre el total, y esa distinción es el
+    // valor entero de tenerlo: un umbral global se contenta con pruebas de
+    // widgets y baja solo con que alguien añada una pantalla grande. El agregado
+    // está en 60 % y `domain` en 90 %.
+    test('y hay un suelo, pero donde importa', () {
+      expect(ci, contains(r'dominio = ($2 ~ /\/domain\//)'));
+      expect(
+        ci,
+        contains('< 85'),
+        reason: 'sin el corte, medir por capa es informar y nada más',
+      );
+      expect(
+        ci,
+        isNot(contains(r'if (100*c/t <')),
+        reason:
+            'un suelo sobre el total castigaría añadir una pantalla y premiaría '
+            'probar widgets, que no es lo que se quiere de este número',
+      );
+    });
   });
 }
