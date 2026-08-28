@@ -1,9 +1,10 @@
 # Lo que nadie corría salvo a mano.
 #
-# Hay 374 pruebas de Dart y 5 nativas, y hasta ahora dependían de que quien
-# mezclara se acordara de ejecutarlas. Aguanta por disciplina y deja de aguantar
-# el primer día con prisa — y son justo las que pillan lo que el análisis
-# estático no ve: una fila que desborda, un velo colapsado a tamaño cero.
+# Hay 1.329 pruebas de Dart, 37 del protocolo y 33 nativas, y hasta ahora
+# dependían de que quien mezclara se acordara de ejecutarlas. Aguanta por
+# disciplina y deja de aguantar el primer día con prisa — y son justo las que
+# pillan lo que el análisis estático no ve: una fila que desborda, un velo
+# colapsado a tamaño cero.
 name: CI
 
 on:
@@ -54,11 +55,16 @@ jobs:
 
       # Uno solo desde la raíz: cubre la app y el paquete, y así los dos obedecen
       # las mismas reglas sin tener que repetirlas.
+      #
+      # `--fatal-infos` porque si no, la mitad de lo que dicen los modos estrictos
+      # no para nada: `strict-raw-types` avisa con severidad *info*, y un aviso que
+      # no rompe el CI es un aviso que se acumula. Hoy el análisis sale en cero, así
+      # que exigirlo no cuesta nada — y ese es justo el momento de exigirlo.
       - name: flutter analyze
-        run: flutter analyze
+        run: flutter analyze --fatal-infos
 
       # Y sus pruebas, que `flutter test` **no mira**: es Dart puro con su propio
-      # `pubspec`. Sin este paso sus 31 pruebas existirían y no las correría nadie,
+      # `pubspec`. Sin este paso sus 37 pruebas existirían y no las correría nadie,
       # que es el problema que este workflow vino a resolver. Una de ellas compara
       # el código con `docs/PROTOCOL.md`: si se queda sin ejecutar, el documento y
       # el contrato pueden separarse en silencio.
@@ -67,13 +73,27 @@ jobs:
         run: dart test
 
       - name: flutter test
-        run: flutter test
+        run: flutter test --coverage
+
+      # El número, dicho en voz alta.
+      #
+      # Sin servicio de terceros y sin mandar nada fuera: se suma el `lcov` que
+      # `--coverage` acaba de escribir y se pone en el resumen del job. No hay
+      # umbral que rompa la corrida a propósito — poner uno hoy, sin haber mirado
+      # qué está sin cubrir, sería elegir un número al azar y luego trabajar para
+      # el número. Lo que hace falta primero es verlo moverse.
+      - name: cobertura
+        run: |
+          awk -F: '/^LF:/ {t+=$2} /^LH:/ {c+=$2} END {
+            printf "Cobertura de líneas: **%.1f %%** — %d de %d\n", 100*c/t, c, t
+          }' coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Aparte porque pide macOS: es el único sitio donde se pueden correr, y no hay
   # motivo para pagar un Mac por el análisis.
   #
-  # Estas cinco existen por la caída del visor: cerrar una ventana mataba la app
-  # entera y las 374 de Dart no podían verlo, porque el fallo vive en AppKit.
+  # Nacieron por la caída del visor —cerrar una ventana mataba la app entera y
+  # las de Dart no podían verlo, porque el fallo vive en AppKit— y ahora cubren
+  # además qué puede hacer un documento dentro de esa ventana.
   nativas:
     name: pruebas nativas de macOS
     runs-on: macos-latest

@@ -7,4 +7,13 @@ analyzer:
     - windows/**
     - macos/**
     - linux/**
+  # Tres modos estrictos, y no se activaron a ciegas: medidos por separado sobre
+  # las 48.000 líneas, `strict-casts` encontró seis cosas y `strict-raw-types`
+  # cinco. `strict-inference` no encontró ninguna — va puesto igual, porque lo
+  # que cuesta cero hoy es lo que evita la deuda de mañana, que es todo el
+  # argumento para hacer esto ahora y no dentro de un año.
+  language:
+    strict-casts: true
+    strict-raw-types: true
+    strict-inference: true
 include: package:flutter_lints/flutter.yaml

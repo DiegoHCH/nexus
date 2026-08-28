@@ -334,9 +334,14 @@ class _PanelState extends ConsumerState<_Panel> {
   /// no está encendido falla, y ofrecerlo sería ofrecer ese fallo. Para
   /// arrancarlo está el icono de al lado.
   List<String> _dispositivosDisponibles() => [
-    for (final e in ref.watch(emuladoresProvider).value?.emuladores ?? const [])
+    for (final e
+        in ref.watch(emuladoresProvider).value?.emuladores ??
+            const <Emulador>[])
       if (e.corriendo && e.deviceId != null) e.deviceId!,
-    for (final d in ref.watch(dispositivosProvider).value ?? const []) d.id,
+    for (final d
+        in ref.watch(dispositivosProvider).value ??
+            const <DispositivoConectado>[])
+      d.id,
   ];
 }
 
