@@ -24,11 +24,9 @@ final configsDataSourceProvider = Provider<ConfigsDataSource>(
 /// Sin `autoDispose` y sin refresco automático, a diferencia de los dispositivos:
 /// un `launch.json` lo cambia una persona editando el archivo, no la máquina por
 /// su cuenta. Se invalida cuando cambie de proyecto o cuando alguien lo pida.
-final configsProvider =
-    FutureProvider.family<List<ConfigDeArranque>, String>(
-      (ref, proyecto) =>
-          ref.watch(configsDataSourceProvider).deProyecto(proyecto),
-    );
+final configsProvider = FutureProvider.family<List<ConfigDeArranque>, String>(
+  (ref, proyecto) => ref.watch(configsDataSourceProvider).deProyecto(proyecto),
+);
 
 /// La configuración con la que se corre cada proyecto cuando no se dice nada.
 ///

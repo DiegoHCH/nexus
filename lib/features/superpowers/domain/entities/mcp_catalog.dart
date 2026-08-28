@@ -84,7 +84,8 @@ abstract final class McpCatalog {
     // arrancado, que eso sí lo puede hacer Claude por Bash.
     McpCatalogEntry(
       name: 'maestro',
-      what: 'Manejar tu app móvil en un emulador y escribir las pruebas mirándola',
+      what:
+          'Manejar tu app móvil en un emulador y escribir las pruebas mirándola',
       command: ['maestro', 'mcp'],
       comoSeInstala: 'curl -fsSL "https://get.maestro.mobile.dev" | bash',
     ),

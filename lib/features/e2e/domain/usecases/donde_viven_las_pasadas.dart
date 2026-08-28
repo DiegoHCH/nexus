@@ -48,7 +48,8 @@ abstract final class DondeVivenLasPasadas {
     required DateTime cuando,
   }) {
     final f = '${cuando.year}-${_dos(cuando.month)}-${_dos(cuando.day)}';
-    final h = '${_dos(cuando.hour)}h${_dos(cuando.minute)}${_dos(cuando.second)}';
+    final h =
+        '${_dos(cuando.hour)}h${_dos(cuando.minute)}${_dos(cuando.second)}';
     return '$flow $f $h';
   }
 

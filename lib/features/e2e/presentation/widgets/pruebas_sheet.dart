@@ -43,7 +43,8 @@ class PruebasSheet extends ConsumerWidget {
     final colors = context.colors;
     final strings = context.strings;
     final enMarcha = ref.watch(pruebaEnMarchaProvider);
-    final hayLocales = proyecto != null &&
+    final hayLocales =
+        proyecto != null &&
         (ref.watch(pruebasProvider(proyecto!)).value ?? const []).isNotEmpty;
 
     return Container(

@@ -29,7 +29,11 @@ void main() {
   tearDown(() => salida.deleteSync(recursive: true));
 
   /// Monta lo que escribe Maestro dentro de nuestra ruta.
-  String corridaDeMaestro(String fecha, String flow, {List<String> tomas = const []}) {
+  String corridaDeMaestro(
+    String fecha,
+    String flow, {
+    List<String> tomas = const [],
+  }) {
     final carpeta = Directory('${salida.path}/.maestro/tests/$fecha/$flow')
       ..createSync(recursive: true);
     File('${carpeta.path}/commands.json').writeAsStringSync('[]');
@@ -66,11 +70,17 @@ void main() {
     test('no se coge la de otro flow', () {
       corridaDeMaestro('2026-08-26_160821', 'otro_flow');
 
-      expect(ds.carpetaDeArtefactos(salida: salida.path, flow: 'login'), isNull);
+      expect(
+        ds.carpetaDeArtefactos(salida: salida.path, flow: 'login'),
+        isNull,
+      );
     });
 
     test('sin nada escrito todavía, null y no un error', () {
-      expect(ds.carpetaDeArtefactos(salida: salida.path, flow: 'login'), isNull);
+      expect(
+        ds.carpetaDeArtefactos(salida: salida.path, flow: 'login'),
+        isNull,
+      );
     });
   });
 
@@ -123,7 +133,10 @@ void main() {
       final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
-          PasoParaPintar(texto: 'Launch app "com.x"', estado: EstadoDePaso.hecho),
+          PasoParaPintar(
+            texto: 'Launch app "com.x"',
+            estado: EstadoDePaso.hecho,
+          ),
           PasoParaPintar(
             texto: 'Take screenshot login_form',
             estado: EstadoDePaso.hecho,
@@ -140,7 +153,10 @@ void main() {
       // línea y no dentro del texto: dentro arranca en la columna del texto y no
       // hay forma de centrarla respecto a la tarjeta.
       final tras = html.substring(html.indexOf('Take screenshot login_form'));
-      expect(tras, contains('<li class="toma"><img src="data:image/png;base64,AAAA"'));
+      expect(
+        tras,
+        contains('<li class="toma"><img src="data:image/png;base64,AAAA"'),
+      );
       // Y la que centra: márgenes automáticos, con la imagen como bloque.
       expect(html, contains('li.toma img{display:block;margin:0 auto'));
     });
@@ -149,7 +165,10 @@ void main() {
       final html = LaPasadaComoHtml.escribe(
         flow: 'login',
         pasos: const [
-          PasoParaPintar(texto: 'Launch app "com.x"', estado: EstadoDePaso.hecho),
+          PasoParaPintar(
+            texto: 'Launch app "com.x"',
+            estado: EstadoDePaso.hecho,
+          ),
         ],
         lineas: const [],
         terminados: 1,

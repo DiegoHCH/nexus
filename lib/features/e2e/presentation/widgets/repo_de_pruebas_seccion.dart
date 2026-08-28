@@ -138,7 +138,8 @@ class _EstadoState extends ConsumerState<_Estado> {
         .watch(cuentasDePruebaProvider(widget.proyecto))
         .isEmpty;
     final buscando = ref.watch(buscandoDispositivosProvider);
-    final sinDispositivo = !buscando && ref.watch(elDispositivoProvider) == null;
+    final sinDispositivo =
+        !buscando && ref.watch(elDispositivoProvider) == null;
     final hayDestinos = ref.watch(dondeCorrerProvider).isNotEmpty;
 
     final filtro = _buscar.text.trim();
@@ -214,9 +215,7 @@ class _EstadoState extends ConsumerState<_Estado> {
             InkWell(
               onTap: grupo.rutas.isEmpty ? null : () => _alterna(grupo),
               child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  vertical: NexusSpacing.s1,
-                ),
+                padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s1),
                 child: Row(
                   children: [
                     Icon(
@@ -236,7 +235,9 @@ class _EstadoState extends ConsumerState<_Estado> {
                     const SizedBox(width: NexusSpacing.s2),
                     Text(
                       strings.e2eRepoMatches(grupo.rutas.length, grupo.total),
-                      style: NexusTypography.label.copyWith(color: colors.faint),
+                      style: NexusTypography.label.copyWith(
+                        color: colors.faint,
+                      ),
                     ),
                   ],
                 ),

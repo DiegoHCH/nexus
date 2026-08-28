@@ -9,15 +9,14 @@ import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 ///
 /// Los diffs de aquí tienen la forma de los de `git diff` de verdad, con sus
 /// cabeceras, porque descartarlas es la mitad del trabajo.
-String _diff(String archivo, List<String> lineas) =>
-    [
-      'diff --git a/$archivo b/$archivo',
-      'index 1234567..89abcde 100644',
-      '--- a/$archivo',
-      '+++ b/$archivo',
-      '@@ -1,3 +1,3 @@',
-      ...lineas,
-    ].join('\n');
+String _diff(String archivo, List<String> lineas) => [
+  'diff --git a/$archivo b/$archivo',
+  'index 1234567..89abcde 100644',
+  '--- a/$archivo',
+  '+++ b/$archivo',
+  '@@ -1,3 +1,3 @@',
+  ...lineas,
+].join('\n');
 
 void main() {
   group('lo que obliga a recompilar', () {

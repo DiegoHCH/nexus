@@ -36,7 +36,13 @@ abstract final class ElArbolDeUnFlow {
   }) {
     final visto = <String>{};
     final trozos = <String>[];
-    _juntar(ruta: ruta, leer: leer, visto: visto, trozos: trozos, queda: _fondo);
+    _juntar(
+      ruta: ruta,
+      leer: leer,
+      visto: visto,
+      trozos: trozos,
+      queda: _fondo,
+    );
     return trozos.join('\n');
   }
 
@@ -181,10 +187,7 @@ abstract final class ElArbolDeUnFlow {
   static String _resolver(String carpeta, String relativa) {
     if (relativa.startsWith('/')) return relativa;
 
-    final partes = <String>[
-      ...carpeta.split('/'),
-      ...relativa.split('/'),
-    ];
+    final partes = <String>[...carpeta.split('/'), ...relativa.split('/')];
     final pila = <String>[];
     for (final parte in partes) {
       if (parte.isEmpty || parte == '.') continue;

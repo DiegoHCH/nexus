@@ -166,7 +166,10 @@ final clonDelRepoProvider = FutureProvider<ResultadoDeSync>((ref) async {
   final soporte = await getApplicationSupportDirectory();
   return ref
       .read(repoDePruebasDataSourceProvider)
-      .asegurar(soporte: soporte.path, slug: ref.read(slugDelRepoDePruebasProvider));
+      .asegurar(
+        soporte: soporte.path,
+        slug: ref.read(slugDelRepoDePruebasProvider),
+      );
 });
 
 /// Los flows del repo, como rutas relativas. Vacío mientras no haya clon.
@@ -206,7 +209,9 @@ final flowDelRepoProvider = FutureProvider.family<String?, String>((
   final sync = await ref.watch(clonDelRepoProvider.future);
   final clon = sync.clon;
   if (clon == null) return null;
-  return ref.watch(repoDePruebasDataSourceProvider).leer(clon: clon, ruta: ruta);
+  return ref
+      .watch(repoDePruebasDataSourceProvider)
+      .leer(clon: clon, ruta: ruta);
 });
 
 /// Con qué cuenta hay que correr un flow, y qué falta si no se puede decidir.
@@ -261,36 +266,39 @@ typedef FlowDeProyecto = ({String proyecto, String ruta});
 
 final cuentaDelFlowProvider =
     FutureProvider.family<QueCuentaLeToca, FlowDeProyecto>((ref, cual) async {
-  final (:proyecto, :ruta) = cual;
-  await ref.watch(cuentasDePruebaProvider(proyecto).notifier).cargadas;
-  final cuentas = ref.watch(cuentasDePruebaProvider(proyecto));
-  final contenido = await ref.watch(flowDelRepoProvider(ruta).future);
-  if (contenido == null) return const QueCuentaLeToca();
+      final (:proyecto, :ruta) = cual;
+      await ref.watch(cuentasDePruebaProvider(proyecto).notifier).cargadas;
+      final cuentas = ref.watch(cuentasDePruebaProvider(proyecto));
+      final contenido = await ref.watch(flowDelRepoProvider(ruta).future);
+      if (contenido == null) return const QueCuentaLeToca();
 
-  // Las etiquetas salen del flow **propio** —las de un subflow no son suyas—,
-  // pero las variables salen del árbol entero, que es donde viven.
-  final cuenta = LasCuentasDePrueba.paraElFlow(
-    contenido: contenido,
-    cuentas: cuentas,
-  );
-  final sync = await ref.watch(clonDelRepoProvider.future);
-  final arbol = sync.clon == null
-      ? contenido
-      : await ref
-            .watch(repoDePruebasDataSourceProvider)
-            .arbolDe(clon: sync.clon!, ruta: ruta);
+      // Las etiquetas salen del flow **propio** —las de un subflow no son suyas—,
+      // pero las variables salen del árbol entero, que es donde viven.
+      final cuenta = LasCuentasDePrueba.paraElFlow(
+        contenido: contenido,
+        cuentas: cuentas,
+      );
+      final sync = await ref.watch(clonDelRepoProvider.future);
+      final arbol = sync.clon == null
+          ? contenido
+          : await ref
+                .watch(repoDePruebasDataSourceProvider)
+                .arbolDe(clon: sync.clon!, ruta: ruta);
 
-  return QueCuentaLeToca(
-    cuenta: cuenta,
-    sinCubrir: LasCuentasDePrueba.sinCubrir(contenido: contenido, cuentas: cuentas),
-    faltan: cuenta == null
-        ? const []
-        : LasVariablesDelProyecto.faltan(
-            yaml: arbol,
-            tiene: cuenta.variables.entries
-                .where((e) => e.value.isNotEmpty)
-                .map((e) => e.key)
-                .toSet(),
-          ),
-  );
-});
+      return QueCuentaLeToca(
+        cuenta: cuenta,
+        sinCubrir: LasCuentasDePrueba.sinCubrir(
+          contenido: contenido,
+          cuentas: cuentas,
+        ),
+        faltan: cuenta == null
+            ? const []
+            : LasVariablesDelProyecto.faltan(
+                yaml: arbol,
+                tiene: cuenta.variables.entries
+                    .where((e) => e.value.isNotEmpty)
+                    .map((e) => e.key)
+                    .toSet(),
+              ),
+      );
+    });
