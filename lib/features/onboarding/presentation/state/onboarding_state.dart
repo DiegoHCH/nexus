@@ -54,10 +54,18 @@ class SetupState {
   final bool saving;
   final String? errorMessage;
 
-  bool get canFinish =>
-      micStatus == MicrophoneStatus.granted &&
-      keyText.trim().isNotEmpty &&
-      !saving;
+  /// Si se puede entrar ya.
+  ///
+  /// **Ni el micrófono ni la llave**, y eso es el arreglo: los dos eran
+  /// obligatorios para pasar de esta pantalla, y los dos son de la voz — que
+  /// está apagada por defecto en toda carpeta, y que un repositorio puede
+  /// apagar del todo. Se pedían las credenciales de una función que nadie iba a
+  /// usar todavía, y a una fintech se le pedía una llave de Google antes de
+  /// enseñarle nada.
+  ///
+  /// Lo único obligatorio —la carpeta de trabajo— no se mira aquí sino en la
+  /// pantalla, porque no vive en este estado: vive en el workspace.
+  bool get canFinish => !saving;
 
   SetupState copyWith({
     MicrophoneStatus? micStatus,

@@ -76,6 +76,7 @@ mixin ArranqueStrings {
   String get setupExplainer;
   String get startUsingNexus;
   String get changeLaterHint;
+  String get hayMasAbajo;
   String get request;
   String get micPending;
   String get micPendingExplainer;
@@ -358,6 +359,8 @@ mixin ArranqueStringsEs implements ArranqueStrings {
   String get startUsingNexus => 'EMPEZAR A USAR NEXUS';
   @override
   String get changeLaterHint => 'Puedes cambiar esto después en Ajustes';
+  @override
+  String get hayMasAbajo => 'Hay más abajo';
   @override
   String get request => 'SOLICITAR';
   @override
@@ -706,6 +709,8 @@ mixin ArranqueStringsEn implements ArranqueStrings {
   String get startUsingNexus => 'START USING NEXUS';
   @override
   String get changeLaterHint => 'You can change this later in Settings';
+  @override
+  String get hayMasAbajo => 'There is more below';
   @override
   String get request => 'REQUEST';
   @override

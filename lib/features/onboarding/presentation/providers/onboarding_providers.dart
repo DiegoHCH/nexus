@@ -13,6 +13,7 @@ import 'package:nexus/features/onboarding/domain/repositories/readiness_probe.da
 import 'package:nexus/features/onboarding/data/repositories/readiness_probe_impl.dart';
 import 'package:nexus/features/onboarding/domain/usecases/check_readiness.dart';
 import 'package:nexus/features/onboarding/domain/usecases/save_gemini_key.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/onboarding/presentation/state/onboarding_state.dart';
 
 final secureStorageDataSourceProvider = Provider<SecureStorageDataSource>(
@@ -44,6 +45,13 @@ final saveGeminiKeyProvider = Provider<SaveGeminiKey>(
 class AppRouteController extends Notifier<AppRouteState> {
   static const _minimumSplash = Duration(milliseconds: 900);
 
+  /// Lo último que se supo de si hay dónde trabajar.
+  ///
+  /// En un campo porque [continueAnyway] es síncrono y no puede esperar al
+  /// disco, y porque la respuesta no cambia entre el splash y ese botón: la
+  /// pantalla que lo enseña no empareja carpetas.
+  bool _hayCarpeta = false;
+
   @override
   AppRouteState build() {
     unawaited(_resolve());
@@ -60,20 +68,34 @@ class AppRouteController extends Notifier<AppRouteState> {
       final results = await (
         Future<void>.delayed(_minimumSplash),
         ref.read(checkReadinessProvider)(const NoParams()),
+        ref.read(workspaceStoreProvider).read(),
       ).wait;
       final Readiness readiness = results.$2;
+      _hayCarpeta = results.$3.folders.isNotEmpty;
       state = readiness.blocksWork
           ? AppRouteNotReady(readiness)
-          : _afterReadiness(readiness.geminiKey);
+          : _dondeEntrar();
     } catch (error) {
       debugPrint('No se pudo resolver el arranque: $error');
       state = const AppRouteNeedsSetup();
     }
   }
 
-  /// Resuelto lo del sistema, queda lo de la app: la llave de Gemini.
-  AppRouteState _afterReadiness(bool hasGeminiKey) =>
-      hasGeminiKey ? const AppRouteReady() : const AppRouteNeedsSetup();
+  /// Resuelto lo del sistema, queda lo de la app: **una carpeta donde trabajar**.
+  ///
+  /// Antes era la llave de Gemini, y eso contradecía a la propia app: la regla
+  /// de [Readiness.blocksWork] dice, escrito ahí mismo, que sin llave se puede
+  /// trabajar por texto — y toda carpeta nace en solo texto, así que la llave se
+  /// pedía en la puerta para una función que nadie iba a usar todavía. Encima la
+  /// pantalla prometía «puedes cambiar esto después en Ajustes» y no había
+  /// ningún sitio donde cambiarla.
+  ///
+  /// La carpeta sí es de verdad obligatoria y por un motivo que se puede
+  /// enseñar: sin ella `claude -p` hereda el directorio de la app —que para un
+  /// bundle lanzado por launchd es `/`— y el primer encargo responde sobre la
+  /// raíz del disco.
+  AppRouteState _dondeEntrar() =>
+      _hayCarpeta ? const AppRouteReady() : const AppRouteNeedsSetup();
 
   /// Volver a preguntar tras instalar o iniciar sesión, sin reiniciar la app.
   /// Pasa por el splash otra vez a propósito: la comprobación tarda, y un botón
@@ -89,12 +111,7 @@ class AppRouteController extends Notifier<AppRouteState> {
   /// motivos para pasar —mirar el historial, cambiar los ajustes— y dejar a
   /// alguien encerrado fuera de su propia app por una comprobación nuestra sería
   /// peor que el fallo que viene a evitar.
-  void continueAnyway() {
-    final current = state;
-    state = _afterReadiness(
-      current is AppRouteNotReady ? current.readiness.geminiKey : true,
-    );
-  }
+  void continueAnyway() => state = _dondeEntrar();
 
   void completeSetup() => state = const AppRouteReady();
 }
@@ -148,7 +165,13 @@ class SetupController extends Notifier<SetupState> {
     if (!state.canFinish) return false;
     state = state.copyWith(saving: true, errorMessage: null);
     try {
-      await ref.read(saveGeminiKeyProvider)(state.keyText);
+      // **Solo si escribiste una.** Guardar la cadena vacía dejaría en el
+      // llavero una llave que existe y no sirve, y entonces la pantalla de
+      // salidas diría que Gemini está disponible cuando la sesión de voz va a
+      // fallar en cuanto se abra.
+      if (state.keyText.trim().isNotEmpty) {
+        await ref.read(saveGeminiKeyProvider)(state.keyText);
+      }
       await _micSubscription?.cancel();
       _micSubscription = null;
       return true;
