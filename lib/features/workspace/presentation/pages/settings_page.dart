@@ -10,6 +10,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 import 'package:nexus/features/emulators/presentation/widgets/emuladores_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/appearance_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/help_section.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings/salidas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/history_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/cuentas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/pruebas_section.dart';
@@ -135,6 +136,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           _Section.emulators => const EmuladoresSection(),
                           _Section.appearance => const AppearanceSection(),
                           _Section.language => const LanguageSection(),
+                          _Section.salidas => const SalidasSection(),
                           _Section.help => const HelpSection(),
                         },
                       ),
@@ -282,6 +284,9 @@ enum _Section {
   emulators,
   appearance,
   language,
+  // Antes de Ayuda y después de los ajustes: no se configura nada aquí, se
+  // comprueba — así que va con lo que se lee, no con lo que se toca.
+  salidas,
   help;
 
   String title(NexusStrings strings) => switch (this) {
@@ -296,6 +301,7 @@ enum _Section {
     _Section.emulators => strings.sectionEmulators,
     _Section.appearance => strings.sectionAppearance,
     _Section.language => strings.sectionLanguage,
+    _Section.salidas => strings.sectionExits,
     _Section.help => strings.sectionHelp,
   };
 }
