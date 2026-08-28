@@ -57,9 +57,13 @@ class _InitialSetupPageState extends ConsumerState<InitialSetupPage> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final setup = ref.watch(setupControllerProvider);
-    // Las tres cosas: micrófono, llave y carpeta. Sin la tercera la app
-    // arrancaría sin sitio donde trabajar, y el primer encargo respondería
-    // sobre la raíz del disco.
+    // **Solo la carpeta.** El micrófono y la llave se piden aquí porque este es
+    // el sitio natural para ponerlos, no porque hagan falta para entrar: los dos
+    // son de la voz, y la voz está apagada en toda carpeta hasta que alguien la
+    // encienda. Se pueden dejar en blanco y añadirlos luego en Ajustes.
+    //
+    // La carpeta no: sin ella la app arrancaría sin sitio donde trabajar y el
+    // primer encargo respondería sobre la raíz del disco.
     final canFinish =
         setup.canFinish &&
         ref.watch(workspaceControllerProvider).folders.isNotEmpty;
@@ -242,10 +246,7 @@ class _MicrophoneField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.strings.microphone,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
+        _EtiquetaOpcional(context.strings.microphone),
         const SizedBox(height: NexusSpacing.s3),
         Row(
           children: [
@@ -448,10 +449,7 @@ class _GeminiKeyField extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          context.strings.geminiKey,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
+        _EtiquetaOpcional(context.strings.geminiKey),
         const SizedBox(height: NexusSpacing.s3),
         TextField(
           controller: controller,
@@ -469,6 +467,33 @@ class _GeminiKeyField extends StatelessWidget {
         OutlinedButton(
           onPressed: onGetKey,
           child: Text(context.strings.getFreeKey),
+        ),
+      ],
+    );
+  }
+}
+
+/// Una etiqueta de campo con su «OPCIONAL» al lado.
+///
+/// Se ve a la primera y no en letra pequeña debajo: quien llega a esta pantalla
+/// con la app recién instalada está decidiendo si le da una llave de Google a
+/// algo que acaba de conocer, y esa decisión se toma en el segundo en que se lee
+/// la etiqueta.
+class _EtiquetaOpcional extends StatelessWidget {
+  const _EtiquetaOpcional(this.texto);
+
+  final String texto;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Row(
+      children: [
+        Text(texto, style: NexusTypography.label.copyWith(color: colors.faint)),
+        const SizedBox(width: NexusSpacing.s2),
+        Text(
+          context.strings.setupOptional,
+          style: NexusTypography.label.copyWith(color: colors.accent),
         ),
       ],
     );

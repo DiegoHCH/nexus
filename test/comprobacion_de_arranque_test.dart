@@ -2,6 +2,10 @@ import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/core/platform/claude_cli.dart';
 import 'package:nexus/core/usecase/usecase.dart';
 import 'package:nexus/features/onboarding/domain/entities/readiness.dart';
@@ -17,6 +21,23 @@ import 'package:nexus/features/onboarding/presentation/state/onboarding_state.da
 /// sesión — y es la mitad entera de «las manos»: el CLI se lanza con
 /// `Process.start('claude', …)`, así que sin él el primer encargo moría en una
 /// `ProcessException`, un fallo sin frase.
+/// El workspace guardado: lo que ahora decide a qué pantalla se entra.
+class _Guardado implements WorkspaceStore {
+  const _Guardado({this.conCarpeta = true});
+
+  final bool conCarpeta;
+
+  @override
+  Future<Workspace> read() async => Workspace(
+    folders: conCarpeta
+        ? const [PairedFolder(path: '/repo', modality: FolderModality.textOnly)]
+        : const [],
+  );
+
+  @override
+  Future<void> save(Workspace workspace) async {}
+}
+
 void main() {
   group('lo que se le pregunta al CLI', () {
     test('sin binario, «no está» — y no revienta', () async {
@@ -119,12 +140,16 @@ void main() {
       required bool cli,
       required bool session,
       String? key = 'una-llave',
+      bool conCarpeta = true,
     }) async {
       final container = ProviderContainer(
         overrides: [
           geminiKeyStoreProvider.overrideWithValue(_Llavero(key)),
           readinessProbeProvider.overrideWithValue(
             _Sonda(cli: cli, session: session),
+          ),
+          workspaceStoreProvider.overrideWithValue(
+            _Guardado(conCarpeta: conCarpeta),
           ),
         ],
       );
@@ -149,7 +174,7 @@ void main() {
       expect(r.session, CheckResult.failed);
     });
 
-    test('con todo listo y llave, directo a Reposo', () async {
+    test('con todo listo y una carpeta, directo a Reposo', () async {
       expect(await arranque(cli: true, session: true), isA<AppRouteReady>());
     });
 
@@ -162,21 +187,37 @@ void main() {
       );
     });
 
-    test('listo pero sin llave sigue yendo a la configuración', () async {
+    // La regla que cambió: decide la carpeta, no la llave. Este grupo ya tenía
+    // escrito, doce líneas más arriba, que «sin Gemini se puede trabajar por
+    // texto» — y la puerta decía lo contrario.
+    test('listo y sin llave se entra: la voz es lo único que falta', () async {
       expect(
         await arranque(cli: true, session: true, key: null),
+        isA<AppRouteReady>(),
+      );
+    });
+
+    test('listo y sin carpeta, a la configuración', () async {
+      expect(
+        await arranque(cli: true, session: true, conCarpeta: false),
         isA<AppRouteNeedsSetup>(),
       );
     });
   });
 
   group('las dos salidas de la pantalla', () {
-    ProviderContainer contenedor({String? key = 'una-llave'}) {
+    ProviderContainer contenedor({
+      String? key = 'una-llave',
+      bool conCarpeta = true,
+    }) {
       final container = ProviderContainer(
         overrides: [
           geminiKeyStoreProvider.overrideWithValue(_Llavero(key)),
           readinessProbeProvider.overrideWithValue(
             const _Sonda(cli: false, session: false),
+          ),
+          workspaceStoreProvider.overrideWithValue(
+            _Guardado(conCarpeta: conCarpeta),
           ),
         ],
       );
@@ -197,8 +238,8 @@ void main() {
       expect(container.read(appRouteControllerProvider), isA<AppRouteReady>());
     });
 
-    test('y sin llave lleva a la configuración, no a Reposo', () async {
-      final container = contenedor(key: null);
+    test('y sin carpeta lleva a la configuración, no a Reposo', () async {
+      final container = contenedor(conCarpeta: false);
       await Future<void>.delayed(const Duration(milliseconds: 1100));
       container.read(appRouteControllerProvider.notifier).continueAnyway();
       expect(

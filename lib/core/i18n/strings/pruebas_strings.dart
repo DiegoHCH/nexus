@@ -159,6 +159,10 @@ mixin PruebasStrings {
   String repoModelo(String modelo);
   String get repoAvisosTitle;
   String get repoLoFija;
+  String get geminiKeySaved;
+  String get geminiKeyMissing;
+  String get geminiKeySave;
+  String get setupOptional;
   String get foldersWithPermission;
   String get noFoldersYet;
   String get addFolder;
@@ -553,6 +557,15 @@ mixin PruebasStringsEs implements PruebasStrings {
   String get repoAvisosTitle => 'Y esto lo trae mal, así que no se aplica:';
   @override
   String get repoLoFija => 'Lo fija el repositorio';
+  @override
+  String get geminiKeySaved => 'Hay una llave guardada.';
+  @override
+  String get geminiKeyMissing =>
+      'No hay ninguna. Sin llave, Nexus trabaja por texto y la voz no se abre.';
+  @override
+  String get geminiKeySave => 'Guardar la llave';
+  @override
+  String get setupOptional => 'OPCIONAL';
   @override
   String get foldersWithPermission => 'CARPETAS CON PERMISO';
   @override
@@ -972,6 +985,15 @@ mixin PruebasStringsEn implements PruebasStrings {
   String get repoAvisosTitle => 'And it gets this wrong, so it is not applied:';
   @override
   String get repoLoFija => 'The repository fixes this';
+  @override
+  String get geminiKeySaved => 'There is a key saved.';
+  @override
+  String get geminiKeyMissing =>
+      'There is none. Without a key, Nexus works by text and voice will not open.';
+  @override
+  String get geminiKeySave => 'Save the key';
+  @override
+  String get setupOptional => 'OPTIONAL';
   @override
   String get foldersWithPermission => 'FOLDERS WITH PERMISSION';
   @override
