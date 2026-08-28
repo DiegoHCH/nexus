@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
@@ -31,10 +32,17 @@ class _Almacen implements LocalConversationStore {
   var vecesQueSeLeyo = 0;
 
   @override
-  Future<List<ConversationRecord>> list(String folderPath) async {
+  Future<List<ConversationSummary>> list(String folderPath) async {
     vecesQueSeLeyo++;
-    return registros.where((r) => r.folderPath == folderPath).toList();
+    return registros
+        .where((r) => r.folderPath == folderPath)
+        .map((r) => r.summary)
+        .toList();
   }
+
+  @override
+  Future<ConversationRecord?> read(ConversationSummary ficha) async =>
+      registros.where((r) => r.id == ficha.id).firstOrNull;
 
   @override
   noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -42,7 +50,7 @@ class _Almacen implements LocalConversationStore {
 
 class _AlmacenRoto implements LocalConversationStore {
   @override
-  Future<List<ConversationRecord>> list(String folderPath) async =>
+  Future<List<ConversationSummary>> list(String folderPath) async =>
       throw StateError('disco ilegible');
 
   @override

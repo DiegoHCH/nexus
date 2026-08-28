@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 
 /// Una conversación entera, lista para guardarse.
 ///
@@ -35,10 +36,7 @@ class ConversationRecord {
   final String? profileName;
 
   /// El nombre de la carpeta, que es como se llama el proyecto en todos lados.
-  String get projectName {
-    final parts = folderPath.split('/').where((part) => part.isNotEmpty);
-    return parts.isEmpty ? 'sin-proyecto' : parts.last;
-  }
+  String get projectName => ConversationSummary.projectNameOf(folderPath);
 
   /// Lo último que dijo el medidor: qué modelo y cuánto contexto llevaba
   /// ocupado. Se guarda con la conversación porque al retomarla la barra
@@ -76,4 +74,22 @@ class ConversationRecord {
   /// Vacía si nadie llegó a decir nada. No se guarda: un archivo por cada vez
   /// que se abrió una pestaña y se cerró sin usarla no es historial, es ruido.
   bool get isEmpty => messages.every((message) => message.text.trim().isEmpty);
+
+  /// Su ficha: lo que va a las listas.
+  ///
+  /// Se saca de aquí y no se rehace en cada almacén porque el título y el
+  /// número de turnos son decisiones de la conversación, no del sitio donde se
+  /// guarde. Quien archiva tiene los mensajes delante y es el momento barato
+  /// de resolverlo; quien lista, ya no los tiene.
+  ConversationSummary get summary => ConversationSummary(
+    id: id,
+    folderPath: folderPath,
+    startedAt: startedAt,
+    title: title,
+    turns: messages.length,
+    profileName: profileName,
+    sourcePath: sourcePath,
+    model: model,
+    contextTokens: contextTokens,
+  );
 }

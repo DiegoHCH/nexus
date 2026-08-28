@@ -1,5 +1,6 @@
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 
 /// El Markdown de una conversación y el de la nota que agrupa un proyecto.
 ///
@@ -10,7 +11,11 @@ import 'package:nexus/features/history/domain/entities/conversation_record.dart'
 abstract final class ConversationMarkdown {
   /// Nombre de archivo: fecha delante para que ordenen solos, y el título
   /// detrás para reconocerla de un vistazo en el explorador.
-  static String fileName(ConversationRecord record) {
+  ///
+  /// Se pide la ficha y no la conversación porque el nombre sale de la fecha y
+  /// el título, que es justo lo que se puede saber de una nota ya escrita sin
+  /// volver a leerla entera.
+  static String fileName(ConversationSummary record) {
     final date = _date(record.startedAt);
     final slug = _slug(record.title);
     return '$date-$slug.md';
@@ -35,6 +40,11 @@ abstract final class ConversationMarkdown {
       ..writeln('proyecto: ${_quote(record.folderPath)}')
       ..writeln('fecha: ${record.startedAt.toIso8601String()}')
       ..writeln('id: ${_quote(record.id)}')
+      // Cuántos turnos tiene, en la cabecera y no solo en el cuerpo. Es lo que
+      // deja que el historial cuente los mensajes de una nota sin abrirla — y
+      // es la clave que ya escribe La Oficina, así que las dos apps se leen la
+      // lista la una a la otra.
+      ..writeln('mensajes: ${record.messages.length}')
       ..writeln(
         record.profileName == null
             ? 'tags: [nexus, ${_slug(record.projectName)}]'
@@ -76,7 +86,7 @@ abstract final class ConversationMarkdown {
   static String project(
     String projectName,
     String folderPath,
-    List<ConversationRecord> conversations, {
+    List<ConversationSummary> conversations, {
     required bool wikilinks,
   }) {
     final buffer = StringBuffer()

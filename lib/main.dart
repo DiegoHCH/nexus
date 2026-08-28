@@ -95,18 +95,22 @@ class _MainAppState extends ConsumerState<MainApp> {
         final mensajero = ScaffoldMessenger.maybeOf(navigator.context);
 
         // La decisión vive en su proveedor, que es quien sabe qué hay abierto.
-        // Aquí solo queda contar el único desenlace que necesita palabras.
+        // Aquí solo queda contar los desenlaces que necesitan palabras.
         final resultado = await ref.read(retomarDelArchivoProvider)(record);
-        if (resultado != RetomarResultado.noCabe) return;
+        final aviso = switch (resultado) {
+          RetomarResultado.noCabe =>
+            'Ya hay ${Conversations.max} conversaciones abiertas. Cierra una '
+                'para retomar esta.',
+          // La ficha estaba en la lista pero detrás no hay nada: la nota se
+          // borró desde Obsidian, o el archivo se fue con una limpieza. Callar
+          // aquí se lee como que el clic no hizo nada.
+          RetomarResultado.noEsta =>
+            'Esa conversación ya no está donde se guardó.',
+          RetomarResultado.yaEstaba || RetomarResultado.enPestanaNueva => null,
+        };
+        if (aviso == null) return;
 
-        mensajero?.showSnackBar(
-          SnackBar(
-            content: Text(
-              'Ya hay ${Conversations.max} conversaciones abiertas. Cierra una '
-              'para retomar esta.',
-            ),
-          ),
-        );
+        mensajero?.showSnackBar(SnackBar(content: Text(aviso)));
       },
       onForget: () {
         final id = focused?.id;

@@ -14,6 +14,7 @@ import 'package:nexus/features/history/data/repositories/markdown_archive.dart';
 import 'package:nexus/features/history/data/repositories/notion_archive.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -231,6 +232,14 @@ final localConversationStoreProvider = Provider<LocalConversationStore>(
   (ref) => const LocalConversationStore(),
 );
 
+/// El lector del vault, **uno solo y vivo**.
+///
+/// No es un detalle de cableado: dentro se queda lo leído de cada nota con su
+/// fecha de modificación, y eso es lo que hace que refrescar el historial en
+/// cada turno no vuelva a recorrer el vault entero. Construir uno nuevo en cada
+/// uso —como se hacía— tiraba esa memoria cada vez.
+final vaultReaderProvider = Provider<VaultReader>((ref) => VaultReader());
+
 /// Las conversaciones de una carpeta: las de la app **y las que ya hubiera** en
 /// la carpeta o el vault elegido.
 ///
@@ -239,7 +248,7 @@ final localConversationStoreProvider = Provider<LocalConversationStore>(
 /// otra app sería una frontera que solo existe en el código. Se recarga al
 /// invalidar, que es lo que se hace al terminar un turno.
 final savedConversationsProvider =
-    FutureProvider.family<List<ConversationRecord>, String>((
+    FutureProvider.family<List<ConversationSummary>, String>((
       ref,
       folderPath,
     ) async {
@@ -253,10 +262,9 @@ final savedConversationsProvider =
           : null;
       if (root == null || root.isEmpty) return propias;
 
-      final delVault = await const VaultReader().read(
-        root,
-        folderPath: folderPath,
-      );
+      final delVault = await ref
+          .watch(vaultReaderProvider)
+          .list(root, folderPath: folderPath);
 
       // Lo de la app manda cuando se repiten: es lo que se puede retomar con
       // todo su detalle, mientras que la nota es una copia para leer fuera.
@@ -271,13 +279,13 @@ final savedConversationsProvider =
 /// La nota de esa conversación en el vault, si la hay. Se busca por el
 /// identificador porque el nombre del archivo lo pone el título, y un título se
 /// recorta y se normaliza: reconstruirlo para adivinar la ruta sería adivinar.
-Future<String?> _noteFor(Ref ref, ConversationRecord record) async {
+Future<String?> _noteFor(Ref ref, ConversationSummary record) async {
   final settings = ref.read(archiveControllerProvider);
   if (!settings.destination.needsFolder) return null;
   final root = settings.folderPath;
   if (root == null || root.isEmpty) return null;
 
-  final notas = await const VaultReader().read(root);
+  final notas = await ref.read(vaultReaderProvider).list(root);
   for (final nota in notas) {
     if (nota.id == record.id) return nota.sourcePath;
   }
@@ -286,22 +294,37 @@ Future<String?> _noteFor(Ref ref, ConversationRecord record) async {
 
 /// Todo lo guardado, sin filtrar por carpeta: la vista por perfiles necesita el
 /// vault entero, porque un perfil abarca varios proyectos.
-final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
-  ref,
-) async {
-  final propias = await ref.watch(localConversationStoreProvider).listAll();
+final allSavedConversationsProvider = FutureProvider<List<ConversationSummary>>(
+  (ref) async {
+    final propias = await ref.watch(localConversationStoreProvider).listAll();
 
-  final settings = ref.watch(archiveControllerProvider);
-  final root = settings.destination.needsFolder ? settings.folderPath : null;
-  if (root == null || root.isEmpty) return propias;
+    final settings = ref.watch(archiveControllerProvider);
+    final root = settings.destination.needsFolder ? settings.folderPath : null;
+    if (root == null || root.isEmpty) return propias;
 
-  final delVault = await const VaultReader().read(root);
-  final vistas = {for (final record in propias) record.id};
-  return [
-    ...propias,
-    ...delVault.where((record) => !vistas.contains(record.id)),
-  ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
-});
+    final delVault = await ref.watch(vaultReaderProvider).list(root);
+    final vistas = {for (final record in propias) record.id};
+    return [
+      ...propias,
+      ...delVault.where((record) => !vistas.contains(record.id)),
+    ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+  },
+);
+
+/// La conversación entera detrás de una ficha, o `null` si ya no está.
+///
+/// Es la otra mitad del índice: las listas traen fichas, y esto es lo que se
+/// paga **al abrir una**. De dónde se lee lo dice la propia ficha — si trae
+/// `sourcePath` es una nota del vault, y si no, el almacén de la app.
+final conversationDetailProvider =
+    Provider<Future<ConversationRecord?> Function(ConversationSummary)>((ref) {
+      return (ficha) async {
+        if (ficha.sourcePath case final path? when path.isNotEmpty) {
+          return VaultReader.readOne(path);
+        }
+        return ref.read(localConversationStoreProvider).read(ficha);
+      };
+    });
 
 /// Borra una conversación de donde esté: del historial de la app y de la nota
 /// del vault, si vino de una.
@@ -311,7 +334,7 @@ final allSavedConversationsProvider = FutureProvider<List<ConversationRecord>>((
 /// irreversible ahí. El JSON interno sí se borra: es una copia de trabajo de
 /// Nexus y se puede rehacer.
 final deleteConversationProvider =
-    Provider<Future<void> Function(ConversationRecord)>((ref) {
+    Provider<Future<void> Function(ConversationSummary)>((ref) {
       return (record) async {
         // `debugPrint` y no `developer.log`: lo segundo no aparece ni en el log
         // del sistema ni en la consola de `flutter run`, y por eso los primeros

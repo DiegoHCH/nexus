@@ -1,7 +1,9 @@
 import 'dart:io';
 
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/history/data/datasources/conversation_header.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 
 /// Lee las conversaciones que ya hay en la carpeta o el vault elegido.
 ///
@@ -14,24 +16,41 @@ import 'package:nexus/features/history/domain/entities/conversation_record.dart'
 /// Lo que las une es el campo `proyecto` del frontmatter: lleva la **ruta
 /// completa** de la carpeta, así que se puede filtrar por ella sin depender de
 /// cómo se llamen los directorios.
+///
+/// ## Por qué esto guarda estado
+///
+/// [list] se llama **en cada turno** —al archivar se refresca el historial— y
+/// un vault de Obsidian de verdad son miles de notas. Antes cada llamada leía
+/// y parseaba todas, enteras, en el hilo que dibuja el orbe. Ahora se lee solo
+/// la cabecera, y de una vez para otra se releen únicamente las notas cuya
+/// fecha de modificación cambió. Por eso hay una instancia viva —la del
+/// proveedor— en vez de un `const` que se construye en cada uso.
 class VaultReader {
-  const VaultReader();
+  VaultReader();
 
   /// Hasta dónde se baja buscando notas: `perfil/proyecto/nota.md` son tres, y
   /// se deja una de margen. Sin tope, un vault grande se recorre entero en cada
   /// apertura del historial.
   static const _maxDepth = 4;
 
+  /// Lo leído la vez anterior, por ruta. Guarda también las notas que **no**
+  /// son conversaciones: recordar que un archivo no lo era ahorra tanto como
+  /// recordar que lo era, y en un vault son la mayoría.
+  final _cache = <String, _Leida>{};
+
   /// [folderPath] a `null` trae **todo el vault**, que es lo que hace falta
   /// para enseñarlo por perfiles: un perfil abarca varios proyectos.
-  Future<List<ConversationRecord>> read(
+  Future<List<ConversationSummary>> list(
     String root, {
     String? folderPath,
   }) async {
     final directory = Directory(root);
-    if (!directory.existsSync()) return const [];
+    if (!directory.existsSync()) {
+      _cache.clear();
+      return const [];
+    }
 
-    final records = <ConversationRecord>[];
+    final vistas = <String, _Leida>{};
     await for (final entity in directory.list(
       recursive: true,
       followLinks: false,
@@ -42,31 +61,65 @@ class VaultReader {
       final name = entity.path.split('/').last;
       if (name.startsWith('_')) continue;
 
-      final record = parse(
-        await entity.readAsString(),
-        fallbackId: entity.path,
-        sourcePath: entity.path,
+      final stat = await entity.stat();
+      final antes = _cache[entity.path];
+      // Fecha **y** tamaño: en un sistema de archivos con marca de segundo, dos
+      // escrituras seguidas dentro del mismo segundo son indistinguibles por la
+      // fecha sola, y archivar es exactamente eso.
+      if (antes != null &&
+          antes.modified == stat.modified &&
+          antes.size == stat.size) {
+        vistas[entity.path] = antes;
+        continue;
+      }
+
+      final campos = await ConversationHeader.read(entity);
+      vistas[entity.path] = _Leida(
+        modified: stat.modified,
+        size: stat.size,
+        summary: campos == null
+            ? null
+            : ConversationHeader.summaryFrom(campos, entity.path),
       );
-      if (record == null) continue;
-      if (folderPath != null && record.folderPath != folderPath) continue;
-      records.add(record);
+    }
+
+    // Se reemplaza en vez de mezclar: lo que ya no está en el disco tampoco
+    // tiene que seguir ocupando memoria, y esto es lo que lo poda.
+    _cache
+      ..clear()
+      ..addAll(vistas);
+
+    final records = <ConversationSummary>[];
+    for (final leida in vistas.values) {
+      final summary = leida.summary;
+      if (summary == null) continue;
+      if (folderPath != null && summary.folderPath != folderPath) continue;
+      records.add(summary);
     }
 
     records.sort((a, b) => b.startedAt.compareTo(a.startedAt));
     return records;
   }
 
+  /// La conversación entera de una nota. Es lo que se paga **al abrir una**, no
+  /// al listarlas.
+  static Future<ConversationRecord?> readOne(String path) async {
+    final file = File(path);
+    if (!file.existsSync()) return null;
+    return parse(await file.readAsString(), fallbackId: path, sourcePath: path);
+  }
+
   static int _depthOf(String root, String path) =>
       path.substring(root.length).split('/').where((p) => p.isNotEmpty).length;
 
-  /// Saca una conversación de una nota. Devuelve `null` si no lo es — en un
-  /// vault hay muchas notas y casi ninguna es esto.
+  /// Saca una conversación de una nota. Devuelve `null` si no lo es.
   static ConversationRecord? parse(
     String content, {
     required String fallbackId,
     String? sourcePath,
   }) {
-    final front = _frontmatter(content);
+    final front = ConversationHeader.fields(content);
+    if (front == null) return null;
     final project = front['proyecto'];
     if (project == null || project.isEmpty) return null;
 
@@ -84,25 +137,6 @@ class VaultReader {
       messages: _messages(content),
       title: front['titulo'],
     );
-  }
-
-  static Map<String, String> _frontmatter(String content) {
-    if (!content.startsWith('---')) return const {};
-    final end = content.indexOf('\n---', 3);
-    if (end == -1) return const {};
-
-    final fields = <String, String>{};
-    for (final line in content.substring(3, end).split('\n')) {
-      final colon = line.indexOf(':');
-      if (colon <= 0) continue;
-      final key = line.substring(0, colon).trim();
-      var value = line.substring(colon + 1).trim();
-      if (value.startsWith('"') && value.endsWith('"') && value.length > 1) {
-        value = value.substring(1, value.length - 1);
-      }
-      fields[key] = value;
-    }
-    return fields;
   }
 
   /// Los turnos salen de los encabezados de segundo nivel.
@@ -144,4 +178,19 @@ class VaultReader {
 
     return messages;
   }
+}
+
+/// Una nota ya mirada: cómo estaba el archivo y qué salió de su cabecera.
+class _Leida {
+  const _Leida({
+    required this.modified,
+    required this.size,
+    required this.summary,
+  });
+
+  final DateTime modified;
+  final int size;
+
+  /// `null` cuando la nota no es una conversación.
+  final ConversationSummary? summary;
 }
