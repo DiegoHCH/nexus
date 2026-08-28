@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/workspace/domain/entities/config_del_repo.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
@@ -21,6 +22,13 @@ class PermissionsSection extends ConsumerWidget {
     final colors = context.colors;
     final workspace = ref.watch(workspaceControllerProvider);
     final controller = ref.read(workspaceControllerProvider.notifier);
+    // Dos vistas del mismo estado, y hacen falta las dos: `workspace` es lo que
+    // está en vigor —ya apretado por el repositorio— y es lo que hay que
+    // **enseñar**; `mio` es lo que elegiste tú, y es sobre lo que hay que
+    // **editar**. Editar sobre lo apretado guardaría la regla del repo como si
+    // fuera tuya, y al día siguiente ya no sabrías cuál era cuál.
+    final mio = controller.guardado;
+    final manda = workspace.configActiva;
 
     return ListView(
       children: [
@@ -34,6 +42,7 @@ class PermissionsSection extends ConsumerWidget {
           child: PermissionSwitch(
             permission: workspace.permission,
             onChanged: controller.setPermission,
+            bloqueado: manda?.soloLectura ?? false,
           ),
         ),
         const SizedBox(height: NexusSpacing.s2),
@@ -41,6 +50,11 @@ class PermissionsSection extends ConsumerWidget {
           context.strings.filePermissionsExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
+        if (manda != null &&
+            (manda.declaraAlgo || manda.avisos.isNotEmpty)) ...[
+          const SizedBox(height: NexusSpacing.s7),
+          _LoQueDeclaraElRepo(config: manda),
+        ],
         const SizedBox(height: NexusSpacing.s7),
 
         Text(
@@ -64,6 +78,9 @@ class PermissionsSection extends ConsumerWidget {
                   ref.read(conversationsProvider.notifier).open(folder.path),
               onModality: (value) => controller.setModality(folder.path, value),
               onRemove: () => controller.removeFolder(folder.path),
+              // Si el repo pide solo texto, el botón no puede prometer voz:
+              // pulsarlo guardaría tu preferencia y no cambiaría nada.
+              bloqueada: workspace.delRepo[folder.path]?.soloTexto ?? false,
             ),
         const SizedBox(height: NexusSpacing.s4),
         Align(
@@ -88,12 +105,15 @@ class PermissionsSection extends ConsumerWidget {
         // De la carpeta activa: lo que tarda en un repo no tarda en otro, así
         // que una lista global bloquearía en un proyecto lo que en otro es
         // instantáneo.
-        if (workspace.folders
+        if (mio.folders
                 .where((folder) => folder.path == workspace.activePath)
                 .firstOrNull
             case final activa?) ...[
           const SizedBox(height: NexusSpacing.s6),
-          _BlockedCommands(folder: activa),
+          _BlockedCommands(
+            folder: activa,
+            delRepo: manda?.comandosVetados ?? const [],
+          ),
         ],
       ],
     );
@@ -107,6 +127,7 @@ class _FolderRow extends ConsumerWidget {
     required this.onActivate,
     required this.onModality,
     required this.onRemove,
+    required this.bloqueada,
   });
 
   final PairedFolder folder;
@@ -114,6 +135,7 @@ class _FolderRow extends ConsumerWidget {
   final VoidCallback onActivate;
   final ValueChanged<FolderModality> onModality;
   final VoidCallback onRemove;
+  final bool bloqueada;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -162,7 +184,11 @@ class _FolderRow extends ConsumerWidget {
               ),
             ),
             _AccountPicker(folder: folder),
-            _ModalityToggle(modality: folder.modality, onChanged: onModality),
+            _ModalityToggle(
+              modality: folder.modality,
+              onChanged: onModality,
+              bloqueada: bloqueada,
+            ),
             IconButton(
               onPressed: onRemove,
               tooltip: context.strings.remove,
@@ -181,9 +207,16 @@ class _FolderRow extends ConsumerWidget {
 /// diferencia con el interruptor es que aquel dice si puede escribir y este
 /// dice qué **no** puede correr, y los dos se leen juntos.
 class _BlockedCommands extends ConsumerStatefulWidget {
-  const _BlockedCommands({required this.folder});
+  const _BlockedCommands({required this.folder, required this.delRepo});
 
+  /// **La carpeta como la guardaste tú**, no la que quedó tras apretar el
+  /// repositorio: lo que se escriba aquí se guarda, y guardar los comandos del
+  /// repo como tuyos los dejaría puestos aunque el repo los quitara.
   final PairedFolder folder;
+
+  /// Los que pone el repositorio. Se enseñan debajo y no se pueden editar aquí:
+  /// se editan en su `.nexus/config.json`, que es donde se revisan.
+  final List<String> delRepo;
 
   @override
   ConsumerState<_BlockedCommands> createState() => _BlockedCommandsState();
@@ -247,6 +280,78 @@ class _BlockedCommandsState extends ConsumerState<_BlockedCommands> {
                     .toList(),
               ),
         ),
+        if (widget.delRepo.isNotEmpty) ...[
+          const SizedBox(height: NexusSpacing.s2),
+          Text(
+            '${ConfigDelRepo.archivo} · ${widget.delRepo.join(' · ')}',
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+/// Lo que el repositorio declara sobre sí mismo, en cristiano.
+///
+/// Tiene que verse, y por una razón que no es de transparencia sino de que la
+/// pantalla no mienta: si el repo apaga la voz y aquí no lo dice, el botón de
+/// la carpeta se queda en «SOLO TEXTO» sin motivo visible y parece un fallo.
+///
+/// Los avisos van con el mismo peso que las declaraciones, no escondidos: este
+/// archivo se escribe a mano y se revisa en un PR, así que una llave mal puesta
+/// necesita salir a la primera y no cuando alguien note que no se aplica.
+class _LoQueDeclaraElRepo extends StatelessWidget {
+  const _LoQueDeclaraElRepo({required this.config});
+
+  final ConfigDelRepo config;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    final dice = <String>[
+      if (config.soloTexto) strings.repoSoloTexto,
+      if (config.soloLectura) strings.repoSoloLectura,
+      if (config.comandosVetados.isNotEmpty)
+        strings.repoComandosVetados(config.comandosVetados.length),
+      if (config.carpetaDePruebas case final carpeta?)
+        strings.repoCarpetaDePruebas(carpeta),
+      if (config.modelo case final modelo?) strings.repoModelo(modelo),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.repoDeclaraTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.repoDeclaraExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        for (final linea in dice) ...[
+          const SizedBox(height: NexusSpacing.s2),
+          Text(
+            '· $linea',
+            style: NexusTypography.mono.copyWith(color: colors.ink),
+          ),
+        ],
+        if (config.avisos.isNotEmpty) ...[
+          const SizedBox(height: NexusSpacing.s3),
+          Text(
+            strings.repoAvisosTitle,
+            style: NexusTypography.mono.copyWith(color: colors.warn),
+          ),
+          for (final aviso in config.avisos)
+            Text(
+              '· $aviso',
+              style: NexusTypography.mono.copyWith(color: colors.warn),
+            ),
+        ],
       ],
     );
   }
@@ -324,10 +429,18 @@ class _AccountPicker extends ConsumerWidget {
 /// voz. Vive junto a la carpeta y no en un ajuste global porque **se decide
 /// por carpeta**: hay repos a los que se les puede hablar y otros a los que no.
 class _ModalityToggle extends StatelessWidget {
-  const _ModalityToggle({required this.modality, required this.onChanged});
+  const _ModalityToggle({
+    required this.modality,
+    required this.onChanged,
+    required this.bloqueada,
+  });
 
   final FolderModality modality;
   final ValueChanged<FolderModality> onChanged;
+
+  /// El repositorio pide solo texto. No es que esté deshabilitado: es que ya no
+  /// hay nada que elegir aquí.
+  final bool bloqueada;
 
   @override
   Widget build(BuildContext context) {
@@ -335,12 +448,17 @@ class _ModalityToggle extends StatelessWidget {
     final voice = modality.allowsVoice;
 
     return Tooltip(
-      message: voice
+      message: bloqueada
+          ? context.strings.repoLoFija
+          : voice
           ? context.strings.voiceAllowedExplainer
           : context.strings.textOnlyExplainer,
       child: TextButton(
-        onPressed: () =>
-            onChanged(voice ? FolderModality.textOnly : FolderModality.voice),
+        onPressed: bloqueada
+            ? null
+            : () => onChanged(
+                voice ? FolderModality.textOnly : FolderModality.voice,
+              ),
         child: Text(
           voice ? 'VOZ' : context.strings.textOnly,
           style: NexusTypography.label.copyWith(

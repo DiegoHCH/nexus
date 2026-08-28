@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/workspace/domain/entities/config_del_repo.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 
 /// Qué puede **hacer** Nexus con tus archivos. Es el interruptor que el diseño
@@ -22,6 +23,7 @@ class Workspace {
     this.folders = const [],
     this.activePath,
     this.permission = FilePermission.readOnly,
+    this.delRepo = const {},
   });
 
   final List<PairedFolder> folders;
@@ -33,6 +35,18 @@ class Workspace {
   final String? activePath;
 
   final FilePermission permission;
+
+  /// Lo que declara cada repositorio sobre sí mismo, por la ruta de la carpeta
+  /// emparejada a la que pertenece.
+  ///
+  /// Va aquí y no dentro de [PairedFolder] porque no es configuración tuya: la
+  /// carpeta guardada tiene que poder ir al disco tal cual, y esto no se guarda
+  /// nunca — se relee del repositorio, que es de donde manda.
+  final Map<String, ConfigDelRepo> delRepo;
+
+  /// Lo que declara el repositorio sobre el que se trabaja ahora.
+  ConfigDelRepo? get configActiva =>
+      activePath == null ? null : delRepo[activePath];
 
   PairedFolder? get active {
     if (activePath == null) return null;
@@ -80,11 +94,13 @@ class Workspace {
     String? activePath,
     bool clearActive = false,
     FilePermission? permission,
+    Map<String, ConfigDelRepo>? delRepo,
   }) {
     return Workspace(
       folders: folders ?? this.folders,
       activePath: clearActive ? null : (activePath ?? this.activePath),
       permission: permission ?? this.permission,
+      delRepo: delRepo ?? this.delRepo,
     );
   }
 }

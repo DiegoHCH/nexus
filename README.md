@@ -81,6 +81,17 @@ demás carpetas emparejadas no viajan — cada conversación ve solo la suya.
 Aparte del modo, cada carpeta tiene su permiso de archivos —solo leer o poder
 editar, y empieza en solo leer— y su propia lista de comandos bloqueados.
 
+## Configuración del repositorio
+
+Un repositorio puede declarar cómo se trabaja en él, en un `.nexus/config.json`
+versionado dentro del propio repo y revisable en un PR: qué comandos no se
+ejecutan aquí, dónde están sus pruebas, si su contenido puede salir hacia el
+servicio de voz. Lo hereda quien clone.
+
+**Solo puede apretar.** Puede apagarte la voz; no puede encenderla. Suma
+comandos a tu lista de vetados; no quita ninguno. Y la cuenta de Claude no se lee
+nunca de ahí. El formato entero está en [docs/NEXUS-CONFIG.md](docs/NEXUS-CONFIG.md).
+
 ## Desde el teléfono
 
 Hay una app móvil que es **el mismo proyecto**, otro punto de entrada

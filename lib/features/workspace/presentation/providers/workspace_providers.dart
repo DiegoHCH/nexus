@@ -6,6 +6,7 @@ import 'package:nexus/features/workspace/data/datasources/workspace_preferences_
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/repo_config_data_source.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
@@ -18,6 +19,12 @@ final folderPickerProvider = Provider<FolderPicker>(
   (ref) => const SystemFolderPicker(),
 );
 
+/// El lector del `.nexus/` de cada repositorio. Una sola instancia para que la
+/// caché por fecha y tamaño sobreviva a los repasos.
+final repoConfigDataSourceProvider = Provider<RepoConfigDataSource>(
+  (ref) => RepoConfigDataSource(),
+);
+
 /// El home del usuario, para pintar las rutas con `~` como en el mockup.
 final homeDirectoryProvider = Provider<String>(
   (ref) => Platform.environment['HOME'] ?? '',
@@ -25,6 +32,17 @@ final homeDirectoryProvider = Provider<String>(
 
 /// Las carpetas emparejadas y sus permisos, en memoria y en disco.
 class WorkspaceController extends Notifier<Workspace> {
+  /// **Lo que has elegido tú**, tal cual va al disco.
+  ///
+  /// Está separado de `state` porque `state` es lo que queda **después** de que
+  /// el repositorio apriete lo suyo, y los dos tienen que existir a la vez: si
+  /// los ajustes escribieran sobre lo apretado, cambiar de modelo en un repo que
+  /// pide solo texto te borraría tu propia preferencia de voz sin decir nada.
+  /// Todo lo que se guarda se calcula sobre este; nada se calcula sobre `state`.
+  Workspace _guardado = const Workspace();
+
+  Workspace get guardado => _guardado;
+
   @override
   Workspace build() {
     unawaited(_load());
@@ -32,12 +50,54 @@ class WorkspaceController extends Notifier<Workspace> {
   }
 
   Future<void> _load() async {
-    state = await ref.read(workspaceStoreProvider).read();
+    _guardado = await ref.read(workspaceStoreProvider).read();
+    await _releer();
   }
 
   Future<void> _persist(Workspace next) async {
+    _guardado = next;
     state = next;
     await ref.read(workspaceStoreProvider).save(next);
+    await _releer();
+  }
+
+  /// Vuelve a leer lo que declara cada repositorio y rehace el estado efectivo.
+  ///
+  /// Público porque el archivo cambia también por fuera de la app —un `git
+  /// pull`, o el propio Claude editándolo— y no hay ningún evento que lo diga.
+  /// No hace falta vigilarlo como a las reglas de `CLAUDE.md`: eso avisa porque
+  /// un cambio ahí puede pedirle a Claude algo nuevo, y esto solo puede
+  /// apretar. Releer tarde es quedarse con **más** restricción, nunca con menos.
+  Future<void> recargar() => _releer();
+
+  Future<void> _releer() async {
+    final configs = await ref.read(repoConfigDataSourceProvider).leerTodas({
+      for (final folder in _guardado.folders)
+        folder.path: folder.workingDirectory,
+    });
+
+    // Leer el disco es un hueco, y el provider puede haberse ido en él —pasa en
+    // cada prueba que monta la superficie y la tira—. Sin esto, el `state` de
+    // abajo revienta contra un `Ref` ya desechado.
+    if (!ref.mounted) return;
+
+    final folders = [
+      for (final folder in _guardado.folders)
+        configs[folder.path]?.aplicarA(folder) ?? folder,
+    ];
+
+    // El interruptor de escritura es de la app, así que lo aprieta el repo que
+    // esté delante: si el activo dice solo lectura, no se escribe aunque el
+    // interruptor de la barra esté dado. Al revés no: un repo no puede dar
+    // escritura que tú no diste.
+    final activo = configs[_guardado.activePath];
+    state = _guardado.copyWith(
+      folders: folders,
+      delRepo: configs,
+      permission: activo?.soloLectura ?? false
+          ? FilePermission.readOnly
+          : _guardado.permission,
+    );
   }
 
   /// Abre el diálogo del sistema y empareja lo que se elija.
@@ -49,45 +109,48 @@ class WorkspaceController extends Notifier<Workspace> {
   Future<void> pairFolder() async {
     final path = await ref.read(folderPickerProvider).pickFolder();
     if (path == null) return;
-    if (state.folders.any((folder) => folder.path == path)) {
-      await _persist(state.copyWith(activePath: path));
+    if (_guardado.folders.any((folder) => folder.path == path)) {
+      await _persist(_guardado.copyWith(activePath: path));
       return;
     }
 
     final folder = PairedFolder(path: path, modality: FolderModality.textOnly);
     await _persist(
-      state.copyWith(folders: [...state.folders, folder], activePath: path),
+      _guardado.copyWith(
+        folders: [..._guardado.folders, folder],
+        activePath: path,
+      ),
     );
   }
 
   Future<void> removeFolder(String path) async {
-    final folders = state.folders
+    final folders = _guardado.folders
         .where((folder) => folder.path != path)
         .toList();
-    final wasActive = state.activePath == path;
+    final wasActive = _guardado.activePath == path;
     await _persist(
       Workspace(
         folders: folders,
-        activePath: wasActive ? null : state.activePath,
-        permission: state.permission,
+        activePath: wasActive ? null : _guardado.activePath,
+        permission: _guardado.permission,
       ),
     );
   }
 
   Future<void> setActive(String path) async {
-    if (state.activePath == path) return;
-    await _persist(state.copyWith(activePath: path));
+    if (_guardado.activePath == path) return;
+    await _persist(_guardado.copyWith(activePath: path));
   }
 
   Future<void> setModality(String path, FolderModality modality) async {
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           folder.copyWith(modality: modality)
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   /// Con qué cuenta de Claude trabaja esta carpeta. `null` vuelve a la de
@@ -99,7 +162,7 @@ class WorkspaceController extends Notifier<Workspace> {
   /// cambiaba de cuenta, y eso no fallaba en ninguna parte — se perdía y ya.
   Future<void> setClaudeProfile(String path, String? profile) async {
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           PairedFolder(
             path: folder.path,
@@ -114,7 +177,7 @@ class WorkspaceController extends Notifier<Workspace> {
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   /// El modelo y el esfuerzo de esta carpeta. `null` en cualquiera devuelve
@@ -123,7 +186,7 @@ class WorkspaceController extends Notifier<Workspace> {
   /// que es lo correcto cuando el encargo cruza varios.
   Future<void> setActiveRepo(String path, String? repo) async {
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           PairedFolder(
             path: folder.path,
@@ -138,13 +201,13 @@ class WorkspaceController extends Notifier<Workspace> {
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   /// Lo que Claude no puede ejecutar en esta carpeta.
   Future<void> setBlockedCommands(String path, List<String> commands) async {
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           PairedFolder(
             path: folder.path,
@@ -159,7 +222,7 @@ class WorkspaceController extends Notifier<Workspace> {
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   Future<void> setClaudeModel(String path, String? model) => _replace(
@@ -182,7 +245,7 @@ class WorkspaceController extends Notifier<Workspace> {
   Future<void> setCarpetaDePruebas(String path, String? carpeta) async {
     final limpia = carpeta?.trim();
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           folder.copyWith(
             carpetaDePruebas: limpia,
@@ -191,7 +254,7 @@ class WorkspaceController extends Notifier<Workspace> {
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   /// Volver a elegir lo que ya estaba puesto lo quita: es la forma de decir
@@ -202,7 +265,7 @@ class WorkspaceController extends Notifier<Workspace> {
     String? Function(PairedFolder)? effort,
   ) async {
     final folders = [
-      for (final folder in state.folders)
+      for (final folder in _guardado.folders)
         if (folder.path == path)
           PairedFolder(
             path: folder.path,
@@ -217,18 +280,18 @@ class WorkspaceController extends Notifier<Workspace> {
         else
           folder,
     ];
-    await _persist(state.copyWith(folders: folders));
+    await _persist(_guardado.copyWith(folders: folders));
   }
 
   Future<void> setPermission(FilePermission permission) async {
-    if (state.permission == permission) return;
-    await _persist(state.copyWith(permission: permission));
+    if (_guardado.permission == permission) return;
+    await _persist(_guardado.copyWith(permission: permission));
   }
 
   void togglePermission() {
     unawaited(
       setPermission(
-        state.permission == FilePermission.readOnly
+        _guardado.permission == FilePermission.readOnly
             ? FilePermission.canEdit
             : FilePermission.readOnly,
       ),
