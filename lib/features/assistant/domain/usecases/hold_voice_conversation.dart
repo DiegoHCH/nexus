@@ -279,6 +279,17 @@ class HoldVoiceConversation {
                   'carpeta.',
                 ),
               );
+            // Hablando, la pantalla puede estar detrás: el mismo motivo por el
+            // que la cola se dice en voz alta. Que las reglas del repositorio
+            // hayan cambiado desde la última vez es justo lo que no puede
+            // quedarse en un chip que nadie está mirando.
+            case ClaudeRulesChanged(:final paths):
+              controller.add(
+                VoiceToolProgress(
+                  'Aviso: han cambiado las reglas del repositorio '
+                  '(${paths.length} archivo(s)). Sigo con el encargo.',
+                ),
+              );
             case ClaudeTextDelta(:final text):
               answer.write(text);
               controller.add(VoiceToolProgress(text));

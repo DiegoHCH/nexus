@@ -114,7 +114,6 @@ abstract class NexusStrings {
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
 
-
   /// Instalar en todas las cuentas de golpe.
   ///
   /// Existe porque lo instalado en una cuenta es **invisible** para las carpetas de
@@ -143,7 +142,6 @@ abstract class NexusStrings {
 
   String durationMinutes(int minutes);
   String durationHoursMinutes(int hours, int minutes);
-
 
   // Dónde viven las pruebas de una carpeta.
   String testsFolderTitle(String folder);
@@ -568,6 +566,11 @@ abstract class NexusStrings {
   String get micGrantedExplainer;
   String get micDenied;
   String get microphoneBlocked;
+
+  /// Las reglas del repositorio no son las mismas que la última vez. Lleva las
+  /// rutas porque cuál cambió es el dato: uno del proyecto y uno de tres
+  /// carpetas más arriba no se leen igual.
+  String rulesChanged(List<String> paths);
   String get micDeniedShort;
   String get micDeniedExplainer;
   String get microphone;
@@ -812,7 +815,6 @@ class NexusStringsEs extends NexusStrings {
   String flowsCount(int total) => total == 1 ? '1 prueba' : '$total pruebas';
   @override
   String get e2eWhichProject => 'De qué proyecto';
-
 
   @override
   String get superpowersEverywhere => 'En todas las cuentas';
@@ -1237,7 +1239,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eAccountDesc => 'Descripción';
   @override
-  String get e2eAccountDescHint => 'Para qué sirve. Ej: PEN verificada, sin Bre-B';
+  String get e2eAccountDescHint =>
+      'Para qué sirve. Ej: PEN verificada, sin Bre-B';
   @override
   String get e2eAccountsNoneAnywhere =>
       'Ningún proyecto tiene cuentas todavía. Sin una, sus pruebas no pueden correr.';
@@ -1797,6 +1800,10 @@ class NexusStringsEs extends NexusStrings {
       'en Ajustes del sistema › Privacidad y seguridad › Micrófono, marcando '
       'Nexus. Mientras tanto, puedes escribirle por abajo.';
   @override
+  String rulesChanged(List<String> paths) =>
+      'Han cambiado las reglas que Claude lee antes de cada encargo: '
+      '${paths.join(', ')}. El encargo sigue.';
+  @override
   String get micDeniedShort => 'Actívalo en Ajustes del Sistema';
   @override
   String get micDeniedExplainer =>
@@ -2060,7 +2067,6 @@ class NexusStringsEn extends NexusStrings {
   String flowsCount(int total) => total == 1 ? '1 test' : '$total tests';
   @override
   String get e2eWhichProject => 'Which project';
-
 
   @override
   String get superpowersEverywhere => 'In every account';
@@ -2485,7 +2491,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eAccountDesc => 'Description';
   @override
-  String get e2eAccountDescHint => 'What it is for. E.g. PEN verified, no Bre-B';
+  String get e2eAccountDescHint =>
+      'What it is for. E.g. PEN verified, no Bre-B';
   @override
   String get e2eAccountsNoneAnywhere =>
       'No project has accounts yet. Without one, its tests cannot run.';
@@ -3041,6 +3048,10 @@ class NexusStringsEn extends NexusStrings {
       'The microphone is blocked, so voice cannot start. You grant it in System '
       'Settings › Privacy & Security › Microphone, ticking Nexus. In the '
       'meantime you can type to it below.';
+  @override
+  String rulesChanged(List<String> paths) =>
+      'The rules Claude reads before every errand have changed: '
+      '${paths.join(', ')}. The errand carries on.';
   @override
   String get micDeniedShort => 'Turn it on in System Settings';
   @override

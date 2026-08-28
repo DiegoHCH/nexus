@@ -71,6 +71,7 @@ class AssistantHudState {
     this.history = const [],
     this.meter = const SessionMeter(),
     this.errorMessage,
+    this.notice,
     this.changes,
   });
 
@@ -103,6 +104,15 @@ class AssistantHudState {
 
   final String? errorMessage;
 
+  /// Algo que conviene saber y que **no es un fallo**: hoy, que los archivos de
+  /// reglas del repositorio no son los mismos que la última vez.
+  ///
+  /// Va aparte de [errorMessage] y no reusa su hueco porque no es lo mismo:
+  /// pintarlo en rojo diría que algo se rompió, y lo que pasa es que algo
+  /// cambió. Y porque los dos pueden coincidir — un encargo puede fallar
+  /// justo el día que cambiaron las reglas.
+  final String? notice;
+
   /// Lo que **este turno** dejó tocado en el repositorio, si tocó algo.
   ///
   /// De este turno y no de la conversación: acumular los cambios haría que el
@@ -120,6 +130,7 @@ class AssistantHudState {
     List<String>? history,
     SessionMeter? meter,
     Object? errorMessage = _unset,
+    Object? notice = _unset,
     Object? changes = _unset,
   }) {
     return AssistantHudState(
@@ -134,6 +145,7 @@ class AssistantHudState {
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : errorMessage as String?,
+      notice: notice == _unset ? this.notice : notice as String?,
       changes: changes == _unset ? this.changes : changes as GitChanges?,
     );
   }
