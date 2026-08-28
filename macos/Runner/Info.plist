@@ -26,6 +26,12 @@
 	<string>$(PRODUCT_COPYRIGHT)</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Nexus necesita tu micrófono para escucharte cuando le hables.</string>
+	<!-- Es un permiso **distinto** del micrófono y el sistema lo exige aparte:
+	     sin esta clave, la primera llamada a SFSpeechRecognizer no pide nada,
+	     revienta la app. Y el texto dice lo que de verdad pasa, que es lo único
+	     que a alguien le importa de este diálogo: que no sale de aquí. -->
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Nexus reconoce lo que dices en tu propio Mac, sin mandar el audio a ningún servicio.</string>
 	<key>NSMainNibFile</key>
 	<string>MainMenu</string>
 	<key>NSPrincipalClass</key>

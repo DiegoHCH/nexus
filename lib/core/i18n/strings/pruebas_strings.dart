@@ -163,6 +163,14 @@ mixin PruebasStrings {
   String get geminiKeyMissing;
   String get geminiKeySave;
   String get setupOptional;
+  String get vozLocalTitle;
+  String get vozLocalExplainer;
+  String get vozLocalNoHay;
+  String get vozLocalEscuchar;
+  String get vozLocalEscuchando;
+  String get vozLocalLeer;
+  String get vozLocalNadaDicho;
+  String vozLocalFallo(String motivo);
   String get foldersWithPermission;
   String get noFoldersYet;
   String get addFolder;
@@ -566,6 +574,28 @@ mixin PruebasStringsEs implements PruebasStrings {
   String get geminiKeySave => 'Guardar la llave';
   @override
   String get setupOptional => 'OPCIONAL';
+  @override
+  String get vozLocalTitle => 'LA VOZ DE ESTA MÁQUINA';
+  @override
+  String get vozLocalExplainer =>
+      'Reconoce y habla sin salir del Mac: ni tu micrófono ni lo que Claude lea '
+      'salen hacia ningún servicio. Todavía no sustituye a la voz de siempre — '
+      'está aquí para contestar si entiende un encargo de verdad, con nombres '
+      'de archivo y palabras en inglés. Si no lo entiende, no seguimos.';
+  @override
+  String get vozLocalNoHay =>
+      'Este Mac no reconoce voz sin salir a la red, así que esto no puede '
+      'funcionar aquí.';
+  @override
+  String get vozLocalEscuchar => 'Dime una frase';
+  @override
+  String get vozLocalEscuchando => 'Escuchando…';
+  @override
+  String get vozLocalLeer => 'Léelo en voz alta';
+  @override
+  String get vozLocalNadaDicho => 'Todavía no has dicho nada.';
+  @override
+  String vozLocalFallo(String motivo) => 'No se pudo escuchar: $motivo';
   @override
   String get foldersWithPermission => 'CARPETAS CON PERMISO';
   @override
@@ -994,6 +1024,28 @@ mixin PruebasStringsEn implements PruebasStrings {
   String get geminiKeySave => 'Save the key';
   @override
   String get setupOptional => 'OPTIONAL';
+  @override
+  String get vozLocalTitle => 'THIS MACHINE’S VOICE';
+  @override
+  String get vozLocalExplainer =>
+      'It listens and speaks without leaving the Mac: neither your microphone '
+      'nor what Claude reads goes to any service. It does not replace the usual '
+      'voice yet — it is here to answer whether it understands a real errand, '
+      'with file names and English words in it. If it does not, we stop.';
+  @override
+  String get vozLocalNoHay =>
+      'This Mac cannot recognise speech without going to the network, so this '
+      'cannot work here.';
+  @override
+  String get vozLocalEscuchar => 'Say something';
+  @override
+  String get vozLocalEscuchando => 'Listening…';
+  @override
+  String get vozLocalLeer => 'Read it aloud';
+  @override
+  String get vozLocalNadaDicho => 'You have not said anything yet.';
+  @override
+  String vozLocalFallo(String motivo) => 'Could not listen: $motivo';
   @override
   String get foldersWithPermission => 'FOLDERS WITH PERMISSION';
   @override

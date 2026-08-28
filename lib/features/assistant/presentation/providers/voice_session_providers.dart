@@ -1,3 +1,5 @@
+import 'package:nexus/features/assistant/data/datasources/voz_de_la_maquina_impl.dart';
+import 'package:nexus/features/assistant/domain/repositories/voz_de_la_maquina.dart';
 import 'package:nexus/features/e2e/presentation/providers/correr_una_prueba_desde_la_voz.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -65,3 +67,9 @@ final holdVoiceConversationProvider =
         ref.watch(correrUnaPruebaProvider),
       ),
     );
+
+/// La voz de la propia máquina. Ver [VozDeLaMaquina]: todavía no sustituye a
+/// nada, es el banco donde se decide si puede llegar a hacerlo.
+final vozDeLaMaquinaProvider = Provider<VozDeLaMaquina>(
+  (ref) => const VozDeLaMaquinaImpl(),
+);

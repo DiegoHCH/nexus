@@ -41,6 +41,9 @@ class MainFlutterWindow: NSWindow {
     NexusNotifications.register(
       with: flutterViewController.registrar(forPlugin: "NexusNotifications")
     )
+    NexusVozLocal.register(
+      with: flutterViewController.registrar(forPlugin: "NexusVozLocal")
+    )
     NexusUpdater.register(
       with: flutterViewController.registrar(forPlugin: "NexusUpdater")
     )
