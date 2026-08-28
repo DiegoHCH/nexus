@@ -102,47 +102,60 @@ void main() {
     });
   });
 
-  group('la pantalla cabe sin desplazarse', () {
+  group('lo que queda por debajo del borde', () {
     late Directory support;
 
     setUp(() => support = prepareScreenTest());
     tearDown(() => support.deleteSync(recursive: true));
 
-    // Es la primera pantalla de la app y la única que se ve antes de decidir si
-    // se sigue. Pedía tres cosas en una columna de 520 dentro de una ventana de
-    // 1280, así que la tercera quedaba **500 píxeles por debajo del borde** y
-    // había que ir a buscarla. Una configuración con scroll esconde justo el
-    // paso que falta.
-    //
-    // La más pequeña de la lista es la ventana mínima que permite
-    // `MainFlutterWindow` —1024×768—: por debajo de eso no hay ventana posible,
-    // así que si cabe ahí, cabe siempre.
-    for (final ventana in const [
-      Size(1024, 768),
-      Size(1280, 800),
-      Size(1440, 900),
-      Size(1920, 1080),
-    ]) {
-      testWidgets('en ${ventana.width.toInt()}x${ventana.height.toInt()}', (
+    // La pantalla se desplaza —en 1280×800 sobran unos 500 píxeles— y eso está
+    // bien; lo que no puede ser es que no se note. La barra del sistema no lo
+    // resuelve: en macOS se pinta al desplazar y desaparece sola, o sea que
+    // aparece cuando ya sabes que hay más.
+    testWidgets('no se anuncia con una barra', (tester) async {
+      await pumpScreen(tester, const InitialSetupPage());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(find.byType(Scrollbar), findsNothing);
+    });
+
+    testWidgets('se anuncia con una flecha, y solo mientras haga falta', (
+      tester,
+    ) async {
+      await pumpScreen(tester, const InitialSetupPage());
+      await tester.pump(const Duration(milliseconds: 200));
+
+      final flecha = find.byIcon(Icons.keyboard_arrow_down);
+      expect(
+        flecha,
+        findsOneWidget,
+        reason: 'hay contenido debajo y no se dice',
+      );
+
+      // Al final del todo ya no queda nada: una flecha que se quedara fija
+      // dejaría de mirarse la próxima vez.
+      final scroll = tester
+          .state<ScrollableState>(find.byType(Scrollable).first)
+          .position;
+      scroll.jumpTo(scroll.maxScrollExtent);
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 200));
+
+      expect(flecha, findsNothing);
+    });
+
+    // Sin ventana pequeña no hay nada que anunciar, y anunciarlo igual sería
+    // una flecha que apunta al vacío.
+    testWidgets('en una ventana donde todo cabe, no aparece', (tester) async {
+      await pumpScreen(
         tester,
-      ) async {
-        await pumpScreen(tester, const InitialSetupPage(), size: ventana);
-        await tester.pump(const Duration(milliseconds: 200));
+        const InitialSetupPage(),
+        size: const Size(1280, 2000),
+      );
+      await tester.pump(const Duration(milliseconds: 200));
 
-        final scroll = tester
-            .state<ScrollableState>(find.byType(Scrollable).first)
-            .position;
-
-        expect(
-          scroll.maxScrollExtent,
-          0,
-          reason:
-              'sobran ${scroll.maxScrollExtent} px por debajo del borde: algo '
-              'creció y volvió a hacer falta desplazarse para verlo',
-        );
-        expect(tester.takeException(), isNull, reason: 'y sin desbordar');
-      });
-    }
+      expect(find.byIcon(Icons.keyboard_arrow_down), findsNothing);
+    });
   });
 
   group('la promesa de «cámbialo después en Ajustes»', () {
