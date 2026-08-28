@@ -579,6 +579,12 @@ abstract class NexusStrings {
 
   /// Lo mismo, en el ancho de un teléfono.
   String get allowScriptsShort;
+
+  /// El registro de la app, en Ajustes › Ayuda.
+  String get logTitle;
+  String get logExplainer;
+  String get logAction;
+  String get logMissing;
   String get micDeniedShort;
   String get micDeniedExplainer;
   String get microphone;
@@ -1819,6 +1825,17 @@ class NexusStringsEs extends NexusStrings {
       'carga nada de internet.';
   @override
   String get allowScriptsShort => 'Scripts y red';
+  @override
+  String get logTitle => 'REGISTRO';
+  @override
+  String get logExplainer =>
+      'Lo que Nexus ha ido contando de sí mismo, escrito en un archivo. Sirve '
+      'para cuando algo falla y hay que saber qué pasó antes. No sale de este '
+      'Mac: se queda en su carpeta y lo lees tú.';
+  @override
+  String get logAction => 'Ver en el Finder';
+  @override
+  String get logMissing => 'Todavía no hay nada escrito.';
   @override
   String get micDeniedShort => 'Actívalo en Ajustes del Sistema';
   @override
@@ -3076,6 +3093,18 @@ class NexusStringsEn extends NexusStrings {
       'nothing from the internet.';
   @override
   String get allowScriptsShort => 'Scripts & network';
+  @override
+  String get logTitle => 'LOG';
+  @override
+  String get logExplainer =>
+      'What Nexus has been saying about itself, written to a file. It is for '
+      'when something breaks and you need to know what happened before. It '
+      'never leaves this Mac: it stays in its folder and you are the one who '
+      'reads it.';
+  @override
+  String get logAction => 'Show in Finder';
+  @override
+  String get logMissing => 'Nothing written yet.';
   @override
   String get micDeniedShort => 'Turn it on in System Settings';
   @override
