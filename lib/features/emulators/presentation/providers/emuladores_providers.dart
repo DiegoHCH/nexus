@@ -61,9 +61,11 @@ final hayEspejoProvider = Provider<bool>(
 final sePuedeVerLaPantallaProvider = Provider.family<bool, String>((ref, id) {
   if (!ref.watch(hayEspejoProvider)) return false;
   return ref
-      .watch(dispositivosProvider)
-      .value
-      ?.any((d) => d.id == id && d.plataforma == PlataformaEmulador.android) ??
+          .watch(dispositivosProvider)
+          .value
+          ?.any(
+            (d) => d.id == id && d.plataforma == PlataformaEmulador.android,
+          ) ??
       false;
 });
 

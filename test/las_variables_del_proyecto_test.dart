@@ -20,7 +20,9 @@ void main() {
     });
 
     test('las comillas envolventes se quitan', () {
-      final v = LasVariablesDelProyecto.leer('UNO="con espacios"\nDOS=\'otra\'\n');
+      final v = LasVariablesDelProyecto.leer(
+        'UNO="con espacios"\nDOS=\'otra\'\n',
+      );
       expect(v, {'UNO': 'con espacios', 'DOS': 'otra'});
     });
 
@@ -58,7 +60,9 @@ void main() {
     test('de una expresión no se saca nada, a propósito', () {
       // Sacar de `${A == "B"}` qué es nombre y qué cadena pide un analizador. Para
       // avisar de lo que falta vale con lo inequívoco.
-      final usa = LasVariablesDelProyecto.queNombra('- assertTrue: \${A == "B"}');
+      final usa = LasVariablesDelProyecto.queNombra(
+        '- assertTrue: \${A == "B"}',
+      );
       expect(usa, isEmpty);
     });
   });
@@ -85,7 +89,10 @@ void main() {
 
     test('sin variables, nada', () {
       expect(
-        LasVariablesDelProyecto.paraElFlow(yaml: '- launchApp', variables: variables),
+        LasVariablesDelProyecto.paraElFlow(
+          yaml: '- launchApp',
+          variables: variables,
+        ),
         isEmpty,
       );
     });
@@ -104,7 +111,8 @@ void main() {
 
     test('las de Maestro no faltan nunca: las pone él', () {
       final faltan = LasVariablesDelProyecto.faltan(
-        yaml: '- takeScreenshot: \${MAESTRO_FILENAME}\n- assertVisible: \${output}\n',
+        yaml:
+            '- takeScreenshot: \${MAESTRO_FILENAME}\n- assertVisible: \${output}\n',
         tiene: const {},
       );
       expect(faltan, isEmpty);

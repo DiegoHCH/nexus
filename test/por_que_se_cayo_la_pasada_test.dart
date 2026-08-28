@@ -24,10 +24,7 @@ void main() {
         '(AndroidDriver.kt:1273)\n';
 
     test('se reconoce por la pila, que es lo único que dice algo', () {
-      expect(
-        PorQueSeCayoLaPasada.de(salida),
-        PorQueSeCayo.driverNoSeInstala,
-      );
+      expect(PorQueSeCayoLaPasada.de(salida), PorQueSeCayo.driverNoSeInstala);
     });
   });
 
@@ -41,10 +38,7 @@ void main() {
     test('se reconoce, y no se confunde con el del driver', () {
       // Este pasa **dentro** de un paso; el del driver, antes de cualquiera. Así
       // que no compiten.
-      expect(
-        PorQueSeCayoLaPasada.de(salida),
-        PorQueSeCayo.sinPermisoParaTocar,
-      );
+      expect(PorQueSeCayoLaPasada.de(salida), PorQueSeCayo.sinPermisoParaTocar);
     });
   });
 

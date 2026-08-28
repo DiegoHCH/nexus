@@ -24,10 +24,7 @@ void main() {
       // **Comparten el directorio de build del proyecto y se pisan.** Se corta
       // antes de lanzar porque enterarse por el error de Gradle cuesta tres
       // minutos y no apunta a su causa.
-      final bloquea = loQueBloquea(
-        [_corrida()],
-        PlataformaEmulador.android,
-      );
+      final bloquea = loQueBloquea([_corrida()], PlataformaEmulador.android);
       expect(bloquea?.deviceId, 'emulator-5554');
     });
 
@@ -46,10 +43,7 @@ void main() {
       final r = aplicaEvento(
         _corrida(),
         const {},
-        const EventoDelDaemon(
-          nombre: 'app.start',
-          params: {'appId': 'abc'},
-        ),
+        const EventoDelDaemon(nombre: 'app.start', params: {'appId': 'abc'}),
       );
 
       expect(r.corrida.appId, 'abc');

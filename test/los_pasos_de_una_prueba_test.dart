@@ -203,10 +203,7 @@ appId: x
       expect(pasos.first.linea, 8);
       expect(pasos.first.texto, 'launchApp');
       // Y los números no son consecutivos: entre pasos hay comentarios y huecos.
-      expect(
-        pasos.map((p) => p.linea).toList(),
-        isNot([8, 9, 10, 11, 12]),
-      );
+      expect(pasos.map((p) => p.linea).toList(), isNot([8, 9, 10, 11, 12]));
     });
   });
 }

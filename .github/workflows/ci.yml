@@ -63,6 +63,16 @@ jobs:
       - name: flutter analyze
         run: flutter analyze --fatal-infos
 
+      # Y el formato, por el mismo motivo que `--fatal-infos`: 55 archivos
+      # habían quedado sin formatear, y el precio no era la estética — era que
+      # cada rama que tocara uno arrastraba cien líneas de reindentado ajeno al
+      # cambio. Tres veces hubo que revertirlo a mano para que un PR de
+      # seguridad se pudiera leer.
+      #
+      # `--output=none` no toca nada: solo dice si algo está sin formatear.
+      - name: dart format
+        run: dart format --output=none --set-exit-if-changed lib test packages
+
       # Y sus pruebas, que `flutter test` **no mira**: es Dart puro con su propio
       # `pubspec`. Sin este paso sus 37 pruebas existirían y no las correría nadie,
       # que es el problema que este workflow vino a resolver. Una de ellas compara

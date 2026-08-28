@@ -39,9 +39,7 @@ void main() {
     });
 
     test('un paso fallado la tumba entera', () {
-      final r = LectorDePasadas.leer(
-        _commands(estadoDelUltimo: 'FAILED'),
-      );
+      final r = LectorDePasadas.leer(_commands(estadoDelUltimo: 'FAILED'));
       expect(r.como, ComoAcabo.mal);
       // Y se sabe cuántos llegaron: «2 de 3» dice dónde se rompió.
       expect(r.bien, 2);
@@ -65,7 +63,9 @@ void main() {
     test('el dispositivo sale del entorno del primer comando', () {
       // No está en la raíz del JSON: viaja dentro del `defineVariablesCommand`.
       expect(
-        LectorDePasadas.leer(_commands(dispositivo: 'emulator-5556')).dispositivo,
+        LectorDePasadas.leer(
+          _commands(dispositivo: 'emulator-5556'),
+        ).dispositivo,
         'emulator-5556',
       );
     });

@@ -46,12 +46,17 @@ void main() {
       expect(pasos, isEmpty);
     });
 
-    test('«Waiting for flows to complete...» acaba en tres puntos y no es un paso', () {
-      // Es la trampa de este parseo: tiene la misma forma que el anuncio de un
-      // paso, así que sin la lista se pintaría como uno.
-      final pasos = PasosDeUnaPrueba.deLaSalida('Waiting for flows to complete...');
-      expect(pasos, isEmpty);
-    });
+    test(
+      '«Waiting for flows to complete...» acaba en tres puntos y no es un paso',
+      () {
+        // Es la trampa de este parseo: tiene la misma forma que el anuncio de un
+        // paso, así que sin la lista se pintaría como uno.
+        final pasos = PasosDeUnaPrueba.deLaSalida(
+          'Waiting for flows to complete...',
+        );
+        expect(pasos, isEmpty);
+      },
+    );
 
     test('el resumen del final tampoco', () {
       final pasos = PasosDeUnaPrueba.deLaSalida(
@@ -95,7 +100,11 @@ void main() {
   group('las dos fuentes juntas', () {
     final delFlow = [
       PasoDelFlow(linea: 3, texto: '- launchApp'.substring(2)),
-      PasoDelFlow(linea: 4, texto: 'extendedWaitUntil:', detalle: ['    visible:']),
+      PasoDelFlow(
+        linea: 4,
+        texto: 'extendedWaitUntil:',
+        detalle: ['    visible:'],
+      ),
       PasoDelFlow(linea: 7, texto: 'tapOn:', detalle: ['    id: "btn"']),
     ];
 
@@ -193,7 +202,8 @@ void main() {
       final pasos = PasosDeUnaPrueba.paraPintar(
         salida: deVerdad,
         delFlow: [
-          for (var i = 0; i < 8; i++) PasoDelFlow(linea: i + 3, texto: 'paso $i'),
+          for (var i = 0; i < 8; i++)
+            PasoDelFlow(linea: i + 3, texto: 'paso $i'),
         ],
       );
 

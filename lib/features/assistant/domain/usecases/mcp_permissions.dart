@@ -46,10 +46,14 @@ abstract final class McpPermissions {
       return (propios: const <String>[], deLaCuenta: const <String>[]);
     }
     final file = File('$configDir/.claude.json');
-    if (!file.existsSync()) return (propios: const <String>[], deLaCuenta: const <String>[]);
+    if (!file.existsSync()) {
+      return (propios: const <String>[], deLaCuenta: const <String>[]);
+    }
     try {
       final leido = jsonDecode(await file.readAsString());
-      if (leido is! Map) return (propios: const <String>[], deLaCuenta: const <String>[]);
+      if (leido is! Map) {
+        return (propios: const <String>[], deLaCuenta: const <String>[]);
+      }
 
       final propios = <String>{};
       final suyos = leido['mcpServers'];

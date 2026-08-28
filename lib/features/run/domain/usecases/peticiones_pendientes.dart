@@ -38,9 +38,7 @@ class PeticionesPendientes {
   ///
   /// [construir] recibe el id porque el id lo pone esto: quien pide no tiene por
   /// qué llevar la cuenta, y llevarla en dos sitios es cómo se acaban repitiendo.
-  Future<({bool ok, String? error})> pedir(
-    String Function(int id) construir,
-  ) {
+  Future<({bool ok, String? error})> pedir(String Function(int id) construir) {
     final id = ++_ultimoId;
     final espera = Completer<({bool ok, String? error})>();
     _pendientes[id] = espera;

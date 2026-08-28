@@ -113,7 +113,8 @@ abstract final class LectorDeConfigs {
       // `/* … */`, que también aparecen.
       if (c == '/' && i + 1 < texto.length && texto[i + 1] == '*') {
         i += 2;
-        while (i + 1 < texto.length && !(texto[i] == '*' && texto[i + 1] == '/')) {
+        while (i + 1 < texto.length &&
+            !(texto[i] == '*' && texto[i + 1] == '/')) {
           i++;
         }
         i += 2;

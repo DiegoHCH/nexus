@@ -8,8 +8,9 @@ Directory _monta(List<(String fecha, List<String> flows)> pasadas) {
   final raiz = Directory.systemTemp.createTempSync('artefactos');
   for (final (fecha, flows) in pasadas) {
     for (final flow in flows) {
-      Directory('${raiz.path}/.maestro/tests/$fecha/$flow/takeScreenshot')
-          .createSync(recursive: true);
+      Directory(
+        '${raiz.path}/.maestro/tests/$fecha/$flow/takeScreenshot',
+      ).createSync(recursive: true);
     }
   }
   return raiz;
@@ -21,7 +22,9 @@ void main() {
   test('🔴 la carpeta lleva el name: del YAML, no el del archivo', () {
     // 01-login-error-flow.yaml declara `name: Login Error Flow`. Buscando por el
     // nombre del archivo no se encontraba nada y las capturas no salían.
-    final raiz = _monta([('2026-08-27_203911', ['Login Error Flow'])]);
+    final raiz = _monta([
+      ('2026-08-27_203911', ['Login Error Flow']),
+    ]);
     addTearDown(() => raiz.deleteSync(recursive: true));
 
     expect(

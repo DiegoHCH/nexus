@@ -49,18 +49,24 @@ void main() {
     );
   });
 
-  test('borra la carpeta de una pasada de Maestro, con lo que tenga dentro', () async {
-    final carpeta = Directory('${casa.path}/login')..createSync();
-    File('${carpeta.path}/commands.json').writeAsStringSync('[]');
-    Directory('${carpeta.path}/takeScreenshot').createSync();
+  test(
+    'borra la carpeta de una pasada de Maestro, con lo que tenga dentro',
+    () async {
+      final carpeta = Directory('${casa.path}/login')..createSync();
+      File('${carpeta.path}/commands.json').writeAsStringSync('[]');
+      Directory('${carpeta.path}/takeScreenshot').createSync();
 
-    expect(await ds.borrar(carpeta.path), isNull);
-    expect(carpeta.existsSync(), isFalse);
-  });
+      expect(await ds.borrar(carpeta.path), isNull);
+      expect(carpeta.existsSync(), isFalse);
+    },
+  );
 
-  test('lo que no está no da error: ya no está, que es lo que se pedía', () async {
-    expect(await ds.borrar('${casa.path}/no_existe.json'), isNull);
-  });
+  test(
+    'lo que no está no da error: ya no está, que es lo que se pedía',
+    () async {
+      expect(await ds.borrar('${casa.path}/no_existe.json'), isNull);
+    },
+  );
 
   test('mide un registro y su página, no cero', () async {
     final registro = File('${casa.path}/login 2026-08-26 09h3507.json')

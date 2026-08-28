@@ -62,7 +62,9 @@ abstract final class PasosDeUnaPrueba {
     for (final linea in yaml.split('\n')) {
       if (linea.trim() == '---') return null;
       final m = RegExp(r'^appId:\s*(.+)$').firstMatch(linea.trim());
-      if (m != null) return m.group(1)!.trim().replaceAll(RegExp('^[\'"]|[\'"]\$'), '');
+      if (m != null) {
+        return m.group(1)!.trim().replaceAll(RegExp('^[\'"]|[\'"]\$'), '');
+      }
     }
     return null;
   }
@@ -97,9 +99,7 @@ abstract final class PasosDeUnaPrueba {
       // Primer nivel: el guion en la columna cero. Un `- ` indentado es un
       // argumento de un paso, no otro paso.
       if (linea.startsWith('- ')) {
-        pasos.add(
-          PasoDelFlow(linea: numero, texto: linea.substring(2).trim()),
-        );
+        pasos.add(PasoDelFlow(linea: numero, texto: linea.substring(2).trim()));
         continue;
       }
       // Lo indentado pertenece al paso de arriba. Se guarda tal cual —con su
@@ -251,9 +251,7 @@ abstract final class PasosDeUnaPrueba {
         continue;
       }
 
-      pasos.add(
-        PasoParaPintar(texto: texto, estado: estado, detalle: detalle),
-      );
+      pasos.add(PasoParaPintar(texto: texto, estado: estado, detalle: detalle));
     }
     return pasos;
   }

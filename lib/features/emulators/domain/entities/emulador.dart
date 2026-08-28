@@ -8,11 +8,12 @@ enum PlataformaEmulador {
   android,
   ios;
 
-  static PlataformaEmulador? desde(String texto) => switch (texto.toLowerCase()) {
-    'android' => PlataformaEmulador.android,
-    'ios' => PlataformaEmulador.ios,
-    _ => null,
-  };
+  static PlataformaEmulador? desde(String texto) =>
+      switch (texto.toLowerCase()) {
+        'android' => PlataformaEmulador.android,
+        'ios' => PlataformaEmulador.ios,
+        _ => null,
+      };
 
   /// La plataforma tal como la nombra `flutter devices`, que **no es la misma
   /// palabra**: ahí un móvil Android es `android-arm64` y un iPhone es `ios`, y

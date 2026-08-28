@@ -26,7 +26,9 @@ void main() {
     });
 
     test('una respuesta con su id', () {
-      final leido = ProtocoloDelDaemon.leerLinea('[{"id":3,"result":{"code":0}}]');
+      final leido = ProtocoloDelDaemon.leerLinea(
+        '[{"id":3,"result":{"code":0}}]',
+      );
 
       expect(leido, isA<RespuestaDelDaemon>());
       expect((leido as RespuestaDelDaemon).id, 3);
@@ -104,10 +106,10 @@ void main() {
     });
 
     test('cualquier otro código trae su motivo', () {
-      final r = ProtocoloDelDaemon.resultadoDe(
-        {'code': 1, 'message': 'Hot reload no aplicable'},
-        null,
-      );
+      final r = ProtocoloDelDaemon.resultadoDe({
+        'code': 1,
+        'message': 'Hot reload no aplicable',
+      }, null);
       expect(r.ok, isFalse);
       expect(r.error, 'Hot reload no aplicable');
     });
@@ -179,7 +181,9 @@ void main() {
       final lineas = LineasDelDaemon();
 
       expect(lineas.add('[{"event":"app.st'), isEmpty);
-      final salieron = lineas.add('arted","params":{"appId":"abc"}}]\n').toList();
+      final salieron = lineas
+          .add('arted","params":{"appId":"abc"}}]\n')
+          .toList();
 
       expect(salieron.length, 1);
       expect((salieron.single as EventoDelDaemon).nombre, 'app.started');
@@ -188,7 +192,9 @@ void main() {
     test('dos mensajes pegados salen los dos', () {
       final lineas = LineasDelDaemon();
       final salieron = lineas
-          .add('[{"event":"app.start","params":{}}]\n[{"id":1,"result":true}]\n')
+          .add(
+            '[{"event":"app.start","params":{}}]\n[{"id":1,"result":true}]\n',
+          )
           .toList();
 
       expect(salieron.length, 2);
@@ -198,7 +204,9 @@ void main() {
 
     test('lo que queda sin salto se guarda, no se tira', () {
       final lineas = LineasDelDaemon();
-      lineas.add('[{"event":"app.start","params":{}}]\n[{"id":9,"result":true}]');
+      lineas.add(
+        '[{"event":"app.start","params":{}}]\n[{"id":9,"result":true}]',
+      );
 
       // Todavía a medias: no ha salido.
       expect(lineas.add('').isEmpty, isTrue);
@@ -216,7 +224,8 @@ void main() {
       final peticiones = PeticionesPendientes(escribir: escritas.add);
 
       final primera = peticiones.pedir(
-        (id) => ProtocoloDelDaemon.peticionDeRecarga(id, 'abc', completa: false),
+        (id) =>
+            ProtocoloDelDaemon.peticionDeRecarga(id, 'abc', completa: false),
       );
       final segunda = peticiones.pedir(
         (id) => ProtocoloDelDaemon.peticionDeParada(id, 'abc'),
@@ -235,7 +244,10 @@ void main() {
       expect((await segunda).ok, isTrue);
 
       peticiones.recibe(
-        const RespuestaDelDaemon(id: 1, result: {'code': 1, 'message': 'no aplicable'}),
+        const RespuestaDelDaemon(
+          id: 1,
+          result: {'code': 1, 'message': 'no aplicable'},
+        ),
       );
       final r = await primera;
       expect(r.ok, isFalse);
@@ -287,7 +299,8 @@ void main() {
         async.elapse(const Duration(seconds: 11));
 
         expect(
-          () => peticiones.recibe(const RespuestaDelDaemon(id: 1, result: true)),
+          () =>
+              peticiones.recibe(const RespuestaDelDaemon(id: 1, result: true)),
           returnsNormally,
         );
       });
@@ -304,16 +317,19 @@ void main() {
       expect(r.error, isNotNull);
     });
 
-    test('si escribir falla, se contesta con el motivo y no con una excepción', () async {
-      // El proceso pudo morirse entre decidir pedir y escribir.
-      final peticiones = PeticionesPendientes(
-        escribir: (_) => throw StateError('stdin cerrado'),
-      );
+    test(
+      'si escribir falla, se contesta con el motivo y no con una excepción',
+      () async {
+        // El proceso pudo morirse entre decidir pedir y escribir.
+        final peticiones = PeticionesPendientes(
+          escribir: (_) => throw StateError('stdin cerrado'),
+        );
 
-      final r = await peticiones.pedir((id) => 'x');
-      expect(r.ok, isFalse);
-      expect(r.error, contains('stdin cerrado'));
-      expect(peticiones.esperando, 0);
-    });
+        final r = await peticiones.pedir((id) => 'x');
+        expect(r.ok, isFalse);
+        expect(r.error, contains('stdin cerrado'));
+        expect(peticiones.esperando, 0);
+      },
+    );
   });
 }

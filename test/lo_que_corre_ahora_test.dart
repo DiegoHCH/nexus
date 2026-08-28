@@ -54,7 +54,10 @@ void main() {
     final prueba = conLaSalida(salida);
     expect(prueba.terminados, 1);
     expect(prueba.pasos[1].estado, EstadoDePaso.enCurso);
-    expect(prueba.pasos[1].texto, 'Assert that id: btn_go_to_register is visible');
+    expect(
+      prueba.pasos[1].texto,
+      'Assert that id: btn_go_to_register is visible',
+    );
   });
 
   test('un paso fallado tumba la pasada', () {

@@ -34,6 +34,13 @@ void main() {
       expect(ci, contains('flutter analyze --fatal-infos'));
     });
 
+    // El formato es el mismo problema con otra cara: 55 archivos habían quedado
+    // sin formatear, y el precio no era la estética — era que cada rama que
+    // tocara uno arrastrara cien líneas de reindentado ajeno al cambio.
+    test('y el formato también se exige', () {
+      expect(ci, contains('dart format --output=none --set-exit-if-changed'));
+    });
+
     test('la cobertura se mide y se dice', () {
       expect(ci, contains('flutter test --coverage'));
       expect(

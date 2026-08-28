@@ -8,7 +8,10 @@ void main() {
     // que es exacto y no se puede leer; estos archivos los va a mirar alguien en
     // el Finder. La ruta completa va dentro de cada registro, así que dos
     // proyectos llamados igual comparten carpeta sin perder la atribución.
-    expect(DondeVivenLasPasadas.carpetaDe('/Users/alguien/Workspace/tienda'), 'tienda');
+    expect(
+      DondeVivenLasPasadas.carpetaDe('/Users/alguien/Workspace/tienda'),
+      'tienda',
+    );
     expect(DondeVivenLasPasadas.carpetaDe('/Users/alguien/tienda/'), 'tienda');
   });
 
@@ -20,7 +23,10 @@ void main() {
 
   test('la carpeta de un proyecto cuelga de la raíz', () {
     expect(
-      DondeVivenLasPasadas.de(raiz: '/casa/documentos/test', proyecto: '/x/tienda'),
+      DondeVivenLasPasadas.de(
+        raiz: '/casa/documentos/test',
+        proyecto: '/x/tienda',
+      ),
       '/casa/documentos/test/tienda',
     );
   });

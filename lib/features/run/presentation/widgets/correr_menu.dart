@@ -164,7 +164,8 @@ class _PanelState extends ConsumerState<_Panel> {
   ({String dispositivo, PlataformaEmulador? plataforma}) _datosDelDispositivo(
     String deviceId,
   ) {
-    for (final e in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
+    for (final e
+        in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
       if (e.deviceId == deviceId) {
         return (dispositivo: e.nombre, plataforma: e.plataforma);
       }
@@ -183,8 +184,9 @@ class _PanelState extends ConsumerState<_Panel> {
     if (_config case final elegido? when nombres.contains(elegido)) {
       return elegido;
     }
-    final recordado =
-        ref.watch(configsPorDefectoProvider)[widget.proyecto ?? ''];
+    final recordado = ref.watch(
+      configsPorDefectoProvider,
+    )[widget.proyecto ?? ''];
     return recordado != null && nombres.contains(recordado) ? recordado : null;
   }
 
@@ -227,8 +229,7 @@ class _PanelState extends ConsumerState<_Panel> {
               icono: Icons.bolt,
               titulo: strings.runAuto,
               activo: ref.watch(autoRecargaProvider),
-              onPulsar: () =>
-                  ref.read(autoRecargaProvider.notifier).cambiar(),
+              onPulsar: () => ref.read(autoRecargaProvider.notifier).cambiar(),
             ),
           ],
         ),
@@ -319,7 +320,8 @@ class _PanelState extends ConsumerState<_Panel> {
   /// El nombre sale de las mismas dos listas que dan los ids, así que no hay una
   /// tercera fuente que pueda contradecirlas.
   String _comoSeLlama(String id) {
-    for (final e in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
+    for (final e
+        in ref.read(emuladoresProvider).value?.emuladores ?? const []) {
       if (e.deviceId == id) return '${e.nombre} · $id';
     }
     for (final d in ref.read(dispositivosProvider).value ?? const []) {

@@ -62,7 +62,9 @@ abstract final class LasVariablesDelProyecto {
   /// falta— vale con lo inequívoco: de una expresión no se avisa, porque no se
   /// sabe.
   static Set<String> queNombra(String yaml) => {
-    for (final m in RegExp(r'\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}').allMatches(yaml))
+    for (final m in RegExp(
+      r'\$\{\s*([A-Za-z_][A-Za-z0-9_]*)\s*\}',
+    ).allMatches(yaml))
       m.group(1)!,
   };
 
@@ -91,12 +93,11 @@ abstract final class LasVariablesDelProyecto {
   static List<String> faltan({
     required String yaml,
     required Set<String> tiene,
-  }) =>
-      [
-        for (final clave in queNombra(yaml))
-          if (!tiene.contains(clave) &&
-              !clave.startsWith('MAESTRO_') &&
-              clave != 'output')
-            clave,
-      ]..sort();
+  }) => [
+    for (final clave in queNombra(yaml))
+      if (!tiene.contains(clave) &&
+          !clave.startsWith('MAESTRO_') &&
+          clave != 'output')
+        clave,
+  ]..sort();
 }

@@ -250,7 +250,10 @@ emulator-5554	offline
       // dispositivo que resulta de arrancarlo.
       expect(medium.deviceId, 'emulator-5554');
 
-      expect(conEstado.firstWhere((e) => e.id == 'Small_Phone').corriendo, isFalse);
+      expect(
+        conEstado.firstWhere((e) => e.id == 'Small_Phone').corriendo,
+        isFalse,
+      );
     });
 
     test('empareja también por el nombre legible', () {
@@ -262,7 +265,10 @@ emulator-5554	offline
         iosArriba: false,
       );
 
-      expect(conEstado.firstWhere((e) => e.id == 'Small_Phone').corriendo, isTrue);
+      expect(
+        conEstado.firstWhere((e) => e.id == 'Small_Phone').corriendo,
+        isTrue,
+      );
     });
 
     test('iOS no lleva dispositivo, porque se apagan todos juntos', () {

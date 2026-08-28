@@ -23,7 +23,8 @@ void main() {
     expect(
       documento.existsSync(),
       isTrue,
-      reason: 'no está en ${documento.absolute.path}: si se movió, hay que '
+      reason:
+          'no está en ${documento.absolute.path}: si se movió, hay que '
           'arreglar esta ruta, no borrar la prueba',
     );
   });
@@ -42,13 +43,16 @@ void main() {
 
     final sinRespaldo = <String>[];
     for (final m in RemoteMethod.values) {
-      if (!expone.contains(m.enElDocumento.toLowerCase())) sinRespaldo.add(m.name);
+      if (!expone.contains(m.enElDocumento.toLowerCase())) {
+        sinRespaldo.add(m.name);
+      }
     }
 
     expect(
       sinRespaldo,
       isEmpty,
-      reason: 'estos métodos existen en el código y el documento no los autoriza: '
+      reason:
+          'estos métodos existen en el código y el documento no los autoriza: '
           '${sinRespaldo.join(", ")}. O se añaden al documento con su motivo, o '
           'no se exponen',
     );
@@ -65,14 +69,16 @@ void main() {
       expect(
         seQueda.contains(negado.enElDocumento.toLowerCase()),
         isTrue,
-        reason: '«${negado.enElDocumento}» debería estar en el lado de lo que se '
+        reason:
+            '«${negado.enElDocumento}» debería estar en el lado de lo que se '
             'queda en el Mac',
       );
       // ...y no existe como método.
       expect(
         RemoteMethod.tryParse(negado.name),
         isNull,
-        reason: '${negado.name} se decidió que NO se expone, y existe como método',
+        reason:
+            '${negado.name} se decidió que NO se expone, y existe como método',
       );
     }
   });
@@ -91,7 +97,8 @@ void main() {
       expect(
         texto.contains(entrada.key),
         isTrue,
-        reason: 'el documento ya no menciona «${entrada.key}» — ${entrada.value}',
+        reason:
+            'el documento ya no menciona «${entrada.key}» — ${entrada.value}',
       );
     }
   });

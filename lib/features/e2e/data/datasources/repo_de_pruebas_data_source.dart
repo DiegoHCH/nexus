@@ -36,7 +36,12 @@ class ResultadoDeSync {
 
 /// Cómo acabó publicar un cambio.
 class Publicacion {
-  const Publicacion({required this.ok, this.rama = '', this.url = '', this.detalle = ''});
+  const Publicacion({
+    required this.ok,
+    this.rama = '',
+    this.url = '',
+    this.detalle = '',
+  });
 
   final bool ok;
   final String rama;
@@ -88,13 +93,18 @@ class RepoDePruebasDataSource {
 
       final r = await _correr(git, [
         'clone',
-        '--branch', rama,
+        '--branch',
+        rama,
         DondeViveElRepoDePruebas.urlDe(slug),
         clon,
       ], en: Directory(clon).parent.path);
 
       return r.ok
-          ? ResultadoDeSync(ComoFueLaSync.clonado, clon: clon, detalle: 'Clonado $slug.')
+          ? ResultadoDeSync(
+              ComoFueLaSync.clonado,
+              clon: clon,
+              detalle: 'Clonado $slug.',
+            )
           : ResultadoDeSync(ComoFueLaSync.fallo, detalle: _corto(r.error));
     }
 
@@ -127,10 +137,22 @@ class RepoDePruebasDataSource {
     }
 
     await _correr(git, ['checkout', rama], en: clon);
-    final reset = await _correr(git, ['reset', '--hard', 'origin/$rama'], en: clon);
+    final reset = await _correr(git, [
+      'reset',
+      '--hard',
+      'origin/$rama',
+    ], en: clon);
     return reset.ok
-        ? ResultadoDeSync(ComoFueLaSync.aldia, clon: clon, detalle: 'Al día con origin/$rama.')
-        : ResultadoDeSync(ComoFueLaSync.fallo, clon: clon, detalle: _corto(reset.error));
+        ? ResultadoDeSync(
+            ComoFueLaSync.aldia,
+            clon: clon,
+            detalle: 'Al día con origin/$rama.',
+          )
+        : ResultadoDeSync(
+            ComoFueLaSync.fallo,
+            clon: clon,
+            detalle: _corto(reset.error),
+          );
   }
 
   /// Los flows del clon, como rutas relativas a la raíz del repo.
@@ -198,7 +220,10 @@ class RepoDePruebasDataSource {
   }) async {
     final git = await _git();
     if (git == null) {
-      return const Publicacion(ok: false, detalle: 'No encuentro git en esta máquina.');
+      return const Publicacion(
+        ok: false,
+        detalle: 'No encuentro git en esta máquina.',
+      );
     }
 
     final nueva = DondeViveElRepoDePruebas.ramaPara(
@@ -221,7 +246,11 @@ class RepoDePruebasDataSource {
       await archivo.writeAsString(contenido);
     } on FileSystemException catch (e) {
       await _correr(git, ['checkout', rama], en: clon);
-      return Publicacion(ok: false, rama: nueva, detalle: 'No pude escribir el archivo: ${e.message}');
+      return Publicacion(
+        ok: false,
+        rama: nueva,
+        detalle: 'No pude escribir el archivo: ${e.message}',
+      );
     }
 
     // `--` separa la ruta de cualquier cosa que git pudiera leer como opción. La
@@ -233,12 +262,15 @@ class RepoDePruebasDataSource {
       await _correr(git, ['checkout', rama], en: clon);
       // Sin cambios que commitear no es un fallo del sistema: es que el archivo
       // ya estaba igual. Se dice así y no como un error de git.
-      final igual = commit.salida.contains('nothing to commit') ||
+      final igual =
+          commit.salida.contains('nothing to commit') ||
           commit.error.contains('nothing to commit');
       return Publicacion(
         ok: false,
         rama: nueva,
-        detalle: igual ? 'El archivo ya estaba igual: no hay nada que publicar.' : _corto(commit.error),
+        detalle: igual
+            ? 'El archivo ya estaba igual: no hay nada que publicar.'
+            : _corto(commit.error),
       );
     }
 
@@ -274,10 +306,14 @@ class RepoDePruebasDataSource {
     if (gh == null) return null;
 
     final r = await _correr(gh, [
-      'pr', 'create',
-      '--base', contra,
-      '--title', titulo,
-      '--body', 'Prueba escrita desde Nexus.',
+      'pr',
+      'create',
+      '--base',
+      contra,
+      '--title',
+      titulo,
+      '--body',
+      'Prueba escrita desde Nexus.',
     ], en: clon);
     if (!r.ok) return null;
 
@@ -290,7 +326,11 @@ class RepoDePruebasDataSource {
     candidatos: HerramientaExterna.candidatosDeGit(),
   );
 
-  Future<_Salida> _correr(String binario, List<String> args, {required String en}) async {
+  Future<_Salida> _correr(
+    String binario,
+    List<String> args, {
+    required String en,
+  }) async {
     try {
       final r = await Process.run(
         binario,
@@ -315,7 +355,9 @@ class RepoDePruebasDataSource {
         .where((l) => l.isNotEmpty)
         .toList();
     if (lineas.isEmpty) return 'Falló y no dijo por qué.';
-    return lineas.last.length > 200 ? '${lineas.last.substring(0, 200)}…' : lineas.last;
+    return lineas.last.length > 200
+        ? '${lineas.last.substring(0, 200)}…'
+        : lineas.last;
   }
 }
 

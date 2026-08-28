@@ -49,7 +49,8 @@ void main() {
     });
 
     test('coge la forma con file y env', () {
-      const flow = '- runFlow:\n    file: commons/open-deeplink.yaml\n    env:\n      DEEPLINK_PATH: /x';
+      const flow =
+          '- runFlow:\n    file: commons/open-deeplink.yaml\n    env:\n      DEEPLINK_PATH: /x';
       expect(ElArbolDeUnFlow.referencias(flow), ['commons/open-deeplink.yaml']);
     });
 
@@ -61,7 +62,8 @@ void main() {
     });
 
     test('un runFlow con commands embebidos NO es un archivo', () {
-      const flow = '- runFlow:\n    when:\n      platform: iOS\n    commands:\n      - tapOn: Allow';
+      const flow =
+          '- runFlow:\n    when:\n      platform: iOS\n    commands:\n      - tapOn: Allow';
       expect(ElArbolDeUnFlow.referencias(flow), isEmpty);
     });
 
@@ -110,7 +112,10 @@ void main() {
         ),
         variables: credenciales,
       );
-      expect(conElArbol.keys, containsAll(['APP_ID', 'EMAIL', 'PASSWORD', 'PIN_1']));
+      expect(
+        conElArbol.keys,
+        containsAll(['APP_ID', 'EMAIL', 'PASSWORD', 'PIN_1']),
+      );
     });
 
     test('un archivo que falta se salta en silencio', () {
@@ -127,10 +132,12 @@ void main() {
         '/a.yaml': '- runFlow: b.yaml',
         '/b.yaml': '- runFlow: a.yaml\n- inputText: \${TOKEN}',
       };
-      final texto = ElArbolDeUnFlow.texto(ruta: '/a.yaml', leer: (r) => ciclo[r]);
+      final texto = ElArbolDeUnFlow.texto(
+        ruta: '/a.yaml',
+        leer: (r) => ciclo[r],
+      );
       expect(texto, contains('TOKEN'));
     });
-
 
     test('la versión que no bloquea da lo mismo que la síncrona', () async {
       // Son dos caminos para el mismo resultado y la lista del repo usa el

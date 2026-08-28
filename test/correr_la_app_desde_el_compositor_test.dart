@@ -92,7 +92,9 @@ Future<void> _montar(
         // En `builder` y no en `home`: el panel abre en el Overlay, por encima.
         builder: (context, child) =>
             StringsScope(strings: const NexusStringsEs(), child: child!),
-        home: Scaffold(body: Center(child: CorrerMenu(proyecto: proyecto))),
+        home: Scaffold(
+          body: Center(child: CorrerMenu(proyecto: proyecto)),
+        ),
       ),
     ),
   );
@@ -119,14 +121,20 @@ void main() {
 
   testWidgets('sin nada corriendo el icono está apagado', (tester) async {
     await _montar(tester);
-    expect(tester.widget<Icon>(find.byType(Icon)).color, isNot(NexusColors.dark.accent));
+    expect(
+      tester.widget<Icon>(find.byType(Icon)).color,
+      isNot(NexusColors.dark.accent),
+    );
   });
 
   testWidgets('con la app corriendo el icono se enciende y saca su punto', (
     tester,
   ) async {
     await _montar(tester, corridas: {'emulator-5554': _corrida()});
-    expect(tester.widget<Icon>(find.byType(Icon)).color, NexusColors.dark.accent);
+    expect(
+      tester.widget<Icon>(find.byType(Icon)).color,
+      NexusColors.dark.accent,
+    );
     expect(find.byType(Container), findsOneWidget);
   });
 
@@ -240,9 +248,7 @@ void main() {
     testWidgets('parando no vuelve a ofrecer parar', (tester) async {
       await _montar(
         tester,
-        corridas: {
-          'emulator-5554': _corrida(estado: EstadoDeCorrida.parando),
-        },
+        corridas: {'emulator-5554': _corrida(estado: EstadoDeCorrida.parando)},
       );
       await tester.tap(find.byType(CorrerMenu));
       await tester.pumpAndSettle();
@@ -362,10 +368,11 @@ void main() {
           .read(registrosProvider.notifier)
           .anota('emulator-5554', 'una\n\notra\ntercera');
 
-      expect(
-        contenedor.read(registrosProvider)['emulator-5554'],
-        ['una', 'otra', 'tercera'],
-      );
+      expect(contenedor.read(registrosProvider)['emulator-5554'], [
+        'una',
+        'otra',
+        'tercera',
+      ]);
     });
 
     testWidgets('el registro está acotado: se quedan las últimas', (
@@ -426,7 +433,9 @@ void main() {
       );
 
       await expectLater(
-        contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+        contenedor
+            .read(corridasProvider.notifier)
+            .alTerminarUnEncargo(
               proyecto: '/casa/tienda',
               rutas: const ['lib/a.dart'],
               diff: '',
@@ -446,14 +455,17 @@ void main() {
         listen: false,
       );
 
-      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+      await contenedor
+          .read(corridasProvider.notifier)
+          .alTerminarUnEncargo(
             proyecto: '/casa/tienda',
             rutas: const ['android/app/build.gradle'],
             diff: '',
           );
 
-      final registro =
-          contenedor.read(registrosProvider)['emulator-5554']!.join('\n');
+      final registro = contenedor
+          .read(registrosProvider)['emulator-5554']!
+          .join('\n');
       expect(registro, contains('recompilar'));
       // La corrida sigue en pie: no se paró ni se relanzó nada.
       expect(contenedor.read(corridasProvider).length, 1);
@@ -468,14 +480,17 @@ void main() {
         listen: false,
       );
 
-      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+      await contenedor
+          .read(corridasProvider.notifier)
+          .alTerminarUnEncargo(
             proyecto: '/casa/tienda',
             rutas: const ['lib/a.dart'],
             diff: '--- a/lib/a.dart\n+++ b/lib/a.dart\n+enum Estado { uno }',
           );
 
-      final registro =
-          contenedor.read(registrosProvider)['emulator-5554']!.join('\n');
+      final registro = contenedor
+          .read(registrosProvider)['emulator-5554']!
+          .join('\n');
       expect(registro, contains('reiniciando'));
       expect(registro, contains('enum'));
     });
@@ -487,7 +502,9 @@ void main() {
         listen: false,
       );
 
-      await contenedor.read(corridasProvider.notifier).alTerminarUnEncargo(
+      await contenedor
+          .read(corridasProvider.notifier)
+          .alTerminarUnEncargo(
             proyecto: '/casa/otro',
             rutas: const ['lib/a.dart'],
             diff: '',
