@@ -272,6 +272,9 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      // El aviso también es del turno anterior. Si las reglas siguen
+      // cambiadas, este encargo lo vuelve a decir; si no, ya se leyó.
+      notice: null,
       // Los cambios del turno anterior se van con él: son de esa tarea.
       changes: null,
       history: _remember(paraClaude),
@@ -286,6 +289,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
       (event) => switch (event) {
         ClaudeQueued() => _onQueued(),
+        ClaudeRulesChanged() => _onRulesChanged(event.paths),
         ClaudeSessionStarted() => _onSessionStarted(event.model),
         ClaudeTextDelta() => _onTextDelta(buffer, event),
         ClaudeToolUsed() => _onClaudeToolUsed(event),
@@ -615,6 +619,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       subtitle: '',
       activity: const [],
       errorMessage: null,
+      notice: null,
       // Con lo que decía el medidor al guardarla. Si no, retomar una
       // conversación dejaba la barra superior en blanco hasta el siguiente
       // turno, como si el contexto se hubiera perdido — y no se ha perdido:
@@ -875,9 +880,24 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
   }
 
+  /// Las reglas del repositorio cambiaron desde el encargo anterior.
+  ///
+  /// No detiene nada ni pinta un error: el encargo ya está en marcha y el
+  /// cambio puede ser perfectamente normal —un `git pull`, cambiar de rama—.
+  /// Lo que no puede ser es que pase sin que se vea, porque ese texto entra en
+  /// el prompt de sistema de **cada** encargo.
+  void _onRulesChanged(List<String> paths) {
+    state = state.copyWith(
+      notice: ref.read(stringsProvider).rulesChanged(paths),
+    );
+  }
+
   /// Quita el aviso ya leído. Un error que no se puede cerrar obliga a
   /// convivir con él el resto de la sesión.
   void dismissError() => state = state.copyWith(errorMessage: null);
+
+  /// Lo mismo para el aviso que no es un fallo.
+  void dismissNotice() => state = state.copyWith(notice: null);
 
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();

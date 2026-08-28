@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/datasources/project_context_data_source.dart';
+import 'package:nexus/features/assistant/data/datasources/rules_watch_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
@@ -12,6 +13,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   const ClaudeBridgeImpl(
     this._dataSource, [
     this._projectContext = const ProjectContextDataSource(),
+    this._rulesWatch = const RulesWatchDataSource(),
   ]);
 
   final ClaudeCliDataSource _dataSource;
@@ -20,6 +22,10 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   /// no una vez: editar el `CLAUDE.md` a media conversación tiene que valer
   /// para el siguiente.
   final ProjectContextDataSource _projectContext;
+
+  /// Se acuerda de cómo estaban esas reglas la última vez. No cambia nada de lo
+  /// que se manda: solo permite decirlo cuando cambian.
+  final RulesWatchDataSource _rulesWatch;
 
   /// `manual` deniega la escritura —también la que intente colarse por Bash,
   /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
@@ -81,6 +87,20 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         '${context.rules.fold(0, (t, f) => t + f.content.length)} caracteres'
         '${context.sharedContext == null ? '' : ' · con contexto compartido'}',
       );
+
+      // **Antes de arrancar, y sin detener nada.** Que las reglas hayan cambiado
+      // no es un motivo para no trabajar; es un motivo para que quien pidió el
+      // encargo lo sepa mientras lo mira. Un fallo leyendo las preferencias no
+      // puede costar el encargo: se sigue sin avisar, que es como estaba antes.
+      try {
+        final cambios = await _rulesWatch.revisar(
+          workingDirectory,
+          context.rules,
+        );
+        if (cambios.isNotEmpty) yield ClaudeRulesChanged(cambios);
+      } on Object catch (error) {
+        debugPrint('claude · no se pudo mirar si las reglas cambiaron: $error');
+      }
 
       await for (final json in _dataSource.run(
         instruction,
