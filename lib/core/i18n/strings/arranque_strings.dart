@@ -427,7 +427,8 @@ mixin ArranqueStringsEs implements ArranqueStrings {
   @override
   String get exitGeminiWhat =>
       'Tu micrófono y lo que Claude leyó, porque una respuesta narrada lo lleva '
-      'dentro. En una carpeta de solo texto no participa.';
+      'dentro — como mucho 4.000 caracteres por respuesta: lo que no cabe se '
+      'queda en la pantalla. En una carpeta de solo texto no participa.';
   @override
   String get exitNotion => 'Notion';
   @override
@@ -776,7 +777,8 @@ mixin ArranqueStringsEn implements ArranqueStrings {
   @override
   String get exitGeminiWhat =>
       'Your microphone and what Claude read, because a narrated answer carries '
-      'it inside. In a text-only folder it takes no part.';
+      'it inside — at most 4,000 characters per answer: what does not fit stays '
+      'on screen. In a text-only folder it takes no part.';
   @override
   String get exitNotion => 'Notion';
   @override
