@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus/features/remote/domain/channel_token.dart';
@@ -147,9 +149,21 @@ void main() {
     return c;
   }
 
+  /// Con el diccionario colgando del árbol, como lo monta `main_movil`.
+  ///
+  /// Sin él, cualquier pantalla del móvil que lea un texto revienta con «falta
+  /// un StringsScope» — y eso es un fallo de este molde, no de la pantalla.
   Widget app(ProviderContainer c, Widget pantalla) => UncontrolledProviderScope(
     container: c,
-    child: MaterialApp(theme: NexusTheme.dark(), home: pantalla),
+    child: MaterialApp(
+      theme: NexusTheme.dark(),
+      // En el `builder` y no envolviendo `home`, igual que `main_movil`: las
+      // pantallas que se abren con un `push` cuelgan del `Navigator`, que está
+      // por encima de `home` — envolviendo solo `home` se quedaban fuera.
+      builder: (context, child) =>
+          StringsScope(strings: const NexusStringsEs(), child: child!),
+      home: pantalla,
+    ),
   );
 
   group('el menú', () {

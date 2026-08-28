@@ -21,6 +21,16 @@ final class NexusArtifacts: NSObject {
   /// delante, y con la recarga automática esa ventana ya está al día.
   private static var open: [String: Viewer] = [:]
 
+  /// El rótulo de la casilla del visor y su ayuda, en el idioma **de la app**.
+  ///
+  /// Se mandan desde Dart por el mismo motivo que los del menú de la barra de
+  /// estado: el idioma se elige en Ajustes y puede no ser el del sistema. Lo que
+  /// hay aquí es lo que se ve hasta que Dart hable, que en la práctica es antes
+  /// de que se abra ninguna ventana.
+  static var etiquetaPermiso = "Permitir scripts y red"
+  static var ayudaPermiso =
+    "Este documento lo escribió Claude. Sin esto no ejecuta scripts ni carga nada de internet."
+
   /// El canal, guardado para poder hablar **hacia** Flutter.
   ///
   /// Hasta ahora este canal solo iba en un sentido —la app pide abrir, aquí se
@@ -34,6 +44,15 @@ final class NexusArtifacts: NSObject {
       binaryMessenger: registrar.messenger
     )
     channel.setMethodCallHandler { call, result in
+      // Los rótulos no hablan de ningún archivo, así que entran antes de exigir
+      // uno.
+      if call.method == "textos" {
+        let args = call.arguments as? [String: Any]
+        if let etiqueta = args?["permitir"] as? String { etiquetaPermiso = etiqueta }
+        if let ayuda = args?["permitirAyuda"] as? String { ayudaPermiso = ayuda }
+        result(true)
+        return
+      }
       guard let path = (call.arguments as? [String: Any])?["path"] as? String else {
         result(FlutterMethodNotImplemented)
         return
@@ -66,6 +85,15 @@ final class NexusArtifacts: NSObject {
   /// **Solo el nombre de lo pedido, nada de la URL.** Una página es contenido y
   /// no una fuente de confianza: reenviar su URL entera invitaría a que mañana
   /// alguien la usara para decidir algo con lo que venga dentro.
+  /// Que el bloqueo de red no se pudo poner. Se anota y se sigue: los scripts
+  /// del contenido siguen apagados, que es la mitad que de verdad cierra la
+  /// puerta.
+  static func noSePudoBloquear(_ error: Error?) {
+    log.error(
+      "el visor no pudo bloquear la red: \(error?.localizedDescription ?? "sin motivo", privacy: .public)"
+    )
+  }
+
   static func pidieron(_ que: String) {
     log.info("la página pidió \(que, privacy: .public)")
     channel?.invokeMethod("desdeLaPagina", arguments: ["que": que])
@@ -96,6 +124,23 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   private let onClose: () -> Void
   private var watcher: DispatchSourceFileSystemObject?
   private var pending: DispatchWorkItem?
+
+  /// El documento puede ejecutar sus scripts y salir a la red.
+  ///
+  /// **Nace apagado.** El HTML lo escribe Claude, y lo que Claude escribe puede
+  /// venir influido por lo que leyó en un repositorio; con los scripts
+  /// corriendo, un `fetch` a un dominio cualquiera convierte el visor en un
+  /// canal de salida, y con lectura de toda la carpeta —que hace falta para el
+  /// `assets/` de al lado— lo que sale puede ser el documento del vecino.
+  ///
+  /// Se puede encender, y por eso esto no es una amputación: un mockup que
+  /// necesita su gráfica pide el permiso con la casilla del título. Lo que
+  /// cambia es quién decide, y ahora decide quien mira.
+  private(set) var permitido = false
+
+  /// La casilla del título. Guardada para poder reflejar el estado cuando el
+  /// permiso cambie desde otro sitio.
+  private var casilla: NSButton?
 
   /// Dónde estaba el scroll, para devolverlo tras recargar. Sin esto cada
   /// cambio te sube al principio, y en un documento largo eso es peor que no
@@ -141,14 +186,140 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
     window.contentView = web
     window.delegate = self
     web.navigationDelegate = self
+    ponerLaCasilla()
     load()
     watch()
   }
 
+  // MARK: - El permiso, y dónde se pide
+
+  /// La casilla en la barra de título.
+  ///
+  /// Ahí y no en un menú porque tiene que verse sin buscarla: es la diferencia
+  /// entre un documento que solo se mira y uno que puede hablar con internet, y
+  /// eso no puede vivir detrás de dos clics.
+  private func ponerLaCasilla() {
+    let boton = NSButton(
+      checkboxWithTitle: NexusArtifacts.etiquetaPermiso,
+      target: self,
+      action: #selector(cambiarPermiso(_:))
+    )
+    boton.state = .off
+    boton.toolTip = NexusArtifacts.ayudaPermiso
+    boton.sizeToFit()
+
+    let caja = NSView(
+      frame: NSRect(x: 0, y: 0, width: boton.frame.width + 16, height: 28)
+    )
+    boton.frame = NSRect(
+      x: 8, y: (28 - boton.frame.height) / 2,
+      width: boton.frame.width, height: boton.frame.height
+    )
+    caja.addSubview(boton)
+
+    let accesorio = NSTitlebarAccessoryViewController()
+    accesorio.layoutAttribute = .right
+    accesorio.view = caja
+    window.addTitlebarAccessoryViewController(accesorio)
+    casilla = boton
+  }
+
+  @objc private func cambiarPermiso(_ sender: NSButton) {
+    permitir(sender.state == .on)
+  }
+
+  /// Enciende o apaga el permiso y recarga.
+  ///
+  /// Recargar hace falta: el JavaScript del contenido se decide **al navegar**,
+  /// así que un documento ya pintado no empieza a ejecutar nada por marcar la
+  /// casilla. Y al revés —desmarcarla con los scripts ya corriendo no los para—,
+  /// que es el motivo de verdad por el que se recarga en los dos sentidos.
+  func permitir(_ nuevo: Bool) {
+    guard nuevo != permitido else { return }
+    permitido = nuevo
+    casilla?.state = nuevo ? .on : .off
+    load()
+  }
+
   private func load() {
-    // Acceso de lectura a la carpeta y no solo al archivo: un artefacto HTML
-    // suele traer al lado su `assets/`, y sin esto las imágenes salen rotas.
-    web.loadFileURL(url, allowingReadAccessTo: url.deletingLastPathComponent())
+    // Las reglas primero. Cargar y bloquear después dejaría pasar justo la
+    // primera vuelta, que es la única que un documento necesita.
+    conLasReglas { [weak self] in
+      guard let self else { return }
+      // Acceso de lectura a la carpeta y no solo al archivo: un artefacto HTML
+      // suele traer al lado su `assets/`, y sin esto las imágenes salen rotas.
+      //
+      // Ese acceso es también la razón por la que existe todo lo de arriba: con
+      // los vecinos legibles, un script del documento podía leerlos y mandarlos
+      // fuera. Sin scripts y sin red, lo que la carpeta permite es enseñar, no
+      // contar.
+      self.web.loadFileURL(
+        self.url, allowingReadAccessTo: self.url.deletingLastPathComponent()
+      )
+    }
+  }
+
+  /// Lo que el documento **no** puede cargar: nada que no sea él mismo.
+  ///
+  /// Es la lista de bloqueo de WebKit y no una `Content-Security-Policy` porque
+  /// una CSP hay que meterla dentro del HTML, y el HTML es del usuario: no se
+  /// reescribe un archivo suyo para poder enseñarlo. Esto lo aplica el motor por
+  /// fuera, y no hay nada que la página pueda escribir para quitárselo.
+  ///
+  /// `file`, `data`, `about` y `blob` siguen pasando: son el propio documento,
+  /// sus imágenes incrustadas y su `assets/`. `nexus` también, que es como la
+  /// página de una pasada pide parar.
+  ///
+  /// **Una regla por esquema y no una alternancia.** El motor de expresiones de
+  /// las listas de WebKit no admite grupos con `|`: `^(file|data):` no compila
+  /// —falla con `WKErrorDomain 6`— y una lista que no compila es un visor sin
+  /// bloqueo. Lo dice la prueba que compila esta constante, que está justo para
+  /// eso: el error no aparece al construir el proyecto, aparece al abrir una
+  /// ventana, y ahí ya no lo ve nadie.
+  static let sinRed = #"""
+    [
+      {"trigger": {"url-filter": ".*"}, "action": {"type": "block"}},
+      {"trigger": {"url-filter": "^file:"}, "action": {"type": "ignore-previous-rules"}},
+      {"trigger": {"url-filter": "^data:"}, "action": {"type": "ignore-previous-rules"}},
+      {"trigger": {"url-filter": "^about:"}, "action": {"type": "ignore-previous-rules"}},
+      {"trigger": {"url-filter": "^blob:"}, "action": {"type": "ignore-previous-rules"}},
+      {"trigger": {"url-filter": "^nexus:"}, "action": {"type": "ignore-previous-rules"}}
+    ]
+    """#
+
+  static let reglaId = "nexus-visor-sin-red"
+
+  /// Compilada una vez para toda la app: hacerlo por ventana y por recarga sería
+  /// trabajo repetido para un texto que no cambia nunca.
+  private static var reglaCompilada: WKContentRuleList?
+
+  /// Deja el bloqueo como toque y **entonces** sigue.
+  ///
+  /// Si la compilación falla se sigue igual, sin bloqueo, y se anota. Sería un
+  /// fallo de nuestro texto y no del documento, y dejar la ventana en blanco por
+  /// él cambiaría un problema de seguridad por uno de «no se ve nada». La
+  /// defensa que de verdad cierra la puerta —los scripts apagados— sigue puesta.
+  private func conLasReglas(_ luego: @escaping () -> Void) {
+    let controlador = web.configuration.userContentController
+    controlador.removeAllContentRuleLists()
+    guard !permitido else { return luego() }
+
+    if let ya = Viewer.reglaCompilada {
+      controlador.add(ya)
+      return luego()
+    }
+    guard let almacen = WKContentRuleListStore.default() else { return luego() }
+    almacen.compileContentRuleList(
+      forIdentifier: Viewer.reglaId, encodedContentRuleList: Viewer.sinRed
+    ) { lista, error in
+      if let lista {
+        Viewer.reglaCompilada = lista
+        controlador.add(lista)
+      } else {
+        NexusArtifacts.noSePudoBloquear(error)
+      }
+      luego()
+    }
   }
 
   /// Se vigila **la carpeta**, no el archivo.
@@ -239,25 +410,34 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   /// Lo de fuera, fuera: el visor se queda en su archivo y cualquier enlace a
   /// la red se abre en el navegador. Una ventana sin barra de direcciones que
   /// navega a internet es una ventana en la que no sabes dónde estás.
+  /// **La variante con `preferences`, y no la de siempre.**
+  ///
+  /// WebKit llama a una o a otra, nunca a las dos: implementando esta se puede
+  /// decir, en cada navegación, si el contenido ejecuta JavaScript. Sin ella el
+  /// permiso solo se puede fijar al construir la vista, y encenderlo desde la
+  /// casilla obligaría a tirar el `WKWebView` y hacer otro.
   func webView(
     _ webView: WKWebView,
     decidePolicyFor navigationAction: WKNavigationAction,
-    decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
+    preferences: WKWebpagePreferences,
+    decisionHandler: @escaping (WKNavigationActionPolicy, WKWebpagePreferences) -> Void
   ) {
+    preferences.allowsContentJavaScript = permitido
+
     // Lo nuestro se queda dentro: una página de Nexus puede pedirle algo a la
     // app, y eso no es navegar. Antes que el reenvío al navegador, porque
     // `nexus://parar` no es una dirección de internet.
     if let target = navigationAction.request.url, target.scheme == "nexus" {
       NexusArtifacts.pidieron(target.host ?? "")
-      decisionHandler(.cancel)
+      decisionHandler(.cancel, preferences)
       return
     }
     if let target = navigationAction.request.url, !target.isFileURL {
       NSWorkspace.shared.open(target)
-      decisionHandler(.cancel)
+      decisionHandler(.cancel, preferences)
       return
     }
-    decisionHandler(.allow)
+    decisionHandler(.allow, preferences)
   }
 
   func windowWillClose(_ notification: Notification) {

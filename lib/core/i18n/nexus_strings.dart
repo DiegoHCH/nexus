@@ -571,6 +571,14 @@ abstract class NexusStrings {
   /// rutas porque cuál cambió es el dato: uno del proyecto y uno de tres
   /// carpetas más arriba no se leen igual.
   String rulesChanged(List<String> paths);
+
+  /// El interruptor del visor de documentos. Un documento nace sin poder
+  /// ejecutar sus scripts ni salir a la red; esto es cómo se le concede.
+  String get allowScriptsAndNetwork;
+  String get allowScriptsExplainer;
+
+  /// Lo mismo, en el ancho de un teléfono.
+  String get allowScriptsShort;
   String get micDeniedShort;
   String get micDeniedExplainer;
   String get microphone;
@@ -1803,6 +1811,14 @@ class NexusStringsEs extends NexusStrings {
   String rulesChanged(List<String> paths) =>
       'Han cambiado las reglas que Claude lee antes de cada encargo: '
       '${paths.join(', ')}. El encargo sigue.';
+  @override
+  String get allowScriptsAndNetwork => 'Permitir scripts y red';
+  @override
+  String get allowScriptsExplainer =>
+      'Este documento lo escribió Claude. Sin esto no ejecuta sus scripts ni '
+      'carga nada de internet.';
+  @override
+  String get allowScriptsShort => 'Scripts y red';
   @override
   String get micDeniedShort => 'Actívalo en Ajustes del Sistema';
   @override
@@ -3052,6 +3068,14 @@ class NexusStringsEn extends NexusStrings {
   String rulesChanged(List<String> paths) =>
       'The rules Claude reads before every errand have changed: '
       '${paths.join(', ')}. The errand carries on.';
+  @override
+  String get allowScriptsAndNetwork => 'Allow scripts and network';
+  @override
+  String get allowScriptsExplainer =>
+      'Claude wrote this document. Without this it runs no scripts and loads '
+      'nothing from the internet.';
+  @override
+  String get allowScriptsShort => 'Scripts & network';
   @override
   String get micDeniedShort => 'Turn it on in System Settings';
   @override

@@ -3,6 +3,8 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:webview_flutter/webview_flutter.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/artifacts/domain/usecases/html_del_visor.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_spacing.dart';
 import 'package:nexus/core/design_system/nexus_typography.dart';
@@ -203,15 +205,22 @@ class _Boton extends StatelessWidget {
     required this.rotulo,
     required this.activo,
     required this.alTocar,
+    this.color,
   });
 
   final String rotulo;
   final bool activo;
   final VoidCallback alTocar;
 
+  /// Con qué se marca estando activo. Por defecto el acento, que es lo que
+  /// quiere decir «esta es la opción elegida»; se cambia cuando lo activo no es
+  /// lo bueno —soltarle la correa a un documento, por ejemplo—.
+  final Color? color;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final marca = color ?? colors.accent;
 
     return InkWell(
       onTap: alTocar,
@@ -223,12 +232,12 @@ class _Boton extends StatelessWidget {
         decoration: BoxDecoration(
           // El activo se marca con el acento en el borde y en la letra, no con un
           // relleno: un botón macizo aquí pesa más que la propia lista.
-          border: Border.all(color: activo ? colors.accent : colors.rule),
+          border: Border.all(color: activo ? marca : colors.rule),
         ),
         child: Text(
           rotulo.toUpperCase(),
           style: NexusTypography.label.copyWith(
-            color: activo ? colors.accent : colors.mute,
+            color: activo ? marca : colors.mute,
           ),
         ),
       ),
@@ -472,11 +481,24 @@ class _ArtifactsPageState extends ConsumerState<ArtifactsPage> {
 }
 
 /// El contenido de un artifact.
-class ArtifactPage extends ConsumerWidget {
+class ArtifactPage extends ConsumerStatefulWidget {
   const ArtifactPage({super.key, required this.id, required this.nombre});
 
   final String id;
   final String nombre;
+
+  @override
+  ConsumerState<ArtifactPage> createState() => _ArtifactPageState();
+}
+
+class _ArtifactPageState extends ConsumerState<ArtifactPage> {
+  /// El documento puede ejecutar sus scripts y salir a la red.
+  ///
+  /// **Nace apagado, y por documento.** Lo escribió Claude, y lo que Claude
+  /// escribe puede venir influido por lo que leyó en un repositorio; un `fetch`
+  /// desde un mockup convierte el visor en un canal de salida. No se recuerda
+  /// entre documentos a propósito: el permiso es de este, no del visor.
+  bool _permitido = false;
 
   /// Si hay que pintarlo en vez de leerlo en crudo.
   ///
@@ -485,16 +507,17 @@ class ArtifactPage extends ConsumerWidget {
   /// serlo, y adivinar acabaría enseñando etiquetas a veces. La extensión es lo que el
   /// Mac ya usa para decidir qué es un documento.
   bool get _sePinta {
-    final punto = nombre.lastIndexOf('.');
+    final punto = widget.nombre.lastIndexOf('.');
     if (punto == -1) return false;
     const html = {'.html', '.htm'};
-    return html.contains(nombre.substring(punto).toLowerCase());
+    return html.contains(widget.nombre.substring(punto).toLowerCase());
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final colors = context.colors;
-    final contenido = ref.watch(artifactProvider(id));
+    final strings = context.strings;
+    final contenido = ref.watch(artifactProvider(widget.id));
 
     // **Pantalla propia para lo que se pinta, y no un hueco dentro de la lista.**
     //
@@ -520,27 +543,50 @@ class ArtifactPage extends ConsumerWidget {
           child: Column(
             children: [
               // El nombre sigue arriba: en una pila de mockups parecidos es lo único
-              // que dice cuál se está mirando.
+              // que dice cuál se está mirando. A su derecha, el candado: la misma
+              // fila dice qué se mira y con cuánta correa.
               Padding(
                 padding: const EdgeInsets.fromLTRB(
                   NexusSpacing.s5,
                   0,
-                  NexusSpacing.s5,
+                  NexusSpacing.s3,
                   NexusSpacing.s3,
                 ),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Text(
-                    nombre.toUpperCase(),
-                    style: NexusTypography.label.copyWith(color: colors.mute),
-                  ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        widget.nombre.toUpperCase(),
+                        style: NexusTypography.label.copyWith(
+                          color: colors.mute,
+                        ),
+                      ),
+                    ),
+                    // El botón de siempre de estas pantallas y no un icono:
+                    // aquí no hay iconografía de Material, y un candado dibujado
+                    // diría menos que la palabra.
+                    _Boton(
+                      rotulo: strings.allowScriptsShort,
+                      activo: _permitido,
+                      // Ámbar con la correa suelta: no es un error, es un estado
+                      // que conviene ver sin tener que leerlo. El acento diría
+                      // «esta es la opción buena», y no lo es.
+                      color: colors.warn,
+                      alTocar: () => setState(() => _permitido = !_permitido),
+                    ),
+                  ],
                 ),
               ),
               Expanded(
                 child: switch (contenido) {
                   AsyncData(:final value) => _Pintado(
                     html: value,
-                    key: const ValueKey('artifact-pintado'),
+                    permitido: _permitido,
+                    // La llave lleva el permiso: cambiarlo tiene que construir
+                    // un `WebViewController` nuevo, porque el modo de JavaScript
+                    // se fija al crearlo y un documento ya pintado no cambia de
+                    // idea por sí solo.
+                    key: ValueKey('artifact-pintado-$_permitido'),
                   ),
                   AsyncError() => const _Vacia(texto: 'No pude leerlo.'),
                   _ => const _Cargando(),
@@ -553,7 +599,7 @@ class ArtifactPage extends ConsumerWidget {
     }
 
     return _ListaDeUtilidad(
-      rotulo: nombre,
+      rotulo: widget.nombre,
       pie: 'Se pidió al abrirlo, no con la lista.',
       cuerpo: switch (contenido) {
         AsyncData(:final value) => SelectableText(
@@ -580,10 +626,19 @@ class ArtifactPage extends ConsumerWidget {
 /// fichero que servir ni URL que autorizar, así que el visor no abre ninguna puerta
 /// nueva. Sin navegación: lo que se pinta es lo que llegó, y un enlace que saliera a
 /// la red convertiría un visor de documentos en un navegador.
+///
+/// **Y sin scripts ni red mientras nadie lo permita.** Que no haya archivo cierra
+/// una puerta —no se puede leer al vecino— pero no la otra: un `fetch` desde el
+/// documento sigue siendo una salida, y lo que lleve dentro lo decidió un HTML
+/// que puede venir influido por lo que Claude leyó en un repositorio.
 class _Pintado extends StatefulWidget {
-  const _Pintado({super.key, required this.html});
+  const _Pintado({super.key, required this.html, required this.permitido});
 
   final String html;
+
+  /// Con la correa suelta: los scripts corren y la red se abre. Llega de fuera
+  /// porque el interruptor vive en la cabecera, junto al nombre del documento.
+  final bool permitido;
 
   @override
   State<_Pintado> createState() => _PintadoState();
@@ -596,7 +651,14 @@ class _PintadoState extends State<_Pintado> {
   void initState() {
     super.initState();
     _control = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
+      // Apagado salvo que se pida. Va junto a la muralla de abajo y no en su
+      // lugar: son dos capas y se rompen por sitios distintos —el modo lo aplica
+      // el motor del webview, la `Content-Security-Policy` la aplica el parser—.
+      ..setJavaScriptMode(
+        widget.permitido
+            ? JavaScriptMode.unrestricted
+            : JavaScriptMode.disabled,
+      )
       // Transparente detrás: un mockup con fondo oscuro sobre el blanco de por
       // defecto se ve con un marco blanco alrededor.
       ..setBackgroundColor(Colors.transparent)
@@ -615,7 +677,9 @@ class _PintadoState extends State<_Pintado> {
       // pensados para una ventana ancha, y en un teléfono acercar es la diferencia
       // entre mirarlo y adivinarlo.
       ..enableZoom(true)
-      ..loadHtmlString(widget.html);
+      ..loadHtmlString(
+        widget.permitido ? widget.html : HtmlDelVisor.encerrado(widget.html),
+      );
   }
 
   @override
