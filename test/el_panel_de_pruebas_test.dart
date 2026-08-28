@@ -161,8 +161,15 @@ class _Lanzamientos extends PruebaEnMarchaController {
     required String proyecto,
     required String deviceId,
     required String perfil,
+    Map<String, String>? credenciales,
   }) async {
-    lanzados.add('${prueba.nombre}@$deviceId');
+    // El perfil y el origen de las credenciales se apuntan también: es lo que
+    // distingue una pasada del proyecto de una del repo de pruebas, y sin eso el
+    // doble no podría notar que se lanzó la que no era.
+    lanzados.add(
+      '${prueba.nombre}@$deviceId'
+      '${credenciales == null ? '' : ' con $perfil (${credenciales.length})'}',
+    );
     return null;
   }
 }
@@ -307,9 +314,51 @@ void main() {
       expect(find.text(strings.e2eRun), findsOneWidget);
     });
 
-    testWidgets('un proyecto sin pruebas lo dice', (tester) async {
+    testWidgets('la fila cabe con sus dos botones y los dos se pueden tocar', (
+      tester,
+    ) async {
+      // **La fila ya desbordó una vez**: con «Borrar la prueba» escrito se salía
+      // de la hoja y el toque no llegaba a ningún sitio, y a ojo el botón
+      // simplemente no estaba. Al añadir el de publicar vuelve a haber dos
+      // acciones compitiendo por el mismo ancho, así que se comprueba que los dos
+      // reciben el toque de verdad y no solo que existen.
+      await _abrir(tester);
+
+      // Por el icono y no por el tooltip: el icono es lo que se ve, y el tooltip
+      // vive en un envoltorio que cambia de tipo entre versiones de Flutter.
+      for (final (icono, que) in [
+        (Icons.upload_outlined, 'publicar'),
+        (Icons.delete_outline, 'borrar'),
+      ]) {
+        final boton = find.ancestor(
+          of: find.byIcon(icono),
+          matching: find.byType(IconButton),
+        );
+        expect(boton, findsOneWidget, reason: 'falta el botón de $que');
+
+        final caja = tester.getRect(boton);
+        final hoja = tester.getRect(find.byType(PruebasSheet));
+        expect(
+          caja.right,
+          lessThanOrEqualTo(hoja.right),
+          reason: 'el de $que se sale de la hoja',
+        );
+        expect(
+          tester.widget<IconButton>(boton).onPressed,
+          isNotNull,
+          reason: 'el de $que está muerto',
+        );
+      }
+    });
+
+    testWidgets('un proyecto sin pruebas no ocupa sitio', (tester) async {
+      // **Antes esta prueba esperaba el mensaje «no hay pruebas».** Se cambió el
+      // requisito (27 ago 2026): una carpeta vacía pintaba cabecera, selector y
+      // aviso —tres filas para decir que no hay nada— justo encima de lo que sí
+      // hay. Si no hay, no se enseña.
       await _abrir(tester, pruebas: const []);
-      expect(find.text(strings.e2eNone), findsOneWidget);
+      expect(find.text(strings.e2eNone), findsNothing);
+      expect(find.text(strings.e2eRun), findsNothing);
     });
 
     testWidgets('sin dispositivo encendido, el botón no deja ni tocarlo', (
@@ -737,6 +786,11 @@ void main() {
 
         // Los grupos van ordenados por proyecto: «otra» antes que «tienda».
         final sweep = find.byIcon(Icons.delete_sweep_outlined);
+        // El historial vive debajo de la sección del repo, así que puede quedar
+        // fuera de la ventana del test. Se acerca antes de tocar: el fallo que
+        // daba sin esto era del viewport, no de la pantalla.
+        await tester.ensureVisible(sweep.at(1));
+        await tester.pump();
         await tester.tap(sweep.at(1));
         await tester.pump();
         await tester.tap(sweep.at(1));

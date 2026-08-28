@@ -137,6 +137,10 @@ class _Proyecto extends ConsumerWidget {
     final donde = carpeta.pruebasEn(home, raiz: raiz);
     final pruebas =
         ref.watch(pruebasProvider(carpeta.workingDirectory)).value ?? const [];
+    // Un proyecto sin pruebas no se lista. Enseñar los seis emparejados con
+    // «ninguna» al lado convierte la sección en un inventario de vacíos, y lo que
+    // se viene a ver aquí es qué pruebas hay.
+    if (pruebas.isEmpty) return const SizedBox.shrink();
     final corta = home.isNotEmpty && donde.startsWith(home)
         ? '~${donde.substring(home.length)}'
         : donde;

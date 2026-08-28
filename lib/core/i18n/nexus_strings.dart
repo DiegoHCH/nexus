@@ -154,6 +154,7 @@ abstract class NexusStrings {
 
   // La sección de Pruebas: una raíz común y el listado por proyecto.
   String get sectionPruebas;
+  String get sectionCuentas;
   String get flowsRootExplainer;
   String get flowsRootHint;
   String get flowsByProject;
@@ -327,6 +328,52 @@ abstract class NexusStrings {
 
   // Pruebas de la app
   String get e2eTitle;
+  // Repo de pruebas remoto
+  String get e2eRepoTitle;
+  String get e2eRepoUpdating;
+  String get e2eRepoUpToDate;
+  String get e2eRepoCloned;
+  String get e2eRepoDirty;
+  String get e2eRepoFailed;
+  String get e2eRepoNoFlows;
+  String get e2eRepoRetry;
+  String get e2eRepoNeedsDevice;
+  String get e2eRepoSearch;
+  String get e2ePublish;
+  String get e2ePublishTitle;
+  String e2ePublishWhere(String slug, String ruta);
+  String get e2ePublishReplaces;
+  String get e2ePublishNew;
+  String get e2ePublishHow;
+  String get e2ePublishMessage;
+  String get e2ePublishDoing;
+  String get e2ePublishPushedOnly;
+  String get e2ePublishFailed;
+  String get e2ePublishNoRepo;
+  String get e2ePublishOpen;
+  String get e2eRepoGroupTests;
+  String get e2eRepoGroupPieces;
+  String e2eRepoMatches(int cuantos, int total);
+  String e2eRepoFlows(int total);
+  String get e2eAccounts;
+  String get e2eAccountsTitle;
+  String get e2eAccountsNone;
+  String get e2eAccountsWhere;
+  String get e2eAccountDefault;
+  String get e2eAccountMakeDefault;
+  String get e2eAccountAdd;
+  String get e2eAccountKey;
+  String get e2eAccountKeyHint;
+  String get e2eAccountTags;
+  String get e2eAccountTagsHint;
+  String get e2eAccountDesc;
+  String get e2eAccountDescHint;
+  String get e2eAccountsNoneAnywhere;
+  String get e2eAccountsNoneHere;
+  String get e2eAccountVars;
+  String get e2eAccountVarsHint;
+  String get e2eAccountSave;
+  String get e2eAccountDelete;
   String get e2eNone;
   String get e2eNoRuns;
   String get e2eRun;
@@ -745,6 +792,8 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get sectionPruebas => 'Pruebas';
   @override
+  String get sectionCuentas => 'Cuentas de prueba';
+  @override
   String get flowsRootExplainer =>
       'Una carpeta para las pruebas de todos los proyectos, con una subcarpeta por cada '
       'uno: «~/pruebas/nexus». Así están juntas y fuera de los repos —una prueba dentro '
@@ -1102,6 +1151,108 @@ class NexusStringsEs extends NexusStrings {
 
   @override
   String get e2eTitle => 'Pruebas de la app';
+  @override
+  String get e2eRepoTitle => 'Repo de pruebas';
+  @override
+  String get e2eRepoUpdating => 'Poniendo al día…';
+  @override
+  String get e2eRepoUpToDate => 'Al día';
+  @override
+  String get e2eRepoCloned => 'Clonado';
+  @override
+  String get e2eRepoDirty => 'Con cambios sin publicar; no lo toco';
+  @override
+  String get e2eRepoFailed => 'No pude sincronizar';
+  @override
+  String get e2eRepoNoFlows => 'El repo no tiene flows todavía.';
+  @override
+  String get e2eRepoRetry => 'Reintentar';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Falta elegir dónde correr, en el selector de arriba.';
+  @override
+  String get e2eRepoSearch => 'Buscar una prueba';
+  @override
+  String get e2ePublish => 'Publicar al repo de pruebas';
+  @override
+  String get e2ePublishTitle => 'Publicar al repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Va a $slug, en $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'Ya hay un archivo con ese nombre: el PR lo reemplaza.';
+  @override
+  String get e2ePublishNew => 'Es un archivo nuevo en el repo.';
+  @override
+  String get e2ePublishHow =>
+      'Se crea una rama y se abre un PR contra main. No se mezcla nada: eso lo decide quien lo revise.';
+  @override
+  String get e2ePublishMessage => 'Mensaje del commit';
+  @override
+  String get e2ePublishDoing => 'Publicando…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Empujado a la rama. El PR ábrelo tú: no pude usar gh.';
+  @override
+  String get e2ePublishFailed => 'No se pudo publicar';
+  @override
+  String get e2ePublishNoRepo =>
+      'El repo de pruebas no está listo todavía. Abre el panel de pruebas y espera a que se clone.';
+  @override
+  String get e2ePublishOpen => 'Abrir el PR';
+  @override
+  String get e2eRepoGroupTests => 'Pruebas';
+  @override
+  String get e2eRepoGroupPieces => 'Piezas de otros flows';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos de $total';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Cuentas';
+  @override
+  String get e2eAccountsTitle => 'Cuentas de prueba';
+  @override
+  String get e2eAccountsNone =>
+      'No hay ninguna cuenta. Sin una, ningún flow puede correr: Maestro necesita las credenciales una por una.';
+  @override
+  String get e2eAccountsWhere =>
+      'Se guardan en esta máquina y nunca dentro del repo, que es de donde se empuja.';
+  @override
+  String get e2eAccountDefault => 'por defecto';
+  @override
+  String get e2eAccountMakeDefault => 'Hacer por defecto';
+  @override
+  String get e2eAccountAdd => 'Añadir cuenta';
+  @override
+  String get e2eAccountKey => 'Clave';
+  @override
+  String get e2eAccountKeyHint => 'El nombre corto de la cuenta: pe, co, mx';
+  @override
+  String get e2eAccountTags => 'Etiquetas';
+  @override
+  String get e2eAccountTagsHint =>
+      'Separadas por coma y sin el acct- de delante. Ej: pe, any';
+  @override
+  String get e2eAccountDesc => 'Descripción';
+  @override
+  String get e2eAccountDescHint => 'Para qué sirve. Ej: PEN verificada, sin Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'Ningún proyecto tiene cuentas todavía. Sin una, sus pruebas no pueden correr.';
+  @override
+  String get e2eAccountsNoneHere =>
+      'Este proyecto no tiene cuentas. Se crean en Ajustes → Cuentas de prueba.';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint =>
+      'Una por línea, CLAVE=valor. Mínimo: APP_ID, EMAIL, PASSWORD, PIN_1..4';
+  @override
+  String get e2eAccountSave => 'Guardar';
+  @override
+  String get e2eAccountDelete => 'Borrar cuenta';
   @override
   String get e2eNone => 'Este proyecto no tiene pruebas en .maestro/';
   @override
@@ -1889,6 +2040,8 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get sectionPruebas => 'Tests';
   @override
+  String get sectionCuentas => 'Test accounts';
+  @override
   String get flowsRootExplainer =>
       'One folder for every project\'s tests, with a subfolder per project: '
       '«~/tests/nexus». Together and outside the repos — a test inside a work repo is a '
@@ -2246,6 +2399,108 @@ class NexusStringsEn extends NexusStrings {
 
   @override
   String get e2eTitle => 'App tests';
+  @override
+  String get e2eRepoTitle => 'Tests repo';
+  @override
+  String get e2eRepoUpdating => 'Syncing…';
+  @override
+  String get e2eRepoUpToDate => 'Up to date';
+  @override
+  String get e2eRepoCloned => 'Cloned';
+  @override
+  String get e2eRepoDirty => 'Has unpublished changes; leaving it alone';
+  @override
+  String get e2eRepoFailed => 'Could not sync';
+  @override
+  String get e2eRepoNoFlows => 'The repo has no flows yet.';
+  @override
+  String get e2eRepoRetry => 'Retry';
+  @override
+  String get e2eRepoNeedsDevice =>
+      'Pick where to run it, in the selector above.';
+  @override
+  String get e2eRepoSearch => 'Find a test';
+  @override
+  String get e2ePublish => 'Publish to the tests repo';
+  @override
+  String get e2ePublishTitle => 'Publish to the repo';
+  @override
+  String e2ePublishWhere(String slug, String ruta) => 'Goes to $slug, at $ruta';
+  @override
+  String get e2ePublishReplaces =>
+      'A file with that name is already there: the PR replaces it.';
+  @override
+  String get e2ePublishNew => 'It is a new file in the repo.';
+  @override
+  String get e2ePublishHow =>
+      'A branch is created and a PR opened against main. Nothing is merged: whoever reviews it decides that.';
+  @override
+  String get e2ePublishMessage => 'Commit message';
+  @override
+  String get e2ePublishDoing => 'Publishing…';
+  @override
+  String get e2ePublishPushedOnly =>
+      'Pushed to the branch. Open the PR yourself: gh was not available.';
+  @override
+  String get e2ePublishFailed => 'Could not publish';
+  @override
+  String get e2ePublishNoRepo =>
+      'The tests repo is not ready yet. Open the tests panel and wait for the clone.';
+  @override
+  String get e2ePublishOpen => 'Open the PR';
+  @override
+  String get e2eRepoGroupTests => 'Tests';
+  @override
+  String get e2eRepoGroupPieces => 'Pieces other flows use';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos of $total';
+  @override
+  String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
+  @override
+  String get e2eAccounts => 'Accounts';
+  @override
+  String get e2eAccountsTitle => 'Test accounts';
+  @override
+  String get e2eAccountsNone =>
+      'No accounts yet. Without one no flow can run: Maestro needs the credentials one by one.';
+  @override
+  String get e2eAccountsWhere =>
+      'Kept on this machine and never inside the repo, which is what gets pushed.';
+  @override
+  String get e2eAccountDefault => 'default';
+  @override
+  String get e2eAccountMakeDefault => 'Make default';
+  @override
+  String get e2eAccountAdd => 'Add account';
+  @override
+  String get e2eAccountKey => 'Key';
+  @override
+  String get e2eAccountKeyHint => 'The account short name: pe, co, mx';
+  @override
+  String get e2eAccountTags => 'Tags';
+  @override
+  String get e2eAccountTagsHint =>
+      'Comma separated, without the leading acct-. E.g. pe, any';
+  @override
+  String get e2eAccountDesc => 'Description';
+  @override
+  String get e2eAccountDescHint => 'What it is for. E.g. PEN verified, no Bre-B';
+  @override
+  String get e2eAccountsNoneAnywhere =>
+      'No project has accounts yet. Without one, its tests cannot run.';
+  @override
+  String get e2eAccountsNoneHere =>
+      'This project has no accounts. They are created in Settings → Test accounts.';
+  @override
+  String get e2eAccountVars => 'Variables';
+  @override
+  String get e2eAccountVarsHint =>
+      'One per line, KEY=value. At least: APP_ID, EMAIL, PASSWORD, PIN_1..4';
+  @override
+  String get e2eAccountSave => 'Save';
+  @override
+  String get e2eAccountDelete => 'Delete account';
   @override
   String get e2eNone => 'This project has no tests in .maestro/';
   @override

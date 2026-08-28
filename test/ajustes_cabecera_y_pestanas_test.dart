@@ -72,6 +72,7 @@ void main() {
         'mobile',
         'history',
         'pruebas',
+        'cuentas',
         'stats',
         'superpowers',
         'emulators',

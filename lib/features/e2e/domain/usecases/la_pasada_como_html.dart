@@ -125,6 +125,8 @@ abstract final class LaPasadaComoHtml {
   .guion{flex:none;color:var(--line)}
   .texto{white-space:pre-wrap;word-break:break-word;color:var(--ink)}
   li.hecho .marca{color:var(--ok)}
+  li.omitido .marca{color:var(--faint)}
+  li.omitido .texto{opacity:.65}
   li.fallo .marca{color:var(--err)}
   li.espera .marca{color:var(--line)}
   .punto{display:inline-block;width:5px;height:5px;border-radius:50%;
@@ -190,6 +192,7 @@ abstract final class LaPasadaComoHtml {
       EstadoDePaso.hecho => 'hecho',
       EstadoDePaso.enCurso => 'curso',
       EstadoDePaso.fallado => 'fallo',
+      EstadoDePaso.omitido => 'omitido',
       EstadoDePaso.pendiente => 'espera',
     };
     // **El símbolo cuenta el estado sin leer nada**: gris de espera, el indicador
@@ -199,6 +202,8 @@ abstract final class LaPasadaComoHtml {
       EstadoDePaso.enCurso =>
         '<span class="gira" style="color:var(--acento)"></span>',
       EstadoDePaso.fallado => '✕',
+      // Un guion y no una cruz: se saltó a propósito, no se rompió.
+      EstadoDePaso.omitido => '–',
       EstadoDePaso.pendiente => '<span class="punto"></span>',
     };
 

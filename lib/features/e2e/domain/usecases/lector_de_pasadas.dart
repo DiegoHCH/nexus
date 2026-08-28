@@ -72,7 +72,11 @@ abstract final class LectorDePasadas {
       if (!esAndamio) pasos++;
 
       switch (estado) {
-        case 'COMPLETED':
+        // `SKIPPED` cuenta como bien y **no** como fallo: una rama con `when:`
+        // que no aplica hizo lo correcto al no correr. Sin este caso caía al
+        // default, no sumaba a `bien`, y una pasada entera se leía «12 de 13»
+        // como si algo hubiera quedado a medias.
+        case 'COMPLETED' || 'SKIPPED':
           if (!esAndamio) bien++;
         case 'FAILED' || 'ERROR':
           alguienFallo = true;

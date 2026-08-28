@@ -257,15 +257,21 @@ class E2eDataSource {
   /// Se intentó primero leerla de la salida, que Maestro la imprime:
   /// `==== Debug output (logs & screenshots) ====`. No sirve: **solo la imprime
   /// cuando la pasada falla.** En una que pasa no aparece esa línea.
-  String? carpetaDeArtefactos({required String salida, required String flow}) {
+  String? carpetaDeArtefactos({
+    required String salida,
+    required String flow,
+    String? nombreDeclarado,
+  }) {
     final tests = Directory(
       '$salida/${DondeVivenLasPasadas.loQueAnadeMaestro}',
     );
     if (!tests.existsSync()) return null;
 
     Directory? masReciente;
+    String? dentro;
     for (final fecha in _carpetas(tests)) {
-      if (!Directory('${fecha.path}/$flow').existsSync()) continue;
+      final elegida = _laDelFlow(fecha, flow, nombreDeclarado);
+      if (elegida == null) continue;
       // Por nombre y no por fecha en disco: el nombre es la hora que puso Maestro
       // y ordena igual, sin depender de qué toque los archivos después.
       if (masReciente == null ||
@@ -275,9 +281,32 @@ class E2eDataSource {
                   .compareTo(masReciente.path.split('/').last) >
               0) {
         masReciente = fecha;
+        dentro = elegida;
       }
     }
-    return masReciente == null ? null : '${masReciente.path}/$flow';
+    return dentro;
+  }
+
+  /// La carpeta de artefactos del flow dentro de una pasada de Maestro.
+  ///
+  /// 🔴 **Maestro la nombra con el `name:` del YAML, no con el del archivo.** Se
+  /// midió: `01-login-error-flow.yaml` con `name: Login Error Flow` deja la
+  /// carpeta `Login Error Flow`. Buscando por el nombre del archivo no se
+  /// encontraba nada y las capturas no salían — invisible hasta ahora porque en
+  /// las pruebas locales el archivo y el `name:` coincidían (`login` ↔ `login`).
+  ///
+  /// Se busca por el nombre del archivo **y** por el declarado, y por nada más.
+  /// Coger «la única carpeta que haya» era el atajo obvio y está mal: le
+  /// atribuiría a un flow las capturas de otro, que es justo lo que la prueba
+  /// «no se coge la de otro flow» lleva cubriendo desde antes de esto.
+  String? _laDelFlow(Directory fecha, String flow, String? declarado) {
+    for (final hija in _carpetas(fecha)) {
+      final nombre = hija.path.split('/').last;
+      if (nombre == flow || (declarado != null && nombre == declarado)) {
+        return hija.path;
+      }
+    }
+    return null;
   }
 
   /// Las capturas de una pasada, **ya embebidas** para poder pintarlas.

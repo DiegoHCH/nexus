@@ -7,8 +7,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
+import 'package:nexus/features/e2e/presentation/providers/repo_de_pruebas_providers.dart';
 import 'package:nexus/features/e2e/domain/usecases/donde_viven_las_pasadas.dart';
 import 'package:nexus/features/e2e/domain/usecases/la_pasada_como_html.dart';
+import 'package:nexus/features/e2e/domain/usecases/el_arbol_de_un_flow.dart';
+import 'package:nexus/features/e2e/domain/usecases/las_cuentas_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/los_tags_de_un_flow.dart';
 import 'package:nexus/features/e2e/domain/usecases/las_variables_del_proyecto.dart';
 import 'package:nexus/features/e2e/domain/usecases/pasos_de_una_prueba.dart';
 import 'package:nexus/features/e2e/domain/usecases/por_que_se_cayo.dart';
@@ -264,7 +268,9 @@ class PruebaEnMarcha {
   int get terminados => pasos
       .where(
         (p) =>
-            p.estado == EstadoDePaso.hecho || p.estado == EstadoDePaso.fallado,
+            p.estado == EstadoDePaso.hecho ||
+            p.estado == EstadoDePaso.fallado ||
+            p.estado == EstadoDePaso.omitido,
       )
       .length;
 
@@ -337,6 +343,7 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     required String proyecto,
     required String deviceId,
     required String perfil,
+    Map<String, String>? credenciales,
   }) async {
     if (state?.viva ?? false) return 'Ya hay una prueba corriendo';
 
@@ -366,17 +373,44 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
     // Las credenciales se leen aquí, en el último momento, y solo las que este
     // flow nombra. No pasan por el estado de la app ni por el prompt.
     final ds = ref.read(e2eDataSourceProvider);
+
+    // **Una sola regla para las dos vías**, la del repo y la del proyecto: lo
+    // del `.env.local` de abajo y lo de la cuenta encima. Decisión del dev
+    // (27 ago 2026): **gana la cuenta**, porque lo que se configura en la app es
+    // la verdad y tenerlo en dos sitios con el archivo mandando deja el panel
+    // diciendo una cosa y la pasada corriendo con otra.
+    //
+    // Para un flow del repo el `.env.local` no existe —el clon no lo tiene— así
+    // que ahí la mezcla es la cuenta sola, igual que antes.
+    await ref.read(cuentasDePruebaProvider(proyecto).notifier).cargadas;
+    final deLaCuenta =
+        credenciales ??
+        LasCuentasDePrueba.paraElFlow(
+          contenido: yaml,
+          cuentas: ref.read(cuentasDePruebaProvider(proyecto)),
+        )?.variables;
+    final deDondeSalen = <String, String>{
+      ...ds.variablesDe(
+        proyecto,
+        carpetaDePruebas: ref.read(carpetaDePruebasProvider(proyecto)),
+      ),
+      ...?deLaCuenta,
+    };
     final proceso = await ds.lanzar(
       flow: prueba.ruta,
       proyecto: proyecto,
       deviceId: deviceId,
       salida: salida,
+      // 🔴 El árbol entero y no solo este archivo. El filtro deja pasar lo que
+      // el YAML nombra, y las credenciales suelen vivir **en un subflow**: en
+      // automated-test, `04-account-detail` → `commons/setup-authed` →
+      // `../auth/00-login`, que es donde están EMAIL y PASSWORD. Mirando solo
+      // el primero llegaba APP_ID y nada más, el login tecleaba el literal
+      // `${EMAIL}` y la prueba moría tres pasos después. Vale para cualquier
+      // flow con subflows, no solo para los del repo remoto.
       variables: LasVariablesDelProyecto.paraElFlow(
-        yaml: yaml,
-        variables: ds.variablesDe(
-          proyecto,
-          carpetaDePruebas: ref.read(carpetaDePruebasProvider(proyecto)),
-        ),
+        yaml: ElArbolDeUnFlow.texto(ruta: prueba.ruta, leer: _leerSiEsta),
+        variables: deDondeSalen,
       ),
     );
     if (proceso == null) {
@@ -411,7 +445,11 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
         );
         // Las capturas, ahora que la pasada acabó y existen en disco.
         final ds = ref.read(e2eDataSourceProvider);
-        _artefactos = ds.carpetaDeArtefactos(salida: salida, flow: actual.flow);
+        _artefactos = ds.carpetaDeArtefactos(
+          salida: salida,
+          flow: actual.flow,
+          nombreDeclarado: LosTagsDeUnFlow.nombreDeclarado(yaml),
+        );
         _capturas = ds.capturasDe(_artefactos);
 
         unawaited(_pinta());
@@ -570,6 +608,20 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
       return await File(ruta).readAsString();
     } on FileSystemException {
       return '';
+    }
+  }
+
+  /// El lector que usa el resolutor del árbol. **Síncrono a propósito**: son un
+  /// puñado de archivos pequeños, una sola vez por lanzamiento, y así el caso de
+  /// uso se queda puro —recibe una función, no toca disco— y se puede probar sin
+  /// escribir nada. `null` cuando no está, que es lo que le dice al resolutor que
+  /// se lo salte en vez de romper.
+  static String? _leerSiEsta(String ruta) {
+    try {
+      final archivo = File(ruta);
+      return archivo.existsSync() ? archivo.readAsStringSync() : null;
+    } on FileSystemException {
+      return null;
     }
   }
 }
