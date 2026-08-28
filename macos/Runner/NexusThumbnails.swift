@@ -33,16 +33,23 @@ final class NexusThumbnails {
       }
       let size = (args["size"] as? NSNumber)?.doubleValue ?? 64
       let scale = (args["scale"] as? NSNumber)?.doubleValue ?? 2
-      generate(path: path, size: size, scale: scale, result: result)
+      miniatura(ruta: path, tamano: size, escala: scale) { png in
+        result(png.map(FlutterStandardTypedData.init(bytes:)))
+      }
     }
     log.info("canal de miniaturas registrado")
   }
 
-  private static func generate(
-    path: String,
-    size: Double,
-    scale: Double,
-    result: @escaping FlutterResult
+  /// La miniatura como bytes PNG, o `nil` si no hubo forma.
+  ///
+  /// Separada del canal para poder probarla: lo que hay que comprobar es que
+  /// **siempre salga algo** para un archivo normal —quedarse sin imagen es el
+  /// único resultado inservible— y eso no necesita un `FlutterResult`.
+  static func miniatura(
+    ruta path: String,
+    tamano size: Double,
+    escala scale: Double,
+    luego: @escaping (Data?) -> Void
   ) {
     let url = URL(fileURLWithPath: path)
     let request = QLThumbnailGenerator.Request(
@@ -60,7 +67,7 @@ final class NexusThumbnails {
       // en el que QuickLook responde.
       DispatchQueue.main.async {
         if let image = thumbnail?.nsImage, let png = png(from: image) {
-          result(FlutterStandardTypedData(bytes: png))
+          luego(png)
           return
         }
         if let error {
@@ -70,7 +77,7 @@ final class NexusThumbnails {
         // no tiene nada que enseñar, y el icono sí distingue uno de otro.
         let icon = NSWorkspace.shared.icon(forFile: path)
         icon.size = NSSize(width: size * scale, height: size * scale)
-        result(png(from: icon).map(FlutterStandardTypedData.init(bytes:)))
+        luego(png(from: icon))
       }
     }
   }
