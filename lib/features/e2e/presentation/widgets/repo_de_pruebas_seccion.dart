@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
+import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/e2e/data/datasources/repo_de_pruebas_data_source.dart';
 import 'package:nexus/features/e2e/domain/entities/pasada_de_prueba.dart';
+import 'package:nexus/features/e2e/domain/usecases/como_se_agrupan_los_flows.dart';
 import 'package:nexus/features/e2e/presentation/providers/e2e_providers.dart';
 import 'package:nexus/features/e2e/presentation/providers/repo_de_pruebas_providers.dart';
 
@@ -75,7 +77,43 @@ class _Estado extends ConsumerStatefulWidget {
 }
 
 class _EstadoState extends ConsumerState<_Estado> {
-  bool _abierta = false;
+  /// Qué grupos están abiertos. **Solo «Pruebas» de partida**: es a lo que viene
+  /// todo el mundo, y abrir los cinco deja la misma tira de la que se venía.
+  final _abiertos = <ClaseDeGrupo>{ClaseDeGrupo.pruebas};
+  final _carpetasAbiertas = <String>{};
+  final _buscar = TextEditingController();
+
+  @override
+  void dispose() {
+    _buscar.dispose();
+    super.dispose();
+  }
+
+  bool _estaAbierto(GrupoDeFlows g, bool buscando) =>
+      // Buscando se abre todo lo que tenga algo: esconder una coincidencia
+      // detrás de un triángulo es no haberla encontrado.
+      (buscando && g.rutas.isNotEmpty) ||
+      (g.clase == ClaseDeGrupo.carpeta
+          ? _carpetasAbiertas.contains(g.carpeta)
+          : _abiertos.contains(g.clase));
+
+  void _alterna(GrupoDeFlows g) => setState(() {
+    if (g.clase == ClaseDeGrupo.carpeta) {
+      _carpetasAbiertas.contains(g.carpeta)
+          ? _carpetasAbiertas.remove(g.carpeta)
+          : _carpetasAbiertas.add(g.carpeta);
+      return;
+    }
+    _abiertos.contains(g.clase)
+        ? _abiertos.remove(g.clase)
+        : _abiertos.add(g.clase);
+  });
+
+  String _titulo(GrupoDeFlows g, NexusStrings strings) => switch (g.clase) {
+    ClaseDeGrupo.pruebas => strings.e2eRepoGroupTests,
+    ClaseDeGrupo.piezas => strings.e2eRepoGroupPieces,
+    ClaseDeGrupo.carpeta => g.carpeta,
+  };
 
   @override
   Widget build(BuildContext context) {
@@ -95,41 +133,52 @@ class _EstadoState extends ConsumerState<_Estado> {
     }
 
     final flows = ref.watch(flowsDelRepoProvider).value ?? const [];
+    final piezas = ref.watch(piezasDelRepoProvider).value ?? const <String>{};
     final sinCuentas = ref
         .watch(cuentasDePruebaProvider(widget.proyecto))
         .isEmpty;
-    // Lo que falta para poder correr, sea lo que sea. **Se mira aquí y no en la
-    // fila**: el motivo es el mismo para las 57 y decirlo 57 veces ya se probó
-    // que es un muro. Un botón apagado sin motivo es la otra mitad del mismo
-    // error — el dev se queda mirando por qué no pasa nada.
     final buscando = ref.watch(buscandoDispositivosProvider);
     final sinDispositivo = !buscando && ref.watch(elDispositivoProvider) == null;
     final hayDestinos = ref.watch(dondeCorrerProvider).isNotEmpty;
 
+    final filtro = _buscar.text.trim();
+    final grupos = ComoSeAgrupanLosFlows.repartir(
+      rutas: flows,
+      piezas: piezas,
+      filtro: filtro,
+    );
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        InkWell(
-          onTap: flows.isEmpty
-              ? null
-              : () => setState(() => _abierta = !_abierta),
-          child: Row(
-            children: [
-              Text(texto, style: NexusTypography.label.copyWith(color: color)),
-              const SizedBox(width: NexusSpacing.s2),
-              Text(
-                strings.e2eRepoFlows(flows.length),
-                style: NexusTypography.label.copyWith(color: colors.faint),
-              ),
-              if (flows.isNotEmpty)
-                Icon(
-                  _abierta ? Icons.expand_less : Icons.expand_more,
-                  size: 16,
-                  color: colors.faint,
-                ),
-            ],
-          ),
+        Row(
+          children: [
+            Text(texto, style: NexusTypography.label.copyWith(color: color)),
+            const SizedBox(width: NexusSpacing.s2),
+            Text(
+              strings.e2eRepoFlows(flows.length),
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+          ],
         ),
+
+        if (sinCuentas)
+          Padding(
+            padding: const EdgeInsets.only(top: NexusSpacing.s2),
+            child: Text(
+              strings.e2eAccountsNoneHere,
+              style: NexusTypography.body.copyWith(color: colors.warn),
+            ),
+          ),
+        if (sinDispositivo)
+          Padding(
+            padding: const EdgeInsets.only(top: NexusSpacing.s2),
+            child: Text(
+              hayDestinos ? strings.e2eRepoNeedsDevice : strings.e2eNoDevice,
+              style: NexusTypography.body.copyWith(color: colors.warn),
+            ),
+          ),
+
         if (flows.isEmpty)
           Padding(
             padding: const EdgeInsets.only(top: NexusSpacing.s2),
@@ -139,44 +188,77 @@ class _EstadoState extends ConsumerState<_Estado> {
             ),
           )
         else ...[
-          // **Sin ninguna cuenta el aviso va aquí y una sola vez.** Puesto por
-          // fila se repetía 57 veces, que es un muro y no un aviso: el motivo es
-          // el mismo para todas y la salida también. Con el botón al lado, porque
-          // decir qué falta sin decir dónde se arregla obliga a buscarlo.
-          if (sinCuentas)
-            Padding(
-              padding: const EdgeInsets.only(top: NexusSpacing.s2),
-              child: Text(
-                // Ya no hay botón: el formulario se mudó a Ajustes y abrir un
-                // diálogo de credenciales desde aquí volvería a poner en la
-                // pantalla diaria justo lo que se sacó de ella.
-                strings.e2eAccountsNoneHere,
-                style: NexusTypography.body.copyWith(color: colors.warn),
+          const SizedBox(height: NexusSpacing.s3),
+          TextField(
+            key: const ValueKey('buscar-una-prueba'),
+            controller: _buscar,
+            style: NexusTypography.mono.copyWith(color: colors.ink),
+            decoration: InputDecoration(
+              isDense: true,
+              hintText: strings.e2eRepoSearch,
+              hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+              prefixIcon: Icon(Icons.search, size: 16, color: colors.faint),
+              prefixIconConstraints: const BoxConstraints(minWidth: 28),
+              suffixIcon: filtro.isEmpty
+                  ? null
+                  : IconButton(
+                      icon: Icon(Icons.close, size: 14, color: colors.faint),
+                      onPressed: () => setState(_buscar.clear),
+                    ),
+            ),
+            onChanged: (_) => setState(() {}),
+          ),
+          const SizedBox(height: NexusSpacing.s3),
+
+          for (final grupo in grupos) ...[
+            InkWell(
+              onTap: grupo.rutas.isEmpty ? null : () => _alterna(grupo),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  vertical: NexusSpacing.s1,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _estaAbierto(grupo, filtro.isNotEmpty)
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      size: 16,
+                      color: grupo.rutas.isEmpty ? colors.rule2 : colors.faint,
+                    ),
+                    const SizedBox(width: NexusSpacing.s1),
+                    Text(
+                      _titulo(grupo, strings),
+                      style: NexusTypography.label.copyWith(
+                        color: grupo.rutas.isEmpty ? colors.rule2 : colors.mute,
+                      ),
+                    ),
+                    const SizedBox(width: NexusSpacing.s2),
+                    Text(
+                      strings.e2eRepoMatches(grupo.rutas.length, grupo.total),
+                      style: NexusTypography.label.copyWith(color: colors.faint),
+                    ),
+                  ],
+                ),
               ),
             ),
-          // El dispositivo se avisa aunque falten cuentas: son dos cosas que hay
-          // que resolver y enseñar solo la primera obliga a descubrir la segunda
-          // después de arreglar la primera.
-          if (sinDispositivo)
-            Padding(
-              padding: const EdgeInsets.only(top: NexusSpacing.s2),
-              child: Text(
-                // Sin ninguno encendido el arreglo es otro: encender uno, no
-                // elegir entre los que hay.
-                hayDestinos
-                    ? strings.e2eRepoNeedsDevice
-                    : strings.e2eNoDevice,
-                style: NexusTypography.body.copyWith(color: colors.warn),
-              ),
-            ),
-          if (_abierta) ...[
-            const SizedBox(height: NexusSpacing.s3),
-            for (final ruta in flows)
-              _FilaDeFlow(
-                clon: resultado.clon!,
-                ruta: ruta,
-                proyecto: widget.proyecto,
-                sinCuentas: sinCuentas,
+            if (_estaAbierto(grupo, filtro.isNotEmpty))
+              Padding(
+                padding: const EdgeInsets.only(
+                  left: NexusSpacing.s4,
+                  bottom: NexusSpacing.s2,
+                ),
+                child: Column(
+                  children: [
+                    for (final ruta in grupo.rutas)
+                      _FilaDeFlow(
+                        clon: resultado.clon!,
+                        ruta: ruta,
+                        proyecto: widget.proyecto,
+                        sinCuentas: sinCuentas,
+                      ),
+                  ],
+                ),
               ),
           ],
         ],

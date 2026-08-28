@@ -7,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../data/datasources/repo_de_pruebas_data_source.dart';
 import '../../domain/entities/cuenta_de_pruebas.dart';
 import '../../domain/usecases/donde_vive_el_repo_de_pruebas.dart';
+import '../../domain/usecases/como_se_agrupan_los_flows.dart';
+import '../../domain/usecases/el_arbol_de_un_flow.dart';
 import '../../domain/usecases/las_cuentas_de_prueba.dart';
 import '../../domain/usecases/las_variables_del_proyecto.dart';
 
@@ -166,6 +168,27 @@ final flowsDelRepoProvider = FutureProvider<List<String>>((ref) async {
   final clon = sync.clon;
   if (clon == null) return const [];
   return ref.watch(repoDePruebasDataSourceProvider).flows(clon);
+});
+
+/// Las rutas que **otros** flows incluyen con `runFlow`: las piezas.
+///
+/// Cuesta una lectura por flow, una sola vez —57 hoy—, y es lo que permite sacar
+/// de la lista de pruebas siete cosas que no se lanzan sueltas. Por uso y no por
+/// carpeta: ver [ComoSeAgrupanLosFlows].
+final piezasDelRepoProvider = FutureProvider<Set<String>>((ref) async {
+  final sync = await ref.watch(clonDelRepoProvider.future);
+  final clon = sync.clon;
+  if (clon == null) return const {};
+
+  final ds = ref.watch(repoDePruebasDataSourceProvider);
+  final referencias = <String, List<String>>{};
+  for (final ruta in await ref.watch(flowsDelRepoProvider.future)) {
+    final contenido = await ds.leer(clon: clon, ruta: ruta);
+    if (contenido != null) {
+      referencias[ruta] = ElArbolDeUnFlow.referencias(contenido);
+    }
+  }
+  return ComoSeAgrupanLosFlows.piezasDe(referenciasPorFlow: referencias);
 });
 
 /// El contenido de un flow del repo.

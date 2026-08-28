@@ -338,6 +338,10 @@ abstract class NexusStrings {
   String get e2eRepoNoFlows;
   String get e2eRepoRetry;
   String get e2eRepoNeedsDevice;
+  String get e2eRepoSearch;
+  String get e2eRepoGroupTests;
+  String get e2eRepoGroupPieces;
+  String e2eRepoMatches(int cuantos, int total);
   String e2eRepoFlows(int total);
   String get e2eAccounts;
   String get e2eAccountsTitle;
@@ -1154,6 +1158,15 @@ class NexusStringsEs extends NexusStrings {
   @override
   String get e2eRepoNeedsDevice =>
       'Falta elegir dónde correr, en el selector de arriba.';
+  @override
+  String get e2eRepoSearch => 'Buscar una prueba';
+  @override
+  String get e2eRepoGroupTests => 'Pruebas';
+  @override
+  String get e2eRepoGroupPieces => 'Piezas de otros flows';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos de $total';
   @override
   String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
   @override
@@ -2365,6 +2378,15 @@ class NexusStringsEn extends NexusStrings {
   @override
   String get e2eRepoNeedsDevice =>
       'Pick where to run it, in the selector above.';
+  @override
+  String get e2eRepoSearch => 'Find a test';
+  @override
+  String get e2eRepoGroupTests => 'Tests';
+  @override
+  String get e2eRepoGroupPieces => 'Pieces other flows use';
+  @override
+  String e2eRepoMatches(int cuantos, int total) =>
+      cuantos == total ? '$total' : '$cuantos of $total';
   @override
   String e2eRepoFlows(int total) => total == 1 ? '1 flow' : '$total flows';
   @override
