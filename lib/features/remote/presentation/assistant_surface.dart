@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
-import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -161,11 +160,12 @@ class AssistantSurface implements RemoteSurface {
           ArchivedConversation(
             id: r.id,
             folder: r.folderPath,
-            // El primer encargo como título: es lo que el escritorio ya usa, y
-            // resulta ser el mejor título que nadie ha escrito.
-            title: _titulo(r),
+            // El título que ya trae la ficha, que es el mismo que enseña el
+            // escritorio. Antes se recalculaba aquí a partir de los mensajes, y
+            // eso obligaba a traerlos todos para pintar una lista.
+            title: r.title,
             when: r.startedAt,
-            turns: r.messages.length,
+            turns: r.turns,
             // Si ya está abierta, se dice: ofrecer «retomar» algo vivo lleva a abrir
             // una segunda sobre la misma carpeta, que el escritorio no permite.
             open: vivas.hasFolder(r.folderPath),
@@ -178,15 +178,6 @@ class AssistantSurface implements RemoteSurface {
     );
   }
 
-  static String _titulo(ConversationRecord registro) {
-    for (final m in registro.messages) {
-      if (m.author == ChatAuthor.user && m.text.trim().isNotEmpty) {
-        return m.text.trim();
-      }
-    }
-    return registro.projectName;
-  }
-
   @override
   Future<String> resumeConversation(String archivedId) async {
     // La **misma** fuente que `archive()`, y no el almacén propio: si se listan
@@ -194,8 +185,8 @@ class AssistantSurface implements RemoteSurface {
     // «conversación desconocida» — un archivo que enseña cosas que no se pueden abrir.
     await _ref.read(archiveControllerProvider.notifier).cargado;
     final guardadas = await _ref.read(allSavedConversationsProvider.future);
-    final registro = guardadas.where((r) => r.id == archivedId).firstOrNull;
-    if (registro == null) throw UnknownConversation(archivedId);
+    final ficha = guardadas.where((r) => r.id == archivedId).firstOrNull;
+    if (ficha == null) throw UnknownConversation(archivedId);
 
     // **Por el mismo camino que el escritorio.** Esto abría la carpeta y no pintaba el
     // registro, así que el teléfono retomaba una conversación y la recibía **vacía**.
@@ -203,9 +194,14 @@ class AssistantSurface implements RemoteSurface {
     // hacen lo mismo y solo uno arreglado—, así que en vez de copiar aquí el `resume`
     // se reusa el proveedor que ya decide: si esa conversación está abierta va a su
     // pestaña, y si no, abre una nueva sobre su carpeta y la pinta entera.
-    final resultado = await _ref.read(retomarDelArchivoProvider)(registro);
+    final resultado = await _ref.read(retomarDelArchivoProvider)(ficha);
     if (resultado == RetomarResultado.noCabe) {
       throw DemasiadasConversaciones();
+    }
+    // La ficha estaba en la lista y detrás no había nada. Para el teléfono es
+    // lo mismo que pedir una que no existe: un identificador que no abre.
+    if (resultado == RetomarResultado.noEsta) {
+      throw UnknownConversation(archivedId);
     }
 
     // La que quedó con el foco es la que se retomó: el proveedor enfoca en los dos

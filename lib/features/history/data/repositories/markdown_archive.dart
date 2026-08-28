@@ -1,7 +1,9 @@
 import 'dart:io';
 
+import 'package:nexus/features/history/data/datasources/conversation_header.dart';
 import 'package:nexus/features/history/data/repositories/conversation_markdown.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 
 /// Escribe las conversaciones como Markdown, una carpeta por proyecto.
@@ -49,7 +51,7 @@ class MarkdownArchive implements ConversationArchive {
     await directory.create(recursive: true);
 
     final file = File(
-      '${directory.path}/${ConversationMarkdown.fileName(record)}',
+      '${directory.path}/${ConversationMarkdown.fileName(record.summary)}',
     );
     await file.writeAsString(
       ConversationMarkdown.conversation(record, wikilinks: wikilinks),
@@ -63,17 +65,22 @@ class MarkdownArchive implements ConversationArchive {
   /// Se reconstruye del disco y no de una lista en memoria a propósito: así
   /// sobrevive a reiniciar la app, y una conversación archivada hace tres días
   /// sigue enlazada aunque este proceso no sepa que existió.
+  ///
+  /// De cada vecina se lee **solo la cabecera**. Enlazarlas necesita título y
+  /// fecha, nada más; leer los archivos enteros para eso costaba, en un
+  /// proyecto con doscientas conversaciones y una charla de treinta turnos,
+  /// seis mil lecturas completas.
   Future<void> _updateProjectNote(
     Directory directory,
     ConversationRecord record,
   ) async {
     final note = File('${directory.path}/${record.projectName}.md');
-    final entries = <ConversationRecord>[];
+    final entries = <ConversationSummary>[];
 
     await for (final entity in directory.list()) {
       if (entity is! File || !entity.path.endsWith('.md')) continue;
       if (entity.path == note.path) continue;
-      final parsed = _readHeader(await entity.readAsString());
+      final parsed = await ConversationHeader.summaryOf(entity);
       if (parsed == null) continue;
       entries.add(parsed);
     }
@@ -82,56 +89,9 @@ class MarkdownArchive implements ConversationArchive {
       ConversationMarkdown.project(
         record.projectName,
         record.folderPath,
-        entries.isEmpty ? [record] : entries,
+        entries.isEmpty ? [record.summary] : entries,
         wikilinks: wikilinks,
       ),
     );
   }
-
-  /// Saca de una nota ya escrita lo justo para volver a enlazarla: título y
-  /// fecha. No se parsea la conversación entera — para rehacer el índice no
-  /// hace falta, y leer veinte archivos completos por cada turno sí se nota.
-  ConversationRecord? _readHeader(String content) {
-    final title = RegExp(
-      r'^titulo: "(.*)"$',
-      multiLine: true,
-    ).firstMatch(content)?.group(1);
-    final project = RegExp(
-      r'^proyecto: (.*)$',
-      multiLine: true,
-    ).firstMatch(content)?.group(1);
-    final folder = RegExp(
-      r'^carpeta: (.*)$',
-      multiLine: true,
-    ).firstMatch(content)?.group(1);
-    final date = RegExp(
-      r'^fecha: (.*)$',
-      multiLine: true,
-    ).firstMatch(content)?.group(1);
-    if (title == null || project == null || date == null) return null;
-    final when = DateTime.tryParse(date);
-    if (when == null) return null;
-
-    return _ArchivedRecord(
-      folderPath: folder ?? '',
-      startedAt: when,
-      title: title,
-    );
-  }
-}
-
-/// Una conversación ya archivada, reconstruida solo con lo que hace falta para
-/// enlazarla desde la nota del proyecto.
-class _ArchivedRecord extends ConversationRecord {
-  const _ArchivedRecord({
-    required super.folderPath,
-    required super.startedAt,
-    required String title,
-  }) : _title = title,
-       super(id: title, messages: const []);
-
-  final String _title;
-
-  @override
-  String get title => _title;
 }

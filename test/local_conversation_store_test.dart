@@ -46,17 +46,26 @@ void main() {
 
   const store = LocalConversationStore();
 
-  test('lo guardado se vuelve a leer entero', () async {
+  test('listar trae la ficha: título, fecha y cuántos turnos', () async {
     await store.save(record());
 
     final leidas = await store.list('/Users/alguien/workspace');
 
     expect(leidas, hasLength(1));
     expect(leidas.single.title, 'mira el historial');
-    expect(leidas.single.messages, hasLength(2));
+    expect(leidas.single.turns, 2);
+  });
+
+  test('y abrir una trae la conversación entera', () async {
+    await store.save(record());
+
+    final ficha = (await store.list('/Users/alguien/workspace')).single;
+    final entera = await store.read(ficha);
+
+    expect(entera!.messages, hasLength(2));
     // Se conserva si se dijo por voz: meses después, eso explica una
     // transcripción rara.
-    expect(leidas.single.messages.first.spoken, isTrue);
+    expect(entera.messages.first.spoken, isTrue);
   });
 
   test('lo más reciente va primero', () async {
@@ -124,7 +133,7 @@ void main() {
 
     final leidas = await store.list('/Users/alguien/workspace');
     expect(leidas, hasLength(1));
-    expect(leidas.single.messages, hasLength(3));
+    expect(leidas.single.turns, 3);
   });
 
   test('una conversación en la que nadie dijo nada no se guarda', () async {
@@ -149,8 +158,105 @@ void main() {
 
   test('se puede borrar una', () async {
     await store.save(record());
-    await store.delete(record());
+    await store.delete(record().summary);
 
     expect(await store.list('/Users/alguien/workspace'), isEmpty);
+  });
+
+  // El índice es lo que hace que listar no cueste abrir todas. Estas tres
+  // pruebas son sobre él: que exista, que no se crea a sí mismo cuando el disco
+  // dice otra cosa, y que listar no dependa de poder leer las conversaciones.
+  group('el índice', () {
+    Directory carpetaDe(String slug) =>
+        Directory('${support.path}/conversaciones/$slug');
+
+    test('se escribe al guardar', () async {
+      await store.save(record());
+
+      final indice = File(
+        '${carpetaDe('Users-alguien-workspace').path}/_index.json',
+      );
+      expect(indice.existsSync(), isTrue);
+      final decoded = jsonDecode(indice.readAsStringSync()) as Map;
+      expect((decoded['conversaciones'] as List), hasLength(1));
+    });
+
+    test('listar no abre las conversaciones', () async {
+      await store.save(record());
+      // Se deja el índice y se rompe la conversación: si listar necesitara
+      // abrirla, esto se notaría. Como solo lee el índice, no.
+      File(
+        '${carpetaDe('Users-alguien-workspace').path}/c1.json',
+      ).writeAsStringSync('esto ya no es JSON');
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.single.title, 'mira el historial');
+      expect(leidas.single.turns, 2);
+    });
+
+    test('se rehace solo si falta', () async {
+      await store.save(record());
+      File(
+        '${carpetaDe('Users-alguien-workspace').path}/_index.json',
+      ).deleteSync();
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.single.title, 'mira el historial');
+      expect(
+        File(
+          '${carpetaDe('Users-alguien-workspace').path}/_index.json',
+        ).existsSync(),
+        isTrue,
+      );
+    });
+
+    // El motivo de todo esto: archivar pasa **en cada turno**, y no puede
+    // costar lo que ocupe el proyecto entero.
+    //
+    // Se comprueba dejando una conversación ilegible que sí está en el índice:
+    // si guardar otra rehiciera el índice leyendo la carpeta, esa se caería de
+    // la lista. Como no lo hace, sigue ahí.
+    test('guardar una nueva no relee las vecinas', () async {
+      await store.save(record());
+      File(
+        '${carpetaDe('Users-alguien-workspace').path}/c1.json',
+      ).writeAsStringSync('ya no se puede leer');
+
+      await store.save(
+        record(
+          id: 'c2',
+          messages: const [ChatMessage(author: ChatAuthor.user, text: 'otra')],
+        ),
+      );
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.map((r) => r.id), containsAll(['c1', 'c2']));
+      expect(
+        leidas.firstWhere((r) => r.id == 'c1').title,
+        'mira el historial',
+        reason: 'la ficha de c1 sigue siendo la que se escribió al guardarla',
+      );
+    });
+
+    // El índice no es la verdad: la verdad son los archivos. Borrar uno desde
+    // el Finder tiene que quitarlo de la lista, no dejar un fantasma que al
+    // abrirlo no lleva a ninguna parte.
+    test('un archivo borrado a mano desaparece de la lista', () async {
+      await store.save(record());
+      await store.save(
+        record(
+          id: 'c2',
+          messages: const [ChatMessage(author: ChatAuthor.user, text: 'otra')],
+        ),
+      );
+      File('${carpetaDe('Users-alguien-workspace').path}/c2.json').deleteSync();
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.map((r) => r.id), ['c1']);
+    });
   });
 }

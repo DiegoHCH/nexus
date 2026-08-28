@@ -8,7 +8,10 @@ import 'package:nexus/features/assistant/presentation/providers/claude_bridge_pr
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -52,6 +55,29 @@ class _Espacio extends WorkspaceController {
   );
 }
 
+/// El archivo de la app, en memoria.
+///
+/// Hace falta desde que las listas traen fichas y no conversaciones: retomar
+/// una lee su detalle, y eso sale de aquí.
+class _Almacen implements LocalConversationStore {
+  _Almacen(this.registros);
+
+  final List<ConversationRecord> registros;
+
+  @override
+  Future<List<ConversationSummary>> list(String folderPath) async => registros
+      .where((r) => r.folderPath == folderPath)
+      .map((r) => r.summary)
+      .toList();
+
+  @override
+  Future<ConversationRecord?> read(ConversationSummary ficha) async =>
+      registros.where((r) => r.id == ficha.id).firstOrNull;
+
+  @override
+  noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 ConversationRecord _registro(String id) => ConversationRecord(
   id: id,
   folderPath: _carpeta,
@@ -61,11 +87,12 @@ ConversationRecord _registro(String id) => ConversationRecord(
   ],
 );
 
-ProviderContainer _contenedor() {
+ProviderContainer _contenedor({List<ConversationRecord> archivo = const []}) {
   final c = ProviderContainer(
     overrides: [
       conversationMemoryProvider.overrideWithValue(const _SinMemoria()),
       workspaceControllerProvider.overrideWith(_Espacio.new),
+      localConversationStoreProvider.overrideWithValue(_Almacen(archivo)),
     ],
   );
   addTearDown(c.dispose);
@@ -77,7 +104,7 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('la que ya está abierta se enfoca, no se duplica', () async {
-    final c = _contenedor();
+    final c = _contenedor(archivo: [_registro('r1')]);
     final abierta = await c.read(conversationsProvider.notifier).open(_carpeta);
     // Esa pestaña adopta el registro, que es lo que hace al guardarse.
     c
@@ -87,7 +114,9 @@ void main() {
 
     // Con el foco en la otra, se retoma la del archivo que ya estaba abierta.
     c.read(conversationsProvider.notifier).focus(otra!);
-    final resultado = await c.read(retomarDelArchivoProvider)(_registro('r1'));
+    final resultado = await c.read(retomarDelArchivoProvider)(
+      _registro('r1').summary,
+    );
 
     expect(resultado, RetomarResultado.yaEstaba);
     expect(c.read(conversationsProvider).items, hasLength(2));
@@ -99,13 +128,15 @@ void main() {
   });
 
   test('una que no está abierta se abre en pestaña nueva', () async {
-    final c = _contenedor();
+    final c = _contenedor(archivo: [_registro('r1'), _registro('r2')]);
     final primera = await c.read(conversationsProvider.notifier).open(_carpeta);
     c
         .read(assistantControllerProvider(primera!).notifier)
         .resume(_registro('r1'));
 
-    final resultado = await c.read(retomarDelArchivoProvider)(_registro('r2'));
+    final resultado = await c.read(retomarDelArchivoProvider)(
+      _registro('r2').summary,
+    );
 
     expect(resultado, RetomarResultado.enPestanaNueva);
     expect(c.read(conversationsProvider).items, hasLength(2));
@@ -122,7 +153,15 @@ void main() {
       // Tal cual lo describio: una sola conversacion abierta sobre `nexus`, se abre el
       // historial y se elige una de `General`. Tiene que salir en **pestaña nueva** y
       // sobre su propia carpeta — no cambiar la que estaba delante.
-      final c = _contenedor();
+      final laDeGeneral = ConversationRecord(
+        id: 'la-de-general',
+        folderPath: _carpeta,
+        startedAt: DateTime(2026, 8, 24, 8),
+        messages: const [
+          ChatMessage(author: ChatAuthor.user, text: 'que reuniones tengo hoy'),
+        ],
+      );
+      final c = _contenedor(archivo: [laDeGeneral]);
       final abierta = await c.read(conversationsProvider.notifier).open(_otra);
       c
           .read(assistantControllerProvider(abierta!).notifier)
@@ -141,17 +180,7 @@ void main() {
           );
 
       final resultado = await c.read(retomarDelArchivoProvider)(
-        ConversationRecord(
-          id: 'la-de-general',
-          folderPath: _carpeta,
-          startedAt: DateTime(2026, 8, 24, 8),
-          messages: const [
-            ChatMessage(
-              author: ChatAuthor.user,
-              text: 'que reuniones tengo hoy',
-            ),
-          ],
-        ),
+        laDeGeneral.summary,
       );
 
       expect(resultado, RetomarResultado.enPestanaNueva);
@@ -177,7 +206,7 @@ void main() {
   );
 
   test('con el muelle lleno se dice, no se calla', () async {
-    final c = _contenedor();
+    final c = _contenedor(archivo: [_registro('nueva')]);
     for (var i = 0; i < Conversations.max; i++) {
       expect(
         await c.read(conversationsProvider.notifier).open(_carpeta),
@@ -186,11 +215,28 @@ void main() {
     }
 
     final resultado = await c.read(retomarDelArchivoProvider)(
-      _registro('nueva'),
+      _registro('nueva').summary,
     );
 
     expect(resultado, RetomarResultado.noCabe);
   });
+
+  // La ficha estaba en la lista y detrás no hay nada: la nota se borró desde
+  // Obsidian, o el JSON se fue con una limpieza. Lo que no puede pasar es que
+  // se abra una pestaña vacía y no se diga nada.
+  test(
+    'una ficha sin conversación detrás se dice, y no abre pestaña',
+    () async {
+      final c = _contenedor();
+
+      final resultado = await c.read(retomarDelArchivoProvider)(
+        _registro('fantasma').summary,
+      );
+
+      expect(resultado, RetomarResultado.noEsta);
+      expect(c.read(conversationsProvider).items, isEmpty);
+    },
+  );
 
   test('caben seis, en columnas de tres', () {
     // El tope estuvo en tres por atención, y el uso lo corrigió: se dejan corriendo y

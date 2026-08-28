@@ -38,7 +38,7 @@ void main() {
 
     test('el archivo lleva la fecha delante, para que ordenen solos', () {
       expect(
-        ConversationMarkdown.fileName(record()),
+        ConversationMarkdown.fileName(record().summary),
         '2026-08-12-mira-el-historial-de-git.md',
       );
     });
@@ -54,7 +54,7 @@ void main() {
               text: '¿Qué versión? Añade: café/té',
             ),
           ],
-        ),
+        ).summary,
       );
 
       expect(nombre, '2026-08-12-que-version-anade-cafete.md');
@@ -105,13 +105,13 @@ void main() {
           'workspace',
           '/Users/alguien/workspace',
           [
-            record(when: DateTime(2026, 8, 10)),
+            record(when: DateTime(2026, 8, 10)).summary,
             record(
               when: DateTime(2026, 8, 12),
               messages: const [
                 ChatMessage(author: ChatAuthor.user, text: 'lo más reciente'),
               ],
-            ),
+            ).summary,
           ],
           wikilinks: true,
         );
