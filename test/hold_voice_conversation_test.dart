@@ -14,6 +14,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
+import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
@@ -184,13 +185,32 @@ HoldVoiceConversation _conversation(
   _Session session,
   _Bridge bridge, {
   void Function(String)? log,
+  _Lanzador? lanzador,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
   _Speaker(),
   _askClaude(bridge),
   log ?? (_) {},
+  lanzador ?? _Lanzador(),
 );
+
+/// El lanzador de pruebas, que apunta lo que se le pidió. Su gracia en estas
+/// pruebas es la de al lado: comprobar que ese camino **no pasa por Claude**.
+class _Lanzador implements CorrerUnaPrueba {
+  _Lanzador();
+
+  /// Lo que contesta. Fijo: lo que estas pruebas miran es **quién**
+  /// atiende la herramienta, no qué dice.
+  final dice = 'Lanzada «login».';
+  final pedidos = <String>[];
+
+  @override
+  Future<String> loQuePidieron(String pedido) async {
+    pedidos.add(pedido);
+    return dice;
+  }
+}
 
 AskClaude _askClaude2(ClaudeBridge bridge) => _armar(bridge);
 
@@ -264,6 +284,7 @@ void main() {
         _Speaker(),
         _askClaude(bridge),
         (_) {},
+        _Lanzador(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -307,6 +328,7 @@ void main() {
         _Speaker(),
         _askClaude(bridge),
         (_) {},
+        _Lanzador(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -400,6 +422,7 @@ void main() {
         _Speaker(),
         _askClaude(bridge),
         (_) {},
+        _Lanzador(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -471,6 +494,7 @@ void main() {
       _Speaker(),
       _askClaude2(_BridgeQueDiceElModelo('claude-opus-5[1m]')),
       (_) {},
+      _Lanzador(),
     );
 
     final vistos = <VoiceEvent>[];
@@ -573,6 +597,74 @@ void main() {
     });
   });
 
+  group('correr una prueba no pasa por Claude', () {
+    // El motivo entero de la herramienta. Antes, hablar el suite era: el modelo
+    // elige la herramienta de Claude, Claude elige la del MCP de Maestro, y el
+    // MCP tiene que estar vivo — tres eslabones, y el último ni siquiera es
+    // nuestro. Aquí no hay ninguno.
+    test('va al lanzador, y Claude no se entera', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final lanzador = _Lanzador();
+      final conversation = _conversation(session, bridge, lanzador: lanzador);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: '1',
+          name: ClaudeErrand.testTool,
+          arguments: {'prueba': 'el login'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(lanzador.pedidos, ['el login']);
+      // Y esto es lo que hace cierta la frase de la demo: sin encargo a Claude,
+      // el modo de permisos no entra en juego. No es que se lo salte — es que
+      // no lo toca.
+      expect(bridge.asked, isEmpty);
+
+      // Lo que el lanzador contesta es lo que se le entrega al modelo para que
+      // lo narre: si no volviera nada, la conversación se quedaría muda
+      // esperando una respuesta que no llega.
+      expect(session.toolResults.single, lanzador.dice);
+
+      await subscription.cancel();
+    });
+
+    test('sin nombre se contesta igual, no se lanza a ciegas', () async {
+      final session = _Session();
+      final lanzador = _Lanzador();
+      final conversation = _conversation(
+        session,
+        _Bridge(),
+        lanzador: lanzador,
+      );
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: '1',
+          name: ClaudeErrand.testTool,
+          arguments: {},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      // Llega vacío y se deja decidir al lanzador, que sabe qué pruebas hay y
+      // puede enumerarlas. Cortarlo aquí sería contestar «falta el nombre»
+      // cuando lo útil es decir cuáles son.
+      expect(lanzador.pedidos, ['']);
+      expect(session.toolResults, hasLength(1));
+
+      await subscription.cancel();
+    });
+  });
+
   test('al cerrarse el microfono se le dice al servicio que el audio termino', () async {
     // El detector de turno es automatico y mira el audio: espera ver silencio para
     // decidir que terminaste. El microfono del Mac se lo da siempre —sigue mandando
@@ -587,6 +679,7 @@ void main() {
       _Speaker(),
       _askClaude(_Bridge()),
       (_) {},
+      _Lanzador(),
     );
 
     final sub = conversation().listen((_) {});

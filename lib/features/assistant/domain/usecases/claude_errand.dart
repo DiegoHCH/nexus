@@ -8,6 +8,12 @@ abstract final class ClaudeErrand {
   static const askTool = 'pedir_a_claude';
   static const skillTool = 'crear_skill';
 
+  /// La tercera, y la única que **no produce un encargo para Claude**: la
+  /// atiende el lanzador de Nexus. Por eso [forTool] devuelve `null` para ella
+  /// igual que para una desconocida — quien la reconoce es la conversación, que
+  /// es quien tiene el puerto.
+  static const testTool = 'correr_prueba';
+
   /// Normaliza el nombre a lo que es una carpeta de skill: minúsculas y
   /// guiones medios.
   ///

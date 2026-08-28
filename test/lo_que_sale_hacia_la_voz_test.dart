@@ -127,13 +127,17 @@ void main() {
           'recortado en el origen, la pantalla perdería lo que sí puede ver',
     );
 
+    // Cuatro, y la cuarta la cazó esta prueba: al añadir la herramienta
+    // `correr_prueba` apareció una salida nueva hacia el servicio de voz —lo
+    // que contesta el lanzador— y esto falló hasta que pasó por el tope. Es
+    // justo para lo que estaba puesta.
     expect(
       'loQueCabe('.allMatches(fuente).length,
-      3,
+      4,
       reason:
-          'la declaración y las dos salidas: el resultado de la herramienta y '
-          'la corrección. Si aparece una salida nueva sin pasar por aquí, esto '
-          'se entera',
+          'la declaración y las tres salidas: el resultado de la herramienta, '
+          'la corrección y lo que contesta el lanzador de pruebas. Si aparece '
+          'una salida nueva sin pasar por aquí, esto se entera',
     );
   });
 }

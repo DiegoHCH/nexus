@@ -1,3 +1,4 @@
+import 'package:nexus/features/e2e/presentation/providers/correr_una_prueba_desde_la_voz.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -61,5 +62,6 @@ final holdVoiceConversationProvider =
         // consola de `flutter run`, que es donde se leen estas sesiones. Aquí
         // sí se puede, porque esto es cableado y ya conoce Flutter.
         debugPrint,
+        ref.watch(correrUnaPruebaProvider),
       ),
     );
