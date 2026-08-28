@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/core/platform/system_files.dart';
+import 'package:nexus/core/diagnostico/registro_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/tour_providers.dart';
 import 'package:nexus/features/updates/presentation/providers/updates_providers.dart';
 
@@ -53,6 +55,11 @@ class HelpSection extends ConsumerWidget {
         // un aviso modal por una actualización interrumpe justo a quien está
         // trabajando, y esto no es urgente — es información.
         const _VersionRow(),
+        const SizedBox(height: NexusSpacing.s7),
+
+        // El registro. Aquí y no en una pantalla propia: se busca el día que
+        // algo falla, y ese día se busca en Ayuda.
+        const _RegistroRow(),
         const SizedBox(height: NexusSpacing.s7),
 
         // La guía en frío. Cuatro bloques y en este orden: qué hace falta, qué
@@ -168,6 +175,54 @@ class _GuideBlock extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+/// Dónde vive el registro, y el botón para abrirlo donde está.
+///
+/// La ruta se enseña entera y no se esconde detrás del botón: quien vaya a
+/// pedir ayuda con esto necesita poder copiarla, y quien no tenga Finder a mano
+/// —una sesión por SSH, un `tail -f`— necesita saber dónde mirar.
+class _RegistroRow extends ConsumerWidget {
+  const _RegistroRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final ruta = ref.watch(rutaDelRegistroProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.logTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.logExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        SelectableText(
+          ruta.value ?? strings.logMissing,
+          style: NexusTypography.mono.copyWith(color: colors.mute),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton(
+            // Sin ruta no hay nada que enseñar, y un botón que no hace nada es
+            // peor que uno apagado.
+            onPressed: ruta.value == null
+                ? null
+                : () => SystemFiles.revelar(ruta.value!),
+            child: Text(strings.logAction),
+          ),
+        ),
+      ],
     );
   }
 }

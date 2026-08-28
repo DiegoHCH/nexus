@@ -1,7 +1,12 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/appearance_channel.dart';
+import 'package:nexus/core/diagnostico/registro_de_la_app.dart';
+import 'package:nexus/core/diagnostico/registro_providers.dart';
 import 'package:nexus/core/design_system/accent_preference.dart';
 import 'package:nexus/core/design_system/theme_preference.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -22,11 +27,64 @@ import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // **Lo primero de todo.** Enganchar el registro después de arrancar dejaría
+  // fuera justo los fallos del arranque, que son los que menos se pueden
+  // reproducir después.
+  final registro = RegistroDeLaApp();
+  engancharElRegistro(registro);
+  debugPrint('nexus · arranca');
+
   // Los atajos globales los registra el sistema, no la app: sobreviven a un
   // hot reload y quedarían duplicados —o peor, huérfanos— sin esta limpieza
   // al arrancar.
   await hotKeyManager.unregisterAll();
-  runApp(const ProviderScope(child: MainApp()));
+  runApp(
+    ProviderScope(
+      // El mismo que ya está escribiendo, para que Ajustes pueda decir dónde
+      // vive. Construir otro daría una segunda ruta y ninguna sería la buena.
+      overrides: [registroDeLaAppProvider.overrideWithValue(registro)],
+      child: const MainApp(),
+    ),
+  );
+}
+
+/// Deja escrito en el registro todo lo que la app cuente de sí misma.
+///
+/// Tres fuentes, y las tres hacían falta:
+///
+/// **`debugPrint`**, envuelto en vez de sustituido en los 41 sitios que lo
+/// llaman. Sigue imprimiendo en la consola de `flutter run` —que es para lo que
+/// sirve— y además cae en el archivo, que es lo que faltaba en release.
+///
+/// **Los errores del framework**, que hoy se pintan en la consola y ahí mueren.
+/// Un `RenderFlex overflowed` en el Mac de otro no lo cuenta nadie.
+///
+/// **Lo que escapa de una zona asíncrona**, que ni siquiera llega a la consola
+/// en release. Se devuelve `false` a propósito: manejarlo aquí sería tragárselo,
+/// y esto solo viene a mirar.
+void engancharElRegistro(RegistroDeLaApp registro) {
+  final imprimirDeAntes = debugPrint;
+  debugPrint = (String? mensaje, {int? wrapWidth}) {
+    imprimirDeAntes(mensaje, wrapWidth: wrapWidth);
+    if (mensaje != null && mensaje.trim().isNotEmpty) {
+      unawaited(registro.anotar(mensaje));
+    }
+  };
+
+  final erroresDeAntes = FlutterError.onError;
+  FlutterError.onError = (detalles) {
+    erroresDeAntes?.call(detalles);
+    unawaited(
+      registro.anotar('error de interfaz · ${detalles.exceptionAsString()}'),
+    );
+  };
+
+  PlatformDispatcher.instance.onError = (error, pila) {
+    unawaited(registro.anotar('error suelto · $error'));
+    // `false`: no se da por manejado. Lo de aquí es enterarse, no decidir.
+    return false;
+  };
 }
 
 class MainApp extends ConsumerStatefulWidget {
