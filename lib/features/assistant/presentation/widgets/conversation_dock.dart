@@ -26,6 +26,29 @@ class ConversationDock extends ConsumerWidget {
   static const tabWidth = 190.0;
   static const tabHeight = 50.0;
 
+  /// Lo que separa el muelle del borde de abajo. Vive aquí y no en quien lo
+  /// coloca porque [espacioReservado] cuenta con ello: si se cambian por
+  /// separado, la franja deja de cuadrar con el sitio real del muelle.
+  static const alDelSuelo = NexusSpacing.s5;
+
+  /// El alto que hay que apartarle al muelle en el HUD, con su aire.
+  ///
+  /// El muelle flota en el mismo `Stack` que el orbe, así que sin reservarle
+  /// esta franja la pila de conversaciones acababa encima del orbe —o el orbe
+  /// encima de ella— en cuanto había más de una abierta. Se calcula en vez de
+  /// medirse porque el muelle es una rejilla de fichas de tamaño fijo: manda
+  /// la columna más alta, y nunca pasa de [Conversations.porColumna] filas.
+  static double espacioReservado(Conversations conversaciones) {
+    final piezas =
+        conversaciones.items.length + (conversaciones.isFull ? 0 : 1);
+    final filas = piezas < Conversations.porColumna
+        ? piezas
+        : Conversations.porColumna;
+    // El `+ s2` es la separación entre fichas, que cada una lleva debajo.
+    // Sobra ese hueco en la última: mejor un pelo de aire de más que un cruce.
+    return alDelSuelo + filas * (tabHeight + NexusSpacing.s2) + NexusSpacing.s5;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final conversations = ref.watch(conversationsProvider);
