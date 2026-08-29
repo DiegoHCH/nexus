@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -170,8 +173,59 @@ class _LoQueDejo extends ConsumerWidget {
               onTap: () =>
                   ref.read(artifactsDataSourceProvider).open(documento),
             ),
+          // Solo en el parte, y solo si Slack está configurado: un botón de
+          // enviar que a veces no puede enviar enseña a no pulsarlo.
+          if (message.esElParte && ref.watch(slackControllerProvider).listo)
+            _ElBotonDeSlack(texto: message.text),
         ],
       ),
+    );
+  }
+}
+
+/// Manda el parte a Slack, y dice si llegó.
+///
+/// **Con estado propio y no en el mensaje**: si esto viviera en el estado de la
+/// conversación, reabrirla mañana diría «enviado» de un parte que se mandó ayer.
+/// Lo que importa es haberlo mandado ahora, delante de quien lo pulsó.
+class _ElBotonDeSlack extends ConsumerStatefulWidget {
+  const _ElBotonDeSlack({required this.texto});
+
+  final String texto;
+
+  @override
+  ConsumerState<_ElBotonDeSlack> createState() => _ElBotonDeSlackState();
+}
+
+class _ElBotonDeSlackState extends ConsumerState<_ElBotonDeSlack> {
+  bool _mandando = false;
+  String? _dicho;
+
+  Future<void> _mandar() async {
+    setState(() {
+      _mandando = true;
+      _dicho = null;
+    });
+    final fallo = await ref
+        .read(slackControllerProvider.notifier)
+        .mandar(widget.texto);
+    if (!mounted) return;
+    setState(() {
+      _mandando = false;
+      _dicho = fallo == null
+          ? context.strings.parteEnviado
+          : context.strings.parteFallo(fallo);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enviado = _dicho == context.strings.parteEnviado;
+
+    return _Boton(
+      icono: enviado ? Icons.check : Icons.send_outlined,
+      texto: _dicho ?? context.strings.parteAlSlack,
+      onTap: _mandando || enviado ? () {} : () => unawaited(_mandar()),
     );
   }
 }

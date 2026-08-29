@@ -5,6 +5,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 
 /// Historial: dónde se archivan las conversaciones cuando terminan.
 
@@ -36,8 +37,11 @@ class HistorySection extends ConsumerWidget {
       ArchiveDestination.notion => strings.archiveNotionHint,
     };
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+    // Con su propio scroll, como Ayuda y Voz y por lo mismo: el cuerpo de una
+    // sección no lo trae, y esta pasó de «a dónde archivo» a llevar además el
+    // parte del día con su token y su destino. Lo último se salía por abajo —
+    // lo dijeron las pruebas que abren todas las secciones.
+    return ListView(
       children: [
         Text(
           strings.archiveTitle,
@@ -96,6 +100,12 @@ class HistorySection extends ConsumerWidget {
           const SizedBox(height: NexusSpacing.s5),
           _NotionFields(settings: settings, controller: controller),
         ],
+        // El parte del día, junto al destino de archivo: es la misma pregunta
+        // —a dónde mando mi trabajo— y no merece una sección propia.
+        const SizedBox(height: NexusSpacing.s7),
+        Divider(color: colors.rule, height: 1),
+        const SizedBox(height: NexusSpacing.s6),
+        const _ParteAlSlack(),
         if (settings.destination.needsFolder) ...[
           const SizedBox(height: NexusSpacing.s5),
           Row(
@@ -136,6 +146,142 @@ class HistorySection extends ConsumerWidget {
 /// Se pide aquí y no en la configuración inicial porque no es un requisito para
 /// usar Nexus: es una decisión de dónde quieres tus conversaciones. El token
 /// viaja al llavero, como la llave de Gemini — no a las preferencias en claro.
+/// A dónde va el parte del día, y con qué permiso.
+///
+/// **El token se escribe y no se vuelve a ver**: al guardarlo el campo se
+/// vacía, y lo único que queda en pantalla es si hay uno. Enseñar un secreto
+/// recortado no sirve para compararlo y sí para que aparezca en la captura de
+/// pantalla de alguien enseñando la app.
+class _ParteAlSlack extends ConsumerStatefulWidget {
+  const _ParteAlSlack();
+
+  @override
+  ConsumerState<_ParteAlSlack> createState() => _ParteAlSlackState();
+}
+
+class _ParteAlSlackState extends ConsumerState<_ParteAlSlack> {
+  final _token = TextEditingController();
+  late final _destino = TextEditingController(
+    text: ref.read(slackControllerProvider).destino ?? '',
+  );
+  String? _resultado;
+  bool _probando = false;
+
+  @override
+  void dispose() {
+    _token.dispose();
+    _destino.dispose();
+    super.dispose();
+  }
+
+  Future<void> _probar() async {
+    setState(() {
+      _probando = true;
+      _resultado = null;
+    });
+    final fallo = await ref
+        .read(slackControllerProvider.notifier)
+        .mandar(context.strings.slackPrueba);
+    if (!mounted) return;
+    setState(() {
+      _probando = false;
+      _resultado = fallo ?? context.strings.slackLlego;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+    final slack = ref.watch(slackControllerProvider);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.slackTitle,
+          style: NexusTypography.label.copyWith(color: colors.accent),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.slackExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        Text(
+          slack.hayToken ? strings.slackConToken : strings.slackSinToken,
+          style: NexusTypography.mono.copyWith(
+            color: slack.hayToken ? colors.ok : colors.warn,
+          ),
+        ),
+        const SizedBox(height: NexusSpacing.s3),
+        Row(
+          children: [
+            Expanded(
+              child: TextField(
+                controller: _token,
+                obscureText: true,
+                style: NexusTypography.mono.copyWith(color: colors.ink),
+                decoration: InputDecoration(hintText: strings.slackTokenHint),
+              ),
+            ),
+            const SizedBox(width: NexusSpacing.s3),
+            OutlinedButton(
+              onPressed: () async {
+                await ref
+                    .read(slackControllerProvider.notifier)
+                    .guardarToken(_token.text);
+                _token.clear();
+              },
+              child: Text(strings.geminiKeySave),
+            ),
+          ],
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        Text(
+          strings.slackDestino,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        TextField(
+          controller: _destino,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(hintText: strings.slackDestinoHint),
+          onChanged: (valor) =>
+              ref.read(slackControllerProvider.notifier).guardarDestino(valor),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.slackDestinoExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        Row(
+          children: [
+            OutlinedButton(
+              onPressed: slack.listo && !_probando ? _probar : null,
+              child: Text(
+                _probando ? strings.slackProbando : strings.slackProbar,
+              ),
+            ),
+            if (_resultado case final dicho?) ...[
+              const SizedBox(width: NexusSpacing.s3),
+              Expanded(
+                child: Text(
+                  dicho,
+                  style: NexusTypography.mono.copyWith(
+                    color: dicho == strings.slackLlego ? colors.ok : colors.err,
+                  ),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ],
+    );
+  }
+}
+
 class _NotionFields extends StatefulWidget {
   const _NotionFields({required this.settings, required this.controller});
 

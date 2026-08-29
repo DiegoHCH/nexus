@@ -22,6 +22,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -471,6 +472,30 @@ class AssistantController extends Notifier<AssistantHudState> {
     _afterErrand();
   }
 
+  /// El siguiente encargo es el parte del día.
+  ///
+  /// Se marca aquí y se consume al sellar, porque entre pedirlo y contestarlo
+  /// pasan minutos y la respuesta llega por el mismo camino que cualquier otra.
+  bool _pidiendoElParte = false;
+
+  /// Pide el parte del último día con trabajo.
+  ///
+  /// **Lo redacta Claude**: aquí solo se junta el material —qué conversaciones
+  /// hubo ese día, en qué carpetas y con cuántos turnos— y se le pone delante.
+  /// Devuelve `false` si no hay ningún día anterior que contar, que es distinto
+  /// de fallar: se dice y no se le pide un parte de la nada.
+  Future<bool> pedirElParte() async {
+    final todas = await ref.read(localConversationStoreProvider).listAll();
+    final instruccion = ElParteDeAyer.instruccion(todas, hoy: DateTime.now());
+    if (instruccion == null) return false;
+
+    _pidiendoElParte = true;
+    // Sin escritura: un parte se escribe leyendo, y esto lo puede pedir alguien
+    // que no tiene por qué darle permiso de escribir para contar lo que hizo.
+    await submit(instruccion, allowWrites: false);
+    return true;
+  }
+
   /// Deja en el último mensaje de Nexus lo que este encargo produjo.
   ///
   /// **En el mensaje y no solo en la pantalla**, que es donde vivía: el estado
@@ -486,6 +511,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     mensajes[donde] = mensajes[donde].copyWith(
       cambios: cambios,
       documento: documento,
+      esElParte: _pidiendoElParte ? true : null,
     );
     state = state.copyWith(messages: mensajes);
   }
@@ -516,6 +542,12 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
+    // Y se marca el mensaje aunque el encargo no tocara nada, que es lo normal
+    // en un parte: `_readChanges` sale antes de tiempo si no hay cambios.
+    if (_pidiendoElParte) {
+      _sellarEnElMensaje();
+      _pidiendoElParte = false;
+    }
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));

@@ -19,6 +19,7 @@ class ChatMessage {
     this.attachments = const [],
     this.cambios,
     this.documento,
+    this.esElParte = false,
   });
 
   final ChatAuthor author;
@@ -34,6 +35,13 @@ class ChatMessage {
 
   /// El documento que este encargo creó, si creó alguno.
   final String? documento;
+
+  /// Esta respuesta es el parte del día, así que se le puede mandar a Slack.
+  ///
+  /// Se marca el mensaje en vez de ofrecer «mandar a Slack» en todos: un botón
+  /// de enviar en cada respuesta invita a mandar cualquier cosa por una puerta
+  /// que existe para una sola.
+  final bool esElParte;
 
   /// Llegó por voz. Se marca porque un texto transcrito no es lo mismo que uno
   /// escrito: si la transcripción se equivocó, saber que venía del micrófono
@@ -58,6 +66,7 @@ class ChatMessage {
     bool? streaming,
     GitChanges? cambios,
     String? documento,
+    bool? esElParte,
   }) => ChatMessage(
     author: author,
     text: text ?? this.text,
@@ -66,6 +75,7 @@ class ChatMessage {
     attachments: attachments,
     cambios: cambios ?? this.cambios,
     documento: documento ?? this.documento,
+    esElParte: esElParte ?? this.esElParte,
   );
 
   /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y

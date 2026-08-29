@@ -116,6 +116,8 @@ mixin ArranqueStrings {
   String get exitNotionWhat;
   String get exitChannel;
   String get exitChannelWhat;
+  String get exitSlack;
+  String get exitSlackWhat;
 
   /// El registro de la app, en Ajustes › Ayuda.
   String get logTitle;
@@ -430,6 +432,12 @@ mixin ArranqueStringsEs implements ArranqueStrings {
       'Tu micrófono y lo que Claude leyó, porque una respuesta narrada lo lleva '
       'dentro — como mucho 4.000 caracteres por respuesta: lo que no cabe se '
       'queda en la pantalla. En una carpeta de solo texto no participa.';
+  @override
+  String get exitSlack => 'Slack';
+  @override
+  String get exitSlackWhat =>
+      'El parte del día que escribe Claude, y solo cuando le das a enviar. Es la '
+      'única de las cinco que nunca sale sola: se lee en pantalla antes.';
   @override
   String get exitNotion => 'Notion';
   @override
@@ -780,6 +788,13 @@ mixin ArranqueStringsEn implements ArranqueStrings {
       'Your microphone and what Claude read, because a narrated answer carries '
       'it inside — at most 4,000 characters per answer: what does not fit stays '
       'on screen. In a text-only folder it takes no part.';
+  @override
+  String get exitSlack => 'Slack';
+  @override
+  String get exitSlackWhat =>
+      'The day’s report Claude writes, and only when you press send. It is the '
+      'only one of the five that never goes on its own: you read it on screen '
+      'first.';
   @override
   String get exitNotion => 'Notion';
   @override
