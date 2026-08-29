@@ -57,6 +57,64 @@ void main() {
     });
   });
 
+  group('de qué proyecto se cuenta', () {
+    final hoy = DateTime(2026, 8, 31, 9);
+    final ayer = DateTime(2026, 8, 30, 10);
+
+    // El fallo que esto evita no se ve hasta que ya pasó: el parte va al Slack
+    // de un equipo, y sin filtro lo que hiciste en tus proyectos personales
+    // acabaría contado en ese daily.
+    test('lo de otros proyectos no entra', () {
+      final instruccion = ElParteDeAyer.instruccion(
+        [
+          charla(
+            ayer,
+            carpeta: '/w/front_mobile_b2c',
+            titulo: 'lo del trabajo',
+          ),
+          charla(ayer, carpeta: '/personal/mio', titulo: 'lo mío'),
+        ],
+        hoy: hoy,
+        soloDelProyecto: '/w/front_mobile_b2c',
+      )!;
+
+      expect(instruccion, contains('lo del trabajo'));
+      expect(instruccion, isNot(contains('lo mío')));
+    });
+
+    // Y tampoco cuenta el día: si el único trabajo de ayer fue personal, el
+    // parte del proyecto no es «vacío», es que no hay parte.
+    test('el día se elige mirando solo ese proyecto', () {
+      final soloPersonal = [
+        charla(ayer, carpeta: '/personal/mio'),
+        charla(DateTime(2026, 8, 25), carpeta: '/w/front_mobile_b2c'),
+      ];
+
+      expect(
+        ElParteDeAyer.elDia(
+          soloPersonal,
+          hoy: hoy,
+          soloDelProyecto: '/w/front_mobile_b2c',
+        ),
+        DateTime(2026, 8, 25),
+        reason: 'el último día de ESE proyecto, no el último de la máquina',
+      );
+    });
+
+    test(
+      'sin proyecto elegido entra todo, que es el comportamiento de antes',
+      () {
+        final instruccion = ElParteDeAyer.instruccion([
+          charla(ayer, carpeta: '/w/uno', titulo: 'de uno'),
+          charla(ayer, carpeta: '/personal/dos', titulo: 'de dos'),
+        ], hoy: hoy)!;
+
+        expect(instruccion, contains('de uno'));
+        expect(instruccion, contains('de dos'));
+      },
+    );
+  });
+
   group('lo que se le pone delante a Claude', () {
     final hoy = DateTime(2026, 8, 31, 9);
     final ayer = DateTime(2026, 8, 30, 10);

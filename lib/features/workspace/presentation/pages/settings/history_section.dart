@@ -6,6 +6,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Historial: dónde se archivan las conversaciones cuando terminan.
 
@@ -254,6 +255,43 @@ class _ParteAlSlackState extends ConsumerState<_ParteAlSlack> {
         Text(
           strings.slackDestinoExplainer,
           style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s4),
+        // De qué proyecto se cuenta el trabajo. **Sin esto el parte mezclaría**
+        // lo personal con lo del trabajo en el canal de un equipo, y eso no se
+        // arregla acordándose cada mañana.
+        Text(
+          strings.slackProyecto,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Wrap(
+          spacing: NexusSpacing.s2,
+          runSpacing: NexusSpacing.s2,
+          children: [
+            for (final carpeta in [
+              null,
+              ...ref
+                  .watch(workspaceControllerProvider)
+                  .folders
+                  .map((f) => f.path),
+            ])
+              OutlinedButton(
+                onPressed: () => ref
+                    .read(slackControllerProvider.notifier)
+                    .guardarProyecto(carpeta),
+                child: Text(
+                  carpeta == null
+                      ? strings.slackTodos
+                      : carpeta.split('/').last,
+                  style: NexusTypography.mono.copyWith(
+                    color: carpeta == slack.proyecto
+                        ? colors.accent
+                        : colors.mute,
+                  ),
+                ),
+              ),
+          ],
         ),
         const SizedBox(height: NexusSpacing.s4),
         Row(

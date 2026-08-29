@@ -15,13 +15,33 @@ abstract final class ElParteDeAyer {
   ///
   /// Nunca hoy, aunque haya actividad: el parte es de lo cerrado, y lo de esta
   /// mañana todavía se está haciendo.
+  /// Solo lo de un proyecto, si se pide.
+  ///
+  /// **No es un filtro de comodidad: es de sitio.** El parte va al Slack de un
+  /// equipo concreto, y sin esto lo que hiciste en tus proyectos personales
+  /// —o en otro repo del mismo trabajo— acabaría contado en ese daily.
+  ///
+  /// Por carpeta y no por cuenta de Claude, que era lo primero que se pensó:
+  /// una carpeta ya implica su cuenta, así que filtrar por proyecto excluye lo
+  /// personal por construcción **y además** deja fuera los demás repos del
+  /// trabajo, que tampoco van a ese daily.
+  static List<ConversationSummary> _delProyecto(
+    List<ConversationSummary> todas,
+    String? carpeta,
+  ) {
+    if (carpeta == null || carpeta.isEmpty) return todas;
+    return todas.where((ficha) => ficha.folderPath == carpeta).toList();
+  }
+
   static DateTime? elDia(
     List<ConversationSummary> todas, {
     required DateTime hoy,
+    String? soloDelProyecto,
   }) {
+    final miradas = _delProyecto(todas, soloDelProyecto);
     final deHoy = _soloElDia(hoy);
     DateTime? mejor;
-    for (final ficha in todas) {
+    for (final ficha in miradas) {
       final dia = _soloElDia(ficha.startedAt);
       if (!dia.isBefore(deHoy)) continue;
       if (mejor == null || dia.isAfter(mejor)) mejor = dia;
@@ -35,12 +55,14 @@ abstract final class ElParteDeAyer {
   static String? instruccion(
     List<ConversationSummary> todas, {
     required DateTime hoy,
+    String? soloDelProyecto,
   }) {
-    final dia = elDia(todas, hoy: hoy);
+    final miradas = _delProyecto(todas, soloDelProyecto);
+    final dia = elDia(todas, hoy: hoy, soloDelProyecto: soloDelProyecto);
     if (dia == null) return null;
 
     final delDia =
-        todas.where((ficha) => _soloElDia(ficha.startedAt) == dia).toList()
+        miradas.where((ficha) => _soloElDia(ficha.startedAt) == dia).toList()
           ..sort((a, b) => a.startedAt.compareTo(b.startedAt));
     if (delDia.isEmpty) return null;
 

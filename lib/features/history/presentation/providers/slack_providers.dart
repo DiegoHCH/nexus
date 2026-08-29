@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// llave de Gemini y el de Notion: aquí solo se sabe si está. El destino sí es
 /// una preferencia normal — es un identificador de Slack, no un secreto.
 class SlackConfig {
-  const SlackConfig({this.hayToken = false, this.destino});
+  const SlackConfig({this.hayToken = false, this.destino, this.proyecto});
 
   final bool hayToken;
 
@@ -19,17 +19,31 @@ class SlackConfig {
   /// tu conversación contigo, o el de un canal.
   final String? destino;
 
+  /// De qué proyecto se cuenta el trabajo. `null` = de todos.
+  ///
+  /// **No es comodidad, es sitio**: el parte va al Slack de un equipo concreto,
+  /// y sin esto lo que hiciste en tus proyectos personales —o en otro repo del
+  /// mismo trabajo— acabaría contado en ese daily.
+  final String? proyecto;
+
   bool get listo => hayToken && (destino ?? '').trim().isNotEmpty;
 
-  SlackConfig copyWith({bool? hayToken, String? destino}) => SlackConfig(
+  SlackConfig copyWith({
+    bool? hayToken,
+    String? destino,
+    String? proyecto,
+    bool sinProyecto = false,
+  }) => SlackConfig(
     hayToken: hayToken ?? this.hayToken,
     destino: destino ?? this.destino,
+    proyecto: sinProyecto ? null : (proyecto ?? this.proyecto),
   );
 }
 
 class SlackController extends Notifier<SlackConfig> {
   static const _tokenKey = 'slack_token';
   static const _destinoKey = 'slack_destino';
+  static const _proyectoKey = 'slack_proyecto';
 
   @override
   SlackConfig build() {
@@ -51,6 +65,7 @@ class SlackController extends Notifier<SlackConfig> {
     state = SlackConfig(
       hayToken: (token ?? '').isNotEmpty,
       destino: prefs.getString(_destinoKey),
+      proyecto: prefs.getString(_proyectoKey),
     );
   }
 
@@ -66,6 +81,18 @@ class SlackController extends Notifier<SlackConfig> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_destinoKey, limpio);
     state = state.copyWith(destino: limpio);
+  }
+
+  /// De qué proyecto se cuenta el trabajo. `null` vuelve a «todos».
+  Future<void> guardarProyecto(String? proyecto) async {
+    final prefs = await SharedPreferences.getInstance();
+    if (proyecto == null || proyecto.isEmpty) {
+      await prefs.remove(_proyectoKey);
+      state = state.copyWith(sinProyecto: true);
+      return;
+    }
+    await prefs.setString(_proyectoKey, proyecto);
+    state = state.copyWith(proyecto: proyecto);
   }
 
   /// Manda un texto por la puerta de Slack. Devuelve el motivo si no salió.

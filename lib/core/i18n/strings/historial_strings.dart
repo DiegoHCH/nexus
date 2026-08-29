@@ -16,6 +16,8 @@ mixin HistorialStrings {
   String get slackDestino;
   String get slackDestinoHint;
   String get slackDestinoExplainer;
+  String get slackProyecto;
+  String get slackTodos;
   String get slackProbar;
   String get slackProbando;
   String get slackPrueba;
@@ -86,6 +88,10 @@ mixin HistorialStringsEs implements HistorialStrings {
   String get slackDestinoExplainer =>
       'Tu propio identificador de usuario, para que llegue a tu conversación '
       'contigo. Sale del perfil de Slack, en «Copiar identificador de miembro».';
+  @override
+  String get slackProyecto => 'DE QUÉ PROYECTO';
+  @override
+  String get slackTodos => 'todos';
   @override
   String get slackProbar => 'Mandar una de prueba';
   @override
@@ -226,6 +232,10 @@ mixin HistorialStringsEn implements HistorialStrings {
   String get slackDestinoExplainer =>
       'Your own member ID, so it lands in your conversation with yourself. It '
       'is in your Slack profile, under “Copy member ID”.';
+  @override
+  String get slackProyecto => 'WHICH PROJECT';
+  @override
+  String get slackTodos => 'all';
   @override
   String get slackProbar => 'Send a test one';
   @override

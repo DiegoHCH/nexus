@@ -24,6 +24,7 @@ import 'package:nexus/features/history/domain/entities/conversation_summary.dart
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
@@ -486,7 +487,13 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// de fallar: se dice y no se le pide un parte de la nada.
   Future<bool> pedirElParte() async {
     final todas = await ref.read(localConversationStoreProvider).listAll();
-    final instruccion = ElParteDeAyer.instruccion(todas, hoy: DateTime.now());
+    final instruccion = ElParteDeAyer.instruccion(
+      todas,
+      hoy: DateTime.now(),
+      // **Solo el proyecto que va a ese Slack.** Sin esto, lo de los proyectos
+      // personales —o de otro repo del trabajo— acabaría en ese daily.
+      soloDelProyecto: ref.read(slackControllerProvider).proyecto,
+    );
     if (instruccion == null) return false;
 
     _pidiendoElParte = true;
