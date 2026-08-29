@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'dart:io';
 
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
@@ -67,6 +68,13 @@ class LocalConversationStore {
               'autor': message.author.name,
               'texto': message.text,
               'hablado': message.spoken,
+              // Lo que dejó ese turno. **Se guarda o se pierde**: vivía solo en
+              // memoria, así que al cerrar la app y retomar la conversación el
+              // botón de ver cambios ya no estaba — y lo que ese encargo tocó
+              // es justo lo que uno vuelve a mirar al día siguiente.
+              if (message.cambios case final cambios?)
+                'cambios': cambios.toJson(),
+              if (message.documento != null) 'documento': message.documento,
             },
         ],
       }),
@@ -284,6 +292,11 @@ class LocalConversationStore {
                     : ChatAuthor.nexus,
                 text: message['texto'] as String? ?? '',
                 spoken: message['hablado'] as bool? ?? false,
+                cambios: _cambiosDe(message['cambios']),
+                // El documento **solo si sigue estando**. Un botón que no lleva
+                // a ningún sitio enseña a no pulsarlo, y entonces tampoco se
+                // pulsa el día que sí lleva.
+                documento: _documentoDe(message['documento']),
               ),
         ],
       );
@@ -291,6 +304,12 @@ class LocalConversationStore {
       return null;
     }
   }
+
+  static GitChanges? _cambiosDe(Object? crudo) =>
+      crudo is Map<String, dynamic> ? GitChanges.fromJson(crudo) : null;
+
+  static String? _documentoDe(Object? crudo) =>
+      crudo is String && File(crudo).existsSync() ? crudo : null;
 
   /// La ruta entera aplanada: dos proyectos pueden llamarse igual y estar en
   /// sitios distintos, así que el nombre de la carpeta no sirve como identidad.
