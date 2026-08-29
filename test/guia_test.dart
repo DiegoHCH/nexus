@@ -135,24 +135,37 @@ void main() {
       expect(en.guidePrivacyBody, contains('output folder'));
     });
 
-    // Lo que esta prueba **no** podía ver, y costó un día descubrir: vigilaba
-    // que el texto no se borrara, pero no que siguiera siendo cierto. La frase
-    // decía que para ver un diff había que irse al terminal, y desde la PR #164
-    // Nexus enseña el diff a dos columnas. Una lista de «lo que no hago»
-    // envejece igual que una de features, y en la dirección peor: vendiendo
-    // menos de lo que hay.
-    test('lo que se cede es lo que de verdad no se hace', () {
+    // Esta lista se encogió **tres veces en dos días**, siempre por lo mismo:
+    // cedía cosas que Nexus sí hace. Lo que esta prueba no sabía ver es que un
+    // texto puede estar intacto y ser falso — vigilaba que no se borrara, no
+    // que siguiera siendo cierto.
+    //
+    // Las tres frases que se fueron, y por qué, para que ninguna vuelva:
+    //
+    // 1. «un diff no se audita de un vistazo a un panel» — desde la PR #164
+    //    Nexus enseña el diff a dos columnas, con el archivo entero alrededor.
+    // 2. «no es un cliente de git: decidir qué entra, ahí no» — sí decide: se
+    //    le pide a Claude, que conduce el mismo CLI.
+    // 3. «para una sesión larga, el terminal» — no era una carencia, era una
+    //    opinión sobre comodidad: la conversación aguanta una tarde entera.
+    test('no vuelve nada de lo que se cedía y era falso', () {
       for (final cuerpo in [es.guideNotForBody, en.guideNotForBody]) {
-        expect(
-          cuerpo.toLowerCase(),
-          isNot(contains('no se audita')),
-          reason: 'esa frase daba por hecho que Nexus no enseña diffs, y sí',
-        );
+        final texto = cuerpo.toLowerCase();
+        expect(texto, isNot(contains('no se audita')));
+        expect(texto, isNot(contains('cliente de git')));
+        expect(texto, isNot(contains('git client')));
+        expect(texto, isNot(contains('sesión larga')));
+        expect(texto, isNot(contains('long session')));
       }
-      // Lo que sí sigue siendo verdad, y es lo que se cede ahora: no es un
-      // cliente de git.
-      expect(es.guideNotForBody.toLowerCase(), contains('cliente de git'));
-      expect(en.guideNotForBody.toLowerCase(), contains('git client'));
+    });
+
+    // Y lo primero que dice ya no es una concesión: es que **no se pierde
+    // nada**. Sin eso, la lista se lee como una lista de carencias.
+    test('empieza diciendo lo que sí hace', () {
+      expect(es.guideNotForBody, contains('el mismo Claude Code'));
+      expect(en.guideNotForBody, contains('the same Claude Code'));
+      expect(es.guideNotForBody.toLowerCase(), contains('se añade una capa'));
+      expect(en.guideNotForBody.toLowerCase(), contains('a layer is added'));
     });
 
     test('el bloque que cede terreno nombra a dónde se cede', () {
@@ -160,12 +173,15 @@ void main() {
       // hace creíble el bloque es decir **dónde** se hace mejor, y el sitio es
       // el terminal. Sin esa palabra el texto se puede vaciar hasta quedarse en
       // una disculpa, que es justo lo que no sirve delante de un escéptico.
-      expect(es.guideNotForBody.toLowerCase(), contains('terminal'));
-      expect(en.guideNotForBody.toLowerCase(), contains('terminal'));
+      // **Al editor y no al terminal**, que es a donde se cede de verdad desde
+      // que Nexus enseña el diff: contra el terminal ya no se pierde nada aquí,
+      // y donde sí se pierde es contra un editor con el archivo delante.
+      expect(es.guideNotForBody.toLowerCase(), contains('editor'));
+      expect(en.guideNotForBody.toLowerCase(), contains('editor'));
 
-      // Y el caso concreto que pedía el informe, no un genérico: el diff.
-      expect(es.guideNotForBody.toLowerCase(), contains('diff'));
-      expect(en.guideNotForBody.toLowerCase(), contains('diff'));
+      // Y el caso concreto y no un genérico: decidir tramo a tramo.
+      expect(es.guideNotForBody.toLowerCase(), contains('tramo'));
+      expect(en.guideNotForBody.toLowerCase(), contains('hunk'));
     });
 
     test('y lo que sí reclama para sí es lo que exige la máquina', () {
