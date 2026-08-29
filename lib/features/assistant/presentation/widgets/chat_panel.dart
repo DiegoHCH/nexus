@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
@@ -120,7 +123,80 @@ class _Turn extends StatelessWidget {
             )
           else if (!isUser)
             _Answer(text: message.text),
+          // Lo que este turno dejó, al pie de su propio mensaje.
+          //
+          // Aquí y no en una barra bajo la conversación, que es donde estaba:
+          // esa barra enseñaba **solo el último** encargo, así que al pedir la
+          // segunda cosa desaparecía lo que había hecho la primera. Colgado del
+          // mensaje, cada turno conserva lo suyo aunque subas.
+          if (message.cambios != null || message.documento != null)
+            _LoQueDejo(message: message),
         ],
+      ),
+    );
+  }
+}
+
+/// Los botones de lo que produjo un turno: los cambios y el documento.
+///
+/// Solo aparecen si hay algo detrás. Un botón que a veces no lleva a ningún
+/// sitio enseña a no pulsarlo, y entonces tampoco se pulsa el día que sí lleva.
+class _LoQueDejo extends ConsumerWidget {
+  const _LoQueDejo({required this.message});
+
+  final ChatMessage message;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final strings = context.strings;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Wrap(
+        spacing: NexusSpacing.s2,
+        children: [
+          if (message.cambios case final cambios?)
+            _Boton(
+              icono: Icons.difference,
+              texto: strings.changedFiles(cambios.fileCount),
+              onTap: () => ref
+                  .read(elVisorDeCambiosProvider)
+                  .abrir(cambios, strings.changesTitle),
+            ),
+          if (message.documento case final documento?)
+            _Boton(
+              icono: Icons.article_outlined,
+              texto: documento.split('/').last,
+              onTap: () =>
+                  ref.read(artifactsDataSourceProvider).open(documento),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _Boton extends StatelessWidget {
+  const _Boton({required this.icono, required this.texto, required this.onTap});
+
+  final IconData icono;
+  final String texto;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return TextButton.icon(
+      onPressed: onTap,
+      icon: Icon(icono, size: 13, color: colors.accent),
+      label: Text(
+        texto,
+        style: NexusTypography.mono.copyWith(color: colors.accent),
+      ),
+      style: TextButton.styleFrom(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        minimumSize: Size.zero,
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
       ),
     );
   }

@@ -36,6 +36,39 @@ class GitChanges {
   int get fileCount =>
       RegExp(r'^diff --git ', multiLine: true).allMatches(diff).length +
       newFiles.length;
+
+  /// Hasta dónde se guarda el diff al archivar la conversación.
+  ///
+  /// **Con tope y no entero**: un encargo grande deja cientos de kilobytes de
+  /// diff, y una conversación de diez encargos multiplicaría por diez el
+  /// archivo que el historial lee para pintar su lista. Doscientos mil
+  /// caracteres cubren de sobra un encargo normal; lo que pase de ahí se
+  /// recorta y se dice, que es mejor que un historial que pesa como el repo.
+  static const maxGuardado = 200000;
+
+  Map<String, dynamic> toJson() => {
+    // El recorte va por archivos enteros: cortar un diff a mitad de un tramo
+    // produce algo que ya no es un diff y que el visor pintaría torcido.
+    'diff': _recortado,
+    if (newFiles.isNotEmpty) 'nuevos': newFiles,
+    if (diff.length > maxGuardado) 'recortado': true,
+  };
+
+  String get _recortado {
+    if (diff.length <= maxGuardado) return diff;
+    final corte = diff.lastIndexOf('\ndiff --git ', maxGuardado);
+    return corte == -1 ? '' : diff.substring(0, corte + 1);
+  }
+
+  static GitChanges? fromJson(Map<String, dynamic> json) {
+    final diff = json['diff'] as String? ?? '';
+    final nuevos = [
+      for (final archivo in json['nuevos'] as List<dynamic>? ?? const [])
+        if (archivo is String) archivo,
+    ];
+    if (diff.isEmpty && nuevos.isEmpty) return null;
+    return GitChanges(diff: diff, newFiles: nuevos);
+  }
 }
 
 /// Pregunta a git, que es quien sabe.

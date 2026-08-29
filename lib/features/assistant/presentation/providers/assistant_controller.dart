@@ -384,11 +384,33 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Dónde estaba el repositorio antes de este encargo.
   String? _repoBase;
 
+  /// Y qué documentos había antes, para saber cuál salió de aquí.
+  Set<String> _documentosAntes = const {};
+
   Future<void> _markRepo() async {
     final folder = _workingDirectory;
     _repoBase = folder == null
         ? null
         : await const GitDataSource().snapshot(folder);
+    _documentosAntes = await _documentosAhora();
+  }
+
+  /// Las rutas de los documentos que hay ahora mismo en el cajón.
+  ///
+  /// Se comparan antes y después por la misma razón que el repositorio: lo que
+  /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
+  Future<Set<String>> _documentosAhora() async {
+    final carpeta = ref.read(artifactsFolderProvider);
+    if (carpeta == null) return const {};
+    final cuentas = ref
+        .read(claudeProfilesProvider)
+        .value
+        ?.map((perfil) => perfil.name)
+        .toSet();
+    final lista = await ref
+        .read(artifactsDataSourceProvider)
+        .list(carpeta, cuentas: cuentas ?? const {});
+    return {for (final documento in lista) documento.path};
   }
 
   /// Qué dejó tocado, si tocó algo.
@@ -399,6 +421,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     final cambios = await const GitDataSource().changesSince(folder, base);
     if (cambios == null) return;
     state = state.copyWith(changes: cambios);
+    _sellarEnElMensaje(cambios: cambios);
 
     // **Y si hay una app corriendo de este proyecto, se recarga sola.**
     //
@@ -448,6 +471,38 @@ class AssistantController extends Notifier<AssistantHudState> {
     _afterErrand();
   }
 
+  /// Deja en el último mensaje de Nexus lo que este encargo produjo.
+  ///
+  /// **En el mensaje y no solo en la pantalla**, que es donde vivía: el estado
+  /// guarda uno y lo pisa el siguiente, así que al subir por la conversación el
+  /// segundo encargo borraba de la vista lo que había hecho el primero. Cada
+  /// turno se queda con lo suyo.
+  void _sellarEnElMensaje({GitChanges? cambios, String? documento}) {
+    final mensajes = [...state.messages];
+    final donde = mensajes.lastIndexWhere(
+      (mensaje) => mensaje.author == ChatAuthor.nexus,
+    );
+    if (donde == -1) return;
+    mensajes[donde] = mensajes[donde].copyWith(
+      cambios: cambios,
+      documento: documento,
+    );
+    state = state.copyWith(messages: mensajes);
+  }
+
+  /// El documento que salió de este encargo, si salió alguno.
+  ///
+  /// El más reciente de los que no estaban antes. Si un encargo produjo dos, se
+  /// ofrece el último: son las notas de la misma tarea y el botón lleva a la
+  /// carpeta igual, con el resto al lado.
+  Future<void> _mirarSiHayDocumento() async {
+    final ahora = await _documentosAhora();
+    final nuevos = ahora.difference(_documentosAntes);
+    if (nuevos.isEmpty) return;
+    ref.invalidate(artifactsProvider);
+    _sellarEnElMensaje(documento: nuevos.last);
+  }
+
   /// Lo que hay que hacer cuando un encargo termina, **venga de donde venga**.
   ///
   /// Vivía dentro de [_onTurnCompleted], que solo corre escribiendo: hablando,
@@ -460,6 +515,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
     unawaited(_readChanges());
+    unawaited(_mirarSiHayDocumento());
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
