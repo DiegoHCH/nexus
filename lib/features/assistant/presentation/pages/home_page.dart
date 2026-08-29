@@ -125,6 +125,12 @@ class _HomePageState extends ConsumerState<HomePage> {
     // algo que leer: repartir la pantalla en dos para dejar media vacía sería
     // pedirle al ojo que ignore un hueco.
     final hasChat = hud.messages.isNotEmpty;
+    // El muelle de conversaciones flota sobre este mismo `Stack`, en la
+    // esquina de abajo a la izquierda — justo donde vive el orbe. Se le aparta
+    // su franja en vez de dejar que se crucen: con varias abiertas la pila
+    // subía hasta la mitad del orbe y quedaba una encima de la otra según el
+    // orden de pintado, que no es una decisión de diseño sino un accidente.
+    final franjaDelMuelle = ConversationDock.espacioReservado(conversaciones);
 
     return CallbackShortcuts(
       bindings: {
@@ -181,7 +187,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       curve: Curves.easeInOutCubic,
                       left: 0,
                       top: 0,
-                      bottom: 0,
+                      bottom: franjaDelMuelle,
                       width: hasChat
                           ? MediaQuery.sizeOf(context).width * 0.42
                           : MediaQuery.sizeOf(context).width,
@@ -200,7 +206,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                           child: GestureDetector(
                             onTap: controller.toggleVoice,
                             behavior: HitTestBehavior.opaque,
-                            child: NexusOrb(state: hud.orbState),
+                            // Llenando su caja, que aquí es apaisada: el
+                            // muelle se lleva la franja de abajo y lo que
+                            // queda es ancho y bajo. La fracción de siempre
+                            // mide contra el alto y dejaba el orbe pequeño
+                            // con sitio de sobra alrededor.
+                            child: NexusOrb(
+                              state: hud.orbState,
+                              fillsBox: true,
+                            ),
                           ),
                         ),
                       ),
@@ -272,7 +286,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                       ),
                     const Positioned(
                       left: NexusSpacing.s6,
-                      bottom: NexusSpacing.s5,
+                      bottom: ConversationDock.alDelSuelo,
                       child: TourAnchor(
                         stop: TourStop.dock,
                         child: ConversationDock(),
@@ -457,7 +471,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                     ),
                     const Positioned(
                       left: NexusSpacing.s6,
-                      bottom: NexusSpacing.s5,
+                      bottom: ConversationDock.alDelSuelo,
                       child: TourAnchor(
                         stop: TourStop.dock,
                         child: ConversationDock(),

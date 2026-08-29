@@ -135,6 +135,26 @@ void main() {
       expect(en.guidePrivacyBody, contains('output folder'));
     });
 
+    // Lo que esta prueba **no** podía ver, y costó un día descubrir: vigilaba
+    // que el texto no se borrara, pero no que siguiera siendo cierto. La frase
+    // decía que para ver un diff había que irse al terminal, y desde la PR #164
+    // Nexus enseña el diff a dos columnas. Una lista de «lo que no hago»
+    // envejece igual que una de features, y en la dirección peor: vendiendo
+    // menos de lo que hay.
+    test('lo que se cede es lo que de verdad no se hace', () {
+      for (final cuerpo in [es.guideNotForBody, en.guideNotForBody]) {
+        expect(
+          cuerpo.toLowerCase(),
+          isNot(contains('no se audita')),
+          reason: 'esa frase daba por hecho que Nexus no enseña diffs, y sí',
+        );
+      }
+      // Lo que sí sigue siendo verdad, y es lo que se cede ahora: no es un
+      // cliente de git.
+      expect(es.guideNotForBody.toLowerCase(), contains('cliente de git'));
+      expect(en.guideNotForBody.toLowerCase(), contains('git client'));
+    });
+
     test('el bloque que cede terreno nombra a dónde se cede', () {
       // «Nexus no lo hace todo» no cede nada: es humildad de folleto. Lo que
       // hace creíble el bloque es decir **dónde** se hace mejor, y el sitio es

@@ -18,24 +18,44 @@ class ElVisorDeCambios {
   final Ref _ref;
 
   Future<void> abrir(GitChanges cambios, String titulo) async {
-    // El segundo alcance: todo lo que sigue sin comitear. Se pide aquí y no
-    // antes porque solo hace falta si alguien abre la ventana, y es un `git
-    // diff` de más en cada encargo.
+    // Los otros dos alcances se piden **aquí y no antes**: solo hacen falta si
+    // alguien abre la ventana, y serían dos `git diff` de más en cada encargo.
     final carpeta = _ref
         .read(workspaceControllerProvider)
         .active
         ?.workingDirectory;
+    const git = GitDataSource();
+
+    // Con el archivo entero alrededor. Es lo que faltaba para que esto sirva
+    // para revisar de verdad y no solo para enterarse: con poco contexto, un
+    // cambio dentro de un método largo llega sin la firma del método, y quien
+    // lo mira no sabe dónde está.
+    final entero = carpeta == null
+        ? null
+        : await git.changesSince(
+            carpeta,
+            'HEAD',
+            lineasDeContexto: GitDataSource.contextoEntero,
+          );
     final todo = carpeta == null
         ? null
-        : await const GitDataSource().changesSince(carpeta, 'HEAD');
+        : await git.changesSince(carpeta, 'HEAD');
 
-    final html = ElDiffComoHtml.de(
-      diff: cambios.diff,
-      nuevos: cambios.newFiles,
-      titulo: titulo,
-      tambien: todo?.diff,
-      tituloDeTambien: todo == null ? null : 'Todo lo no comiteado',
-    );
+    final html = ElDiffComoHtml.deGrupos([
+      (titulo: titulo, diff: cambios.diff, nuevos: cambios.newFiles),
+      if (entero != null)
+        (
+          titulo: 'Con el archivo entero',
+          diff: entero.diff,
+          nuevos: const <String>[],
+        ),
+      if (todo != null)
+        (
+          titulo: 'Todo lo no comiteado',
+          diff: todo.diff,
+          nuevos: const <String>[],
+        ),
+    ]);
 
     // Con la hora en el nombre: dos encargos abiertos a la vez son dos
     // ventanas, y compartir archivo haría que la primera enseñara la segunda.

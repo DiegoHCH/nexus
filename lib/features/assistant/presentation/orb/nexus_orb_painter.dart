@@ -111,6 +111,7 @@ class NexusOrbPainter extends CustomPainter {
     required this.accent,
     this.showHorizon = true,
     this.onLight = false,
+    this.fillsBox = false,
   });
 
   final NexusOrbState state;
@@ -120,6 +121,17 @@ class NexusOrbPainter extends CustomPainter {
 
   final Color accent;
   final bool showHorizon;
+
+  /// El orbe se estira hasta llenar su caja, en vez de usar la fracción de
+  /// siempre del lado corto.
+  ///
+  /// Existe por la casa. Ahí el orbe vive en una columna **ancha y baja**
+  /// —desde que el muelle de conversaciones tiene su propia franja, se queda
+  /// con el alto que sobra— y `0.30 · lado corto` está pensado para una caja
+  /// cuadrada: en una apaisada mide contra el alto y deja sin usar el resto.
+  /// En todas las demás pantallas la caja **sí** es cuadrada y la fracción ya
+  /// es justo lo que cabe, así que viene apagado y nada más cambia.
+  final bool fillsBox;
 
   /// Si se pinta sobre fondo claro.
   ///
@@ -150,6 +162,19 @@ class NexusOrbPainter extends CustomPainter {
   /// el objeto está ahí sin lavar el fondo.
   static const _refuerzoHalo = 1.4;
 
+  /// Lo más lejos del centro que el orbe llega a pintar, en radios.
+  ///
+  /// No es la esfera: es el **anillo de voz**, que late hasta `1.52 · r`
+  /// (`1.34 + 0.13 + 0.05`, ver [_paintVoiceRing]) y encima respira otro 1 %.
+  /// El halo llega más lejos todavía, a `2.5 · r`, pero es un degradado que
+  /// muere en transparente: recortarlo no se ve, y protegerlo dejaría el orbe
+  /// del tamaño de una moneda.
+  ///
+  /// Es quien manda el radio con [fillsBox], y por eso el número vive aquí y
+  /// no suelto: si algún día el anillo late más, esto tiene que subir con él o
+  /// la casa empieza a cortarlo por arriba y por abajo.
+  static const _envolvente = 1.55;
+
   double _dot(_StateConfig cfg) =>
       (onLight ? cfg.dot * _refuerzoPuntos : cfg.dot).clamp(0.0, 1.0);
   double _edge(_StateConfig cfg) =>
@@ -164,8 +189,15 @@ class NexusOrbPainter extends CustomPainter {
 
     final cfg = _configs[state]!;
     final cx = w / 2;
-    final cy = h * 0.46;
-    final r0 = math.min(w, h) * 0.30;
+    // Un pelo por encima del centro: el orbe se lee como un objeto apoyado en
+    // el horizonte, y centrado del todo parecía caído. Llenando la caja no hay
+    // margen para ese gesto — lo que sobra por arriba es lo que le falta al
+    // anillo por abajo— así que ahí va al centro exacto.
+    final cy = h * (fillsBox ? 0.5 : 0.46);
+    final r0 = fillsBox
+        // El mayor radio que deja **la envolvente entera** dentro de la caja.
+        ? math.min(w, h) / 2 / _envolvente
+        : math.min(w, h) * 0.30;
     final env = _envelope(t * cfg.envelopeSpeed);
 
     final breathePhase = state == NexusOrbState.sleep ? 0.68 : 1.6;
@@ -535,6 +567,7 @@ class NexusOrbPainter extends CustomPainter {
       oldDelegate.t != t ||
       oldDelegate.accent != accent ||
       oldDelegate.showHorizon != showHorizon ||
+      oldDelegate.fillsBox != fillsBox ||
       // Hoy `accent` cambia con el tema y esto se repintaría igual — pero eso
       // es suerte, no diseño: el día que las dos paletas compartan cian,
       // cambiar de tema dejaría el orbe con las opacidades del otro. Y con

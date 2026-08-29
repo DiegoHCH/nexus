@@ -9,10 +9,19 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 /// El orbe animado de Nexus, con su horizonte. Ocupa todo el espacio que le
 /// den; el painter decide la posición y el radio en función de ese tamaño.
 class NexusOrb extends StatefulWidget {
-  const NexusOrb({super.key, required this.state, this.showHorizon = true});
+  const NexusOrb({
+    super.key,
+    required this.state,
+    this.showHorizon = true,
+    this.fillsBox = false,
+  });
 
   final NexusOrbState state;
   final bool showHorizon;
+
+  /// Ocupa la caja entera en vez de la fracción de siempre. Para cajas
+  /// apaisadas; ver [NexusOrbPainter.fillsBox].
+  final bool fillsBox;
 
   @override
   State<NexusOrb> createState() => _NexusOrbState();
@@ -88,6 +97,7 @@ class _NexusOrbState extends State<NexusOrb>
           accent: accent,
           showHorizon: widget.showHorizon,
           onLight: onLight,
+          fillsBox: widget.fillsBox,
         ),
       ),
     );

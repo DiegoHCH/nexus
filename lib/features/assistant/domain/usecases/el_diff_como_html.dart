@@ -12,31 +12,26 @@ import 'package:nexus/features/assistant/domain/usecases/el_diff_en_dos_columnas
 /// encargo y todo lo que no se ha comiteado— van en un `<details>`, que es
 /// nativo del navegador y funciona sin una línea de script.
 abstract final class ElDiffComoHtml {
-  static String de({
-    required String diff,
-    required List<String> nuevos,
-    required String titulo,
-    String? tambien,
-    String? tituloDeTambien,
-  }) {
-    // Dos grupos en la misma navegación: lo de este encargo y, debajo, todo lo
-    // que sigue sin comitear. Son dos preguntas distintas —«¿qué acabo de
-    // pedir?» y «¿qué llevo hecho de esta tarea?»— y cuál de las dos importa
-    // solo lo sabe quien mira. Aquí no se elige por él: se ofrecen las dos.
-    final grupos =
-        <({String titulo, List<ArchivoDelDiff> archivos, List<String> nuevos})>[
-          (
-            titulo: titulo,
-            archivos: ElDiffEnDosColumnas.de(diff),
-            nuevos: nuevos,
-          ),
-          if (tambien != null && tituloDeTambien != null)
-            (
-              titulo: tituloDeTambien,
-              archivos: ElDiffEnDosColumnas.de(tambien),
-              nuevos: const [],
-            ),
-        ];
+  /// Un grupo del panel: un título y el diff que cuelga de él.
+  ///
+  /// Grupos y no una pareja de alcances porque acabaron siendo tres —lo de este
+  /// encargo, lo mismo con el archivo entero alrededor, y todo lo que sigue sin
+  /// comitear— y cada uno contesta una pregunta distinta: «¿qué acabo de
+  /// pedir?», «¿y qué había alrededor?», «¿qué llevo hecho de esta tarea?».
+  /// Cuál importa solo lo sabe quien mira, así que se ofrecen todos y no se
+  /// elige por él.
+  static String deGrupos(
+    List<({String titulo, String diff, List<String> nuevos})> entradas,
+  ) {
+    final titulo = entradas.isEmpty ? 'Cambios' : entradas.first.titulo;
+    final grupos = [
+      for (final entrada in entradas)
+        (
+          titulo: entrada.titulo,
+          archivos: ElDiffEnDosColumnas.de(entrada.diff),
+          nuevos: entrada.nuevos,
+        ),
+    ];
 
     final lado = StringBuffer();
     final centro = StringBuffer();
@@ -289,6 +284,19 @@ abstract final class ElDiffComoHtml {
     'with',
     'yield',
   };
+
+  /// El atajo de un solo grupo, que es lo que quiere casi todo el que llama.
+  static String de({
+    required String diff,
+    required List<String> nuevos,
+    required String titulo,
+    String? tambien,
+    String? tituloDeTambien,
+  }) => deGrupos([
+    (titulo: titulo, diff: diff, nuevos: nuevos),
+    if (tambien != null && tituloDeTambien != null)
+      (titulo: tituloDeTambien, diff: tambien, nuevos: const <String>[]),
+  ]);
 
   /// La ruta recortada por la izquierda, que es por donde sobra: lo que
   /// identifica un archivo en una lista es su nombre, no las cinco carpetas que
