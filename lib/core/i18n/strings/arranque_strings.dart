@@ -283,11 +283,11 @@ mixin ArranqueStringsEs implements ArranqueStrings {
   String get guideNotForTitle => 'Para qué no es Nexus';
   @override
   String get guideNotForBody =>
-      'Para revisar un diff línea a línea, el terminal o tu editor. Un diff no '
-      'se audita de oído, y tampoco de un vistazo a un panel: se lee entero y '
-      'con el archivo alrededor. Nexus sirve para despachar el encargo y para '
-      'supervisar cómo va; comprobar lo que salió es otra cosa, y se hace mejor '
-      'donde siempre.\n\n'
+      'Para aprobar, comentar o preparar por tramos lo que cambió, el terminal '
+      'o tu editor. El diff sí lo enseña Nexus, a dos columnas y con el archivo '
+      'entero alrededor si lo pides — eso dejó de ser un motivo para irse. Lo '
+      'que no es, ni pretende ser, es un cliente de git: ver qué pasó, sí; '
+      'decidir qué entra, ahí no.\n\n'
       'Para una sesión larga delante de la pantalla, también el terminal. Nexus '
       'está diseñado para que no estés mirando —el atajo sin traer la ventana, '
       'el icono de la barra, el aviso al terminar—. Si vas a estar delante toda '
@@ -634,11 +634,11 @@ mixin ArranqueStringsEn implements ArranqueStrings {
   String get guideNotForTitle => 'What Nexus is not for';
   @override
   String get guideNotForBody =>
-      'To review a diff line by line, the terminal or your editor. A diff is '
-      'not audited by ear, and not at a glance in a panel either: it is read '
-      'whole, with the file around it. Nexus is for dispatching the errand and '
-      'for supervising how it goes; checking what came out is another thing, '
-      'and it is done better where it always was.\n\n'
+      'To approve, comment on or stage what changed by hunks, the terminal or '
+      'your editor. Nexus does show you the diff, side by side and with the '
+      'whole file around it if you ask — that stopped being a reason to leave. '
+      'What it is not, and does not intend to be, is a git client: seeing what '
+      'happened, yes; deciding what goes in, no.\n\n'
       'For a long session in front of the screen, the terminal too. Nexus is '
       'designed for you not to be watching — the shortcut that does not bring '
       'the window forward, the menu bar icon, the notice when it finishes. If '

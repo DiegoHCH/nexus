@@ -143,10 +143,33 @@ class GitDataSource {
     return _run(folderPath, ['rev-parse', 'HEAD']);
   }
 
+  /// Cuántas líneas se enseñan alrededor de cada cambio.
+  ///
+  /// **Veinte y no las tres de `git diff`.** Las tres de por defecto están
+  /// pensadas para un parche que se aplica, no para una revisión que se lee:
+  /// con tres, un cambio dentro de un método largo llega sin la firma del
+  /// método, y quien lo mira no sabe dónde está. Era la mitad del motivo por el
+  /// que la guía decía que para revisar un diff había que ir al terminal.
+  ///
+  /// Veinte cubre casi cualquier función sin convertir el diff en el archivo
+  /// entero. Para eso está [contextoEntero].
+  static const contexto = 20;
+
+  /// Todo el archivo alrededor del cambio, para cuando veinte no bastan.
+  ///
+  /// Es lo que `git diff -U` entiende como «no recortes»: un número más grande
+  /// que cualquier archivo razonable. No hay bandera de «entero».
+  static const contextoEntero = 100000;
+
   /// Lo que cambió desde esa marca: el diff de lo ya seguido por git, y los
   /// archivos nuevos, que no salen en un diff normal.
-  Future<GitChanges?> changesSince(String folderPath, String base) async {
-    final diff = await _run(folderPath, ['diff', base]) ?? '';
+  Future<GitChanges?> changesSince(
+    String folderPath,
+    String base, {
+    int lineasDeContexto = contexto,
+  }) async {
+    final diff =
+        await _run(folderPath, ['diff', '-U$lineasDeContexto', base]) ?? '';
     final untracked =
         await _run(folderPath, [
           'ls-files',
