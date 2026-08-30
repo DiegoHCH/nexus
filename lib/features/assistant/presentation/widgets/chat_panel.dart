@@ -132,7 +132,14 @@ class _Turn extends StatelessWidget {
           // esa barra enseñaba **solo el último** encargo, así que al pedir la
           // segunda cosa desaparecía lo que había hecho la primera. Colgado del
           // mensaje, cada turno conserva lo suyo aunque subas.
-          if (message.cambios != null || message.documento != null)
+          // **Y el parte cuenta como «algo que dejó»**, aunque no toque ningún
+          // archivo — que es lo normal: se pide sin permiso de escritura. Esta
+          // condición se escribió cuando solo había cambios y documento, y al
+          // añadir el parte se quedó fuera: el botón existía y no se dibujaba
+          // nunca, porque el bloque entero se saltaba antes de llegar a él.
+          if (message.cambios != null ||
+              message.documento != null ||
+              message.esElParte)
             _LoQueDejo(message: message),
         ],
       ),

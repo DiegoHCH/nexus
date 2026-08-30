@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
@@ -177,5 +179,28 @@ void main() {
         reason: 'lo de hoy no cuenta, así que no queda material',
       );
     });
+  });
+
+  // El fallo que costó tres intentos encontrar, y que ninguna prueba veía: el
+  // mensaje se marcaba bien, el botón existía, y la fila de botones **no se
+  // dibujaba** porque su condición se escribió cuando solo había cambios y
+  // documento. Un parte no toca archivos —se pide sin escritura— así que caía
+  // siempre en el lado de «este turno no dejó nada».
+  test('la fila de botones cuenta el parte como algo que el turno dejó', () {
+    final fuente = File(
+      'lib/features/assistant/presentation/widgets/chat_panel.dart',
+    ).readAsStringSync();
+
+    final condicion = fuente.substring(
+      fuente.indexOf('if (message.cambios != null'),
+      fuente.indexOf('_LoQueDejo(message: message)'),
+    );
+    expect(
+      condicion,
+      contains('message.esElParte'),
+      reason:
+          'sin esto el botón de mandar a Slack existe y no se dibuja nunca, '
+          'porque un parte no deja cambios ni documentos',
+    );
   });
 }

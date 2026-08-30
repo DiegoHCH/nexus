@@ -117,6 +117,35 @@ diff --git a/lib/a.dart b/lib/a.dart
     });
   });
 
+  // El mismo fallo que tuvieron los cambios, repetido con el parte: marcado en
+  // memoria y perdido al cerrar, así que al día siguiente el parte volvía sin
+  // su botón de enviar.
+  test('el parte vuelve marcado, con su botón', () async {
+    const almacen = LocalConversationStore();
+    final record = ConversationRecord(
+      id: 'uno',
+      folderPath: '/repo',
+      startedAt: DateTime(2026, 8, 29),
+      messages: const [
+        ChatMessage(author: ChatAuthor.user, text: 'el parte'),
+        ChatMessage(
+          author: ChatAuthor.nexus,
+          text: 'Qué hice…',
+          esElParte: true,
+        ),
+      ],
+    );
+    await almacen.save(record);
+
+    final vuelta = await almacen.read(fichaDe(record));
+    expect(vuelta!.messages.last.esElParte, isTrue);
+    expect(
+      vuelta.messages.first.esElParte,
+      isFalse,
+      reason: 'lo que se pidió no es el parte: el parte es la respuesta',
+    );
+  });
+
   test('un documento que ya no está no deja un botón muerto', () async {
     const almacen = LocalConversationStore();
     final record = conUnCambio(
