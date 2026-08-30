@@ -13,7 +13,6 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
-import 'package:nexus/features/assistant/presentation/widgets/changes_sheet.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
@@ -242,22 +241,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
                             Expanded(child: ChatPanel(messages: hud.messages)),
-                            // Solo si esta tarea tocó algo: un botón que a
-                            // veces no lleva a nada enseña a no pulsarlo.
-                            if (hud.changes case final cambios?)
-                              Align(
-                                alignment: Alignment.centerLeft,
-                                child: TextButton.icon(
-                                  onPressed: () =>
-                                      ChangesSheet.open(context, cambios),
-                                  icon: const Icon(Icons.difference, size: 14),
-                                  label: Text(
-                                    context.strings.changedFiles(
-                                      cambios.fileCount,
-                                    ),
-                                  ),
-                                ),
-                              ),
+                            // 🔴 Aquí había un segundo botón de «ver los
+                            // archivos que tocó», y salía **a la vez** que el
+                            // que cuelga del mensaje: el mismo botón dos veces,
+                            // uno encima del otro. Este es el que sobra — el
+                            // del mensaje es el que conserva lo suyo cuando
+                            // pides la segunda cosa. Su propio comentario en
+                            // `chat_panel` ya explicaba que esta barra enseñaba
+                            // solo el último encargo; lo que faltó fue borrarla
+                            // al mudarlo.
                             // La actividad no desaparece: baja al pie de la
                             // conversación mientras hay trabajo, para verse sin
                             // tapar lo que ya se dijo.
