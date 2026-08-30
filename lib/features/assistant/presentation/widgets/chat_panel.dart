@@ -10,7 +10,9 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_enlaces_del_texto.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// La conversación entera a la derecha: lo que pediste y lo que respondió.
 ///
@@ -305,6 +307,35 @@ class _Answer extends StatelessWidget {
 
   final String text;
 
+  /// Abre el enlace, **y si no puede lo dice**.
+  ///
+  /// Callarse aquí es lo que hizo perder una tarde: pulsas, no pasa nada, y no
+  /// hay forma de saber si el enlace no era enlace, si el sistema lo rechazó o
+  /// si el código ni se ejecutó. Un fallo mudo en un gesto de un clic es peor
+  /// que uno ruidoso, porque el siguiente paso es dudar de todo lo demás.
+  static Future<void> _abrirEnlace(
+    BuildContext context,
+    String? destino,
+  ) async {
+    final mensajero = ScaffoldMessenger.maybeOf(context);
+    void decir(String queja) {
+      mensajero?.showSnackBar(
+        SnackBar(
+          content: Text('$queja${destino == null ? '' : ' · $destino'}'),
+        ),
+      );
+    }
+
+    if (destino == null || destino.isEmpty) return decir('Enlace vacío');
+    final uri = Uri.tryParse(destino);
+    if (uri == null) return decir('No se entiende el enlace');
+    try {
+      if (!await launchUrl(uri)) decir('El sistema no abrió el enlace');
+    } on Object catch (error) {
+      decir('$error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -312,12 +343,27 @@ class _Answer extends StatelessWidget {
     final mono = NexusTypography.mono.copyWith(color: colors.accent);
 
     return MarkdownBody(
-      data: text,
+      // Las URLs que el modelo escribe entre comillas invertidas vuelven a ser
+      // enlaces antes de pintar. Ver [LosEnlacesDelTexto].
+      data: LosEnlacesDelTexto.sinComillas(text),
       // Sin `selectable`: lo pone el área de la conversación. Ver [ChatPanel].
       selectable: false,
+      // **Sin esto un enlace es texto de color.** El paquete pinta el estilo de
+      // `a:` igual, así que parecía pulsable y no hacía nada: se le daba clic,
+      // se le daba ⌘-clic, y nada. `onTapLink` no trae valor por defecto —quien
+      // dibuja decide a dónde va un enlace— y aquí no se había puesto nunca.
+      onTapLink: (texto, destino, titulo) =>
+          unawaited(_abrirEnlace(context, destino)),
       styleSheet: MarkdownStyleSheet(
         p: body,
-        a: body.copyWith(color: colors.accent),
+        // Subrayado, y no solo en color: en una conversación de texto plano el
+        // color solo no dice «esto se pulsa», y menos con el acento ya usado en
+        // otras cosas. Lo que es pulsable tiene que parecerlo.
+        a: body.copyWith(
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.accent.withValues(alpha: 0.5),
+        ),
         strong: body.copyWith(fontWeight: FontWeight.w600),
         em: body.copyWith(fontStyle: FontStyle.italic),
         h1: NexusTypography.title.copyWith(color: colors.ink),
