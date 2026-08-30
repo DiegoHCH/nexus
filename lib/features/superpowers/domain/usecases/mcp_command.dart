@@ -24,6 +24,7 @@ abstract final class McpCommand {
     String? url,
     List<String> command = const [],
     List<String> env = const [],
+    List<String> headers = const [],
   }) {
     if (!validName(name)) return null;
 
@@ -35,6 +36,11 @@ abstract final class McpCommand {
         'user',
         '--transport',
         'http',
+        // Antes del nombre y la URL, como las variables antes del `--`: el CLI
+        // toma `<name> <commandOrUrl>` por posición, así que una cabecera
+        // colada detrás dejaría de ser una cabecera sin decir nada.
+        for (final header in headers)
+          if (validHeader(header)) ...['-H', header.trim()],
         name,
         url.trim(),
       ];
@@ -59,6 +65,16 @@ abstract final class McpCommand {
 
   static bool validEnv(String pair) =>
       RegExp(r'^[A-Za-z_][A-Za-z0-9_]*=.+$').hasMatch(pair);
+
+  /// `Nombre: valor`, y el nombre solo con lo que una cabecera HTTP admite.
+  ///
+  /// **Sin saltos de línea, ni siquiera dentro del valor.** No es por el
+  /// proceso —esto va como un argumento suelto, no por una shell— es por lo que
+  /// hay al otro lado: un `\n` pegado en el campo partiría la cabecera en dos
+  /// al llegar a la petición, y la segunda mitad sería una cabecera que nadie
+  /// escribió.
+  static bool validHeader(String header) =>
+      RegExp(r'^[A-Za-z0-9!#$%&*+.^_`|~-]+:[^\r\n]+$').hasMatch(header.trim());
 
   static List<String>? remove(String name) =>
       validName(name) ? ['mcp', 'remove', '-s', 'user', name] : null;

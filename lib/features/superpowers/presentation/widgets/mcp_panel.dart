@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_catalog.dart';
+import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
 import 'package:nexus/features/superpowers/domain/usecases/fallos_por_cuenta.dart';
@@ -32,6 +33,14 @@ class McpPanel extends ConsumerStatefulWidget {
 class _McpPanelState extends ConsumerState<McpPanel> {
   final _name = TextEditingController();
   final _spec = TextEditingController();
+
+  /// La cabecera, para los servidores con llave.
+  ///
+  /// Existe porque sin ella media Internet de MCP no entra por aquí: el de
+  /// Hugging Face —y cualquiera con `Authorization`— rechaza toda petición sin
+  /// cabecera, así que se registraba con tic verde y contestaba 401 al primer
+  /// encargo. El único camino era la terminal.
+  final _header = TextEditingController();
   var _busy = false;
   var _checking = false;
   String? _error;
@@ -40,6 +49,7 @@ class _McpPanelState extends ConsumerState<McpPanel> {
   void dispose() {
     _name.dispose();
     _spec.dispose();
+    _header.dispose();
     super.dispose();
   }
 
@@ -47,6 +57,7 @@ class _McpPanelState extends ConsumerState<McpPanel> {
     String name, {
     String? url,
     List<String> command = const [],
+    List<String> headers = const [],
     String? comoSeInstala,
   }) async {
     setState(() {
@@ -83,6 +94,7 @@ class _McpPanelState extends ConsumerState<McpPanel> {
           name: name,
           url: url,
           command: command,
+          headers: headers,
         )
         .then(FallosPorCuenta.primero);
     ref.invalidate(mcpServersProvider(widget.configDir));
@@ -114,14 +126,29 @@ class _McpPanelState extends ConsumerState<McpPanel> {
     final spec = _spec.text.trim();
     if (name.isEmpty || spec.isEmpty) return;
     final isUrl = spec.startsWith('http://') || spec.startsWith('https://');
+    final header = _header.text.trim();
+
+    // Se avisa aquí y no se manda a medias: una cabecera mal escrita la
+    // descartaría el comando en silencio, y el servidor quedaría registrado
+    // **sin llave** — con tic verde y un 401 en el primer encargo, que es
+    // justo el rato en que nadie está mirando este panel.
+    if (header.isNotEmpty && !McpCommand.validHeader(header)) {
+      setState(() => _error = 'La cabecera va como «Nombre: valor».');
+      return;
+    }
+
     await _install(
       name,
       url: isUrl ? spec : null,
       command: isUrl ? const [] : spec.split(RegExp(r'\s+')),
+      headers: isUrl && header.isNotEmpty ? [header] : const [],
     );
     if (_error == null && mounted) {
       _name.clear();
       _spec.clear();
+      // La llave se va con el resto: ya viajó al registro, y dejarla escrita en
+      // pantalla es lo que acaba en la captura de alguien enseñando la app.
+      _header.clear();
     }
   }
 
@@ -240,6 +267,15 @@ class _McpPanelState extends ConsumerState<McpPanel> {
               child: Text(strings.mcpAdd),
             ),
           ],
+        ),
+        // Debajo y a lo ancho, no en la misma fila: es opcional, y ponerla al
+        // lado de la URL sugeriría que hace falta siempre.
+        const SizedBox(height: NexusSpacing.s3),
+        _Field(controller: _header, hint: strings.mcpHeaderHint),
+        const SizedBox(height: 6),
+        Text(
+          strings.mcpHeaderNote,
+          style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         if (_error case final message?) ...[
           const SizedBox(height: NexusSpacing.s3),
