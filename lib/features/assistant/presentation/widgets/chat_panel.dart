@@ -11,6 +11,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// La conversación entera a la derecha: lo que pediste y lo que respondió.
 ///
@@ -315,9 +316,26 @@ class _Answer extends StatelessWidget {
       data: text,
       // Sin `selectable`: lo pone el área de la conversación. Ver [ChatPanel].
       selectable: false,
+      // **Sin esto un enlace es texto de color.** El paquete pinta el estilo de
+      // `a:` igual, así que parecía pulsable y no hacía nada: se le daba clic,
+      // se le daba ⌘-clic, y nada. `onTapLink` no trae valor por defecto —quien
+      // dibuja decide a dónde va un enlace— y aquí no se había puesto nunca.
+      onTapLink: (texto, destino, titulo) {
+        if (destino == null || destino.isEmpty) return;
+        final uri = Uri.tryParse(destino);
+        if (uri == null) return;
+        unawaited(launchUrl(uri));
+      },
       styleSheet: MarkdownStyleSheet(
         p: body,
-        a: body.copyWith(color: colors.accent),
+        // Subrayado, y no solo en color: en una conversación de texto plano el
+        // color solo no dice «esto se pulsa», y menos con el acento ya usado en
+        // otras cosas. Lo que es pulsable tiene que parecerlo.
+        a: body.copyWith(
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.accent.withValues(alpha: 0.5),
+        ),
         strong: body.copyWith(fontWeight: FontWeight.w600),
         em: body.copyWith(fontStyle: FontStyle.italic),
         h1: NexusTypography.title.copyWith(color: colors.ink),

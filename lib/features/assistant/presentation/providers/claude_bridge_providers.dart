@@ -87,9 +87,13 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // Modelo, esfuerzo y cuenta salen de **la carpeta**: es la unidad que
         // organiza todo lo demás —memoria, contexto, archivo— y no había motivo
         // para que estos dos fueran la excepción global.
-        disallowedTools: BlockedCommands.patterns(
-          paired?.blockedCommands ?? const [],
-        ),
+        disallowedTools: [
+          ...BlockedCommands.patterns(paired?.blockedCommands ?? const []),
+          // Lo que recorta el permiso ancho de `curl`: las formas que suben un
+          // archivo. Van siempre, también en solo lectura, porque ahí no
+          // estorban: negar de más no rompe nada.
+          ...AllowedCommands.loQueNoSube,
+        ],
         // **Descargar viene de serie**, y el resto lo pone la carpeta. Sin la
         // descarga, generar una imagen o traerse un archivo no sirve de nada:
         // el trabajo se hace y no se puede guardar. Va en la forma estrecha
@@ -97,9 +101,10 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // `curl -d @archivo`, o sea la puerta de salida.
         comandosPermitidos: [
           AllowedCommands.paraDescargar,
+          AllowedCommands.paraConvertirImagenes,
           ...AllowedCommands.patterns(paired?.allowedCommands ?? const []),
         ],
-        constraintsNotice: AllowedCommands.comoSeDescarga(
+        constraintsNotice: AllowedCommands.loQuePuedeCorrer(
           BlockedCommands.notice(paired?.blockedCommands ?? const []),
         ),
         model: paired?.claudeModel,
