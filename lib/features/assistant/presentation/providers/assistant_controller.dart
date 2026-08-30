@@ -22,6 +22,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
@@ -29,6 +30,8 @@ import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -298,6 +301,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      laSesionCaduco: false,
       // El aviso también es del turno anterior. Si las reglas siguen
       // cambiadas, este encargo lo vuelve a decir; si no, ya se leyó.
       notice: null,
@@ -855,11 +859,79 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,
-      errorMessage: message,
+      errorMessage: _loQuePaso(message),
+      laSesionCaduco: PorQueMurioClaude.esSesionCaducada(message),
     );
     // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
     // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
     unawaited(_avisar(ref.read(stringsProvider).errandFailed));
+  }
+
+  /// Entra en la cuenta de esta carpeta, abriendo el navegador.
+  ///
+  /// **Aquí y no en Ajustes** porque es aquí donde te enteras: el fallo dice
+  /// qué cuenta caducó y el botón está debajo. Mandar a buscar la pantalla de
+  /// cuentas sería dejar a medias justo el paso que se puede dar solo.
+  Future<void> entrarConLaCuenta() async {
+    final strings = ref.read(stringsProvider);
+    final perfil = _perfilDeLaCarpeta();
+    final cuenta =
+        ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre;
+
+    state = state.copyWith(
+      errorMessage: null,
+      laSesionCaduco: false,
+      notice: strings.entrandoEnLaCuenta(cuenta),
+    );
+
+    final resultado = await ref.read(claudeAuthProvider).entrar(perfil);
+    if (!ref.mounted) return;
+
+    // Las cuentas se leyeron una vez al abrir Ajustes; si ahí decía «sin
+    // sesión», ahora dice otra cosa.
+    ref.invalidate(claudeProfilesProvider);
+    state = switch (resultado.como) {
+      ComoAcabo.entro => state.copyWith(notice: strings.entroLaCuenta),
+      ComoAcabo.seAgotoElPlazo => state.copyWith(
+        notice: null,
+        errorMessage: strings.nadieTerminoDeEntrar,
+      ),
+      ComoAcabo.fallo => state.copyWith(
+        notice: null,
+        errorMessage: resultado.detalle,
+      ),
+    };
+  }
+
+  /// La cuenta con la que corre esta carpeta, o `null` si usa la de siempre.
+  String? _perfilDeLaCarpeta() {
+    final carpeta = _folder;
+    if (carpeta == null) return null;
+    return ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == carpeta)
+        .firstOrNull
+        ?.claudeProfile;
+  }
+
+  /// El fallo, dicho de forma que se pueda hacer algo con él.
+  ///
+  /// Solo se traduce lo que se reconoce; el resto sale literal, que es lo que
+  /// ya hacía y sigue siendo lo correcto: el CLI dice cosas accionables y
+  /// taparlas con un «no se pudo» obliga a abrir la terminal.
+  ///
+  /// **La cuenta se nombra**, y no es un adorno: las carpetas usan cuentas
+  /// distintas y quien lee esto no tiene por qué acordarse de cuál lleva la
+  /// suya. Un «entra otra vez» sin decir dónde deja el mismo trabajo de
+  /// averiguación que había antes.
+  String _loQuePaso(String message) {
+    if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
+    final strings = ref.read(stringsProvider);
+    return strings.sesionCaducada(
+      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ??
+          strings.laCuentaDeSiempre,
+    );
   }
 
   /// Mientras no hay sesión de voz, el campo de texto enfocado es la señal

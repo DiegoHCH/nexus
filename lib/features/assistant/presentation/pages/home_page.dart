@@ -308,6 +308,15 @@ class _HomePageState extends ConsumerState<HomePage> {
                                 message: hud.errorMessage!,
                                 color: context.colors.err,
                                 onDismiss: controller.dismissError,
+                                accion: hud.laSesionCaduco
+                                    ? (
+                                        texto:
+                                            context.strings.entrarConLaCuenta,
+                                        alPulsar: () => unawaited(
+                                          controller.entrarConLaCuenta(),
+                                        ),
+                                      )
+                                    : null,
                               ),
                             if (hud.errorMessage != null && hud.notice != null)
                               const SizedBox(height: NexusSpacing.s2),
@@ -587,11 +596,20 @@ class _AvisoChip extends StatelessWidget {
     required this.message,
     required this.color,
     required this.onDismiss,
+    this.accion,
   });
 
   final String message;
   final Color color;
   final VoidCallback onDismiss;
+
+  /// Lo que se puede hacer con este aviso, cuando se puede hacer algo.
+  ///
+  /// La mayoría de los fallos solo se leen. Este hueco existe para el que **sí
+  /// tiene arreglo desde aquí**: la sesión caducada, que se resuelve abriendo
+  /// el navegador. Un botón que a veces está y a veces no es más honesto que
+  /// uno permanente que casi nunca sirve.
+  final ({String texto, VoidCallback alPulsar})? accion;
 
   @override
   Widget build(BuildContext context) {
@@ -632,6 +650,21 @@ class _AvisoChip extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (accion case final accion?) ...[
+                  const SizedBox(width: NexusSpacing.s3),
+                  InkWell(
+                    onTap: accion.alPulsar,
+                    child: Text(
+                      accion.texto,
+                      style: NexusTypography.mono.copyWith(
+                        color: color,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.underline,
+                        decorationColor: color.withValues(alpha: 0.5),
+                      ),
+                    ),
+                  ),
+                ],
                 const SizedBox(width: NexusSpacing.s2),
                 InkWell(
                   onTap: onDismiss,

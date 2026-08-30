@@ -37,6 +37,12 @@ mixin DocumentosStrings {
   String get statusQuit;
   String get errandDone;
   String get errandFailed;
+  String sesionCaducada(String cuenta);
+  String get entrarConLaCuenta;
+  String entrandoEnLaCuenta(String cuenta);
+  String get entroLaCuenta;
+  String get nadieTerminoDeEntrar;
+  String get laCuentaDeSiempre;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -134,6 +140,22 @@ mixin DocumentosStringsEs implements DocumentosStrings {
   String get errandDone => 'El encargo terminó.';
   @override
   String get errandFailed => 'El encargo no se pudo terminar.';
+  @override
+  String sesionCaducada(String cuenta) =>
+      'La sesión de la cuenta «$cuenta» caducó. Entra otra vez con esa cuenta '
+      'y vuelve a lanzarlo.';
+  @override
+  String get laCuentaDeSiempre => 'la de siempre';
+  @override
+  String get entrarConLaCuenta => 'Entrar';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Abriendo el navegador para entrar en «$cuenta». Termina ahí y vuelve.';
+  @override
+  String get entroLaCuenta => 'Sesión iniciada. Vuelve a lanzar el encargo.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'No se completó la entrada en el navegador. Inténtalo otra vez.';
   @override
   String get modelTitle => 'Modelo';
   @override
@@ -242,6 +264,22 @@ mixin DocumentosStringsEn implements DocumentosStrings {
   String get errandDone => 'The errand is done.';
   @override
   String get errandFailed => 'The errand could not be finished.';
+  @override
+  String sesionCaducada(String cuenta) =>
+      'The session for the «$cuenta» account expired. Sign in again with that '
+      'account and run it once more.';
+  @override
+  String get laCuentaDeSiempre => 'the default one';
+  @override
+  String get entrarConLaCuenta => 'Sign in';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Opening the browser to sign in to «$cuenta». Finish there and come back.';
+  @override
+  String get entroLaCuenta => 'Signed in. Run the errand again.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'The browser sign-in was not completed. Try again.';
   @override
   String get modelTitle => 'Model';
   @override
