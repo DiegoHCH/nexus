@@ -41,7 +41,20 @@ class Artifact {
     '.jpeg',
     '.svg',
     '.gif',
+    // **`.webp` porque es lo que devuelven los modelos.** El Space de FLUX
+    // entrega webp, así que sin esto una imagen recién generada no contaba como
+    // documento: no salía en la lista, no se podía abrir y no dejaba botón.
+    '.webp',
   };
+
+  /// Las que son una imagen y se pueden enseñar como miniatura en el chat.
+  ///
+  /// Aparte de [viewable] porque no todo lo que el visor abre es una imagen: un
+  /// HTML y un PDF también se abren, y meterlos aquí llenaría la conversación de
+  /// miniaturas de documentos que se leen, no se miran.
+  static const imagenes = {'.png', '.jpg', '.jpeg', '.gif', '.webp', '.svg'};
+
+  static bool isImage(String path) => _extensionEn(path, imagenes);
 
   /// Lo que se lee como texto tal cual. Se manda por el canal como una cadena, así
   /// que el teléfono puede enseñarlo **y pintarlo**.
