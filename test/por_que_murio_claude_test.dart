@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 
 /// El peor fallo de la app era el que no decía nada.
 ///
@@ -51,6 +52,26 @@ void main() {
       ]) {
         expect(PorQueMurioClaude.esSesionCaducada(otro), isFalse, reason: otro);
       }
+    });
+  });
+
+  // La bandera del estado existe **porque el texto ya viene traducido**: para
+  // reconocerlo en la pantalla habría que buscar palabras en un idioma que
+  // puede ser cualquiera de los dos. La señal se toma donde todavía está cruda
+  // —la salida del CLI— y se guarda; esto fija que el estado nace apagado y
+  // que se puede encender.
+  group('la pantalla se entera por una bandera, no por el texto', () {
+    test('nace apagada', () {
+      expect(const AssistantHudState().laSesionCaduco, isFalse);
+    });
+
+    test('y el aviso solo ofrece entrar cuando lo está', () {
+      const apagado = AssistantHudState();
+      final encendido = apagado.copyWith(laSesionCaduco: true);
+
+      expect(encendido.laSesionCaduco, isTrue);
+      // Y no se pega al estado: el siguiente encargo la apaga.
+      expect(encendido.copyWith(laSesionCaduco: false).laSesionCaduco, isFalse);
     });
   });
 }

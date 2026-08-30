@@ -30,6 +30,7 @@ import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -300,6 +301,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      laSesionCaduco: false,
       // El aviso también es del turno anterior. Si las reglas siguen
       // cambiadas, este encargo lo vuelve a decir; si no, ya se leyó.
       notice: null,
@@ -858,10 +860,59 @@ class AssistantController extends Notifier<AssistantHudState> {
       orbState: NexusOrbState.sleep,
       isStreaming: false,
       errorMessage: _loQuePaso(message),
+      laSesionCaduco: PorQueMurioClaude.esSesionCaducada(message),
     );
     // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
     // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
     unawaited(_avisar(ref.read(stringsProvider).errandFailed));
+  }
+
+  /// Entra en la cuenta de esta carpeta, abriendo el navegador.
+  ///
+  /// **Aquí y no en Ajustes** porque es aquí donde te enteras: el fallo dice
+  /// qué cuenta caducó y el botón está debajo. Mandar a buscar la pantalla de
+  /// cuentas sería dejar a medias justo el paso que se puede dar solo.
+  Future<void> entrarConLaCuenta() async {
+    final strings = ref.read(stringsProvider);
+    final perfil = _perfilDeLaCarpeta();
+    final cuenta =
+        ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre;
+
+    state = state.copyWith(
+      errorMessage: null,
+      laSesionCaduco: false,
+      notice: strings.entrandoEnLaCuenta(cuenta),
+    );
+
+    final resultado = await ref.read(claudeAuthProvider).entrar(perfil);
+    if (!ref.mounted) return;
+
+    // Las cuentas se leyeron una vez al abrir Ajustes; si ahí decía «sin
+    // sesión», ahora dice otra cosa.
+    ref.invalidate(claudeProfilesProvider);
+    state = switch (resultado.como) {
+      ComoAcabo.entro => state.copyWith(notice: strings.entroLaCuenta),
+      ComoAcabo.seAgotoElPlazo => state.copyWith(
+        notice: null,
+        errorMessage: strings.nadieTerminoDeEntrar,
+      ),
+      ComoAcabo.fallo => state.copyWith(
+        notice: null,
+        errorMessage: resultado.detalle,
+      ),
+    };
+  }
+
+  /// La cuenta con la que corre esta carpeta, o `null` si usa la de siempre.
+  String? _perfilDeLaCarpeta() {
+    final carpeta = _folder;
+    if (carpeta == null) return null;
+    return ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == carpeta)
+        .firstOrNull
+        ?.claudeProfile;
   }
 
   /// El fallo, dicho de forma que se pueda hacer algo con él.
@@ -877,17 +928,9 @@ class AssistantController extends Notifier<AssistantHudState> {
   String _loQuePaso(String message) {
     if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
     final strings = ref.read(stringsProvider);
-    final carpeta = _folder;
-    final perfil = carpeta == null
-        ? null
-        : ref
-              .read(workspaceControllerProvider)
-              .folders
-              .where((item) => item.path == carpeta)
-              .firstOrNull
-              ?.claudeProfile;
     return strings.sesionCaducada(
-      ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre,
+      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ??
+          strings.laCuentaDeSiempre,
     );
   }
 

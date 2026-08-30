@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/repo_config_data_source.dart';
@@ -306,6 +307,11 @@ final workspaceControllerProvider =
 /// perfil nuevo no es algo que pase mientras Ajustes está abierto.
 final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
   (ref) => const ClaudeProfilesDataSource().list(),
+);
+
+/// Quien sabe abrir el navegador para entrar en una cuenta.
+final claudeAuthProvider = Provider<ClaudeAuthDataSource>(
+  (ref) => const ClaudeAuthDataSource(),
 );
 
 /// El repositorio y la rama de una carpeta. Se relee al terminar cada turno,

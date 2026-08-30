@@ -38,6 +38,10 @@ mixin DocumentosStrings {
   String get errandDone;
   String get errandFailed;
   String sesionCaducada(String cuenta);
+  String get entrarConLaCuenta;
+  String entrandoEnLaCuenta(String cuenta);
+  String get entroLaCuenta;
+  String get nadieTerminoDeEntrar;
   String get laCuentaDeSiempre;
   String get modelTitle;
   String get effortTitle;
@@ -142,6 +146,16 @@ mixin DocumentosStringsEs implements DocumentosStrings {
       'y vuelve a lanzarlo.';
   @override
   String get laCuentaDeSiempre => 'la de siempre';
+  @override
+  String get entrarConLaCuenta => 'Entrar';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Abriendo el navegador para entrar en «$cuenta». Termina ahí y vuelve.';
+  @override
+  String get entroLaCuenta => 'Sesión iniciada. Vuelve a lanzar el encargo.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'No se completó la entrada en el navegador. Inténtalo otra vez.';
   @override
   String get modelTitle => 'Modelo';
   @override
@@ -256,6 +270,16 @@ mixin DocumentosStringsEn implements DocumentosStrings {
       'account and run it once more.';
   @override
   String get laCuentaDeSiempre => 'the default one';
+  @override
+  String get entrarConLaCuenta => 'Sign in';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Opening the browser to sign in to «$cuenta». Finish there and come back.';
+  @override
+  String get entroLaCuenta => 'Signed in. Run the errand again.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'The browser sign-in was not completed. Try again.';
   @override
   String get modelTitle => 'Model';
   @override
