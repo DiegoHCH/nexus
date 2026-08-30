@@ -306,6 +306,35 @@ class _Answer extends StatelessWidget {
 
   final String text;
 
+  /// Abre el enlace, **y si no puede lo dice**.
+  ///
+  /// Callarse aquí es lo que hizo perder una tarde: pulsas, no pasa nada, y no
+  /// hay forma de saber si el enlace no era enlace, si el sistema lo rechazó o
+  /// si el código ni se ejecutó. Un fallo mudo en un gesto de un clic es peor
+  /// que uno ruidoso, porque el siguiente paso es dudar de todo lo demás.
+  static Future<void> _abrirEnlace(
+    BuildContext context,
+    String? destino,
+  ) async {
+    final mensajero = ScaffoldMessenger.maybeOf(context);
+    void decir(String queja) {
+      mensajero?.showSnackBar(
+        SnackBar(
+          content: Text('$queja${destino == null ? '' : ' · $destino'}'),
+        ),
+      );
+    }
+
+    if (destino == null || destino.isEmpty) return decir('Enlace vacío');
+    final uri = Uri.tryParse(destino);
+    if (uri == null) return decir('No se entiende el enlace');
+    try {
+      if (!await launchUrl(uri)) decir('El sistema no abrió el enlace');
+    } on Object catch (error) {
+      decir('$error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -320,12 +349,8 @@ class _Answer extends StatelessWidget {
       // `a:` igual, así que parecía pulsable y no hacía nada: se le daba clic,
       // se le daba ⌘-clic, y nada. `onTapLink` no trae valor por defecto —quien
       // dibuja decide a dónde va un enlace— y aquí no se había puesto nunca.
-      onTapLink: (texto, destino, titulo) {
-        if (destino == null || destino.isEmpty) return;
-        final uri = Uri.tryParse(destino);
-        if (uri == null) return;
-        unawaited(launchUrl(uri));
-      },
+      onTapLink: (texto, destino, titulo) =>
+          unawaited(_abrirEnlace(context, destino)),
       styleSheet: MarkdownStyleSheet(
         p: body,
         // Subrayado, y no solo en color: en una conversación de texto plano el
