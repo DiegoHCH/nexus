@@ -14,6 +14,16 @@ abstract final class ClaudeErrand {
   /// es quien tiene el puerto.
   static const testTool = 'correr_prueba';
 
+  /// El parte del día, dicho hablando: «dame el daily».
+  ///
+  /// **Sí acaba en Claude —lo redacta él— pero el encargo no se puede escribir
+  /// aquí**: hay que ir a mirar qué conversaciones hubo el último día con
+  /// trabajo y en qué carpetas, y eso es leer del disco. Por eso [forTool]
+  /// también devuelve `null` para ella: la instrucción la monta el puerto, con
+  /// el mismo material que usa el botón del menú, y así hablando y pulsando
+  /// sale exactamente el mismo parte.
+  static const parteTool = 'pedir_el_parte';
+
   /// Normaliza el nombre a lo que es una carpeta de skill: minúsculas y
   /// guiones medios.
   ///

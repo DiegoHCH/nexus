@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 
@@ -66,6 +68,13 @@ void main() {
       expect(encargo, contains('solo lectura'));
     });
 
+    // El parte se pide hablando y lo redacta Claude, pero el encargo no se
+    // puede escribir aquí: hay que ir a leer qué se hizo el último día. Lo monta
+    // el puerto, así que esta capa lo trata como a una desconocida.
+    test('el parte tampoco produce encargo: lo monta el puerto', () {
+      expect(ClaudeErrand.forTool(ClaudeErrand.parteTool, const {}), isNull);
+    });
+
     test('sin nombre o sin para qué, no hay encargo', () {
       expect(
         ClaudeErrand.forTool(ClaudeErrand.skillTool, {'para_que': 'algo'}),
@@ -79,5 +88,32 @@ void main() {
         isNull,
       );
     });
+  });
+
+  /// Una herramienta que la conversación reconoce pero el modelo no puede
+  /// llamar es código muerto, y el síntoma no se parece a un fallo: pides «dame
+  /// el daily» y el modelo, sin esa herramienta en la mano, se lo pasa a Claude
+  /// como una frase suelta — contesta algo, y no es el parte.
+  ///
+  /// Se mira el archivo y no una constante porque las declaraciones viven en un
+  /// mapa privado del gateway. Es la misma comprobación que si se leyera el
+  /// mapa: que los cuatro nombres estén ahí.
+  test('las cuatro herramientas están declaradas hacia el modelo', () {
+    final gateway = File(
+      'lib/features/assistant/data/repositories/gemini_voice_gateway.dart',
+    ).readAsStringSync();
+
+    for (final herramienta in [
+      ClaudeErrand.askTool,
+      ClaudeErrand.skillTool,
+      ClaudeErrand.testTool,
+      ClaudeErrand.parteTool,
+    ]) {
+      expect(
+        gateway,
+        contains("'$herramienta'"),
+        reason: 'el modelo no puede llamar a «$herramienta»',
+      );
+    }
   });
 }

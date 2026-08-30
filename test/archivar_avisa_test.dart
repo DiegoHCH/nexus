@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_parte_del_dia.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
@@ -44,6 +45,18 @@ class _SinPruebas implements CorrerUnaPrueba {
   Future<String> loQuePidieron(String pedido) async => 'no';
 }
 
+/// Ninguna de estas pruebas pide el parte; está para que el constructor tenga
+/// su séptima pieza.
+class _SinParte implements ElParteDelDia {
+  const _SinParte();
+
+  @override
+  Future<String?> instruccion() async => null;
+
+  @override
+  void yaEstaEscrito(String parte) {}
+}
+
 class _Guionizada extends HoldVoiceConversation {
   _Guionizada()
     : super(
@@ -59,6 +72,7 @@ class _Guionizada extends HoldVoiceConversation {
         ),
         (_) {},
         const _SinPruebas(),
+        const _SinParte(),
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();

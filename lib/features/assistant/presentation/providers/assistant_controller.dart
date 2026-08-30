@@ -22,7 +22,9 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
@@ -208,6 +210,9 @@ class AssistantController extends Notifier<AssistantHudState> {
           spoken: spoken,
           streaming: true,
           attachments: attachments,
+          // Solo la respuesta, no lo que se pidió: el botón de enviar va bajo
+          // el parte, y lo que se pidió es la instrucción que lo generó.
+          esElParte: author == ChatAuthor.nexus && _elParteEnCurso,
         ),
       ],
     );
@@ -249,9 +254,29 @@ class AssistantController extends Notifier<AssistantHudState> {
     String instruction, {
     List<String> attachments = const [],
     bool allowWrites = true,
+    bool esElParte = false,
+    String? loQueSeVe,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
+
+    // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
+    // Claude: él no tiene delante lo de ayer, así que contestaba algo con cara
+    // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
+    // no en el compositor porque por escrito también se pide desde el móvil, y
+    // el atajo tiene que valer por los dos sitios.
+    if (!esElParte &&
+        attachments.isEmpty &&
+        ElParteDeAyer.loEstanPidiendo(trimmed)) {
+      if (await pedirElParte(loQueSeVe: trimmed)) return;
+      // Sin día que contar se dice y no se le pide a Claude que se lo invente:
+      // un parte de la nada se lee igual de convincente que uno de verdad.
+      _say(ChatAuthor.user, trimmed);
+      _sealLast();
+      _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
+      _sealLast();
+      return;
+    }
 
     // Lo que se le manda a Claude lleva las rutas detrás —las necesita para
     // abrir los archivos—; lo que se enseña en la conversación, no. Antes eran
@@ -265,6 +290,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     await _subscription?.cancel();
     _sealLast();
+    _elParteEnCurso = esElParte;
     final buffer = StringBuffer();
     state = state.copyWith(
       orbState: NexusOrbState.think,
@@ -279,7 +305,10 @@ class AssistantController extends Notifier<AssistantHudState> {
       changes: null,
       history: _remember(paraClaude),
     );
-    _say(ChatAuthor.user, trimmed, attachments: attachments);
+    // Lo que se ve puede no ser lo que se manda: quien escribe «dame el daily»
+    // pidió dos palabras, y enseñarle en su sitio las cuarenta líneas de
+    // material que salieron hacia Claude no le dice nada.
+    _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
     _sealLast();
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
@@ -471,6 +500,54 @@ class AssistantController extends Notifier<AssistantHudState> {
     _afterErrand();
   }
 
+  /// Si el encargo en curso es el parte del día.
+  ///
+  /// **Se pone al empezar y se lee al crear el mensaje**, no minutos después al
+  /// sellarlo. La primera versión lo consumía en `_afterErrand` —a un turno
+  /// entero de distancia— y el botón no aparecía: entre medias cabe cualquier
+  /// cosa que reconstruya el estado, y una marca que depende de sobrevivir a
+  /// eso no es una marca. Naciendo marcado, el botón está desde la primera
+  /// palabra de la respuesta.
+  bool _elParteEnCurso = false;
+
+  /// Pide el parte del último día con trabajo.
+  ///
+  /// **Lo redacta Claude**: aquí solo se junta el material —qué conversaciones
+  /// hubo ese día, en qué carpetas y con cuántos turnos— y se le pone delante.
+  /// Devuelve `false` si no hay ningún día anterior que contar, que es distinto
+  /// de fallar: se dice y no se le pide un parte de la nada.
+  Future<bool> pedirElParte({String? loQueSeVe}) async {
+    final instruccion = await laInstruccionDelParte(ref);
+    if (instruccion == null) return false;
+
+    // Sin escritura: un parte se escribe leyendo, y esto lo puede pedir alguien
+    // que no tiene por qué darle permiso de escribir para contar lo que hizo.
+    await submit(
+      instruccion,
+      allowWrites: false,
+      esElParte: true,
+      loQueSeVe: loQueSeVe,
+    );
+    return true;
+  }
+
+  /// Deja en la conversación un parte que se pidió **hablando**.
+  ///
+  /// Hace falta un camino aparte porque hablando el encargo no pasa por
+  /// [submit]: lo lleva la conversación de voz, y lo que Claude devuelve
+  /// alimenta la narración, no el chat. Sin esto el parte se oiría y no
+  /// quedaría en ninguna parte — ni el texto, ni el botón para mandarlo.
+  ///
+  /// Se sella lo anterior y lo siguiente: entre medias llega la narración del
+  /// modelo de voz, que es otro turno y no puede acabar pegada al parte.
+  void dejarElParte(String parte) {
+    _sealLast();
+    _elParteEnCurso = true;
+    _say(ChatAuthor.nexus, parte);
+    _sealLast();
+    _elParteEnCurso = false;
+  }
+
   /// Deja en el último mensaje de Nexus lo que este encargo produjo.
   ///
   /// **En el mensaje y no solo en la pantalla**, que es donde vivía: el estado
@@ -516,6 +593,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
+    _elParteEnCurso = false;
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
