@@ -8,6 +8,8 @@ import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/updates/presentation/widgets/pending_dot.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Los tres menús del compositor: adjuntar y ajustes, el modelo, y el esfuerzo.
@@ -53,6 +55,23 @@ class MoreMenu extends ConsumerWidget {
               if (files.isNotEmpty) onAttach(files.map((file) => file.path));
             case 'folder':
               await ref.read(workspaceControllerProvider.notifier).pairFolder();
+            case 'parte':
+              // El parte del último día con trabajo. Va en este menú y no como
+              // un botón suelto: se pide una vez al día, y lo que se usa una
+              // vez al día no merece sitio fijo en la barra.
+              // La conversación enfocada, leída aquí y no pasada desde arriba:
+              // el compositor no la conoce, y hacerla bajar dos capas para un
+              // menú sería cablear media pantalla por un elemento de lista.
+              final cual = ref.read(conversationsProvider).focusedId;
+              if (cual == null) return;
+              final hubo = await ref
+                  .read(assistantControllerProvider(cual).notifier)
+                  .pedirElParte();
+              if (!hubo && context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(context.strings.parteSinDia)),
+                );
+              }
             case 'settings':
               if (context.mounted) await SettingsPage.open(context);
           }
@@ -63,6 +82,12 @@ class MoreMenu extends ConsumerWidget {
             'folder',
             Icons.create_new_folder_outlined,
             strings.addFolderShort,
+            colors,
+          ),
+          _item(
+            'parte',
+            Icons.calendar_today_outlined,
+            strings.parteDelDia,
             colors,
           ),
           _item('settings', Icons.tune, strings.openSettings, colors),

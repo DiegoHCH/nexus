@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/presentation/providers/conversations_pr
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
+import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/workspace/domain/usecases/que_sale_de_la_maquina.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -20,10 +21,10 @@ final hayLlaveDeGeminiProvider = FutureProvider<bool>((ref) async {
 
 /// Qué sale de esta máquina, para la carpeta enfocada y ahora mismo.
 ///
-/// **Las cuatro puertas juntas, y ese es todo el punto.** Cada decisión estaba
+/// **Las cinco puertas juntas, y ese es todo el punto.** Cada decisión estaba
 /// bien tomada por separado —la modalidad de la carpeta, la frase de escritura,
 /// el destino de archivo— y ninguna se toca aquí. Lo que faltaba es poder
-/// comprobarlas a la vez: cuatro promesas sueltas no son una promesa.
+/// comprobarlas a la vez: cinco promesas sueltas no son una promesa.
 class SalidasSection extends ConsumerWidget {
   const SalidasSection({super.key});
 
@@ -36,6 +37,7 @@ class SalidasSection extends ConsumerWidget {
     final canal = ref.watch(channelControllerProvider);
     final archivo = ref.watch(archiveControllerProvider);
     final llave = ref.watch(hayLlaveDeGeminiProvider).value ?? false;
+    final slack = ref.watch(slackControllerProvider);
 
     // La voz de la conversación que se está mirando. Sin ninguna abierta no hay
     // voz que valga, y eso es `false` y no «no se sabe».
@@ -50,6 +52,8 @@ class SalidasSection extends ConsumerWidget {
       vozAbierta: vozAbierta,
       destinoDeArchivo: archivo.destination,
       destinoListo: archivo.isReady,
+      slackListo: slack.listo,
+      destinoDeSlack: slack.destino,
       canalEncendido: canal is ChannelOn,
       // Que haya alguien dentro y no solo que esté escuchando: un canal
       // encendido sin teléfono conectado no está sacando nada.
@@ -161,6 +165,7 @@ class _Puerta extends StatelessWidget {
     Salida.gemini => strings.exitGemini,
     Salida.notion => strings.exitNotion,
     Salida.canal => strings.exitChannel,
+    Salida.slack => strings.exitSlack,
   };
 
   /// **Qué viaja, no solo a dónde.** «Gemini: abierta» no dice nada que se pueda
@@ -170,6 +175,7 @@ class _Puerta extends StatelessWidget {
     Salida.gemini => strings.exitGeminiWhat,
     Salida.notion => strings.exitNotionWhat,
     Salida.canal => strings.exitChannelWhat,
+    Salida.slack => strings.exitSlackWhat,
   };
 
   String _estado(NexusStrings strings) => switch (puerta.como) {

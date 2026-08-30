@@ -75,6 +75,10 @@ class LocalConversationStore {
               if (message.cambios case final cambios?)
                 'cambios': cambios.toJson(),
               if (message.documento != null) 'documento': message.documento,
+              // Y que es el parte: sin esto, reabrir la conversación mañana
+              // deja el parte sin su botón de enviar — el mismo fallo que ya
+              // tuvieron los cambios.
+              if (message.esElParte) 'parte': true,
             },
         ],
       }),
@@ -297,6 +301,7 @@ class LocalConversationStore {
                 // a ningún sitio enseña a no pulsarlo, y entonces tampoco se
                 // pulsa el día que sí lleva.
                 documento: _documentoDe(message['documento']),
+                esElParte: message['parte'] == true,
               ),
         ],
       );

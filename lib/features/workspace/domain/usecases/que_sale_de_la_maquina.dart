@@ -33,6 +33,13 @@ enum Salida {
 
   /// El canal del teléfono, dentro de la tailnet.
   canal,
+
+  /// Slack, cuando mandas el parte del día.
+  ///
+  /// La única de las cinco que **nunca sale sola**: el parte se escribe, se lee
+  /// en pantalla y sale si tú le das. Por eso su estado nunca llega a «abierta»
+  /// — lo más que puede estar es preparada.
+  slack,
 }
 
 /// Si algo puede salir por ahí, y si está saliendo.
@@ -54,9 +61,9 @@ enum ComoEsta {
 typedef PuertaDeSalida = ({Salida cual, ComoEsta como, String? dato});
 
 abstract final class QueSaleDeLaMaquina {
-  /// Las cuatro puertas para la carpeta enfocada.
+  /// Las cinco puertas para la carpeta enfocada.
   ///
-  /// Siempre las cuatro, también las cerradas: una lista que solo enseña lo
+  /// Siempre las cinco, también las cerradas: una lista que solo enseña lo
   /// abierto no responde «¿y Notion?», que es justo la pregunta que trae a
   /// alguien aquí.
   static List<PuertaDeSalida> para({
@@ -67,7 +74,9 @@ abstract final class QueSaleDeLaMaquina {
     required bool destinoListo,
     required bool canalEncendido,
     required bool hayAlguienConectado,
+    required bool slackListo,
     String? direccionDelCanal,
+    String? destinoDeSlack,
   }) => [
     (
       cual: Salida.anthropic,
@@ -103,6 +112,16 @@ abstract final class QueSaleDeLaMaquina {
           ? ComoEsta.abierta
           : ComoEsta.disponible,
       dato: canalEncendido ? direccionDelCanal : null,
+    ),
+    (
+      cual: Salida.slack,
+      // **Nunca «abierta»**, ni con todo configurado. Las otras cuatro pueden
+      // estar saliendo ahora mismo sin que nadie mire; por esta no sale nada
+      // hasta que alguien lee el parte y le da. Decir «abierta» aquí sería
+      // usar la misma palabra para dos cosas distintas, y esa palabra es lo
+      // único que esta pantalla vende.
+      como: slackListo ? ComoEsta.disponible : ComoEsta.cerrada,
+      dato: slackListo ? destinoDeSlack : null,
     ),
   ];
 

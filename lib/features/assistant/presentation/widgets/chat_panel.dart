@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
@@ -59,11 +62,20 @@ class _ChatPanelState extends State<ChatPanel> {
       );
     }
 
-    return ListView.builder(
-      controller: _controller,
-      padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
-      itemCount: widget.messages.length,
-      itemBuilder: (context, index) => _Turn(message: widget.messages[index]),
+    // **Una sola selección para toda la conversación.** Antes cada bloque de
+    // markdown y cada mensaje traía la suya —`selectable: true` monta un
+    // `SelectableText` por párrafo— y eso, que parece lo mismo, es justo lo que
+    // impedía arrastrar de un párrafo al siguiente: cada isla cancelaba la de
+    // al lado, así que copiar una respuesta entera había que hacerlo a trozos.
+    // Con el área envolviendo la lista, la selección cruza párrafos, código,
+    // tablas y mensajes, y ⌘C copia lo que se ve.
+    return SelectionArea(
+      child: ListView.builder(
+        controller: _controller,
+        padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
+        itemCount: widget.messages.length,
+        itemBuilder: (context, index) => _Turn(message: widget.messages[index]),
+      ),
     );
   }
 }
@@ -113,8 +125,11 @@ class _Turn extends StatelessWidget {
               padding: const EdgeInsets.only(top: 4),
               child: AttachmentStrip(paths: message.attachments),
             ),
+          // `Text` y no `SelectableText`: la selección la pone el área que
+          // envuelve la conversación entera, y una isla propia aquí volvería a
+          // cortar el arrastre justo al pasar de tu mensaje a la respuesta.
           if (isUser && message.text.trim().isNotEmpty)
-            SelectableText(
+            Text(
               message.text,
               style: NexusTypography.body.copyWith(
                 color: colors.mute,
@@ -129,7 +144,14 @@ class _Turn extends StatelessWidget {
           // esa barra enseñaba **solo el último** encargo, así que al pedir la
           // segunda cosa desaparecía lo que había hecho la primera. Colgado del
           // mensaje, cada turno conserva lo suyo aunque subas.
-          if (message.cambios != null || message.documento != null)
+          // **Y el parte cuenta como «algo que dejó»**, aunque no toque ningún
+          // archivo — que es lo normal: se pide sin permiso de escritura. Esta
+          // condición se escribió cuando solo había cambios y documento, y al
+          // añadir el parte se quedó fuera: el botón existía y no se dibujaba
+          // nunca, porque el bloque entero se saltaba antes de llegar a él.
+          if (message.cambios != null ||
+              message.documento != null ||
+              message.esElParte)
             _LoQueDejo(message: message),
         ],
       ),
@@ -170,8 +192,59 @@ class _LoQueDejo extends ConsumerWidget {
               onTap: () =>
                   ref.read(artifactsDataSourceProvider).open(documento),
             ),
+          // Solo en el parte, y solo si Slack está configurado: un botón de
+          // enviar que a veces no puede enviar enseña a no pulsarlo.
+          if (message.esElParte && ref.watch(slackControllerProvider).listo)
+            _ElBotonDeSlack(texto: message.text),
         ],
       ),
+    );
+  }
+}
+
+/// Manda el parte a Slack, y dice si llegó.
+///
+/// **Con estado propio y no en el mensaje**: si esto viviera en el estado de la
+/// conversación, reabrirla mañana diría «enviado» de un parte que se mandó ayer.
+/// Lo que importa es haberlo mandado ahora, delante de quien lo pulsó.
+class _ElBotonDeSlack extends ConsumerStatefulWidget {
+  const _ElBotonDeSlack({required this.texto});
+
+  final String texto;
+
+  @override
+  ConsumerState<_ElBotonDeSlack> createState() => _ElBotonDeSlackState();
+}
+
+class _ElBotonDeSlackState extends ConsumerState<_ElBotonDeSlack> {
+  bool _mandando = false;
+  String? _dicho;
+
+  Future<void> _mandar() async {
+    setState(() {
+      _mandando = true;
+      _dicho = null;
+    });
+    final fallo = await ref
+        .read(slackControllerProvider.notifier)
+        .mandar(widget.texto);
+    if (!mounted) return;
+    setState(() {
+      _mandando = false;
+      _dicho = fallo == null
+          ? context.strings.parteEnviado
+          : context.strings.parteFallo(fallo);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final enviado = _dicho == context.strings.parteEnviado;
+
+    return _Boton(
+      icono: enviado ? Icons.check : Icons.send_outlined,
+      texto: _dicho ?? context.strings.parteAlSlack,
+      onTap: _mandando || enviado ? () {} : () => unawaited(_mandar()),
     );
   }
 }
@@ -224,7 +297,8 @@ class _Answer extends StatelessWidget {
 
     return MarkdownBody(
       data: text,
-      selectable: true,
+      // Sin `selectable`: lo pone el área de la conversación. Ver [ChatPanel].
+      selectable: false,
       styleSheet: MarkdownStyleSheet(
         p: body,
         a: body.copyWith(color: colors.accent),

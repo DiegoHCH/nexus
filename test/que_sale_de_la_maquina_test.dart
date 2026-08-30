@@ -23,6 +23,7 @@ List<PuertaDeSalida> _puertas({
   bool destinoListo = false,
   bool canalEncendido = false,
   bool hayAlguienConectado = false,
+  bool slackListo = false,
   String? direccion,
 }) => QueSaleDeLaMaquina.para(
   carpeta: carpeta,
@@ -32,6 +33,7 @@ List<PuertaDeSalida> _puertas({
   destinoListo: destinoListo,
   canalEncendido: canalEncendido,
   hayAlguienConectado: hayAlguienConectado,
+  slackListo: slackListo,
   direccionDelCanal: direccion,
 );
 
@@ -41,12 +43,13 @@ ComoEsta _como(List<PuertaDeSalida> puertas, Salida cual) =>
 void main() {
   // Una lista que solo enseña lo abierto no responde «¿y Notion?», que es justo
   // la pregunta que trae a alguien a mirar esto.
-  test('siempre están las cuatro, también las cerradas', () {
+  test('siempre están las cinco, también las cerradas', () {
     expect(_puertas().map((p) => p.cual), [
       Salida.anthropic,
       Salida.gemini,
       Salida.notion,
       Salida.canal,
+      Salida.slack,
     ]);
   });
 
@@ -182,5 +185,21 @@ void main() {
         expect(canal.dato, isNull);
       },
     );
+  });
+
+  group('slack, la quinta puerta', () {
+    // La regla que la distingue de las otras cuatro: por aquí no sale nada sin
+    // que alguien lo lea antes. Decir «abierta» sería usar la misma palabra
+    // para dos cosas distintas, y esa palabra es lo único que vende la pantalla.
+    test('nunca llega a abierta, ni con todo configurado', () {
+      expect(
+        _como(_puertas(slackListo: true), Salida.slack),
+        ComoEsta.disponible,
+      );
+    });
+
+    test('sin configurar, cerrada', () {
+      expect(_como(_puertas(), Salida.slack), ComoEsta.cerrada);
+    });
   });
 }
