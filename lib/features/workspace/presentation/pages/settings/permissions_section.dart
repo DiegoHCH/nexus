@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/config_del_repo.dart';
+import 'package:nexus/features/workspace/domain/usecases/allowed_commands.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/widgets/permission_switch.dart';
@@ -114,6 +115,8 @@ class PermissionsSection extends ConsumerWidget {
             folder: activa,
             delRepo: manda?.comandosVetados ?? const [],
           ),
+          const SizedBox(height: NexusSpacing.s6),
+          _AllowedCommands(folder: activa),
         ],
       ],
     );
@@ -287,6 +290,88 @@ class _BlockedCommandsState extends ConsumerState<_BlockedCommands> {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           ),
         ],
+      ],
+    );
+  }
+}
+
+/// Lo que Claude **sí** puede ejecutar en la carpeta activa.
+///
+/// Va justo debajo de los bloqueados porque se leen juntos, y son las dos
+/// mitades de la misma pregunta. La asimetría con ellos es deliberada y se
+/// explica en [AllowedCommands]: bloquear de más deja un comando sin correr;
+/// permitir de más deja correr algo que nadie autorizó.
+///
+/// **Sin la línea del repositorio** que sí tienen los bloqueados: un
+/// `.nexus/config.json` no puede ampliar permisos, así que aquí no hay nada del
+/// repo que enseñar.
+class _AllowedCommands extends ConsumerStatefulWidget {
+  const _AllowedCommands({required this.folder});
+
+  final PairedFolder folder;
+
+  @override
+  ConsumerState<_AllowedCommands> createState() => _AllowedCommandsState();
+}
+
+class _AllowedCommandsState extends ConsumerState<_AllowedCommands> {
+  late final _controller = TextEditingController(
+    text: widget.folder.allowedCommands.join('\n'),
+  );
+
+  @override
+  void didUpdateWidget(covariant _AllowedCommands oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Al cambiar de carpeta activa hay que traer su lista, por lo mismo que en
+    // los bloqueados: si no, se guardaría la de la anterior encima de la nueva.
+    if (widget.folder.path == oldWidget.folder.path) return;
+    _controller.text = widget.folder.allowedCommands.join('\n');
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          strings.allowedTitle(widget.folder.name),
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        Text(
+          strings.allowedExplainer,
+          style: NexusTypography.mono.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s3),
+        TextField(
+          controller: _controller,
+          minLines: 2,
+          maxLines: 5,
+          style: NexusTypography.mono.copyWith(color: colors.ink),
+          decoration: InputDecoration(
+            hintText: strings.allowedHint,
+            hintStyle: NexusTypography.mono.copyWith(color: colors.rule2),
+          ),
+          onChanged: (value) => ref
+              .read(workspaceControllerProvider.notifier)
+              .setAllowedCommands(
+                widget.folder.path,
+                value
+                    .split('\n')
+                    .map((line) => line.trim())
+                    .where((line) => line.isNotEmpty)
+                    .toList(),
+              ),
+        ),
       ],
     );
   }

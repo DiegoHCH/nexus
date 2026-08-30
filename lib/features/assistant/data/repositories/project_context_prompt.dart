@@ -60,8 +60,20 @@ abstract final class ProjectContextPrompt {
     String? artifactsAccount,
     String? carpetaDePruebas,
     String? language,
+    String? constraintsNotice,
   }) {
     final sections = <String>[];
+
+    // **Lo que puede y no puede ejecutar aquí.**
+    //
+    // 🔴 Esto se calculaba desde el principio y **no se usaba en ningún sitio**:
+    // el aviso viajaba hasta el borde de la app y ahí se caía. O sea que
+    // bloquear un comando funcionaba —lo deniega el CLI— pero Claude no lo
+    // sabía, así que tropezaba a media tarea y se callaba, que es justo lo que
+    // ese aviso venía a evitar.
+    if (constraintsNotice != null && constraintsNotice.isNotEmpty) {
+      sections.add(constraintsNotice);
+    }
 
     // El idioma **es una preferencia, no una orden**: si escribes en otro idioma, gana lo
     // que escribiste. Imponerlo haría que preguntar en español con la app en inglés te
