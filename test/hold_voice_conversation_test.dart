@@ -149,6 +149,8 @@ class _Bridge implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    List<String> comandosPermitidos = const [],
+    String? constraintsNotice,
     String? language,
   }) async* {
     _raw.add(instruction);
@@ -253,6 +255,7 @@ AskClaude _armar(ClaudeBridge bridge) => AskClaude(
     artifactsFolder: null,
     carpetaDePruebas: null,
     disallowedTools: const <String>[],
+    comandosPermitidos: const <String>[],
     constraintsNotice: null,
   ),
   _Memory(),
@@ -283,6 +286,8 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    List<String> comandosPermitidos = const [],
+    String? constraintsNotice,
     String? language,
   }) async* {
     // El orden es el de verdad: primero el `init` con el modelo, y el fin de

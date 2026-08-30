@@ -30,6 +30,9 @@ mixin DocumentosStrings {
   String blockedTitle(String folder);
   String get blockedExplainer;
   String get blockedHint;
+  String allowedTitle(String folder);
+  String get allowedExplainer;
+  String get allowedHint;
   String get addFolderShort;
   String get openSettings;
   String get statusTalk;
@@ -126,6 +129,17 @@ mixin DocumentosStringsEs implements DocumentosStrings {
       'diciéndote el comando exacto para que lo lances tú. Con # se comenta.';
   @override
   String get blockedHint => 'build_runner\npod install\nmake generate';
+  @override
+  String allowedTitle(String folder) => 'COMANDOS PERMITIDOS EN $folder';
+  @override
+  String get allowedExplainer =>
+      'Poder editar no incluye ejecutar: sin esto, Claude escribe archivos pero '
+      'no corre nada. Aquí se autoriza lo que quieras, uno por línea, y solo '
+      'cuenta mientras la carpeta pueda escribir. Descargar con «curl -o» ya '
+      'viene autorizado. Escribe el principio del comando, no un trozo suelto: '
+      'lo que se permite es lo que empiece por eso.';
+  @override
+  String get allowedHint => 'magick\nffmpeg\nnpm run build';
   @override
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
@@ -250,6 +264,17 @@ mixin DocumentosStringsEn implements DocumentosStrings {
       'else and finish by telling you the exact command to run. # comments.';
   @override
   String get blockedHint => 'build_runner\npod install\nmake generate';
+  @override
+  String allowedTitle(String folder) => 'COMMANDS ALLOWED IN $folder';
+  @override
+  String get allowedExplainer =>
+      'Being able to edit does not include running: without this, Claude writes '
+      'files but runs nothing. Allow what you want here, one per line, and it '
+      'only counts while the folder can write. Downloading with «curl -o» is '
+      'already allowed. Write the start of the command, not a loose fragment: '
+      'what is allowed is whatever begins with it.';
+  @override
+  String get allowedHint => 'magick\nffmpeg\nnpm run build';
   @override
   String get addFolderShort => 'Pair another folder';
   @override

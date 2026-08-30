@@ -108,6 +108,11 @@ class ConfigDelRepo {
       claudeEffort: tuya.claudeEffort ?? esfuerzo,
       activeRepo: tuya.activeRepo,
       blockedCommands: vetados,
+      // **La tuya, y el repo no la toca.** Los vetados se suman porque un repo
+      // puede cerrarse puertas a sí mismo; los permitidos no se leen siquiera,
+      // porque un archivo que se concede permisos es un repo que clonas y ya
+      // puede ejecutar. Ampliar es decisión de quien empareja la carpeta.
+      allowedCommands: tuya.allowedCommands,
       carpetaDePruebas: carpetaDePruebas ?? tuya.carpetaDePruebas,
     );
   }
