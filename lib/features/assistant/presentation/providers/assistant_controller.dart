@@ -259,6 +259,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool allowWrites = true,
     bool esElParte = false,
     String? loQueSeVe,
+    bool reintento = false,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -312,8 +313,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Lo que se ve puede no ser lo que se manda: quien escribe «dame el daily»
     // pidió dos palabras, y enseñarle en su sitio las cuarenta líneas de
     // material que salieron hacia Claude no le dice nada.
-    _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
-    _sealLast();
+    // **Un reintento no se vuelve a escribir**: el mensaje ya está en la
+    // conversación, y añadirlo otra vez dejaría la misma petición dos veces
+    // seguidas con una sola respuesta debajo. Lo que se pidió fue reintentar
+    // *eso*, no mandarlo de nuevo.
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
+      _sealLast();
+    }
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
     unawaited(_markRepo());
@@ -332,6 +341,51 @@ class AssistantController extends Notifier<AssistantHudState> {
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
+  }
+
+  /// Vuelve a mandar un encargo que no llegó a hacerse.
+  ///
+  /// Pedido mirándolo: cuando algo falla, la única salida era **copiar el
+  /// mensaje y pegarlo otra vez**. La petición ya está escrita ahí; volver a
+  /// teclearla es trabajo que la app puede ahorrarse.
+  ///
+  /// Se reconstruye desde lo que se ve más los adjuntos, y no desde el texto
+  /// que salió hacia Claude —que llevaba las rutas pegadas detrás y no se
+  /// guarda—: `submit` lo vuelve a componer igual que la primera vez, así que
+  /// el reintento manda exactamente lo mismo.
+  Future<void> reintentar(ChatMessage fallido) =>
+      submit(fallido.text, attachments: fallido.attachments, reintento: true);
+
+  /// La marca se quita de **todos**, no solo del que se reintenta.
+  ///
+  /// Solo puede haber un encargo en marcha, así que un intento nuevo deja sin
+  /// sentido cualquier «esto se quedó a medias» anterior. Quitarla de uno solo
+  /// dejaría botones de reintentar por la conversación que ya no reintentan
+  /// nada.
+  void _quitaLaMarcaDeFallo() {
+    if (!state.messages.any((mensaje) => mensaje.fallo)) return;
+    state = state.copyWith(
+      messages: [
+        for (final mensaje in state.messages)
+          mensaje.fallo ? mensaje.copyWith(fallo: false) : mensaje,
+      ],
+    );
+  }
+
+  /// Lo que se pidió y no se hizo, marcado en su propio mensaje.
+  ///
+  /// El tuyo y no el suyo: un fallo no deja respuesta que marcar, y lo que se
+  /// reintenta es la petición. Se busca el último tuyo porque un fallo puede
+  /// llegar con texto a medias ya escrito debajo, y entonces el último mensaje
+  /// de la lista es de Nexus.
+  void _marcaElFallo() {
+    final mensajes = [...state.messages];
+    final donde = mensajes.lastIndexWhere(
+      (mensaje) => mensaje.author == ChatAuthor.user,
+    );
+    if (donde == -1) return;
+    mensajes[donde] = mensajes[donde].copyWith(fallo: true);
+    state = state.copyWith(messages: mensajes);
   }
 
   /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
@@ -884,6 +938,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onFailed(String message) {
     _sealLast();
+    _marcaElFallo();
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,

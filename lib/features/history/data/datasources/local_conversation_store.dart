@@ -86,6 +86,9 @@ class LocalConversationStore {
               // respuesta ni antes de cerrar la app.
               if (message.actividad.isNotEmpty)
                 'pasos': [for (final paso in message.actividad) paso.toJson()],
+              // Y que se quedó sin hacer. Al reabrir mañana el encargo sigue
+              // sin hacerse: el botón de reintentar tiene que seguir ahí.
+              if (message.fallo) 'fallo': true,
             },
         ],
       }),
@@ -310,6 +313,7 @@ class LocalConversationStore {
                 documento: _documentoDe(message['documento']),
                 esElParte: message['parte'] == true,
                 actividad: _pasosDe(message['pasos']),
+                fallo: message['fallo'] == true,
               ),
         ],
       );
