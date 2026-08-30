@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
@@ -172,30 +173,45 @@ class _LoQueDejo extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = context.strings;
 
+    // **Una imagen se enseña, no se anuncia.** Con el botón de siempre, lo que
+    // acababa de generarse era un nombre de archivo: para saber si había salido
+    // bien había que abrirla. Se pinta con la misma tira que los adjuntos —la
+    // miniatura del sistema, la del Finder— porque es el mismo gesto por el otro
+    // lado: tú le pasas una imagen al chat y la ves; él te devuelve una y
+    // también.
+    final imagen = message.documento;
+
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: NexusSpacing.s2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (message.cambios case final cambios?)
-            _Boton(
-              icono: Icons.difference,
-              texto: strings.changedFiles(cambios.fileCount),
-              onTap: () => ref
-                  .read(elVisorDeCambiosProvider)
-                  .abrir(cambios, strings.changesTitle),
-            ),
-          if (message.documento case final documento?)
-            _Boton(
-              icono: Icons.article_outlined,
-              texto: documento.split('/').last,
-              onTap: () =>
-                  ref.read(artifactsDataSourceProvider).open(documento),
-            ),
-          // Solo en el parte, y solo si Slack está configurado: un botón de
-          // enviar que a veces no puede enviar enseña a no pulsarlo.
-          if (message.esElParte && ref.watch(slackControllerProvider).listo)
-            _ElBotonDeSlack(texto: message.text),
+          if (imagen != null && Artifact.isImage(imagen))
+            AttachmentStrip(paths: [imagen]),
+          Wrap(
+            spacing: NexusSpacing.s2,
+            children: [
+              if (message.cambios case final cambios?)
+                _Boton(
+                  icono: Icons.difference,
+                  texto: strings.changedFiles(cambios.fileCount),
+                  onTap: () => ref
+                      .read(elVisorDeCambiosProvider)
+                      .abrir(cambios, strings.changesTitle),
+                ),
+              if (message.documento case final documento?)
+                _Boton(
+                  icono: Icons.article_outlined,
+                  texto: documento.split('/').last,
+                  onTap: () =>
+                      ref.read(artifactsDataSourceProvider).open(documento),
+                ),
+              // Solo en el parte, y solo si Slack está configurado: un botón de
+              // enviar que a veces no puede enviar enseña a no pulsarlo.
+              if (message.esElParte && ref.watch(slackControllerProvider).listo)
+                _ElBotonDeSlack(texto: message.text),
+            ],
+          ),
         ],
       ),
     );
