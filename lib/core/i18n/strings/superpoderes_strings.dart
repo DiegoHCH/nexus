@@ -42,6 +42,8 @@ mixin SuperpoderesStrings {
   String get mcpManual;
   String get mcpNameHint;
   String get mcpSpecHint;
+  String get mcpHeaderHint;
+  String get mcpHeaderNote;
   String get mcpAdd;
   String get mcpRemove;
   String get mcpCheck;
@@ -181,6 +183,12 @@ mixin SuperpoderesStringsEs implements SuperpoderesStrings {
   String get mcpNameHint => 'nombre';
   @override
   String get mcpSpecHint => 'https://… o el comando que lo arranca';
+  @override
+  String get mcpHeaderHint => 'Authorization: Bearer …';
+  @override
+  String get mcpHeaderNote =>
+      'Solo para los de https. La llave se manda al registrarlo y no se '
+      'guarda aquí.';
   @override
   String get mcpAdd => 'Añadir';
   @override
@@ -369,6 +377,12 @@ mixin SuperpoderesStringsEn implements SuperpoderesStrings {
   String get mcpNameHint => 'name';
   @override
   String get mcpSpecHint => 'https://… or the command that starts it';
+  @override
+  String get mcpHeaderHint => 'Authorization: Bearer …';
+  @override
+  String get mcpHeaderNote =>
+      'Only for https ones. The key is sent when registering it and is not '
+      'kept here.';
   @override
   String get mcpAdd => 'Add';
   @override

@@ -79,12 +79,14 @@ class McpDataSource {
     String? url,
     List<String> command = const [],
     List<String> env = const [],
+    List<String> headers = const [],
   }) {
     final args = McpCommand.add(
       name: name,
       url: url,
       command: command,
       env: env,
+      headers: headers,
     );
     return _run(configDir, args);
   }
@@ -104,6 +106,7 @@ class McpDataSource {
     String? url,
     List<String> command = const [],
     List<String> env = const [],
+    List<String> headers = const [],
   }) async {
     final fallos = <String, String>{};
     for (final configDir in configDirs) {
@@ -113,6 +116,7 @@ class McpDataSource {
         url: url,
         command: command,
         env: env,
+        headers: headers,
       );
       if (error != null) fallos[configDir] = error;
     }
