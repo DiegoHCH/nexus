@@ -10,6 +10,51 @@ Claude Code** (`claude -p`, sin interfaz), que es quien toca de verdad tus
 archivos y va con tu suscripción, no con una clave de API. La cara es un orbe de
 malla sobre el vacío: un HUD, no una ventana de mensajería.
 
+## Por qué no solo el CLI
+
+La respuesta fácil sería «es un cliente más cómodo de Claude Code», y sería
+mentira: esa es la posición más débil posible, porque compite contra Anthropic
+en el terreno de Anthropic y lo que hoy le falte al CLI se lanza en un trimestre.
+
+La línea que sí aguanta no es de funciones, es de **ubicación**:
+
+| Solo necesita el repositorio | Exige estar en la máquina |
+|---|---|
+| Chat sobre el código y su historial | Simuladores y teléfonos por USB |
+| Sesiones en paralelo por carpeta | Hot reload de un proceso vivo |
+| Skills, plugins y MCP | Las credenciales locales: el `.env.local` |
+| Estadísticas de uso y de coste | Tu VPN y los puertos de esa red |
+| | Dos cuentas de Claude en el mismo disco |
+| | Qué cambió en **este** encargo |
+| **Prestado.** Anthropic lo hará mejor | **Propio.** La nube no puede tocarlo |
+
+Y sirve como regla de producto, no solo como argumento: **construir únicamente
+lo que exige la máquina**. Cuando algo de la columna izquierda parezca una buena
+idea, la respuesta por defecto es que no.
+
+## Para qué **no** es
+
+Nexus conduce el mismo Claude Code, así que lo que le pidas —comitear solo lo de
+una tarea, preparar por tramos, comentar un PR— lo hace él desde aquí. **No se
+pierden capacidades: se añade una capa.** Lo que se cede es más estrecho:
+
+- **Decidir con las manos**: elegir tramo a tramo con el archivo abierto.
+  Pedírselo a Claude es delegar el criterio, no ejercerlo.
+- **Buscar dentro de un cambio grande**: el visor del diff no ejecuta
+  JavaScript —está encerrado a propósito, porque abre código que escribió otro—
+  así que no hay búsqueda en página.
+
+Está escrito también dentro de la app, en Ajustes › Ayuda, y hay pruebas que
+fallan si desaparece **o si vuelve a ceder algo que Nexus sí hace**: esa lista se
+encogió tres veces en dos días por vender de menos.
+
+## Para quién
+
+Devs de **front mobile** y **QA**. Un QA lanza el suite —hablando o
+escribiendo— sin permiso de escritura y sin configurar el proyecto: la carpeta de
+pruebas y los comandos vetados viajan en el `.nexus/` del repositorio, y las
+credenciales salen de su `.env.local`.
+
 ## Para qué sirve
 
 El trabajo pasa siempre **dentro de una carpeta concreta** —un repo, un proyecto—
@@ -115,6 +160,21 @@ e instala. **Lo que nunca hace es reiniciarse por su cuenta**: eso mataría un
 
 Si lo dejas para luego, queda un punto rojo en el icono de la barra y en el menú
 del compositor. «Ahora no» no es «nunca».
+
+## Decisiones cerradas
+
+Dos cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
+que no se vuelvan a proponer sin argumentos nuevos:
+
+- **Voz propia, sin Gemini.** Se construyó la fase 1 —reconocimiento y síntesis
+  locales— y se probaron además Whisper y Piper. El reconocimiento local existe
+  pero **solo en los idiomas que trae Apple**, y ninguna voz local aguanta la
+  comparación con Gemini, que no es un lector de texto sino un modelo
+  conversacional. Código borrado, veredicto escrito.
+- **Una superficie que un líder mire del squad.** Nexus es una **herramienta de
+  equipo, de uso individual** —como un IDE—, así que no hay tablero que
+  construir. El estándar viaja en el `.nexus/` del repositorio y el valor lo
+  recoge cada dev trabajando solo.
 
 ## Con qué está hecho
 
