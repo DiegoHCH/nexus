@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
@@ -257,6 +258,68 @@ void main() {
       final leidas = await store.list('/Users/alguien/workspace');
 
       expect(leidas.map((r) => r.id), ['c1']);
+    });
+  });
+
+  // «Apenas termina el encargo el botón desaparece, y debería quedar ahí para
+  // ver cuando quiera lo que hizo.» La lista de la pantalla se vacía al empezar
+  // el encargo siguiente, así que sin guardarla no hacía falta ni cerrar la
+  // app: la segunda cosa que pedías borraba lo que había hecho la primera.
+  group('los pasos que dio el encargo', () {
+    ChatMessage conPasos(List<ActivityItem> pasos) =>
+        ChatMessage(author: ChatAuthor.nexus, text: 'hecho', actividad: pasos);
+
+    test('se guardan y vuelven al releer', () async {
+      await store.save(
+        record(
+          messages: [
+            const ChatMessage(author: ChatAuthor.user, text: 'mira el repo'),
+            conPasos([
+              ActivityItem(
+                id: 'a1',
+                description: 'Corriendo git status',
+                writes: false,
+                detail: 'git status',
+                output: 'nada que commitear',
+                done: true,
+              ),
+              ActivityItem(
+                id: 'a2',
+                description: 'Escribiendo notas.md',
+                writes: true,
+                done: true,
+              ),
+            ]),
+          ],
+        ),
+      );
+
+      final ficha = (await store.list('/Users/alguien/workspace')).single;
+      final leida = (await store.read(ficha))!;
+      final pasos = leida.messages.last.actividad;
+
+      expect(pasos.map((p) => p.description), [
+        'Corriendo git status',
+        'Escribiendo notas.md',
+      ]);
+      expect(pasos.first.detail, 'git status');
+      expect(pasos.first.output, 'nada que commitear');
+      expect(
+        pasos.last.writes,
+        isTrue,
+        reason:
+            'la etiqueta ESCRIBE es lo que se vuelve a mirar al dia siguiente',
+      );
+    });
+
+    // Un registro de antes de esto no trae la clave, y tiene que abrirse igual.
+    test('una conversacion guardada sin pasos se lee sin romperse', () async {
+      await store.save(record());
+
+      final ficha = (await store.list('/Users/alguien/workspace')).single;
+      final leida = (await store.read(ficha))!;
+
+      expect(leida.messages.last.actividad, isEmpty);
     });
   });
 }

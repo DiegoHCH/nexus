@@ -572,7 +572,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// guarda uno y lo pisa el siguiente, así que al subir por la conversación el
   /// segundo encargo borraba de la vista lo que había hecho el primero. Cada
   /// turno se queda con lo suyo.
-  void _sellarEnElMensaje({GitChanges? cambios, String? documento}) {
+  void _sellarEnElMensaje({
+    GitChanges? cambios,
+    String? documento,
+    List<ActivityItem>? actividad,
+  }) {
     final mensajes = [...state.messages];
     final donde = mensajes.lastIndexWhere(
       (mensaje) => mensaje.author == ChatAuthor.nexus,
@@ -581,6 +585,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     mensajes[donde] = mensajes[donde].copyWith(
       cambios: cambios,
       documento: documento,
+      actividad: actividad,
     );
     state = state.copyWith(messages: mensajes);
   }
@@ -606,6 +611,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// miraba los cambios y —lo peor— **no se guardaba en el historial**, porque
   /// `_archive` colgaba de aquí y de ningún otro sitio.
   void _afterErrand() {
+    // **Los pasos se cuelgan del mensaje antes que nada**, y por eso van
+    // síncronos: `_archive()` sale unas líneas más abajo, y si el sellado
+    // esperara a un `await` el registro se guardaría sin ellos y solo los
+    // recogería el turno siguiente. Es el mismo cuidado que ya pedían los
+    // cambios, con el agravante de que la actividad se borra al empezar el
+    // encargo que viene — lo que no quede sellado aquí no existe después.
+    if (state.activity.isNotEmpty) {
+      _sellarEnElMensaje(actividad: state.activity);
+    }
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));

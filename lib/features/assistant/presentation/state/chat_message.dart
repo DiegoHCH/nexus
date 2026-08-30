@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 
 /// Quién habla en una línea de la conversación.
@@ -20,6 +21,7 @@ class ChatMessage {
     this.cambios,
     this.documento,
     this.esElParte = false,
+    this.actividad = const [],
   });
 
   final ChatAuthor author;
@@ -35,6 +37,14 @@ class ChatMessage {
 
   /// El documento que este encargo creó, si creó alguno.
   final String? documento;
+
+  /// Los pasos que dio este encargo: qué leyó, qué corrió, qué escribió.
+  ///
+  /// Cuelgan del mensaje por el mismo motivo que [cambios], y con una urgencia
+  /// más: la lista de la pantalla **se vacía al empezar el encargo siguiente**,
+  /// así que sin esto lo que hizo el primero desaparecía en cuanto pedías la
+  /// segunda cosa — no hacía falta ni cerrar la app.
+  final List<ActivityItem> actividad;
 
   /// Esta respuesta es el parte del día, así que se le puede mandar a Slack.
   ///
@@ -67,6 +77,7 @@ class ChatMessage {
     GitChanges? cambios,
     String? documento,
     bool? esElParte,
+    List<ActivityItem>? actividad,
   }) => ChatMessage(
     author: author,
     text: text ?? this.text,
@@ -76,6 +87,7 @@ class ChatMessage {
     cambios: cambios ?? this.cambios,
     documento: documento ?? this.documento,
     esElParte: esElParte ?? this.esElParte,
+    actividad: actividad ?? this.actividad,
   );
 
   /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y
