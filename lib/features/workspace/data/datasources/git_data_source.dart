@@ -143,6 +143,28 @@ class GitDataSource {
     return _run(folderPath, ['rev-parse', 'HEAD']);
   }
 
+  /// Los archivos sin seguir que hay **ahora**. Es la otra mitad de [snapshot].
+  ///
+  /// 🔴 `stash create` solo mete lo que git ya sigue, así que la marca no dice
+  /// nada de los archivos nuevos: [changesSince] los listaba enteros y los daba
+  /// todos por recién creados. Reportado mirándolo — un encargo de solo lectura
+  /// anunció «6 archivos que tocó» porque había cuatro sin trackear de la tarde
+  /// anterior. Un botón que miente sobre lo que hizo Claude es peor que no
+  /// tenerlo: la pregunta que contesta es «¿qué acaba de cambiar?».
+  Future<Set<String>> sinTrackear(String folderPath) async {
+    final salida = await _run(folderPath, [
+      'ls-files',
+      '--others',
+      '--exclude-standard',
+    ]);
+    return _lineas(salida ?? '').toSet();
+  }
+
+  static Iterable<String> _lineas(String salida) => salida
+      .split('\n')
+      .map((line) => line.trim())
+      .where((line) => line.isNotEmpty);
+
   /// Cuántas líneas se enseñan alrededor de cada cambio.
   ///
   /// **Veinte y no las tres de `git diff`.** Las tres de por defecto están
@@ -167,6 +189,7 @@ class GitDataSource {
     String folderPath,
     String base, {
     int lineasDeContexto = contexto,
+    Set<String> yaEstaban = const {},
   }) async {
     final diff =
         await _run(folderPath, ['diff', '-U$lineasDeContexto', base]) ?? '';
@@ -177,11 +200,13 @@ class GitDataSource {
           '--exclude-standard',
         ]) ??
         '';
-    final nuevos = untracked
-        .split('\n')
-        .map((line) => line.trim())
-        .where((line) => line.isNotEmpty)
-        .toList();
+    // Los que ya estaban sin trackear al empezar **no los creó este encargo**.
+    // Se descuentan aquí y no en quien pregunta porque es la misma resta que el
+    // `base` hace con lo modificado: la marca tiene dos mitades y esta es la
+    // segunda.
+    final nuevos = _lineas(
+      untracked,
+    ).where((linea) => !yaEstaban.contains(linea)).toList();
 
     if (diff.isEmpty && nuevos.isEmpty) return null;
     return GitChanges(diff: diff, newFiles: nuevos);

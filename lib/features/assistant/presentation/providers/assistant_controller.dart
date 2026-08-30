@@ -420,11 +420,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Y qué documentos había antes, para saber cuál salió de aquí.
   Set<String> _documentosAntes = const {};
 
+  /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
+  /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
+  /// cualquier archivo suelto de ayer contaba como creado por este encargo.
+  Set<String> _sinTrackearAntes = const {};
+
   Future<void> _markRepo() async {
     final folder = _workingDirectory;
-    _repoBase = folder == null
-        ? null
-        : await const GitDataSource().snapshot(folder);
+    if (folder == null) {
+      _repoBase = null;
+      _sinTrackearAntes = const {};
+    } else {
+      const git = GitDataSource();
+      _repoBase = await git.snapshot(folder);
+      _sinTrackearAntes = await git.sinTrackear(folder);
+    }
     _documentosAntes = await _documentosAhora();
   }
 
@@ -451,7 +461,11 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _workingDirectory;
     final base = _repoBase;
     if (folder == null || base == null) return;
-    final cambios = await const GitDataSource().changesSince(folder, base);
+    final cambios = await const GitDataSource().changesSince(
+      folder,
+      base,
+      yaEstaban: _sinTrackearAntes,
+    );
     if (cambios == null) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
