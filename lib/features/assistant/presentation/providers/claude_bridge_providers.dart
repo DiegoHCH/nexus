@@ -13,6 +13,7 @@ import 'package:nexus/features/assistant/domain/repositories/conversation_memory
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/workspace/domain/usecases/allowed_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/blocked_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/repo_from_instruction.dart';
 import 'package:nexus/features/e2e/presentation/providers/raiz_de_los_flows_provider.dart';
@@ -89,8 +90,17 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         disallowedTools: BlockedCommands.patterns(
           paired?.blockedCommands ?? const [],
         ),
-        constraintsNotice: BlockedCommands.notice(
-          paired?.blockedCommands ?? const [],
+        // **Descargar viene de serie**, y el resto lo pone la carpeta. Sin la
+        // descarga, generar una imagen o traerse un archivo no sirve de nada:
+        // el trabajo se hace y no se puede guardar. Va en la forma estrecha
+        // —`curl -o`— y no en `curl` a secas, que autorizaría también
+        // `curl -d @archivo`, o sea la puerta de salida.
+        comandosPermitidos: [
+          AllowedCommands.paraDescargar,
+          ...AllowedCommands.patterns(paired?.allowedCommands ?? const []),
+        ],
+        constraintsNotice: AllowedCommands.comoSeDescarga(
+          BlockedCommands.notice(paired?.blockedCommands ?? const []),
         ),
         model: paired?.claudeModel,
         effort: paired?.claudeEffort,

@@ -46,6 +46,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    List<String> comandosPermitidos = const [],
+    String? constraintsNotice,
     String? language,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
@@ -145,6 +147,11 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         // usuario van siempre: los eligió él y son procesos suyos.
         herramientasMcp: [
           for (final servidor in servidoresMcp) 'mcp__$servidor',
+          // Y los comandos que esta carpeta autoriza. Van por el mismo flag
+          // porque son lo mismo para el CLI: lo que puede correr sin que nadie
+          // apruebe. Quien decide si llegan hasta aquí es el modo de permisos
+          // —en solo lectura la lista viene vacía—, no este sitio.
+          ...comandosPermitidos,
         ],
         // Los comandos bloqueados de la carpeta y, **si no puede escribir**, las
         // herramientas MCP que actúan fuera de la máquina.
@@ -168,6 +175,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           // tres sitios que no la usan.
           artifactsAccount: ClaudeProfile.nameFromPath(claudeProfile),
           language: language,
+          constraintsNotice: constraintsNotice,
         ),
       )) {
         // Cada mensaje del asistente es una petición: su `usage` dice cuánto
@@ -226,6 +234,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           effort: effort,
           artifactsFolder: artifactsFolder,
           disallowedTools: disallowedTools,
+          comandosPermitidos: comandosPermitidos,
+          constraintsNotice: constraintsNotice,
         );
         return;
       }

@@ -16,6 +16,7 @@ typedef ClaudeWorkContext = ({
   String? model,
   String? effort,
   List<String> disallowedTools,
+  List<String> comandosPermitidos,
   String? constraintsNotice,
   String? artifactsFolder,
   String? carpetaDePruebas,
@@ -130,6 +131,13 @@ class AskClaude {
           model: context.model,
           effort: context.effort,
           disallowedTools: context.disallowedTools,
+          // **El AND otra vez**: lo que la carpeta autoriza solo vale si este
+          // encargo puede escribir. Un parte del día, que se pide sin escritura,
+          // no ejecuta nada aunque la carpeta tenga permitido el mundo entero.
+          comandosPermitidos: context.canEdit && allowWrites
+              ? context.comandosPermitidos
+              : const [],
+          constraintsNotice: context.constraintsNotice,
           language: context.language,
           artifactsFolder: context.artifactsFolder,
           carpetaDePruebas: context.carpetaDePruebas,

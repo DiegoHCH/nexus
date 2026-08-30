@@ -31,6 +31,8 @@ class _Bridge implements ClaudeBridge {
     String? artifactsFolder,
     String? carpetaDePruebas,
     List<String> disallowedTools = const [],
+    List<String> comandosPermitidos = const [],
+    String? constraintsNotice,
     String? language,
   }) async* {
     // Lo único que esta prueba mira: con qué permiso llegó al puente, que es lo
@@ -75,6 +77,7 @@ void main() {
       artifactsFolder: null,
       carpetaDePruebas: null,
       disallowedTools: const <String>[],
+      comandosPermitidos: const <String>[],
       constraintsNotice: null,
     ),
     _Memory(),
