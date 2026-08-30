@@ -132,7 +132,12 @@ roto: algo - ✘ Failed to connect
     // `Authorization`— rechaza toda petición sin cabecera: sin esto se
     // registraba con tic verde y contestaba 401 en el primer encargo, y el
     // único camino era la terminal.
-    test('van con -H, y antes del nombre y la URL', () {
+    // **Al final, detrás del nombre y la URL.** Se escribió al revés la
+    // primera vez —por analogía con las variables de entorno, que van antes
+    // del `--`— y el CLI contestó «missing required argument 'name'»: `-H` es
+    // variadic, `<header...>`, así que puesta delante se traga los dos
+    // posicionales. Esta prueba fija el orden que se comprobó lanzándolo.
+    test('van con -H, detrás del nombre y la URL', () {
       final args = McpCommand.add(
         name: 'huggingface',
         url: 'https://huggingface.co/mcp',
@@ -140,18 +145,18 @@ roto: algo - ✘ Failed to connect
       )!;
 
       expect(args, contains('-H'));
-      // Por posición: el CLI toma `<name> <commandOrUrl>` en orden, así que una
-      // cabecera colada detrás dejaría de ser una cabecera sin decir nada.
       expect(
-        args.indexOf('-H') < args.indexOf('huggingface'),
+        args.indexOf('-H') > args.indexOf('huggingface'),
         isTrue,
-        reason: 'detrás del nombre, el CLI la tomaría por otra cosa',
+        reason: 'delante, se come el nombre y la URL',
       );
       expect(
-        args.indexOf('Authorization: Bearer hf_secreto') <
+        args.indexOf('Authorization: Bearer hf_secreto') >
             args.indexOf('https://huggingface.co/mcp'),
         isTrue,
       );
+      // Y nada detrás de la última: lo que venga después se lo queda ella.
+      expect(args.last, 'Authorization: Bearer hf_secreto');
     });
 
     test('varias caben', () {

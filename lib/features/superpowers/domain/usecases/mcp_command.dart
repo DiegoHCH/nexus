@@ -36,13 +36,20 @@ abstract final class McpCommand {
         'user',
         '--transport',
         'http',
-        // Antes del nombre y la URL, como las variables antes del `--`: el CLI
-        // toma `<name> <commandOrUrl>` por posición, así que una cabecera
-        // colada detrás dejaría de ser una cabecera sin decir nada.
-        for (final header in headers)
-          if (validHeader(header)) ...['-H', header.trim()],
         name,
         url.trim(),
+        // **Al final, y esto es lo contrario de lo que hacen las variables de
+        // entorno**, que van antes del `--`. `-H` es variadic —`<header...>`—
+        // así que se come todo lo que venga detrás: puesta delante, se tragaba
+        // el nombre y la URL y el CLI contestaba «missing required argument
+        // 'name'». Comprobado lanzándolo contra un perfil de usar y tirar: así
+        // el servidor queda guardado con su `headers` dentro.
+        //
+        // Las variables van antes precisamente por lo mismo —también son
+        // variadic— pero ahí el `--` las corta; aquí no hay nada que cortar, y
+        // el sitio seguro es el último.
+        for (final header in headers)
+          if (validHeader(header)) ...['-H', header.trim()],
       ];
     }
     if (command.isEmpty) return null;
