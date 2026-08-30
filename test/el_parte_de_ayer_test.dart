@@ -203,4 +203,48 @@ void main() {
           'porque un parte no deja cambios ni documentos',
     );
   });
+
+  group('pedirlo por escrito', () {
+    test('las formas de pedirlo se reconocen, escritas con prisa', () {
+      for (final frase in [
+        'dame el daily',
+        'Dame el daily',
+        '  DAME EL DAILY  ',
+        'el daily',
+        'daily',
+        'dame el parte',
+        'el parte del día',
+        'standup',
+        '¿Qué hice ayer?',
+        'que hice ayer',
+        'Cuéntame lo de ayer.',
+      ]) {
+        expect(
+          ElParteDeAyer.loEstanPidiendo(frase),
+          isTrue,
+          reason: '«$frase»',
+        );
+      }
+    });
+
+    // La mitad que importa. Reconocer de menos cuesta escribir la frase buena;
+    // reconocer de más secuestra un encargo de verdad y lo convierte en un
+    // resumen de ayer, que además tarda un minuto en salir.
+    test('un encargo que solo menciona el daily sigue siendo un encargo', () {
+      for (final frase in [
+        'mira por qué falla el job del daily',
+        'arregla el parte que sale mal en producción',
+        'dame el daily y luego borra la rama',
+        'qué hice ayer en el repo de la empresa, con detalle',
+        'genera un standup automático cada mañana',
+        'escribe un test para el parte',
+      ]) {
+        expect(
+          ElParteDeAyer.loEstanPidiendo(frase),
+          isFalse,
+          reason: '«$frase»',
+        );
+      }
+    });
+  });
 }

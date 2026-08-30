@@ -25,6 +25,65 @@ abstract final class ElParteDeAyer {
   /// una carpeta ya implica su cuenta, así que filtrar por proyecto excluye lo
   /// personal por construcción **y además** deja fuera los demás repos del
   /// trabajo, que tampoco van a ese daily.
+  /// Si lo que se escribió en el compositor es pedir el parte.
+  ///
+  /// Hablando lo decide el modelo, que entiende la frase que sea; escribiendo no
+  /// hay quien lo decida, y «dame el daily» acababa siendo un encargo suelto
+  /// para Claude — que no tiene delante lo de ayer, así que contestaba algo con
+  /// cara de parte que no lo era.
+  ///
+  /// **Se compara la frase entera, no un trozo.** Buscando «daily» dentro del
+  /// texto, «mira por qué falla el job del daily» dejaría de ser un encargo y
+  /// se convertiría en un resumen: secuestrar trabajo de verdad es mucho peor
+  /// que no reconocer una forma de pedirlo. Por eso la lista es corta y
+  /// cerrada, y lo que no encaje sigue su camino de siempre.
+  static bool loEstanPidiendo(String frase) =>
+      _comoSePide.contains(_sinAdornos(frase));
+
+  /// Las formas que se reconocen. Cortas a propósito: son las que se escriben
+  /// **para pedir esto y nada más**.
+  static const _comoSePide = {
+    'daily',
+    'el daily',
+    'dame el daily',
+    'damos el daily',
+    'daily de ayer',
+    'el daily de ayer',
+    'parte',
+    'el parte',
+    'dame el parte',
+    'parte del dia',
+    'el parte del dia',
+    'dame el parte del dia',
+    'standup',
+    'el standup',
+    'dame el standup',
+    'que hice ayer',
+    'que hice el dia anterior',
+    'resumen de ayer',
+    'cuentame lo de ayer',
+  };
+
+  /// Minúsculas, sin acentos y sin signos: se escribe con prisa, y «¿Qué hice
+  /// ayer?» es la misma petición que «que hice ayer».
+  static String _sinAdornos(String frase) {
+    const acentos = {
+      'á': 'a',
+      'é': 'e',
+      'í': 'i',
+      'ó': 'o',
+      'ú': 'u',
+      'ü': 'u',
+      'ñ': 'n',
+    };
+    var limpia = frase.toLowerCase().trim();
+    acentos.forEach((con, sin) => limpia = limpia.replaceAll(con, sin));
+    return limpia
+        .replaceAll(RegExp(r'[¿?¡!.,;:]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+  }
+
   static List<ConversationSummary> _delProyecto(
     List<ConversationSummary> todas,
     String? carpeta,

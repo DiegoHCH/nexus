@@ -22,6 +22,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
@@ -254,9 +255,28 @@ class AssistantController extends Notifier<AssistantHudState> {
     List<String> attachments = const [],
     bool allowWrites = true,
     bool esElParte = false,
+    String? loQueSeVe,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
+
+    // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
+    // Claude: él no tiene delante lo de ayer, así que contestaba algo con cara
+    // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
+    // no en el compositor porque por escrito también se pide desde el móvil, y
+    // el atajo tiene que valer por los dos sitios.
+    if (!esElParte &&
+        attachments.isEmpty &&
+        ElParteDeAyer.loEstanPidiendo(trimmed)) {
+      if (await pedirElParte(loQueSeVe: trimmed)) return;
+      // Sin día que contar se dice y no se le pide a Claude que se lo invente:
+      // un parte de la nada se lee igual de convincente que uno de verdad.
+      _say(ChatAuthor.user, trimmed);
+      _sealLast();
+      _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
+      _sealLast();
+      return;
+    }
 
     // Lo que se le manda a Claude lleva las rutas detrás —las necesita para
     // abrir los archivos—; lo que se enseña en la conversación, no. Antes eran
@@ -285,7 +305,10 @@ class AssistantController extends Notifier<AssistantHudState> {
       changes: null,
       history: _remember(paraClaude),
     );
-    _say(ChatAuthor.user, trimmed, attachments: attachments);
+    // Lo que se ve puede no ser lo que se manda: quien escribe «dame el daily»
+    // pidió dos palabras, y enseñarle en su sitio las cuarenta líneas de
+    // material que salieron hacia Claude no le dice nada.
+    _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
     _sealLast();
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
@@ -493,13 +516,18 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// hubo ese día, en qué carpetas y con cuántos turnos— y se le pone delante.
   /// Devuelve `false` si no hay ningún día anterior que contar, que es distinto
   /// de fallar: se dice y no se le pide un parte de la nada.
-  Future<bool> pedirElParte() async {
+  Future<bool> pedirElParte({String? loQueSeVe}) async {
     final instruccion = await laInstruccionDelParte(ref);
     if (instruccion == null) return false;
 
     // Sin escritura: un parte se escribe leyendo, y esto lo puede pedir alguien
     // que no tiene por qué darle permiso de escribir para contar lo que hizo.
-    await submit(instruccion, allowWrites: false, esElParte: true);
+    await submit(
+      instruccion,
+      allowWrites: false,
+      esElParte: true,
+      loQueSeVe: loQueSeVe,
+    );
     return true;
   }
 
