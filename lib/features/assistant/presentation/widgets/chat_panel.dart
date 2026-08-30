@@ -10,6 +10,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_enlaces_del_texto.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -342,7 +343,9 @@ class _Answer extends StatelessWidget {
     final mono = NexusTypography.mono.copyWith(color: colors.accent);
 
     return MarkdownBody(
-      data: text,
+      // Las URLs que el modelo escribe entre comillas invertidas vuelven a ser
+      // enlaces antes de pintar. Ver [LosEnlacesDelTexto].
+      data: LosEnlacesDelTexto.sinComillas(text),
       // Sin `selectable`: lo pone el área de la conversación. Ver [ChatPanel].
       selectable: false,
       // **Sin esto un enlace es texto de color.** El paquete pinta el estilo de
