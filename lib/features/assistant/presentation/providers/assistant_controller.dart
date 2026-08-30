@@ -22,6 +22,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
@@ -29,6 +30,7 @@ import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -855,11 +857,38 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,
-      errorMessage: message,
+      errorMessage: _loQuePaso(message),
     );
     // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
     // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
     unawaited(_avisar(ref.read(stringsProvider).errandFailed));
+  }
+
+  /// El fallo, dicho de forma que se pueda hacer algo con él.
+  ///
+  /// Solo se traduce lo que se reconoce; el resto sale literal, que es lo que
+  /// ya hacía y sigue siendo lo correcto: el CLI dice cosas accionables y
+  /// taparlas con un «no se pudo» obliga a abrir la terminal.
+  ///
+  /// **La cuenta se nombra**, y no es un adorno: las carpetas usan cuentas
+  /// distintas y quien lee esto no tiene por qué acordarse de cuál lleva la
+  /// suya. Un «entra otra vez» sin decir dónde deja el mismo trabajo de
+  /// averiguación que había antes.
+  String _loQuePaso(String message) {
+    if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
+    final strings = ref.read(stringsProvider);
+    final carpeta = _folder;
+    final perfil = carpeta == null
+        ? null
+        : ref
+              .read(workspaceControllerProvider)
+              .folders
+              .where((item) => item.path == carpeta)
+              .firstOrNull
+              ?.claudeProfile;
+    return strings.sesionCaducada(
+      ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre,
+    );
   }
 
   /// Mientras no hay sesión de voz, el campo de texto enfocado es la señal

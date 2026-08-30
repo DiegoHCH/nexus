@@ -12,6 +12,22 @@ import 'package:nexus/core/platform/claude_environment.dart';
 class ClaudeCliDataSource {
   const ClaudeCliDataSource();
 
+  /// Un evento del flujo, o `null` si esa línea no lo es.
+  ///
+  /// Público **para poder probar la tolerancia sin lanzar un proceso**, que es
+  /// justo la parte que falló: antes esto era un `jsonDecode` a pelo, y una
+  /// línea de texto plano —las que el CLI escribe cuando algo va mal antes de
+  /// arrancar el flujo— se llevaba por delante el encargo entero con una
+  /// `FormatException`.
+  static Map<String, dynamic>? comoJson(String line) {
+    try {
+      final decoded = jsonDecode(line);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } on FormatException {
+      return null;
+    }
+  }
+
   /// [workingDirectory] es dónde trabaja Claude, y no es opcional de verdad:
   /// sin él el proceso hereda el directorio de la app, que para un bundle
   /// lanzado por launchd es `/`. Cualquier encargo sobre archivos respondía
@@ -127,8 +143,20 @@ class ClaudeCliDataSource {
           .transform(const LineSplitter());
       await for (final line in lines) {
         if (line.trim().isEmpty) continue;
-        final decoded = jsonDecode(line);
-        if (decoded is Map<String, dynamic>) yield decoded;
+        final decoded = ClaudeCliDataSource.comoJson(line);
+        // **Una línea que no es JSON no es el final del encargo.** Antes
+        // `jsonDecode` reventaba con ella y se llevaba por delante la petición
+        // entera —y encima disparaba el reintento sin memoria, que volvía a
+        // chocar con lo mismo—. El CLI escribe texto plano cuando algo va mal
+        // antes de arrancar el flujo; ahí es justo cuando hace falta leerlo.
+        //
+        // Va al mismo sitio que stderr porque acaba en el mismo mensaje: es lo
+        // que el proceso tenía que decir antes de morir.
+        if (decoded == null) {
+          stderrBuffer.writeln(line);
+          continue;
+        }
+        yield decoded;
       }
 
       await stderrDone;
