@@ -22,9 +22,8 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
-import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
-import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
+import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
@@ -210,6 +209,9 @@ class AssistantController extends Notifier<AssistantHudState> {
           spoken: spoken,
           streaming: true,
           attachments: attachments,
+          // Solo la respuesta, no lo que se pidió: el botón de enviar va bajo
+          // el parte, y lo que se pidió es la instrucción que lo generó.
+          esElParte: author == ChatAuthor.nexus && _elParteEnCurso,
         ),
       ],
     );
@@ -251,6 +253,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     String instruction, {
     List<String> attachments = const [],
     bool allowWrites = true,
+    bool esElParte = false,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -267,6 +270,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     await _subscription?.cancel();
     _sealLast();
+    _elParteEnCurso = esElParte;
     final buffer = StringBuffer();
     state = state.copyWith(
       orbState: NexusOrbState.think,
@@ -473,11 +477,15 @@ class AssistantController extends Notifier<AssistantHudState> {
     _afterErrand();
   }
 
-  /// El siguiente encargo es el parte del día.
+  /// Si el encargo en curso es el parte del día.
   ///
-  /// Se marca aquí y se consume al sellar, porque entre pedirlo y contestarlo
-  /// pasan minutos y la respuesta llega por el mismo camino que cualquier otra.
-  bool _pidiendoElParte = false;
+  /// **Se pone al empezar y se lee al crear el mensaje**, no minutos después al
+  /// sellarlo. La primera versión lo consumía en `_afterErrand` —a un turno
+  /// entero de distancia— y el botón no aparecía: entre medias cabe cualquier
+  /// cosa que reconstruya el estado, y una marca que depende de sobrevivir a
+  /// eso no es una marca. Naciendo marcado, el botón está desde la primera
+  /// palabra de la respuesta.
+  bool _elParteEnCurso = false;
 
   /// Pide el parte del último día con trabajo.
   ///
@@ -486,21 +494,30 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Devuelve `false` si no hay ningún día anterior que contar, que es distinto
   /// de fallar: se dice y no se le pide un parte de la nada.
   Future<bool> pedirElParte() async {
-    final todas = await ref.read(localConversationStoreProvider).listAll();
-    final instruccion = ElParteDeAyer.instruccion(
-      todas,
-      hoy: DateTime.now(),
-      // **Solo el proyecto que va a ese Slack.** Sin esto, lo de los proyectos
-      // personales —o de otro repo del trabajo— acabaría en ese daily.
-      soloDelProyecto: ref.read(slackControllerProvider).proyecto,
-    );
+    final instruccion = await laInstruccionDelParte(ref);
     if (instruccion == null) return false;
 
-    _pidiendoElParte = true;
     // Sin escritura: un parte se escribe leyendo, y esto lo puede pedir alguien
     // que no tiene por qué darle permiso de escribir para contar lo que hizo.
-    await submit(instruccion, allowWrites: false);
+    await submit(instruccion, allowWrites: false, esElParte: true);
     return true;
+  }
+
+  /// Deja en la conversación un parte que se pidió **hablando**.
+  ///
+  /// Hace falta un camino aparte porque hablando el encargo no pasa por
+  /// [submit]: lo lleva la conversación de voz, y lo que Claude devuelve
+  /// alimenta la narración, no el chat. Sin esto el parte se oiría y no
+  /// quedaría en ninguna parte — ni el texto, ni el botón para mandarlo.
+  ///
+  /// Se sella lo anterior y lo siguiente: entre medias llega la narración del
+  /// modelo de voz, que es otro turno y no puede acabar pegada al parte.
+  void dejarElParte(String parte) {
+    _sealLast();
+    _elParteEnCurso = true;
+    _say(ChatAuthor.nexus, parte);
+    _sealLast();
+    _elParteEnCurso = false;
   }
 
   /// Deja en el último mensaje de Nexus lo que este encargo produjo.
@@ -518,7 +535,6 @@ class AssistantController extends Notifier<AssistantHudState> {
     mensajes[donde] = mensajes[donde].copyWith(
       cambios: cambios,
       documento: documento,
-      esElParte: _pidiendoElParte ? true : null,
     );
     state = state.copyWith(messages: mensajes);
   }
@@ -549,12 +565,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
-    // Y se marca el mensaje aunque el encargo no tocara nada, que es lo normal
-    // en un parte: `_readChanges` sale antes de tiempo si no hay cambios.
-    if (_pidiendoElParte) {
-      _sellarEnElMensaje();
-      _pidiendoElParte = false;
-    }
+    _elParteEnCurso = false;
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));

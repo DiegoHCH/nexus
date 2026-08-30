@@ -127,17 +127,19 @@ void main() {
           'recortado en el origen, la pantalla perdería lo que sí puede ver',
     );
 
-    // Cuatro, y la cuarta la cazó esta prueba: al añadir la herramienta
-    // `correr_prueba` apareció una salida nueva hacia el servicio de voz —lo
-    // que contesta el lanzador— y esto falló hasta que pasó por el tope. Es
-    // justo para lo que estaba puesta.
+    // Cinco, y las dos últimas las cazó esta prueba: primero `correr_prueba`
+    // —lo que contesta el lanzador— y después `pedir_el_parte` —el parte del
+    // día, que es de las respuestas más largas que hay—. Las dos veces esto
+    // falló hasta que la salida nueva pasó por el tope. Es justo para lo que
+    // estaba puesta.
     expect(
       'loQueCabe('.allMatches(fuente).length,
-      4,
+      5,
       reason:
-          'la declaración y las tres salidas: el resultado de la herramienta, '
-          'la corrección y lo que contesta el lanzador de pruebas. Si aparece '
-          'una salida nueva sin pasar por aquí, esto se entera',
+          'la declaración y las cuatro salidas: el resultado de la '
+          'herramienta, la corrección, lo que contesta el lanzador de pruebas '
+          'y el parte del día. Si aparece una salida nueva sin pasar por aquí, '
+          'esto se entera',
     );
   });
 }

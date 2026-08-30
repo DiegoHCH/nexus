@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_parte_del_dia.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
@@ -31,10 +32,14 @@ class HoldVoiceConversation {
     this._askClaude,
     this._log,
     this._correrUnaPrueba,
+    this._elParteDelDia,
   );
 
   /// Quien sabe lanzar una prueba sin pasar por Claude. Ver [CorrerUnaPrueba].
   final CorrerUnaPrueba _correrUnaPrueba;
+
+  /// Quien sabe qué se hizo el último día de trabajo. Ver [ElParteDelDia].
+  final ElParteDelDia _elParteDelDia;
 
   /// A dónde van los diagnósticos de la sesión. **Se inyecta y no se elige
   /// aquí** por una razón medida: los de b11 se escribieron con
@@ -445,6 +450,38 @@ class HoldVoiceConversation {
           callId: request.callId,
           name: request.name,
           result: loQueCabe(dicho, request.name),
+        );
+        return;
+      }
+
+      // El parte sí acaba en Claude, pero con un encargo que aquí no se sabe
+      // escribir: el material —qué día fue el último con trabajo, qué se hizo y
+      // en qué carpetas— lo trae el puerto. De ahí en adelante es un encargo
+      // como cualquier otro, y por eso pasa por `runErrand`: así el servicio de
+      // voz se mantiene vivo mientras Claude redacta, que puede ser un minuto.
+      if (request.name == ClaudeErrand.parteTool) {
+        final delDia = await _elParteDelDia.instruccion();
+        if (delDia == null) {
+          session?.sendToolResult(
+            callId: request.callId,
+            name: request.name,
+            result:
+                'No hay ningún día anterior con trabajo que contar, así que no '
+                'hay parte.',
+          );
+          return;
+        }
+
+        final parte = await runErrand(delDia, 'El parte del día');
+        if (parte == null) return;
+        // Antes de contestarle al modelo: lo que llegue después es su
+        // narración, y el parte tiene que estar ya puesto —con su botón— para
+        // cuando quien escucha mire la pantalla.
+        _elParteDelDia.yaEstaEscrito(parte);
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          result: loQueCabe(parte, request.name),
         );
         return;
       }

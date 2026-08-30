@@ -146,6 +146,11 @@ class GeminiVoiceGateway implements VoiceGateway {
               'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
               'Si el sistema te entrega una respuesta de Claude, cuéntala tal cual y '
               'sigue la conversación sin disculparte ni explicar por qué llega.\n'
+              'EL PARTE: «dame el daily», «el parte», «el standup» o «qué hice ayer» '
+              'no son un encargo suelto para Claude: llama a pedir_el_parte, que trae '
+              'el material del día ya reunido. Cuando vuelva, resúmelo en dos o tres '
+              'frases —no lo leas entero, que es largo— y di que queda en pantalla '
+              'con el botón para mandarlo a Slack.\n'
               'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
               'a volver a necesitar —un procedimiento del proyecto, una convención, una '
               'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
@@ -229,6 +234,19 @@ class GeminiVoiceGateway implements VoiceGateway {
               'required': ['prueba'],
             },
           },
+          {
+            'name': parteToolName,
+            'description':
+                'Redacta el parte del día: lo que se hizo el último día con '
+                'trabajo, y lo deja en pantalla con un botón para mandarlo a '
+                'Slack. Úsala cuando pidan «el daily», «el parte», «el '
+                'standup», «qué hice ayer» o «cuéntame lo de ayer», en vez de '
+                'pasárselo a Claude como un encargo suelto: por aquí sale con '
+                'el material del día ya reunido, y es el mismo parte que sale '
+                'por el menú. No lleva parámetros: el día lo elige la app, que '
+                'es la que sabe cuál fue el último con trabajo.',
+            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+          },
         ],
       },
     ],
@@ -239,6 +257,7 @@ class GeminiVoiceGateway implements VoiceGateway {
   static const toolName = 'pedir_a_claude';
   static const skillToolName = 'crear_skill';
   static const testToolName = 'correr_prueba';
+  static const parteToolName = 'pedir_el_parte';
 }
 
 class _GeminiVoiceSession implements VoiceSession {

@@ -15,6 +15,7 @@ import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_parte_del_dia.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
@@ -186,6 +187,7 @@ HoldVoiceConversation _conversation(
   _Bridge bridge, {
   void Function(String)? log,
   _Lanzador? lanzador,
+  _Parte? parte,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
@@ -193,6 +195,7 @@ HoldVoiceConversation _conversation(
   _askClaude(bridge),
   log ?? (_) {},
   lanzador ?? _Lanzador(),
+  parte ?? _Parte(),
 );
 
 /// El lanzador de pruebas, que apunta lo que se le pidió. Su gracia en estas
@@ -210,6 +213,27 @@ class _Lanzador implements CorrerUnaPrueba {
     pedidos.add(pedido);
     return dice;
   }
+}
+
+/// El parte del día. Apunta si se le pidió el material y qué texto se le
+/// devolvió ya escrito: eso es lo que estas pruebas miran —que hablando el
+/// parte **acaba en la conversación** y no solo en la narración.
+class _Parte implements ElParteDelDia {
+  _Parte({this.hay = 'cuenta lo del día 12'});
+
+  /// Lo que devuelve como material, o `null` para el día sin trabajo.
+  final String? hay;
+  var seLoPidieron = 0;
+  final escritos = <String>[];
+
+  @override
+  Future<String?> instruccion() async {
+    seLoPidieron++;
+    return hay;
+  }
+
+  @override
+  void yaEstaEscrito(String parte) => escritos.add(parte);
 }
 
 AskClaude _askClaude2(ClaudeBridge bridge) => _armar(bridge);
@@ -285,6 +309,7 @@ void main() {
         _askClaude(bridge),
         (_) {},
         _Lanzador(),
+        _Parte(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -329,6 +354,7 @@ void main() {
         _askClaude(bridge),
         (_) {},
         _Lanzador(),
+        _Parte(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -423,6 +449,7 @@ void main() {
         _askClaude(bridge),
         (_) {},
         _Lanzador(),
+        _Parte(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -495,6 +522,7 @@ void main() {
       _askClaude2(_BridgeQueDiceElModelo('claude-opus-5[1m]')),
       (_) {},
       _Lanzador(),
+      _Parte(),
     );
 
     final vistos = <VoiceEvent>[];
@@ -665,6 +693,72 @@ void main() {
     });
   });
 
+  group('el parte del día, dicho hablando', () {
+    // El encargo no se escribe en la conversación —hay que ir a mirar qué se
+    // hizo y en qué carpetas— pero sí acaba en Claude, que es quien lo redacta.
+    // Las dos mitades tienen que encajar: material del puerto, redacción de
+    // Claude.
+    test('el material lo pone el puerto y la redacción, Claude', () async {
+      final session = _Session();
+      final bridge = _Bridge(respuesta: 'Ayer: tres PRs y una release.');
+      final parte = _Parte();
+      final conversation = _conversation(session, bridge, parte: parte);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: '1',
+          name: ClaudeErrand.parteTool,
+          arguments: {},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(parte.seLoPidieron, 1);
+      expect(bridge.asked, [parte.hay]);
+
+      // Y lo que Claude escribió vuelve **a la conversación escrita**, no solo
+      // al modelo para que lo cuente. Sin esto el parte se oiría y no quedaría
+      // en ninguna parte: ni el texto, ni el botón para mandarlo a Slack.
+      expect(parte.escritos, ['Ayer: tres PRs y una release.']);
+      expect(session.toolResults.single, 'Ayer: tres PRs y una release.');
+
+      await subscription.cancel();
+    });
+
+    // Sin día que contar no se le pide a Claude «invéntate el daily»: se dice
+    // que no hay. Un parte de la nada es peor que ningún parte — se lee igual
+    // de convincente.
+    test('un día sin trabajo no llega a Claude, y se contesta igual', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final parte = _Parte(hay: null);
+      final conversation = _conversation(session, bridge, parte: parte);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: '1',
+          name: ClaudeErrand.parteTool,
+          arguments: {},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+
+      expect(bridge.asked, isEmpty);
+      expect(parte.escritos, isEmpty);
+      // Callarse dejaría al modelo esperando una respuesta que no llega, y la
+      // conversación muda para siempre.
+      expect(session.toolResults, hasLength(1));
+
+      await subscription.cancel();
+    });
+  });
+
   test('al cerrarse el microfono se le dice al servicio que el audio termino', () async {
     // El detector de turno es automatico y mira el audio: espera ver silencio para
     // decidir que terminaste. El microfono del Mac se lo da siempre —sigue mandando
@@ -680,6 +774,7 @@ void main() {
       _askClaude(_Bridge()),
       (_) {},
       _Lanzador(),
+      _Parte(),
     );
 
     final sub = conversation().listen((_) {});
