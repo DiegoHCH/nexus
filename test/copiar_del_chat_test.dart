@@ -26,7 +26,8 @@ void main() {
 
   const dosParrafos = ChatMessage(
     author: ChatAuthor.nexus,
-    text: 'Primer párrafo de la respuesta.\n\n'
+    text:
+        'Primer párrafo de la respuesta.\n\n'
         'Segundo párrafo, que antes no se dejaba seleccionar con el primero.\n\n'
         '- y una lista\n- con dos puntos\n',
   );
