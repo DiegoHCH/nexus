@@ -9,10 +9,11 @@ import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
-import 'package:nexus/features/assistant/presentation/widgets/activity_column.dart';
+import 'package:nexus/features/assistant/presentation/widgets/activity_button.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
@@ -240,29 +241,66 @@ class _HomePageState extends ConsumerState<HomePage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            Expanded(child: ChatPanel(messages: hud.messages)),
+                            Expanded(
+                              child: ChatPanel(
+                                messages: hud.messages,
+                                onRetry: controller.reintentar,
+                              ),
+                            ),
                             // 🔴 Aquí había un segundo botón de «ver los
                             // archivos que tocó», y salía **a la vez** que el
                             // que cuelga del mensaje: el mismo botón dos veces,
                             // uno encima del otro. Este es el que sobra — el
-                            // del mensaje es el que conserva lo suyo cuando
+                            // del mensaje es el que se guarda con la
+                            // conversación y el que conserva lo suyo cuando
                             // pides la segunda cosa. Su propio comentario en
-                            // `chat_panel` ya explicaba que esta barra enseñaba
-                            // solo el último encargo; lo que faltó fue borrarla
-                            // al mudarlo.
-                            // La actividad no desaparece: baja al pie de la
-                            // conversación mientras hay trabajo, para verse sin
-                            // tapar lo que ya se dijo.
+                            // `chat_panel` ya explicaba que esta barra
+                            // enseñaba solo el último encargo; lo que faltó
+                            // fue borrarla al mudarlo.
+                            // La actividad no desaparece: se resume en una
+                            // línea al pie de la conversación, y el detalle se
+                            // abre aparte.
+                            //
+                            // Antes era la lista entera aquí abajo, con hasta
+                            // el 40% del alto para ella. El problema no era el
+                            // tamaño sino de quién lo quitaba: quince pasos
+                            // empujando hacia arriba lo que se acababa de
+                            // responder, justo mientras se lee.
+                            //
+                            // Detener sigue a mano sin abrir nada: **⌘.** está
+                            // atado arriba, en esta misma pantalla.
                             if (working)
-                              ConstrainedBox(
-                                constraints: BoxConstraints(
-                                  maxHeight:
-                                      MediaQuery.sizeOf(context).height * 0.4,
-                                ),
-                                child: ActivityColumn(
-                                  items: hud.activity,
-                                  onStop: controller.stopWork,
-                                ),
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.start,
+                                children: [
+                                  Flexible(
+                                    child: ActivityButton(
+                                      items: hud.activity,
+                                      onOpen: () => unawaited(
+                                        ref
+                                            .read(laVentanaDeActividadProvider)
+                                            .seguir(focused.id),
+                                      ),
+                                    ),
+                                  ),
+                                  // Detener, al lado y no dentro de la ventana.
+                                  //
+                                  // Vivía al pie de la lista de pasos, y esa
+                                  // lista se fue a una ventana aparte: dejarlo
+                                  // allí obligaría a abrirla para poder parar.
+                                  // ⌘. sigue atado arriba, pero un atajo sin
+                                  // nada que lo enseñe solo lo usa quien ya lo
+                                  // sabe.
+                                  Tooltip(
+                                    message: context.strings.stopButton,
+                                    child: IconButton(
+                                      onPressed: controller.stopWork,
+                                      icon: const Icon(Icons.stop, size: 16),
+                                      color: context.colors.faint,
+                                      splashRadius: 16,
+                                    ),
+                                  ),
+                                ],
                               ),
                           ],
                         ),

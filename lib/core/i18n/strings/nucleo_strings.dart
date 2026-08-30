@@ -47,6 +47,12 @@ mixin NucleoStrings {
   String get ranLabel;
   String get returnedLabel;
   String get stillRunning;
+  String get seeActivity;
+  String get expandWindow;
+  String get retryErrand;
+  String get restoreWindow;
+  String stepsProgress(int done, int total);
+  String stepsTaken(int steps);
   String get waitingForOtherConversation;
   String get waitingByVoice;
   String get noFolderForConversation;
@@ -139,6 +145,19 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get returnedLabel => 'DEVOLVIÓ';
   @override
   String get stillRunning => 'todavía corriendo…';
+  @override
+  String get seeActivity => 'Ver lo que está haciendo';
+  @override
+  String get expandWindow => 'Ampliar';
+  @override
+  String get retryErrand => 'REINTENTAR';
+  @override
+  String get restoreWindow => 'Restaurar';
+  @override
+  String stepsProgress(int done, int total) => '$done de $total';
+  @override
+  String stepsTaken(int steps) =>
+      steps == 1 ? 'VER EL PASO QUE DIO' : 'VER LOS $steps PASOS QUE DIO';
   @override
   String get waitingForOtherConversation =>
       'Esperando a la otra conversación sobre esta carpeta';
@@ -255,6 +274,19 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get returnedLabel => 'IT RETURNED';
   @override
   String get stillRunning => 'still running…';
+  @override
+  String get seeActivity => 'See what it is doing';
+  @override
+  String get expandWindow => 'Expand';
+  @override
+  String get retryErrand => 'RETRY';
+  @override
+  String get restoreWindow => 'Restore';
+  @override
+  String stepsProgress(int done, int total) => '$done of $total';
+  @override
+  String stepsTaken(int steps) =>
+      steps == 1 ? 'SEE THE STEP IT TOOK' : 'SEE THE $steps STEPS IT TOOK';
   @override
   String get waitingForOtherConversation =>
       'Waiting for the other conversation on this folder';
