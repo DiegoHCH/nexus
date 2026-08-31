@@ -249,8 +249,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
   @override
   String get imagesExplainer =>
-      'La llave con la que se generan las imágenes (Gemini 2.5 Flash Image, '
-      '«nano banana»). Va aparte de la de voz porque su proyecto necesita '
+      'La llave con la que se generan las imágenes. Va aparte de la de voz '
+      'porque su proyecto necesita '
       'facturación: con una sola, encender las imágenes empezaría a cobrar '
       'también las conversaciones.\n\nY hay una por cuenta de Claude: el gasto '
       'sale de un bolsillo concreto, así que ponerla solo en una cuenta es la '
@@ -447,8 +447,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String imageFailed(String motivo) => 'Could not generate the image: $motivo';
   @override
   String get imagesExplainer =>
-      'The key images are generated with (Gemini 2.5 Flash Image, "nano '
-      'banana"). It is separate from the voice one because its project needs '
+      'The key images are generated with. It is separate from the voice one '
+      'because its project needs '
       'billing: with a single key, turning images on would start charging for '
       'conversations too.\n\nAnd there is one per Claude account: the spend '
       'comes out of a specific pocket, so setting it on one account only is how '

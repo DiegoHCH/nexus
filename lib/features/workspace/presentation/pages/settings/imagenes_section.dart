@@ -30,37 +30,48 @@ class ImagenesSection extends ConsumerWidget {
       ref.watch(claudeProfilesProvider).value ?? const [],
     );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          strings.imagesExplainer,
-          style: NexusTypography.mono.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s5),
-        // Cuál dibuja, antes que las llaves: es lo que decide cuánto cuesta
-        // cada imagen, y con el doble de diferencia entre el más caro y el más
-        // barato conviene verlo al elegir y no en la factura.
-        Text(
-          strings.whichImageModel,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s2),
-        SettingsChooser<ModeloDeImagen>(
-          value: ref.watch(modeloDeImagenProvider),
-          options: ModeloDeImagen.values,
-          label: (modelo) => modelo.nombre,
-          detail: (modelo) => strings.perImage(modelo.precio),
-          onSelected: ref.read(modeloDeImagenProvider.notifier).elegir,
-        ),
-        const SizedBox(height: NexusSpacing.s6),
-        for (final cuenta in cuentas) _LaDeUnaCuenta(perfil: cuenta),
-        const SizedBox(height: NexusSpacing.s3),
-        Text(
-          strings.imagesNotWiredYet,
-          style: NexusTypography.mono.copyWith(color: colors.warn),
-        ),
-      ],
+    // 🔴 **Rueda, porque esta sección crece con las cuentas.** Con tres —la de
+    // siempre, `private` y `work`— son tres etiquetas, tres campos y tres
+    // botones debajo del selector, y deja de caber en el alto de Ajustes: 85 px
+    // por abajo, medidos. Con una cuenta cabía, y por eso no se vio al
+    // escribirla.
+    //
+    // El scroll va aquí y no en el marco de Ajustes: hay secciones que usan
+    // `Expanded` y `ListView` por dentro, y envolverlas a todas les quitaría el
+    // alto acotado del que dependen.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            strings.imagesExplainer,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+          const SizedBox(height: NexusSpacing.s5),
+          // Cuál dibuja, antes que las llaves: es lo que decide cuánto cuesta
+          // cada imagen, y con el doble de diferencia entre el más caro y el más
+          // barato conviene verlo al elegir y no en la factura.
+          Text(
+            strings.whichImageModel,
+            style: NexusTypography.label.copyWith(color: colors.faint),
+          ),
+          const SizedBox(height: NexusSpacing.s2),
+          SettingsChooser<ModeloDeImagen>(
+            value: ref.watch(modeloDeImagenProvider),
+            options: ModeloDeImagen.values,
+            label: (modelo) => modelo.nombre,
+            detail: (modelo) => strings.perImage(modelo.precio),
+            onSelected: ref.read(modeloDeImagenProvider.notifier).elegir,
+          ),
+          const SizedBox(height: NexusSpacing.s6),
+          for (final cuenta in cuentas) _LaDeUnaCuenta(perfil: cuenta),
+          const SizedBox(height: NexusSpacing.s3),
+          Text(
+            strings.imagesNotWiredYet,
+            style: NexusTypography.mono.copyWith(color: colors.warn),
+          ),
+        ],
+      ),
     );
   }
 }
