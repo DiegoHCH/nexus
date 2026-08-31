@@ -22,15 +22,20 @@ void main() {
     devolvio: strings.returnedLabel,
     todaviaCorriendo: strings.stillRunning,
     sinPasos: strings.noStepsYet,
+    detener: strings.stopNow,
   );
 
-  String pinta(List<ActivityItem> pasos, {bool viva = true}) =>
-      LaActividadComoHtml.escribe(
-        filas: layoutActivity(pasos),
-        terminados: pasos.where((p) => p.done).length,
-        viva: viva,
-        textos: textos,
-      );
+  String pinta(
+    List<ActivityItem> pasos, {
+    bool viva = true,
+    String? detenerEn,
+  }) => LaActividadComoHtml.escribe(
+    filas: layoutActivity(pasos),
+    terminados: pasos.where((p) => p.done).length,
+    viva: viva,
+    textos: textos,
+    detenerEn: detenerEn,
+  );
 
   test('sin pasos todavía, se cuenta la espera', () {
     final html = pinta(const []);
@@ -104,6 +109,34 @@ void main() {
 
     expect(html, isNot(contains('<script>robar()')));
     expect(html, contains('&lt;script&gt;robar()'));
+  });
+
+  // El botón de parar es un enlace y lo intercepta el visor: la página no
+  // lleva JavaScript, así que navegar es lo único que puede hacer.
+  //
+  // Y lleva la conversación en la ruta porque **puede haber varias ventanas
+  // abiertas a la vez**, una por conversación: «detener» a secas no diría cuál.
+  test('la ventana en vivo puede parar el encargo, y dice cuál', () {
+    final html = pinta([
+      ActivityItem(id: 'a1', description: 'Corriendo algo', writes: false),
+    ], detenerEn: 'c1');
+
+    expect(html, contains('href="nexus://detener/c1"'));
+  });
+
+  test('la de un turno cerrado no lleva botón de parar', () {
+    final paso = ActivityItem(
+      id: 'a1',
+      description: 'Corrió algo',
+      writes: false,
+      done: true,
+    );
+
+    expect(
+      pinta([paso], viva: false),
+      isNot(contains('nexus://detener')),
+      reason: 'no hay nada que parar, y un botón muerto enseña a no pulsarlo',
+    );
   });
 
   test('viva gira; terminada, no', () {

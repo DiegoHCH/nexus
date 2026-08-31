@@ -74,6 +74,9 @@ class UpdatesController extends Notifier<UpdatesState> {
 
   Future<void> _leerVersion() async {
     final actual = await ref.read(currentVersionProvider.future);
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = state.copyWith(notice: ReleaseCheck(current: actual));
   }
 

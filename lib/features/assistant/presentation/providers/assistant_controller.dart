@@ -103,6 +103,9 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _folder;
     if (folder == null) return;
     final memory = await ref.read(conversationMemoryProvider).read(folder);
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!_vive) return;
     state = state.copyWith(history: memory.prompts);
   }
 
@@ -750,6 +753,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     try {
       await ref.read(localConversationStoreProvider).save(record);
+      if (!_vive) return;
       ref.invalidate(savedConversationsProvider(folder));
     } catch (error) {
       falloLocal = true;
@@ -919,6 +923,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       )) {
         if (event case ClaudeTurnCompleted(:final contextTokens)) {
           medido = contextTokens;
+          if (!_vive) return;
           state = state.copyWith(
             meter: state.meter.copyWith(contextTokens: contextTokens),
           );
@@ -1208,6 +1213,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();
     _voiceSubscription = null;
+    if (!_vive) return;
     state = state.copyWith(
       voiceActive: false,
       orbState: NexusOrbState.sleep,
@@ -1332,6 +1338,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _onVoiceFailed(String message) async {
     await _voiceSubscription?.cancel();
     _voiceSubscription = null;
+    if (!_vive) return;
     state = state.copyWith(
       voiceActive: false,
       orbState: NexusOrbState.sleep,

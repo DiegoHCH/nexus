@@ -41,6 +41,9 @@ class ConversationsController extends Notifier<Conversations> {
       _savedFocusId = json['focusedId'] as String?;
     }
 
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     final workspace = ref.read(workspaceControllerProvider);
     if (workspace.folders.isEmpty) return;
 

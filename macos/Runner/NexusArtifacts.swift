@@ -94,9 +94,15 @@ final class NexusArtifacts: NSObject {
     )
   }
 
-  static func pidieron(_ que: String) {
+  /// Lo que una página nuestra le pide a la app.
+  ///
+  /// `que` es el host —`nexus://parar` pide parar— y `ruta` es lo que venga
+  /// detrás. La ruta existe porque **hay más de una ventana pidiendo cosas** y
+  /// no siempre basta con saber qué se pide: la de un encargo en curso tiene
+  /// que decir además de cuál, y eso viaja como `nexus://detener/<id>`.
+  static func pidieron(_ que: String, ruta: String = "") {
     log.info("la página pidió \(que, privacy: .public)")
-    channel?.invokeMethod("desdeLaPagina", arguments: ["que": que])
+    channel?.invokeMethod("desdeLaPagina", arguments: ["que": que, "ruta": ruta])
   }
 
   private static func show(path: String, width: Double? = nil, height: Double? = nil) {
@@ -428,7 +434,7 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
     // app, y eso no es navegar. Antes que el reenvío al navegador, porque
     // `nexus://parar` no es una dirección de internet.
     if let target = navigationAction.request.url, target.scheme == "nexus" {
-      NexusArtifacts.pidieron(target.host ?? "")
+      NexusArtifacts.pidieron(target.host ?? "", ruta: target.path)
       decisionHandler(.cancel, preferences)
       return
     }

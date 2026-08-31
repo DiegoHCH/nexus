@@ -60,6 +60,9 @@ class ConfigsPorDefecto extends Notifier<Map<String, String>> {
     try {
       final leido = jsonDecode(guardado);
       if (leido is Map) {
+        // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+        // ya no existe y esto lanzaria en vez de no hacer nada.
+        if (!ref.mounted) return;
         state = {for (final e in leido.entries) '${e.key}': '${e.value}'};
       }
     } on FormatException {
@@ -101,6 +104,9 @@ class AutoRecarga extends Notifier<bool> {
 
   Future<void> _cargar() async {
     final prefs = await SharedPreferences.getInstance();
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = prefs.getBool(_clave) ?? false;
   }
 
