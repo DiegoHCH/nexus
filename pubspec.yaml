@@ -27,6 +27,12 @@ dependencies:
   flutter_riverpod: ^3.4.2
   flutter_secure_storage: ^11.0.0
   hotkey_manager: ^0.2.3
+  # Directa y no transitiva a propósito: `MarkdownElementBuilder.visitText`
+  # recibe un `md.Text`, así que pintar los bloques de código a mano obliga a
+  # nombrar el tipo. Usarla sin declararla es lo que el linter llama depender de
+  # algo que no pediste — y el día que `flutter_markdown_plus` deje de traerla,
+  # esto se rompe sin que nadie haya tocado nada.
+  markdown: ^7.3.1
   package_info_plus: ^10.2.1
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5

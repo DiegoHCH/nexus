@@ -98,6 +98,10 @@ mixin NucleoStrings {
   /// Cuando git terminó con error, dicho antes de su propia salida.
   String gitFallo(int codigo);
 
+  /// El pliegue de un bloque de código largo.
+  String masLineas(int cuantas);
+  String get mostrarMenos;
+
   /// Un comando que terminó bien y no dijo nada. `git add` es el caso.
   String get sinNadaQueDecir;
 
@@ -321,6 +325,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
   @override
   String gitFallo(int codigo) => 'git terminó con error (código $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas líneas más';
+  @override
+  String get mostrarMenos => 'Mostrar menos';
   @override
   String get sinNadaQueDecir =>
       'Hecho. git no dijo nada, que suele ser buena señal.';
@@ -583,6 +591,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
   @override
   String gitFallo(int codigo) => 'git exited with an error (code $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas more lines';
+  @override
+  String get mostrarMenos => 'Show less';
   @override
   String get sinNadaQueDecir =>
       'Done. git said nothing, which is usually a good sign.';
