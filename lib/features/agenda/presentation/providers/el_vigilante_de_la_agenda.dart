@@ -18,7 +18,6 @@ import 'package:nexus/features/assistant/presentation/providers/voice_input_prov
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
-import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Cómo están los avisos de agenda.
@@ -370,14 +369,23 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       .items
       .any((c) => ref.read(assistantControllerProvider(c.id)).voiceActive);
 
-  String? _cuentaDe(String carpeta) => ClaudeProfile.nameFromPath(
-    ref
-        .read(workspaceControllerProvider)
-        .folders
-        .where((f) => f.path == carpeta)
-        .firstOrNull
-        ?.claudeProfile,
-  );
+  /// La cuenta de Claude con la que se mira el calendario: **la ruta del
+  /// perfil**, no su nombre.
+  ///
+  /// 🔴 Aquí había un `nameFromPath` que devolvía `work` donde hacía falta
+  /// `/Users/…/.claude-work`. Eso acababa en `CLAUDE_CONFIG_DIR=work`, una ruta
+  /// relativa: `claude -p` se creaba una cuenta nueva y vacía **dentro de la
+  /// carpeta emparejada**, contestaba «Not logged in · Please run /login» y el
+  /// `catch` de la lectura lo convertía en una agenda vacía. O sea: sin
+  /// conector, sin reuniones y sin un solo error a la vista. El resto de la app
+  /// —el puente de los encargos— siempre pasó la ruta; esto era el único sitio
+  /// que pasaba el nombre.
+  String? _cuentaDe(String carpeta) => ref
+      .read(workspaceControllerProvider)
+      .folders
+      .where((f) => f.path == carpeta)
+      .firstOrNull
+      ?.claudeProfile;
 }
 
 final elVigilanteDeLaAgendaProvider =
