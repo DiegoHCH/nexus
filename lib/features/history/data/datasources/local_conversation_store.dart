@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'dart:io';
 
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
@@ -79,6 +80,15 @@ class LocalConversationStore {
               // deja el parte sin su botón de enviar — el mismo fallo que ya
               // tuvieron los cambios.
               if (message.esElParte) 'parte': true,
+              // Y los pasos que dio. Mismo motivo que los cambios, un grado
+              // peor: la lista de la pantalla se vacía al empezar el encargo
+              // siguiente, así que sin guardarla «qué hizo» ya no tenía
+              // respuesta ni antes de cerrar la app.
+              if (message.actividad.isNotEmpty)
+                'pasos': [for (final paso in message.actividad) paso.toJson()],
+              // Y que se quedó sin hacer. Al reabrir mañana el encargo sigue
+              // sin hacerse: el botón de reintentar tiene que seguir ahí.
+              if (message.fallo) 'fallo': true,
             },
         ],
       }),
@@ -302,6 +312,8 @@ class LocalConversationStore {
                 // pulsa el día que sí lleva.
                 documento: _documentoDe(message['documento']),
                 esElParte: message['parte'] == true,
+                actividad: _pasosDe(message['pasos']),
+                fallo: message['fallo'] == true,
               ),
         ],
       );
@@ -312,6 +324,17 @@ class LocalConversationStore {
 
   static GitChanges? _cambiosDe(Object? crudo) =>
       crudo is Map<String, dynamic> ? GitChanges.fromJson(crudo) : null;
+
+  /// Los pasos guardados, saltándose los que no se puedan leer.
+  ///
+  /// Uno ilegible **no tumba el turno entero**: un registro escrito por una
+  /// versión anterior no trae esta clave, y una que la traiga a medias vale más
+  /// leída a medias que descartada — lo que se pierde es una fila de una lista,
+  /// no la conversación.
+  static List<ActivityItem> _pasosDe(Object? crudo) {
+    if (crudo is! List<dynamic>) return const [];
+    return [for (final paso in crudo) ?ActivityItem.fromJson(paso)];
+  }
 
   static String? _documentoDe(Object? crudo) =>
       crudo is String && File(crudo).existsSync() ? crudo : null;

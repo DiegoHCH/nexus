@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 
 /// Quién habla en una línea de la conversación.
@@ -20,6 +21,8 @@ class ChatMessage {
     this.cambios,
     this.documento,
     this.esElParte = false,
+    this.actividad = const [],
+    this.fallo = false,
   });
 
   final ChatAuthor author;
@@ -36,12 +39,30 @@ class ChatMessage {
   /// El documento que este encargo creó, si creó alguno.
   final String? documento;
 
+  /// Los pasos que dio este encargo: qué leyó, qué corrió, qué escribió.
+  ///
+  /// Cuelgan del mensaje por el mismo motivo que [cambios], y con una urgencia
+  /// más: la lista de la pantalla **se vacía al empezar el encargo siguiente**,
+  /// así que sin esto lo que hizo el primero desaparecía en cuanto pedías la
+  /// segunda cosa — no hacía falta ni cerrar la app.
+  final List<ActivityItem> actividad;
+
   /// Esta respuesta es el parte del día, así que se le puede mandar a Slack.
   ///
   /// Se marca el mensaje en vez de ofrecer «mandar a Slack» en todos: un botón
   /// de enviar en cada respuesta invita a mandar cualquier cosa por una puerta
   /// que existe para una sola.
   final bool esElParte;
+
+  /// El encargo que salió de este mensaje **no llegó a hacerse**.
+  ///
+  /// Va en el mensaje y no en el estado de la pantalla porque lo que se ofrece
+  /// es reintentar **esto**, no «lo último»: si mientras tanto pediste otra
+  /// cosa, un aviso suelto ya no sabría a qué se refería.
+  ///
+  /// Solo lo lleva el tuyo. Un fallo no produce respuesta que marcar, y lo que
+  /// se reintenta es la petición.
+  final bool fallo;
 
   /// Llegó por voz. Se marca porque un texto transcrito no es lo mismo que uno
   /// escrito: si la transcripción se equivocó, saber que venía del micrófono
@@ -67,6 +88,8 @@ class ChatMessage {
     GitChanges? cambios,
     String? documento,
     bool? esElParte,
+    List<ActivityItem>? actividad,
+    bool? fallo,
   }) => ChatMessage(
     author: author,
     text: text ?? this.text,
@@ -76,6 +99,8 @@ class ChatMessage {
     cambios: cambios ?? this.cambios,
     documento: documento ?? this.documento,
     esElParte: esElParte ?? this.esElParte,
+    actividad: actividad ?? this.actividad,
+    fallo: fallo ?? this.fallo,
   );
 
   /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y

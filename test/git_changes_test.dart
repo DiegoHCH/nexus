@@ -78,6 +78,47 @@ void main() {
     expect(cambios.diff, isNot(contains('primera')));
   });
 
+  // 🔴 **La otra mitad del acumulado, y esta faltaba.** `stash create` solo mete
+  // lo que git ya sigue, así que la marca no decía nada de los archivos sueltos:
+  // se listaban todos y se daban todos por recién creados.
+  //
+  // Reportado mirándolo: un encargo de puras lecturas —`git status`, `git log`,
+  // `cat`— anunció «ver los 6 archivos que tocó» porque había cuatro sin
+  // trackear de antes. El botón contesta «¿qué acaba de cambiar?», y contestaba
+  // que no.
+  test('lo que ya estaba sin trackear no lo creó esta tarea', () async {
+    write('de_ayer.dart', 'viejo\n');
+
+    final base = await git.snapshot(repo.path);
+    final yaEstaban = await git.sinTrackear(repo.path);
+    write('de_hoy.dart', 'nuevo\n');
+
+    final cambios = await git.changesSince(
+      repo.path,
+      base!,
+      yaEstaban: yaEstaban,
+    );
+
+    expect(cambios!.newFiles, ['de_hoy.dart']);
+    expect(cambios.fileCount, 1);
+  });
+
+  test('y un encargo que no toca nada no anuncia nada', () async {
+    // El caso exacto del reporte: archivos sueltos de antes y una tarea que
+    // solo lee. Sin la resta, esto devolvía cambios.
+    write('de_ayer.dart', 'viejo\n');
+    write('otro_de_ayer.dart', 'viejo\n');
+
+    final base = await git.snapshot(repo.path);
+    final yaEstaban = await git.sinTrackear(repo.path);
+
+    expect(
+      await git.changesSince(repo.path, base!, yaEstaban: yaEstaban),
+      isNull,
+      reason: 'no tocó nada: el botón no debería existir',
+    );
+  });
+
   test('una carpeta que no es un repositorio no inventa cambios', () async {
     final suelta = Directory.systemTemp.createTempSync('nexus_sin_git');
     addTearDown(() => suelta.deleteSync(recursive: true));

@@ -49,6 +49,11 @@ class LanguageController extends Notifier<LanguageChoice> {
   Future<void> unawaitedLoad() async {
     final prefs = await SharedPreferences.getInstance();
     final stored = LanguageChoice.fromStored(prefs.getString(_key));
+    // 🔴 Se sale con `unawaited` desde `build`, así que esto aterriza **después
+    // de un `await`** y el proveedor puede haberse desmontado ya. Sin la
+    // comprobación, `state =` lanza — y como nadie espera este futuro, el error
+    // sale por la puerta de atrás y tumba lo que estuviera corriendo.
+    if (!ref.mounted) return;
     if (stored != state) state = stored;
   }
 

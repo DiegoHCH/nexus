@@ -6,6 +6,7 @@ import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
@@ -23,7 +24,14 @@ import 'package:url_launcher/url_launcher.dart';
 /// colores, autor en etiqueta— para que siga pareciendo un panel de control y
 /// no una app de mensajería.
 class ChatPanel extends StatefulWidget {
-  const ChatPanel({super.key, required this.messages});
+  const ChatPanel({super.key, required this.messages, this.onRetry});
+
+  /// Volver a mandar un encargo que no llegó a hacerse.
+  ///
+  /// Entra por parámetro en vez de leerse de un proveedor aquí dentro porque
+  /// este panel no sabe de qué conversación es —recibe los mensajes ya
+  /// resueltos— y hacer que lo supiera solo por esto lo ataría a una.
+  final void Function(ChatMessage mensaje)? onRetry;
 
   final List<ChatMessage> messages;
 
@@ -77,16 +85,18 @@ class _ChatPanelState extends State<ChatPanel> {
         controller: _controller,
         padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
         itemCount: widget.messages.length,
-        itemBuilder: (context, index) => _Turn(message: widget.messages[index]),
+        itemBuilder: (context, index) =>
+            _Turn(message: widget.messages[index], onRetry: widget.onRetry),
       ),
     );
   }
 }
 
 class _Turn extends StatelessWidget {
-  const _Turn({required this.message});
+  const _Turn({required this.message, this.onRetry});
 
   final ChatMessage message;
+  final void Function(ChatMessage mensaje)? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +121,18 @@ class _Turn extends StatelessWidget {
                 // Marcado como hablado: si la transcripción se equivocó, saber
                 // que venía del micrófono explica el disparate.
                 Icon(Icons.graphic_eq, size: 11, color: colors.faint),
+              ],
+              // Al otro extremo de la fila, y **solo si falló**.
+              //
+              // Sin esto, un encargo que se cae deja como única salida copiar
+              // el mensaje y pegarlo otra vez — teniéndolo escrito ahí mismo.
+              // Va aquí y no en el aviso de arriba porque el aviso es de «lo
+              // último» y esto es de **este** mensaje: si mientras tanto
+              // pediste otra cosa, un botón suelto ya no sabría a qué se
+              // refiere.
+              if (message.fallo && onRetry != null) ...[
+                const Spacer(),
+                _Reintentar(onTap: () => onRetry!(message)),
               ],
             ],
           ),
@@ -154,9 +176,50 @@ class _Turn extends StatelessWidget {
           // nunca, porque el bloque entero se saltaba antes de llegar a él.
           if (message.cambios != null ||
               message.documento != null ||
-              message.esElParte)
+              message.esElParte ||
+              message.actividad.isNotEmpty)
             _LoQueDejo(message: message),
         ],
+      ),
+    );
+  }
+}
+
+/// Volver a mandarlo, sin escribirlo otra vez.
+///
+/// Pequeño y en rojo: no es una acción del día a día, es la salida de algo que
+/// se rompió. Y en la fila del autor y no bajo el texto, que es donde van las
+/// cosas que **dejó** un turno — este no dejó nada, ése es el problema.
+class _Reintentar extends StatelessWidget {
+  const _Reintentar({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final texto = context.strings.retryErrand;
+
+    return Semantics(
+      button: true,
+      label: texto,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.refresh, size: 12, color: colors.err),
+              const SizedBox(width: 4),
+              Text(
+                texto,
+                style: NexusTypography.label.copyWith(color: colors.err),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -200,6 +263,22 @@ class _LoQueDejo extends ConsumerWidget {
                   onTap: () => ref
                       .read(elVisorDeCambiosProvider)
                       .abrir(cambios, strings.changesTitle),
+                ),
+              // Los pasos de ESTE turno, cuando ya terminó.
+              //
+              // El botón con el giro que hay al pie de la conversación es el
+              // del encargo en curso y desaparece al acabar — tiene que
+              // desaparecer, porque lo que anuncia es que hay algo corriendo.
+              // Lo que hizo se mira después, y después es aquí: colgado del
+              // turno, guardado con la conversación, y sin caducar cuando pides
+              // la segunda cosa.
+              if (message.actividad.isNotEmpty)
+                _Boton(
+                  icono: Icons.list_alt,
+                  texto: strings.stepsTaken(message.actividad.length),
+                  onTap: () => ref
+                      .read(laVentanaDeActividadProvider)
+                      .ver(message.actividad),
                 ),
               if (message.documento case final documento?)
                 _Boton(

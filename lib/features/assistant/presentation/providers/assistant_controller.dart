@@ -259,6 +259,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool allowWrites = true,
     bool esElParte = false,
     String? loQueSeVe,
+    bool reintento = false,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -312,8 +313,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Lo que se ve puede no ser lo que se manda: quien escribe «dame el daily»
     // pidió dos palabras, y enseñarle en su sitio las cuarenta líneas de
     // material que salieron hacia Claude no le dice nada.
-    _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
-    _sealLast();
+    // **Un reintento no se vuelve a escribir**: el mensaje ya está en la
+    // conversación, y añadirlo otra vez dejaría la misma petición dos veces
+    // seguidas con una sola respuesta debajo. Lo que se pidió fue reintentar
+    // *eso*, no mandarlo de nuevo.
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
+      _sealLast();
+    }
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
     unawaited(_markRepo());
@@ -332,6 +341,51 @@ class AssistantController extends Notifier<AssistantHudState> {
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
+  }
+
+  /// Vuelve a mandar un encargo que no llegó a hacerse.
+  ///
+  /// Pedido mirándolo: cuando algo falla, la única salida era **copiar el
+  /// mensaje y pegarlo otra vez**. La petición ya está escrita ahí; volver a
+  /// teclearla es trabajo que la app puede ahorrarse.
+  ///
+  /// Se reconstruye desde lo que se ve más los adjuntos, y no desde el texto
+  /// que salió hacia Claude —que llevaba las rutas pegadas detrás y no se
+  /// guarda—: `submit` lo vuelve a componer igual que la primera vez, así que
+  /// el reintento manda exactamente lo mismo.
+  Future<void> reintentar(ChatMessage fallido) =>
+      submit(fallido.text, attachments: fallido.attachments, reintento: true);
+
+  /// La marca se quita de **todos**, no solo del que se reintenta.
+  ///
+  /// Solo puede haber un encargo en marcha, así que un intento nuevo deja sin
+  /// sentido cualquier «esto se quedó a medias» anterior. Quitarla de uno solo
+  /// dejaría botones de reintentar por la conversación que ya no reintentan
+  /// nada.
+  void _quitaLaMarcaDeFallo() {
+    if (!state.messages.any((mensaje) => mensaje.fallo)) return;
+    state = state.copyWith(
+      messages: [
+        for (final mensaje in state.messages)
+          mensaje.fallo ? mensaje.copyWith(fallo: false) : mensaje,
+      ],
+    );
+  }
+
+  /// Lo que se pidió y no se hizo, marcado en su propio mensaje.
+  ///
+  /// El tuyo y no el suyo: un fallo no deja respuesta que marcar, y lo que se
+  /// reintenta es la petición. Se busca el último tuyo porque un fallo puede
+  /// llegar con texto a medias ya escrito debajo, y entonces el último mensaje
+  /// de la lista es de Nexus.
+  void _marcaElFallo() {
+    final mensajes = [...state.messages];
+    final donde = mensajes.lastIndexWhere(
+      (mensaje) => mensaje.author == ChatAuthor.user,
+    );
+    if (donde == -1) return;
+    mensajes[donde] = mensajes[donde].copyWith(fallo: true);
+    state = state.copyWith(messages: mensajes);
   }
 
   /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
@@ -420,11 +474,37 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Y qué documentos había antes, para saber cuál salió de aquí.
   Set<String> _documentosAntes = const {};
 
+  /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
+  /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
+  /// cualquier archivo suelto de ayer contaba como creado por este encargo.
+  Set<String> _sinTrackearAntes = const {};
+
+  /// ¿Sigue existiendo esta conversación?
+  ///
+  /// 🔴 **Media docena de cosas del final de un encargo salen con `unawaited`**
+  /// —la marca del repo, el diff, el archivado, mirar si salió un documento— y
+  /// todas tocan `ref` o `state` **después de un `await`**. Si la pestaña se
+  /// cierra mientras tanto, el proveedor ya no existe y eso lanza en vez de no
+  /// hacer nada.
+  ///
+  /// Lo destapó el CI, no la máquina de nadie: en local el trabajo pendiente
+  /// solía terminar antes de que se desmontara el proveedor y no se veía. Es la
+  /// clase de fallo que solo asoma cuando la máquina va lenta — o cuando el
+  /// usuario cierra la pestaña justo después de mandar algo, que es exactamente
+  /// cuando esto ocurre de verdad.
+  bool get _vive => ref.mounted;
+
   Future<void> _markRepo() async {
     final folder = _workingDirectory;
-    _repoBase = folder == null
-        ? null
-        : await const GitDataSource().snapshot(folder);
+    if (folder == null) {
+      _repoBase = null;
+      _sinTrackearAntes = const {};
+    } else {
+      const git = GitDataSource();
+      _repoBase = await git.snapshot(folder);
+      _sinTrackearAntes = await git.sinTrackear(folder);
+    }
+    if (!_vive) return;
     _documentosAntes = await _documentosAhora();
   }
 
@@ -433,6 +513,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Se comparan antes y después por la misma razón que el repositorio: lo que
   /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
   Future<Set<String>> _documentosAhora() async {
+    if (!_vive) return const {};
     final carpeta = ref.read(artifactsFolderProvider);
     if (carpeta == null) return const {};
     final cuentas = ref
@@ -451,8 +532,12 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _workingDirectory;
     final base = _repoBase;
     if (folder == null || base == null) return;
-    final cambios = await const GitDataSource().changesSince(folder, base);
-    if (cambios == null) return;
+    final cambios = await const GitDataSource().changesSince(
+      folder,
+      base,
+      yaEstaban: _sinTrackearAntes,
+    );
+    if (cambios == null || !_vive) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
 
@@ -558,7 +643,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// guarda uno y lo pisa el siguiente, así que al subir por la conversación el
   /// segundo encargo borraba de la vista lo que había hecho el primero. Cada
   /// turno se queda con lo suyo.
-  void _sellarEnElMensaje({GitChanges? cambios, String? documento}) {
+  void _sellarEnElMensaje({
+    GitChanges? cambios,
+    String? documento,
+    List<ActivityItem>? actividad,
+  }) {
     final mensajes = [...state.messages];
     final donde = mensajes.lastIndexWhere(
       (mensaje) => mensaje.author == ChatAuthor.nexus,
@@ -567,6 +656,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     mensajes[donde] = mensajes[donde].copyWith(
       cambios: cambios,
       documento: documento,
+      actividad: actividad,
     );
     state = state.copyWith(messages: mensajes);
   }
@@ -579,7 +669,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _mirarSiHayDocumento() async {
     final ahora = await _documentosAhora();
     final nuevos = ahora.difference(_documentosAntes);
-    if (nuevos.isEmpty) return;
+    if (nuevos.isEmpty || !_vive) return;
     ref.invalidate(artifactsProvider);
     _sellarEnElMensaje(documento: nuevos.last);
   }
@@ -592,6 +682,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// miraba los cambios y —lo peor— **no se guardaba en el historial**, porque
   /// `_archive` colgaba de aquí y de ningún otro sitio.
   void _afterErrand() {
+    // **Los pasos se cuelgan del mensaje antes que nada**, y por eso van
+    // síncronos: `_archive()` sale unas líneas más abajo, y si el sellado
+    // esperara a un `await` el registro se guardaría sin ellos y solo los
+    // recogería el turno siguiente. Es el mismo cuidado que ya pedían los
+    // cambios, con el agravante de que la actividad se borra al empezar el
+    // encargo que viene — lo que no quede sellado aquí no existe después.
+    if (state.activity.isNotEmpty) {
+      _sellarEnElMensaje(actividad: state.activity);
+    }
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
@@ -856,6 +955,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onFailed(String message) {
     _sealLast();
+    _marcaElFallo();
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,

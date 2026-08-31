@@ -54,6 +54,44 @@ class ActivityItem {
     parentId: parentId,
     startedAt: startedAt,
   );
+
+  /// Para guardarlo con la conversación.
+  ///
+  /// **Se guarda o se pierde**, que es la lección que ya dejaron los cambios de
+  /// cada turno: la actividad vivía solo en memoria y se borra al empezar el
+  /// encargo siguiente, así que «qué hizo aquella vez» no tenía respuesta ni
+  /// bajando por la conversación, mucho menos al día siguiente.
+  ///
+  /// Las claves van en español como las del resto del registro. `done` no se
+  /// escribe: lo que se guarda ya terminó, y leerlo como terminado es lo
+  /// correcto aunque el encargo se cortara a la mitad — un paso que quedó a
+  /// medias no va a seguir corriendo mañana.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'que': description,
+    if (writes) 'escribe': true,
+    if (parentId != null) 'padre': parentId,
+    'desde': startedAt.toIso8601String(),
+    if (detail != null) 'detalle': detail,
+    if (output != null) 'devolvio': output,
+  };
+
+  static ActivityItem? fromJson(Object? crudo) {
+    if (crudo is! Map<String, dynamic>) return null;
+    final id = crudo['id'];
+    final que = crudo['que'];
+    if (id is! String || que is! String) return null;
+    return ActivityItem(
+      id: id,
+      description: que,
+      writes: crudo['escribe'] == true,
+      parentId: crudo['padre'] as String?,
+      startedAt: DateTime.tryParse(crudo['desde'] as String? ?? ''),
+      detail: crudo['detalle'] as String?,
+      output: crudo['devolvio'] as String?,
+      done: true,
+    );
+  }
 }
 
 /// Todo lo que necesita pintar la pantalla principal: el estado del orbe y

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
+import 'package:nexus/core/platform/ventana_del_visor.dart';
 
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
@@ -474,59 +475,18 @@ class E2eDataSource {
     required String html,
     required bool primeraVez,
     required String raizDeLaVentana,
-  }) async {
-    // Carpeta propia y oculta: es un archivo de trabajo, no algo que mirar en el
-    // Finder, y así nadie más escribe donde el visor está vigilando.
-    //
-    // Aquí había antes un comentario que daba el temporal del sistema como *la*
-    // causa de que la página se quedara congelada. Era falso y conviene que quede
-    // escrito: la causa está unas líneas más abajo —sobrescribir un archivo que ya
-    // existe no genera ningún evento de carpeta, y el visor vigila la carpeta—. Lo
-    // que hacía el temporal era justo lo contrario, taparlo: el ruido de otros
-    // procesos provocaba recargas de rebote, así que refrescaba a ratos y por
-    // casualidad.
-    final carpeta = Directory('$raizDeLaVentana/.ventana');
-    try {
-      carpeta.createSync(recursive: true);
-    } on FileSystemException {
-      return;
-    }
-    final ruta = '${carpeta.path}/$flow.html';
-    try {
-      // **Se escribe aparte y se renombra encima**, y esto no es prudencia: es lo
-      // único que hace que la ventana se entere.
-      //
-      // El visor vigila el **directorio** con un `DispatchSource`, y eso avisa
-      // cuando cambia el *contenido de la carpeta* —un archivo que aparece, se va
-      // o se renombra—, **no cuando cambia un archivo que ya estaba dentro**.
-      // Sobrescribiendo el mismo archivo no llegaba ningún evento y la página se
-      // quedaba en el primer paso con el indicador girando por CSS, que es lo que
-      // se veía.
-      //
-      // Y explica por qué antes refrescaba a ratos: estaba en el temporal del
-      // sistema, donde el ruido de otros procesos generaba esos eventos. Se
-      // refrescaba por casualidad. Un renombrado dentro de la misma carpeta es
-      // atómico, así que además nadie lee la página a medio escribir.
-      final aparte = File('$ruta.parte')..writeAsStringSync(html);
-      aparte.renameSync(ruta);
-    } on FileSystemException {
-      return;
-    }
-    if (!primeraVez) return;
-
-    try {
-      await _visor.invokeMethod<bool>('open', {
-        'path': ruta,
-        'width': 440.0,
-        'height': 900.0,
-      });
-    } on PlatformException {
-      // Sin canal nativo —en una prueba, o si el visor no está— la pasada sigue
-      // igual: la ventana es una forma de mirarla, no la pasada.
-    } on MissingPluginException {
-      return;
-    }
-  }
+  }) => VentanaDelVisor.pinta(
+    raiz: raizDeLaVentana,
+    // La ruta es **estable por pasada**, y eso importa: el visor lleva sus
+    // ventanas por archivo, así que reescribir la misma actualiza la que ya
+    // está delante en vez de abrir otra en cada paso.
+    nombre: flow,
+    html: html,
+    primeraVez: primeraVez,
+    // Estrecha y alta porque lo que se enseña es una columna de pasos.
+    ancho: 440,
+    alto: 900,
+  );
 
   /// El mismo canal que el visor de documentos: es literalmente el mismo visor.
   static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
