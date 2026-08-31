@@ -68,6 +68,17 @@ mixin NucleoStrings {
   String get settings;
   String get closeEsc;
   String get sectionVoice;
+  String get sectionKeys;
+  String get keysExplainer;
+  String get keyIsSaved;
+  String get keyIsMissing;
+  String get keyForget;
+  String get keyVoice;
+  String get keyChannelToken;
+  String get keyWritePhrase;
+  String get keyPairing;
+  String keyForgetAsk(String llave);
+  String get keyForgetWarning;
   String get sectionPermissions;
   String get sectionLanguage;
   String get sectionHistory;
@@ -194,6 +205,32 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get closeEsc => 'CERRAR  ESC';
   @override
   String get sectionVoice => 'Voz';
+  @override
+  String get sectionKeys => 'Llaves';
+  @override
+  String get keysExplainer =>
+      'Lo que Nexus tiene guardado cifrado en este Mac. No se enseña ninguna: '
+      'solo si está puesta o no. Para comprobar si es la que crees, quítala y '
+      'pon la buena.';
+  @override
+  String get keyIsSaved => 'guardada';
+  @override
+  String get keyIsMissing => 'sin poner';
+  @override
+  String get keyForget => 'OLVIDAR';
+  @override
+  String get keyVoice => 'Llave de voz (Gemini)';
+  @override
+  String get keyChannelToken => 'Token del canal';
+  @override
+  String get keyWritePhrase => 'Frase de escritura';
+  @override
+  String get keyPairing => 'Emparejamiento del teléfono';
+  @override
+  String keyForgetAsk(String llave) => '¿Olvidar «$llave»?';
+  @override
+  String get keyForgetWarning =>
+      'Se borra del llavero y no se puede deshacer. Habrá que volver a ponerla.';
   @override
   String get sectionPermissions => 'Permisos';
   @override
@@ -322,6 +359,33 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get closeEsc => 'CLOSE  ESC';
   @override
   String get sectionVoice => 'Voice';
+  @override
+  String get sectionKeys => 'Keys';
+  @override
+  String get keysExplainer =>
+      'What Nexus keeps encrypted on this Mac. None of them is shown: only '
+      'whether it is set. To check whether it is the one you think, remove it '
+      'and put the right one in.';
+  @override
+  String get keyIsSaved => 'saved';
+  @override
+  String get keyIsMissing => 'not set';
+  @override
+  String get keyForget => 'FORGET';
+  @override
+  String get keyVoice => 'Voice key (Gemini)';
+  @override
+  String get keyChannelToken => 'Channel token';
+  @override
+  String get keyWritePhrase => 'Write phrase';
+  @override
+  String get keyPairing => 'Phone pairing';
+  @override
+  String keyForgetAsk(String llave) => 'Forget "$llave"?';
+  @override
+  String get keyForgetWarning =>
+      'It is deleted from the keychain and cannot be undone. You will have to '
+      'set it again.';
   @override
   String get sectionPermissions => 'Permissions';
   @override

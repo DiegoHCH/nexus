@@ -37,6 +37,9 @@ class _Store implements GeminiKeyStore {
 
   @override
   Future<void> save(String key) async {}
+
+  @override
+  Future<void> clear() async {}
 }
 
 /// El llavero se niega a abrir. Es el escenario de la deuda b5: la llave vive
@@ -50,6 +53,9 @@ class _BrokenStore implements GeminiKeyStore {
 
   @override
   Future<void> save(String key) async {}
+
+  @override
+  Future<void> clear() async {}
 }
 
 /// Un sistema con todo en su sitio.

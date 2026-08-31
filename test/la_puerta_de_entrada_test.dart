@@ -41,6 +41,9 @@ class _Llavero implements GeminiKeyStore {
     guardadas.add(key);
     _value = key;
   }
+
+  @override
+  Future<void> clear() async => _value = null;
 }
 
 void main() {
