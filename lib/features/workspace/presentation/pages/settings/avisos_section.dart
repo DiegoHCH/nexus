@@ -74,6 +74,30 @@ class AvisosSection extends ConsumerWidget {
             onSelected: (m) => vigilante.cambiar(minutos: m),
           ),
           const SizedBox(height: NexusSpacing.s5),
+          // 🔴 El botón y la hora juntos, y no el botón solo.
+          //
+          // La agenda en memoria **envejece sin avisar**: lo que programes a
+          // media mañana no está en lo que se leyó al arrancar. Ver a qué hora
+          // se leyó es lo que convierte eso en algo que puedes corregir, en vez
+          // de en una ausencia de la que nadie se entera.
+          Row(
+            children: [
+              OutlinedButton(
+                onPressed: avisos.listos
+                    ? () => ref
+                          .read(elVigilanteDeLaAgendaProvider.notifier)
+                          .releer()
+                    : null,
+                child: Text(strings.avisosReleer),
+              ),
+              const SizedBox(width: NexusSpacing.s3),
+              Text(switch (avisos.ultimaLectura) {
+                final cuando? => strings.avisosLeidoA(_laHora(cuando)),
+                null => strings.avisosSinLeer,
+              }, style: NexusTypography.data.copyWith(color: colors.faint)),
+            ],
+          ),
+          const SizedBox(height: NexusSpacing.s5),
           Text(
             strings.avisosNota,
             style: NexusTypography.mono.copyWith(color: colors.faint),
@@ -86,6 +110,10 @@ class AvisosSection extends ConsumerWidget {
   /// La guardada, si sigue emparejada. Una carpeta que se desemparejó dejaría
   /// el selector apuntando a algo que ya no existe, y el vigilante mirando un
   /// calendario que no se puede leer.
+  static String _laHora(DateTime cuando) =>
+      '${cuando.hour.toString().padLeft(2, '0')}:'
+      '${cuando.minute.toString().padLeft(2, '0')}';
+
   static String _elegida(String? guardada, List<PairedFolder> carpetas) =>
       carpetas.any((c) => c.path == guardada) ? guardada! : '';
 }

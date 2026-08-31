@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
+import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 
 /// Las reglas del aviso, que son lo que se rompe en silencio: un aviso que no
 /// suena no deja rastro, y uno que suena de más enseña a ignorarlo.
@@ -108,6 +109,46 @@ void main() {
       );
 
       expect(decir(justo), 'Daily, ahora.');
+    });
+  });
+
+  // 🔴 Dos lecturas al día como mucho, y las dos hacen falta.
+  //
+  // Anclarlo solo a las ocho deja sin avisos a quien abre la app a las siete;
+  // leer solo al arrancar deja fuera lo que se programe de un día para otro.
+  group('cuándo se vuelve a leer la agenda', () {
+    test('antes de las ocho, el ancla es el arranque del día', () {
+      expect(
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 7, 30)),
+        DateTime(2026, 8, 31),
+      );
+    });
+
+    test('a partir de las ocho, el ancla son las ocho', () {
+      expect(
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 8)),
+        DateTime(2026, 8, 31, 8),
+      );
+      expect(
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 17, 45)),
+        DateTime(2026, 8, 31, 8),
+      );
+    });
+
+    // Que sea el mismo valor toda la tarde es lo que evita releer: quien
+    // compara con lo ya leído no vuelve a preguntar hasta mañana.
+    test('toda la tarde comparte ancla, así que no se relee', () {
+      expect(
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 9)),
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 23, 59)),
+      );
+    });
+
+    test('y mañana es otra', () {
+      expect(
+        ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 9, 1, 9)),
+        isNot(ElVigilanteDeLaAgenda.anclaPara(DateTime(2026, 8, 31, 9))),
+      );
     });
   });
 

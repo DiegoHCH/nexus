@@ -27,6 +27,7 @@ class Avisos {
     this.minutos = 5,
     this.carpeta,
     this.cargado = false,
+    this.ultimaLectura,
   });
 
   final bool encendidos;
@@ -39,15 +40,30 @@ class Avisos {
 
   final bool cargado;
 
+  /// Cuándo se leyó el calendario por última vez, para poder enseñarlo.
+  ///
+  /// Se enseña porque **la agenda en memoria envejece sin avisar**: si programas
+  /// algo a media mañana, lo que hay guardado no lo sabe. Ver la hora de la
+  /// lectura es lo que convierte eso en algo que puedes corregir en vez de en
+  /// una ausencia silenciosa.
+  final DateTime? ultimaLectura;
+
   bool get listos => encendidos && (carpeta?.isNotEmpty ?? false);
 
-  Avisos copyWith({bool? encendidos, int? minutos, Object? carpeta = _nada}) =>
-      Avisos(
-        encendidos: encendidos ?? this.encendidos,
-        minutos: minutos ?? this.minutos,
-        carpeta: carpeta == _nada ? this.carpeta : carpeta as String?,
-        cargado: true,
-      );
+  Avisos copyWith({
+    bool? encendidos,
+    int? minutos,
+    Object? carpeta = _nada,
+    Object? ultimaLectura = _nada,
+  }) => Avisos(
+    encendidos: encendidos ?? this.encendidos,
+    minutos: minutos ?? this.minutos,
+    carpeta: carpeta == _nada ? this.carpeta : carpeta as String?,
+    cargado: true,
+    ultimaLectura: ultimaLectura == _nada
+        ? this.ultimaLectura
+        : ultimaLectura as DateTime?,
+  );
 
   static const _nada = Object();
 }
@@ -63,7 +79,18 @@ class Avisos {
 /// tu suscripción para releer lo mismo.
 class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   Timer? _reloj;
-  DateTime? _diaLeido;
+
+  /// El ancla de la última lectura, no la hora en que ocurrió.
+  ///
+  /// 🔴 **Se lee al arrancar y otra vez al pasar por las ocho**, y no solo una
+  /// vez al día. Anclarlo únicamente a las ocho dejaría sin avisos a quien abre
+  /// la app a las siete; leer solo al arrancar deja fuera todo lo que se
+  /// programe después. Con las dos, son como mucho dos consultas diarias y la
+  /// mañana entra completa.
+  ///
+  /// Lo que ninguna de las dos arregla es lo que se programa a media mañana:
+  /// para eso está [releer], que se pide a mano.
+  DateTime? _leidoDesde;
   List<Reunion> _agenda = const [];
   final _yaAvisadas = <String>{};
   var _hablando = false;
@@ -71,6 +98,11 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// Cada cuánto se mira el reloj. Treinta segundos: con la ventana de cinco
   /// minutos, es imposible que una reunión entre y salga sin que se vea.
   static const _cadencia = Duration(seconds: 30);
+
+  /// A qué hora se vuelve a mirar la agenda del día. Las ocho: lo que se
+  /// programa de un día para otro ya está puesto, y lo que se programe después
+  /// se pide a mano.
+  static const horaDeRelectura = 8;
 
   /// Cuánto se espera a que una sesión de voz calle antes de rendirse y dejarlo
   /// en notificación.
@@ -112,9 +144,7 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     );
     // La agenda de la cuenta anterior ya no vale.
     if (carpeta != null) {
-      _diaLeido = null;
-      _agenda = const [];
-      _yaAvisadas.clear();
+      _olvidarLaAgenda();
     }
     _arrancarOParar();
   }
@@ -147,20 +177,44 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     await _avisar(reunion, ahora);
   }
 
+  /// Vuelve a preguntarle al calendario ahora mismo.
+  ///
+  /// Existe porque la agenda en memoria **no se entera de lo que se programe
+  /// después**: una reunión puesta a media mañana no está en lo que se leyó al
+  /// arrancar. Se pide a mano en vez de sondear cada pocos minutos, que serían
+  /// casi trescientas consultas diarias para releer lo mismo.
+  Future<void> releer() async {
+    _olvidarLaAgenda();
+    await _leerSiHaceFalta(DateTime.now());
+  }
+
+  void _olvidarLaAgenda() {
+    _leidoDesde = null;
+    _agenda = const [];
+    _yaAvisadas.clear();
+  }
+
+  /// El ancla que toca ahora: hoy a las ocho si ya pasaron, y si no, el arranque
+  /// del día. Son dos lecturas como mucho.
+  static DateTime anclaPara(DateTime ahora) => ahora.hour >= horaDeRelectura
+      ? DateTime(ahora.year, ahora.month, ahora.day, horaDeRelectura)
+      : DateTime(ahora.year, ahora.month, ahora.day);
+
   Future<void> _leerSiHaceFalta(DateTime ahora) async {
-    final hoy = DateTime(ahora.year, ahora.month, ahora.day);
-    if (_diaLeido == hoy) return;
+    final ancla = anclaPara(ahora);
+    if (_leidoDesde == ancla) return;
     final carpeta = state.carpeta;
     if (carpeta == null) return;
 
     final leida = await const AgendaDataSource().delDia(
-      hoy,
+      DateTime(ahora.year, ahora.month, ahora.day),
       carpeta: carpeta,
       configDir: _cuentaDe(carpeta),
     );
     if (!ref.mounted) return;
     _agenda = leida;
-    _diaLeido = hoy;
+    _leidoDesde = ancla;
+    state = state.copyWith(ultimaLectura: DateTime.now());
     // Un día nuevo empieza sin memoria de lo avisado: los identificadores son
     // del calendario y no se repiten, pero dejar crecer el conjunto para
     // siempre es una fuga lenta que nadie va a mirar.

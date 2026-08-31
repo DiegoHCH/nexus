@@ -78,6 +78,9 @@ mixin NucleoStrings {
   String get avisosCarpeta;
   String get avisosSinCarpeta;
   String get avisosNota;
+  String get avisosReleer;
+  String get avisosSinLeer;
+  String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
   String reunionAhora(String titulo);
   String get whichImageModel;
@@ -252,6 +255,12 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get avisosCarpeta => 'DE QUÉ CUENTA MIRA EL CALENDARIO';
   @override
   String get avisosSinCarpeta => 'Elige una carpeta';
+  @override
+  String get avisosReleer => 'ACTUALIZAR EL CALENDARIO';
+  @override
+  String get avisosSinLeer => 'todavía sin leer';
+  @override
+  String avisosLeidoA(String hora) => 'leído a las $hora';
   @override
   String get avisosNota =>
       'Suena con la voz que elegiste en Voz, y también en el teléfono si está '
@@ -476,6 +485,12 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get avisosCarpeta => 'WHOSE CALENDAR IT LOOKS AT';
   @override
   String get avisosSinCarpeta => 'Pick a folder';
+  @override
+  String get avisosReleer => 'REFRESH THE CALENDAR';
+  @override
+  String get avisosSinLeer => 'not read yet';
+  @override
+  String avisosLeidoA(String hora) => 'read at $hora';
   @override
   String get avisosNota =>
       'It speaks with the voice you picked under Voice, and on the phone too if '
