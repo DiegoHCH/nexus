@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/DiegoHCH/nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/DiegoHCH/nexus/actions/workflows/ci.yml)
 [![Última versión](https://img.shields.io/github/v/release/DiegoHCH/nexus?label=versi%C3%B3n)](https://github.com/DiegoHCH/nexus/releases/latest)
-[![Licencia MIT](https://img.shields.io/badge/licencia-MIT-blue)](LICENSE)
+[![Licencia Apache 2.0](https://img.shields.io/badge/licencia-Apache%202.0-blue)](LICENSE)
 ![macOS 12+](https://img.shields.io/badge/macOS-12%2B-lightgrey)
 
 Un asistente de voz de escritorio para macOS que **ejecuta trabajo real en tu Mac**.
@@ -298,7 +298,17 @@ Dos cosas que este repositorio pide y no son habituales:
 
 ## Licencia
 
-[MIT](LICENSE). Copyright © 2026 Diego Hoyos.
+[Apache 2.0](LICENSE). Copyright © 2026 Diego Hoyos.
 
 Puedes usarlo, copiarlo, modificarlo y redistribuirlo —también comercialmente—
-conservando el aviso de copyright. Se distribuye **sin garantía de ningún tipo**.
+con tres condiciones: conservar el aviso de copyright y el [NOTICE](NOTICE),
+**dejar constancia de los archivos que hayas modificado**, y no usar el nombre ni
+las marcas del proyecto para respaldar lo tuyo.
+
+Apache y no MIT por dos cosas que aquí importan. Trae una **concesión expresa de
+patentes** —MIT no dice nada de patentes, y esa ambigüedad es lo que frena a una
+empresa a adoptar algo—, y exige declarar lo modificado: con una app que se
+distribuye firmada y notarizada, eso evita que circule una versión tocada sin que
+se sepa.
+
+Se distribuye **sin garantía de ningún tipo**.
