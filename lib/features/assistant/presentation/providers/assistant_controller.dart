@@ -7,6 +7,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
+import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
@@ -272,6 +274,20 @@ class AssistantController extends Notifier<AssistantHudState> {
     // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
     // no en el compositor porque por escrito también se pide desde el móvil, y
     // el atajo tiene que valer por los dos sitios.
+    // `/imagen una cosa` no es un encargo para Claude: **no pasa por él**.
+    // Va derecho a Gemini, que es quien dibuja, y el resultado cae en la
+    // carpeta de documentos como cualquier otra cosa que produce Nexus.
+    //
+    // Se desvía aquí y no en el compositor por lo mismo que el parte: por
+    // escrito también se pide desde el móvil, y el atajo tiene que valer por
+    // los dos sitios.
+    if (!esElParte && attachments.isEmpty) {
+      if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
+        await _dibujar(descripcion, loQueSeVe: loQueSeVe ?? trimmed);
+        return;
+      }
+    }
+
     if (!esElParte &&
         attachments.isEmpty &&
         ElParteDeAyer.loEstanPidiendo(trimmed)) {
@@ -344,6 +360,70 @@ class AssistantController extends Notifier<AssistantHudState> {
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
+  }
+
+  /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
+  /// que listar, hay una espera — pero una espera de veinte segundos sin nada
+  /// en pantalla se lee igual que un cuelgue.
+  static const _dibujoId = 'dibujando';
+
+  /// `/imagen …`: se genera, se guarda y se enseña. Sin pasar por Claude.
+  Future<void> _dibujar(String descripcion, {required String loQueSeVe}) async {
+    await _subscription?.cancel();
+    _sealLast();
+    final strings = ref.read(stringsProvider);
+
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: '',
+      isStreaming: false,
+      errorMessage: null,
+      notice: null,
+      // Los cambios del turno anterior se van con él, igual que en un encargo.
+      changes: null,
+      activity: [
+        ActivityItem(
+          id: _dibujoId,
+          description: strings.drawingIt,
+          writes: true,
+        ),
+      ],
+    );
+    _say(ChatAuthor.user, loQueSeVe);
+    _sealLast();
+
+    final salio = await ref.read(generarUnaImagenProvider)(descripcion);
+    // La generación tarda, y en ese rato la pestaña se puede haber cerrado.
+    if (!_vive) return;
+
+    final texto = switch (salio.problema) {
+      null => strings.imageDone(salio.ruta!.split('/').last),
+      'sin-llave' => strings.imageNeedsKey,
+      'sin-carpeta' => strings.imageNeedsFolder,
+      final motivo => strings.imageFailed(motivo),
+    };
+
+    state = state.copyWith(
+      orbState: NexusOrbState.sleep,
+      isStreaming: false,
+      activity: [for (final paso in state.activity) paso.asDone()],
+      // Lo que falló se marca en tu mensaje, igual que un encargo caído: el
+      // botón de reintentar vale aquí exactamente igual — y con más motivo,
+      // porque volver a escribir la descripción es lo caro.
+    );
+    _say(ChatAuthor.nexus, texto);
+    _sealLast();
+    if (salio.ruta case final ruta?) {
+      _sellarEnElMensaje(documento: ruta);
+    } else {
+      _marcaElFallo();
+    }
+
+    // 🔴 Se archiva, pero **no se llama a `_afterErrand`**: ahí dentro está el
+    // diff de la tarea, y esto no tocó el repositorio. Con la marca de git de un
+    // encargo anterior todavía en memoria, enseñaría los cambios de aquél como
+    // si los hubiera hecho el dibujo.
+    unawaited(_archive());
   }
 
   /// Vuelve a mandar un encargo que no llegó a hacerse.

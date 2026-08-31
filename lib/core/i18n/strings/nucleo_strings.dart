@@ -71,6 +71,11 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get drawingIt;
+  String get imageNeedsKey;
+  String get imageNeedsFolder;
+  String imageDone(String nombre);
+  String imageFailed(String motivo);
   String get imagesExplainer;
   String get imageKeyLabel;
   String get imagesNotWiredYet;
@@ -217,6 +222,18 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get sectionKeys => 'Llaves';
   @override
   String get sectionImages => 'Imágenes';
+  @override
+  String get drawingIt => 'Generando la imagen…';
+  @override
+  String get imageNeedsKey =>
+      'Falta la llave de imágenes. Se pone en Ajustes → Imágenes.';
+  @override
+  String get imageNeedsFolder =>
+      'No hay carpeta de documentos donde dejarla. Se elige en Ajustes.';
+  @override
+  String imageDone(String nombre) => 'Listo: $nombre';
+  @override
+  String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
   @override
   String get imagesExplainer =>
       'La llave con la que se generarán las imágenes (Gemini 2.5 Flash Image, '
@@ -389,6 +406,18 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get sectionKeys => 'Keys';
   @override
   String get sectionImages => 'Images';
+  @override
+  String get drawingIt => 'Generating the image…';
+  @override
+  String get imageNeedsKey =>
+      'The image key is missing. Set it in Settings → Images.';
+  @override
+  String get imageNeedsFolder =>
+      'There is no documents folder to put it in. Pick one in Settings.';
+  @override
+  String imageDone(String nombre) => 'Done: $nombre';
+  @override
+  String imageFailed(String motivo) => 'Could not generate the image: $motivo';
   @override
   String get imagesExplainer =>
       'The key images will be generated with (Gemini 2.5 Flash Image, "nano '
