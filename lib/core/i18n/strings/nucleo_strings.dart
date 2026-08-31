@@ -81,6 +81,8 @@ mixin NucleoStrings {
   String get avisosReleer;
   String get avisosProbar;
   String get avisoDePrueba;
+  String get agendaVacia;
+  String agendaDeHoy(int cuantas);
   String get avisosSinLeer;
   String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
@@ -263,6 +265,12 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get avisosProbar => 'OÍR UN AVISO';
   @override
   String get avisoDePrueba => 'Reunión de prueba';
+  @override
+  String get agendaVacia => 'Hoy no tienes reuniones.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'Hoy tienes una reunión:'
+      : 'Hoy tienes $cuantas reuniones:';
   @override
   String get avisosSinLeer => 'todavía sin leer';
   @override
@@ -497,6 +505,12 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get avisosProbar => 'HEAR AN ALERT';
   @override
   String get avisoDePrueba => 'Test meeting';
+  @override
+  String get agendaVacia => 'You have no meetings today.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'You have one meeting today:'
+      : 'You have $cuantas meetings today:';
   @override
   String get avisosSinLeer => 'not read yet';
   @override

@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
+import 'package:nexus/features/agenda/domain/usecases/lo_que_se_pregunta_de_la_agenda.dart';
+import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
@@ -312,6 +314,25 @@ class AssistantController extends Notifier<AssistantHudState> {
           siguiendo: true,
           reintento: reintento,
         );
+        return;
+      }
+    }
+
+    // «¿Qué reuniones tengo hoy?» **no vuelve a Claude**: la app ya leyó el
+    // calendario para poder avisar, así que la respuesta está en memoria.
+    // Mandar un encargo para releer lo mismo cuesta un minuto de espera y
+    // tokens de la suscripción, y devuelve exactamente lo que ya se tiene.
+    //
+    // Si no hay agenda que mirar —avisos apagados, sin carpeta— devuelve `null`
+    // y esto sigue de largo hacia Claude, que sí puede salir a preguntarlo.
+    if (!esElParte &&
+        attachments.isEmpty &&
+        LoQueSePreguntaDeLaAgenda.loEstanPidiendo(trimmed)) {
+      if (await ref.read(laAgendaDeHoyProvider).deHoy() case final agenda?) {
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        _say(ChatAuthor.nexus, agenda);
+        _sealLast();
         return;
       }
     }

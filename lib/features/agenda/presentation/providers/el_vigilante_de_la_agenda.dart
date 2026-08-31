@@ -10,6 +10,7 @@ import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.da
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
+import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -188,6 +189,35 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     await _leerSiHaceFalta(DateTime.now());
   }
 
+  /// Lo que hay hoy, sin salir a preguntarlo otra vez.
+  ///
+  /// La agenda ya está leída —hizo falta para poder avisar— así que contestar
+  /// es mirar en memoria. `null` si no hay nada que mirar: con los avisos
+  /// apagados o sin carpeta no hay agenda, y entonces quien pregunta sigue por
+  /// el camino largo en vez de recibir un «no tengo» que sería mentira.
+  Future<String?> loDeHoy() async {
+    if (!state.listos) return null;
+    await _leerSiHaceFalta(DateTime.now());
+    if (!ref.mounted) return null;
+
+    final s = ref.read(stringsProvider);
+    final reuniones = [
+      for (final reunion in _agenda)
+        if (reunion.esUnaReunion) reunion,
+    ]..sort((a, b) => a.comienza.compareTo(b.comienza));
+    if (reuniones.isEmpty) return s.agendaVacia;
+
+    return [
+      s.agendaDeHoy(reuniones.length),
+      for (final reunion in reuniones)
+        '- ${_laHora(reunion.comienza)} · ${reunion.titulo}',
+    ].join('\n');
+  }
+
+  static String _laHora(DateTime cuando) =>
+      '${cuando.hour.toString().padLeft(2, '0')}:'
+      '${cuando.minute.toString().padLeft(2, '0')}';
+
   /// Suelta un aviso de mentira, ahora mismo.
   ///
   /// 🔴 **Existe porque esto no se puede probar de otra forma.** Un aviso
@@ -351,3 +381,18 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
 
 final elVigilanteDeLaAgendaProvider =
     NotifierProvider<ElVigilanteDeLaAgenda, Avisos>(ElVigilanteDeLaAgenda.new);
+
+/// El puerto que usa la conversación, hablando o escribiendo.
+final laAgendaDeHoyProvider = Provider<LaAgendaDeHoy>(
+  (ref) => _LaAgendaDelVigilante(ref),
+);
+
+class _LaAgendaDelVigilante implements LaAgendaDeHoy {
+  const _LaAgendaDelVigilante(this._ref);
+
+  final Ref _ref;
+
+  @override
+  Future<String?> deHoy() =>
+      _ref.read(elVigilanteDeLaAgendaProvider.notifier).loDeHoy();
+}
