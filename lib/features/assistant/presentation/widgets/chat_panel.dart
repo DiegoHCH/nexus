@@ -2,14 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/history/presentation/providers/slack_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_enlaces_del_texto.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 /// La conversación entera a la derecha: lo que pediste y lo que respondió.
 ///
@@ -20,7 +24,14 @@ import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 /// colores, autor en etiqueta— para que siga pareciendo un panel de control y
 /// no una app de mensajería.
 class ChatPanel extends StatefulWidget {
-  const ChatPanel({super.key, required this.messages});
+  const ChatPanel({super.key, required this.messages, this.onRetry});
+
+  /// Volver a mandar un encargo que no llegó a hacerse.
+  ///
+  /// Entra por parámetro en vez de leerse de un proveedor aquí dentro porque
+  /// este panel no sabe de qué conversación es —recibe los mensajes ya
+  /// resueltos— y hacer que lo supiera solo por esto lo ataría a una.
+  final void Function(ChatMessage mensaje)? onRetry;
 
   final List<ChatMessage> messages;
 
@@ -74,16 +85,18 @@ class _ChatPanelState extends State<ChatPanel> {
         controller: _controller,
         padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
         itemCount: widget.messages.length,
-        itemBuilder: (context, index) => _Turn(message: widget.messages[index]),
+        itemBuilder: (context, index) =>
+            _Turn(message: widget.messages[index], onRetry: widget.onRetry),
       ),
     );
   }
 }
 
 class _Turn extends StatelessWidget {
-  const _Turn({required this.message});
+  const _Turn({required this.message, this.onRetry});
 
   final ChatMessage message;
+  final void Function(ChatMessage mensaje)? onRetry;
 
   @override
   Widget build(BuildContext context) {
@@ -108,6 +121,18 @@ class _Turn extends StatelessWidget {
                 // Marcado como hablado: si la transcripción se equivocó, saber
                 // que venía del micrófono explica el disparate.
                 Icon(Icons.graphic_eq, size: 11, color: colors.faint),
+              ],
+              // Al otro extremo de la fila, y **solo si falló**.
+              //
+              // Sin esto, un encargo que se cae deja como única salida copiar
+              // el mensaje y pegarlo otra vez — teniéndolo escrito ahí mismo.
+              // Va aquí y no en el aviso de arriba porque el aviso es de «lo
+              // último» y esto es de **este** mensaje: si mientras tanto
+              // pediste otra cosa, un botón suelto ya no sabría a qué se
+              // refiere.
+              if (message.fallo && onRetry != null) ...[
+                const Spacer(),
+                _Reintentar(onTap: () => onRetry!(message)),
               ],
             ],
           ),
@@ -151,9 +176,50 @@ class _Turn extends StatelessWidget {
           // nunca, porque el bloque entero se saltaba antes de llegar a él.
           if (message.cambios != null ||
               message.documento != null ||
-              message.esElParte)
+              message.esElParte ||
+              message.actividad.isNotEmpty)
             _LoQueDejo(message: message),
         ],
+      ),
+    );
+  }
+}
+
+/// Volver a mandarlo, sin escribirlo otra vez.
+///
+/// Pequeño y en rojo: no es una acción del día a día, es la salida de algo que
+/// se rompió. Y en la fila del autor y no bajo el texto, que es donde van las
+/// cosas que **dejó** un turno — este no dejó nada, ése es el problema.
+class _Reintentar extends StatelessWidget {
+  const _Reintentar({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final texto = context.strings.retryErrand;
+
+    return Semantics(
+      button: true,
+      label: texto,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.refresh, size: 12, color: colors.err),
+              const SizedBox(width: 4),
+              Text(
+                texto,
+                style: NexusTypography.label.copyWith(color: colors.err),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -172,30 +238,61 @@ class _LoQueDejo extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final strings = context.strings;
 
+    // **Una imagen se enseña, no se anuncia.** Con el botón de siempre, lo que
+    // acababa de generarse era un nombre de archivo: para saber si había salido
+    // bien había que abrirla. Se pinta con la misma tira que los adjuntos —la
+    // miniatura del sistema, la del Finder— porque es el mismo gesto por el otro
+    // lado: tú le pasas una imagen al chat y la ves; él te devuelve una y
+    // también.
+    final imagen = message.documento;
+
     return Padding(
       padding: const EdgeInsets.only(top: 6),
-      child: Wrap(
-        spacing: NexusSpacing.s2,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          if (message.cambios case final cambios?)
-            _Boton(
-              icono: Icons.difference,
-              texto: strings.changedFiles(cambios.fileCount),
-              onTap: () => ref
-                  .read(elVisorDeCambiosProvider)
-                  .abrir(cambios, strings.changesTitle),
-            ),
-          if (message.documento case final documento?)
-            _Boton(
-              icono: Icons.article_outlined,
-              texto: documento.split('/').last,
-              onTap: () =>
-                  ref.read(artifactsDataSourceProvider).open(documento),
-            ),
-          // Solo en el parte, y solo si Slack está configurado: un botón de
-          // enviar que a veces no puede enviar enseña a no pulsarlo.
-          if (message.esElParte && ref.watch(slackControllerProvider).listo)
-            _ElBotonDeSlack(texto: message.text),
+          if (imagen != null && Artifact.isImage(imagen))
+            AttachmentStrip(paths: [imagen]),
+          Wrap(
+            spacing: NexusSpacing.s2,
+            children: [
+              if (message.cambios case final cambios?)
+                _Boton(
+                  icono: Icons.difference,
+                  texto: strings.changedFiles(cambios.fileCount),
+                  onTap: () => ref
+                      .read(elVisorDeCambiosProvider)
+                      .abrir(cambios, strings.changesTitle),
+                ),
+              // Los pasos de ESTE turno, cuando ya terminó.
+              //
+              // El botón con el giro que hay al pie de la conversación es el
+              // del encargo en curso y desaparece al acabar — tiene que
+              // desaparecer, porque lo que anuncia es que hay algo corriendo.
+              // Lo que hizo se mira después, y después es aquí: colgado del
+              // turno, guardado con la conversación, y sin caducar cuando pides
+              // la segunda cosa.
+              if (message.actividad.isNotEmpty)
+                _Boton(
+                  icono: Icons.list_alt,
+                  texto: strings.stepsTaken(message.actividad.length),
+                  onTap: () => ref
+                      .read(laVentanaDeActividadProvider)
+                      .ver(message.actividad),
+                ),
+              if (message.documento case final documento?)
+                _Boton(
+                  icono: Icons.article_outlined,
+                  texto: documento.split('/').last,
+                  onTap: () =>
+                      ref.read(artifactsDataSourceProvider).open(documento),
+                ),
+              // Solo en el parte, y solo si Slack está configurado: un botón de
+              // enviar que a veces no puede enviar enseña a no pulsarlo.
+              if (message.esElParte && ref.watch(slackControllerProvider).listo)
+                _ElBotonDeSlack(texto: message.text),
+            ],
+          ),
         ],
       ),
     );
@@ -289,6 +386,35 @@ class _Answer extends StatelessWidget {
 
   final String text;
 
+  /// Abre el enlace, **y si no puede lo dice**.
+  ///
+  /// Callarse aquí es lo que hizo perder una tarde: pulsas, no pasa nada, y no
+  /// hay forma de saber si el enlace no era enlace, si el sistema lo rechazó o
+  /// si el código ni se ejecutó. Un fallo mudo en un gesto de un clic es peor
+  /// que uno ruidoso, porque el siguiente paso es dudar de todo lo demás.
+  static Future<void> _abrirEnlace(
+    BuildContext context,
+    String? destino,
+  ) async {
+    final mensajero = ScaffoldMessenger.maybeOf(context);
+    void decir(String queja) {
+      mensajero?.showSnackBar(
+        SnackBar(
+          content: Text('$queja${destino == null ? '' : ' · $destino'}'),
+        ),
+      );
+    }
+
+    if (destino == null || destino.isEmpty) return decir('Enlace vacío');
+    final uri = Uri.tryParse(destino);
+    if (uri == null) return decir('No se entiende el enlace');
+    try {
+      if (!await launchUrl(uri)) decir('El sistema no abrió el enlace');
+    } on Object catch (error) {
+      decir('$error');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
@@ -296,12 +422,27 @@ class _Answer extends StatelessWidget {
     final mono = NexusTypography.mono.copyWith(color: colors.accent);
 
     return MarkdownBody(
-      data: text,
+      // Las URLs que el modelo escribe entre comillas invertidas vuelven a ser
+      // enlaces antes de pintar. Ver [LosEnlacesDelTexto].
+      data: LosEnlacesDelTexto.sinComillas(text),
       // Sin `selectable`: lo pone el área de la conversación. Ver [ChatPanel].
       selectable: false,
+      // **Sin esto un enlace es texto de color.** El paquete pinta el estilo de
+      // `a:` igual, así que parecía pulsable y no hacía nada: se le daba clic,
+      // se le daba ⌘-clic, y nada. `onTapLink` no trae valor por defecto —quien
+      // dibuja decide a dónde va un enlace— y aquí no se había puesto nunca.
+      onTapLink: (texto, destino, titulo) =>
+          unawaited(_abrirEnlace(context, destino)),
       styleSheet: MarkdownStyleSheet(
         p: body,
-        a: body.copyWith(color: colors.accent),
+        // Subrayado, y no solo en color: en una conversación de texto plano el
+        // color solo no dice «esto se pulsa», y menos con el acento ya usado en
+        // otras cosas. Lo que es pulsable tiene que parecerlo.
+        a: body.copyWith(
+          color: colors.accent,
+          decoration: TextDecoration.underline,
+          decorationColor: colors.accent.withValues(alpha: 0.5),
+        ),
         strong: body.copyWith(fontWeight: FontWeight.w600),
         em: body.copyWith(fontStyle: FontStyle.italic),
         h1: NexusTypography.title.copyWith(color: colors.ink),

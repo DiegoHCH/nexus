@@ -54,6 +54,9 @@ class MirrorController extends Notifier<RemoteMirror> {
   Future<void> _restaurar() async {
     final guardada = await ref.read(mirrorCacheProvider).read();
     if (guardada == null || !state.vacio) return;
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = RemoteMirror.desdeSnapshot(Snapshot(seq: 0, data: guardada));
   }
 
@@ -69,6 +72,9 @@ class MirrorController extends Notifier<RemoteMirror> {
           .pedir(RemoteMethod.conversations);
       final lista = (datos['conversations'] as List? ?? const [])
           .cast<Map<String, Object?>>();
+      // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+      // ya no existe y esto lanzaria en vez de no hacer nada.
+      if (!ref.mounted) return;
       state = state.conLista(lista);
       // Sin lista no había nada que distinguir; con ella, el espejo ya sabe si el Mac
       // contestó. De aquí sale poder decir «nada abierto» en vez de «no pude

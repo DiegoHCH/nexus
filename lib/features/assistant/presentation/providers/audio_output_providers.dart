@@ -55,6 +55,9 @@ class AudioOutputController extends Notifier<int?> {
     final prefs = await SharedPreferences.getInstance();
     final stored = prefs.getInt(_key);
     if (stored == null) return;
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = stored;
     await ref.read(nativeAudioDataSourceProvider).setOutputDevice(stored);
   }

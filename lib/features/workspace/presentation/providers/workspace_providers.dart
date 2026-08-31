@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/repo_config_data_source.dart';
@@ -172,6 +173,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: folder.claudeEffort,
             activeRepo: folder.activeRepo,
             blockedCommands: folder.blockedCommands,
+            allowedCommands: folder.allowedCommands,
             carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
@@ -196,6 +198,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: folder.claudeEffort,
             activeRepo: repo,
             blockedCommands: folder.blockedCommands,
+            allowedCommands: folder.allowedCommands,
             carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
@@ -217,6 +220,34 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: folder.claudeEffort,
             activeRepo: folder.activeRepo,
             blockedCommands: commands,
+            allowedCommands: folder.allowedCommands,
+            carpetaDePruebas: folder.carpetaDePruebas,
+          )
+        else
+          folder,
+    ];
+    await _persist(_guardado.copyWith(folders: folders));
+  }
+
+  /// Lo que Claude **sí** puede ejecutar en esta carpeta, aunque nadie esté
+  /// delante para aprobarlo.
+  ///
+  /// Se guarda tal cual se escribe; la traducción a la sintaxis del CLI —y el
+  /// anclaje al principio del comando, que es lo que impide que permitir `curl`
+  /// permita `rm … && curl`— la hace [AllowedCommands].
+  Future<void> setAllowedCommands(String path, List<String> commands) async {
+    final folders = [
+      for (final folder in _guardado.folders)
+        if (folder.path == path)
+          PairedFolder(
+            path: folder.path,
+            modality: folder.modality,
+            claudeProfile: folder.claudeProfile,
+            claudeModel: folder.claudeModel,
+            claudeEffort: folder.claudeEffort,
+            activeRepo: folder.activeRepo,
+            blockedCommands: folder.blockedCommands,
+            allowedCommands: commands,
             carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
@@ -275,6 +306,7 @@ class WorkspaceController extends Notifier<Workspace> {
             claudeEffort: effort == null ? folder.claudeEffort : effort(folder),
             activeRepo: folder.activeRepo,
             blockedCommands: folder.blockedCommands,
+            allowedCommands: folder.allowedCommands,
             carpetaDePruebas: folder.carpetaDePruebas,
           )
         else
@@ -306,6 +338,11 @@ final workspaceControllerProvider =
 /// perfil nuevo no es algo que pase mientras Ajustes está abierto.
 final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
   (ref) => const ClaudeProfilesDataSource().list(),
+);
+
+/// Quien sabe abrir el navegador para entrar en una cuenta.
+final claudeAuthProvider = Provider<ClaudeAuthDataSource>(
+  (ref) => const ClaudeAuthDataSource(),
 );
 
 /// El repositorio y la rama de una carpeta. Se relee al terminar cada turno,

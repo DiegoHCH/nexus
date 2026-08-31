@@ -174,6 +174,9 @@ class AccentController extends Notifier<Accent> {
 
   Future<void> cargar() async {
     final prefs = await SharedPreferences.getInstance();
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaría en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = leer(prefs.getString(_key));
   }
 

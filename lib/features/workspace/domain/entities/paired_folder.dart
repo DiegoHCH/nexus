@@ -29,6 +29,7 @@ class PairedFolder {
     this.claudeEffort,
     this.activeRepo,
     this.blockedCommands = const [],
+    this.allowedCommands = const [],
     this.carpetaDePruebas,
   });
 
@@ -68,6 +69,24 @@ class PairedFolder {
   /// Por carpeta porque lo que tarda en un repo no tarda en otro. Y no es un
   /// ruego en el prompt: el CLI los deniega, así que no hay rodeo posible.
   final List<String> blockedCommands;
+
+  /// Lo que Claude **sí** puede ejecutar aquí, aunque nadie esté delante para
+  /// aprobarlo: fragmentos de comando, uno por entrada —`curl`, `magick`—.
+  ///
+  /// Hace falta porque «puede editar» concede escribir archivos y **ninguna
+  /// ejecución**: un `curl` se queda esperando una aprobación que en headless
+  /// no llega nunca. Sin esta lista, la única salida era la terminal.
+  ///
+  /// **Solo cuenta cuando la carpeta puede escribir.** En solo lectura se
+  /// ignora entera, y no es una limitación técnica sino la promesa de ese modo:
+  /// garantiza el disco, y un comando permitido escribiría igual. Quien quiera
+  /// correr algo, primero dice que esta carpeta se toca.
+  ///
+  /// **Y no la puede declarar el repositorio**, al revés que la de bloqueados.
+  /// Un `.nexus/config.json` que se concede permisos a sí mismo es un repo que
+  /// clonas y ya puede ejecutar: ampliar permisos es decisión de quien empareja
+  /// la carpeta, nunca del contenido de la carpeta.
+  final List<String> allowedCommands;
 
   /// Dónde viven las pruebas de este proyecto, o `null` para la convención de Maestro.
   ///
@@ -158,6 +177,7 @@ class PairedFolder {
     String? claudeEffort,
     String? activeRepo,
     List<String>? blockedCommands,
+    List<String>? allowedCommands,
     String? carpetaDePruebas,
     bool sinCarpetaDePruebas = false,
   }) => PairedFolder(
@@ -168,6 +188,7 @@ class PairedFolder {
     claudeEffort: claudeEffort ?? this.claudeEffort,
     activeRepo: activeRepo ?? this.activeRepo,
     blockedCommands: blockedCommands ?? this.blockedCommands,
+    allowedCommands: allowedCommands ?? this.allowedCommands,
     carpetaDePruebas: sinCarpetaDePruebas
         ? null
         : (carpetaDePruebas ?? this.carpetaDePruebas),
@@ -181,6 +202,7 @@ class PairedFolder {
     if (claudeEffort != null) 'claudeEffort': claudeEffort,
     if (activeRepo != null) 'activeRepo': activeRepo,
     if (blockedCommands.isNotEmpty) 'blockedCommands': blockedCommands,
+    if (allowedCommands.isNotEmpty) 'allowedCommands': allowedCommands,
     if (carpetaDePruebas != null && carpetaDePruebas!.trim().isNotEmpty)
       'carpetaDePruebas': carpetaDePruebas!.trim(),
   };
@@ -198,6 +220,11 @@ class PairedFolder {
       blockedCommands: [
         for (final command
             in json['blockedCommands'] as List<dynamic>? ?? const [])
+          if (command is String && command.trim().isNotEmpty) command.trim(),
+      ],
+      allowedCommands: [
+        for (final command
+            in json['allowedCommands'] as List<dynamic>? ?? const [])
           if (command is String && command.trim().isNotEmpty) command.trim(),
       ],
       // Si el valor guardado no se reconoce se cae al modo restrictivo, no al

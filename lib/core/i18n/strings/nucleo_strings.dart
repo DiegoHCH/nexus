@@ -47,6 +47,13 @@ mixin NucleoStrings {
   String get ranLabel;
   String get returnedLabel;
   String get stillRunning;
+  String get seeActivity;
+  String get expandWindow;
+  String get retryErrand;
+  String get stopNow;
+  String get restoreWindow;
+  String stepsProgress(int done, int total);
+  String stepsTaken(int steps);
   String get waitingForOtherConversation;
   String get waitingByVoice;
   String get noFolderForConversation;
@@ -62,6 +69,32 @@ mixin NucleoStrings {
   String get settings;
   String get closeEsc;
   String get sectionVoice;
+  String get sectionKeys;
+  String get sectionImages;
+  String get whichImageModel;
+  String perImage(String precio);
+  String get drawingIt;
+  String get imageNeedsKey;
+  String get noImageToEdit;
+  String get imageNeedsFolder;
+  String imageDone(String nombre);
+  String imageFailed(String motivo);
+  String get imagesExplainer;
+  String get imageKeyLabel;
+  String get imagesNotWiredYet;
+  String get keysExplainer;
+  String get keyIsSaved;
+  String get keyIsMissing;
+  String get keyForget;
+  String get keyVoice;
+  String get keyImages;
+  String get defaultAccount;
+  String keyImagesFor(String cuenta);
+  String get keyChannelToken;
+  String get keyWritePhrase;
+  String get keyPairing;
+  String keyForgetAsk(String llave);
+  String get keyForgetWarning;
   String get sectionPermissions;
   String get sectionLanguage;
   String get sectionHistory;
@@ -140,6 +173,21 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get stillRunning => 'todavía corriendo…';
   @override
+  String get seeActivity => 'Ver lo que está haciendo';
+  @override
+  String get expandWindow => 'Ampliar';
+  @override
+  String get retryErrand => 'REINTENTAR';
+  @override
+  String get stopNow => 'Detener el encargo';
+  @override
+  String get restoreWindow => 'Restaurar';
+  @override
+  String stepsProgress(int done, int total) => '$done de $total';
+  @override
+  String stepsTaken(int steps) =>
+      steps == 1 ? 'VER EL PASO QUE DIO' : 'VER LOS $steps PASOS QUE DIO';
+  @override
   String get waitingForOtherConversation =>
       'Esperando a la otra conversación sobre esta carpeta';
   @override
@@ -175,6 +223,74 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get closeEsc => 'CERRAR  ESC';
   @override
   String get sectionVoice => 'Voz';
+  @override
+  String get sectionKeys => 'Llaves';
+  @override
+  String get sectionImages => 'Imágenes';
+  @override
+  String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
+  @override
+  String perImage(String precio) => '$precio por imagen';
+  @override
+  String get drawingIt => 'Generando la imagen…';
+  @override
+  String get imageNeedsKey =>
+      'Falta la llave de imágenes. Se pone en Ajustes → Imágenes.';
+  @override
+  String get noImageToEdit =>
+      'No hay ninguna imagen que editar en esta conversación. Pide una con '
+      '«/imagen» y luego cámbiala con «/edita».';
+  @override
+  String get imageNeedsFolder =>
+      'No hay carpeta de documentos donde dejarla. Se elige en Ajustes.';
+  @override
+  String imageDone(String nombre) => 'Listo: $nombre';
+  @override
+  String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
+  @override
+  String get imagesExplainer =>
+      'La llave con la que se generan las imágenes. Va aparte de la de voz '
+      'porque su proyecto necesita '
+      'facturación: con una sola, encender las imágenes empezaría a cobrar '
+      'también las conversaciones.\n\nY hay una por cuenta de Claude: el gasto '
+      'sale de un bolsillo concreto, así que ponerla solo en una cuenta es la '
+      'forma de decir que desde las demás no se generan imágenes.';
+  @override
+  String get imageKeyLabel => 'LLAVE DE IMÁGENES (GEMINI)';
+  @override
+  String get imagesNotWiredYet =>
+      'Se pide con «/imagen» y lo que escribas detrás. Cada imagen se cobra de '
+      'tu saldo.';
+  @override
+  String get keysExplainer =>
+      'Lo que Nexus tiene guardado cifrado en este Mac. No se enseña ninguna: '
+      'solo si está puesta o no. Para comprobar si es la que crees, quítala y '
+      'pon la buena.';
+  @override
+  String get keyIsSaved => 'guardada';
+  @override
+  String get keyIsMissing => 'sin poner';
+  @override
+  String get keyForget => 'OLVIDAR';
+  @override
+  String get keyVoice => 'Llave de voz (Gemini)';
+  @override
+  String get keyImages => 'Llave de imágenes (Gemini)';
+  @override
+  String get defaultAccount => 'cuenta por defecto';
+  @override
+  String keyImagesFor(String cuenta) => 'Llave de imágenes · $cuenta';
+  @override
+  String get keyChannelToken => 'Token del canal';
+  @override
+  String get keyWritePhrase => 'Frase de escritura';
+  @override
+  String get keyPairing => 'Emparejamiento del teléfono';
+  @override
+  String keyForgetAsk(String llave) => '¿Olvidar «$llave»?';
+  @override
+  String get keyForgetWarning =>
+      'Se borra del llavero y no se puede deshacer. Habrá que volver a ponerla.';
   @override
   String get sectionPermissions => 'Permisos';
   @override
@@ -256,6 +372,21 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get stillRunning => 'still running…';
   @override
+  String get seeActivity => 'See what it is doing';
+  @override
+  String get expandWindow => 'Expand';
+  @override
+  String get retryErrand => 'RETRY';
+  @override
+  String get stopNow => 'Stop the errand';
+  @override
+  String get restoreWindow => 'Restore';
+  @override
+  String stepsProgress(int done, int total) => '$done of $total';
+  @override
+  String stepsTaken(int steps) =>
+      steps == 1 ? 'SEE THE STEP IT TOOK' : 'SEE THE $steps STEPS IT TOOK';
+  @override
   String get waitingForOtherConversation =>
       'Waiting for the other conversation on this folder';
   @override
@@ -290,6 +421,75 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get closeEsc => 'CLOSE  ESC';
   @override
   String get sectionVoice => 'Voice';
+  @override
+  String get sectionKeys => 'Keys';
+  @override
+  String get sectionImages => 'Images';
+  @override
+  String get whichImageModel => 'WHICH MODEL DRAWS';
+  @override
+  String perImage(String precio) => '$precio per image';
+  @override
+  String get drawingIt => 'Generating the image…';
+  @override
+  String get imageNeedsKey =>
+      'The image key is missing. Set it in Settings → Images.';
+  @override
+  String get noImageToEdit =>
+      'There is no image to edit in this conversation. Ask for one with '
+      '"/imagen" and then change it with "/edita".';
+  @override
+  String get imageNeedsFolder =>
+      'There is no documents folder to put it in. Pick one in Settings.';
+  @override
+  String imageDone(String nombre) => 'Done: $nombre';
+  @override
+  String imageFailed(String motivo) => 'Could not generate the image: $motivo';
+  @override
+  String get imagesExplainer =>
+      'The key images are generated with. It is separate from the voice one '
+      'because its project needs '
+      'billing: with a single key, turning images on would start charging for '
+      'conversations too.\n\nAnd there is one per Claude account: the spend '
+      'comes out of a specific pocket, so setting it on one account only is how '
+      'you say images are not generated from the others.';
+  @override
+  String get imageKeyLabel => 'IMAGE KEY (GEMINI)';
+  @override
+  String get imagesNotWiredYet =>
+      'Ask for one with "/imagen" and whatever you type after it. Each image is '
+      'charged to your balance.';
+  @override
+  String get keysExplainer =>
+      'What Nexus keeps encrypted on this Mac. None of them is shown: only '
+      'whether it is set. To check whether it is the one you think, remove it '
+      'and put the right one in.';
+  @override
+  String get keyIsSaved => 'saved';
+  @override
+  String get keyIsMissing => 'not set';
+  @override
+  String get keyForget => 'FORGET';
+  @override
+  String get keyVoice => 'Voice key (Gemini)';
+  @override
+  String get keyImages => 'Image key (Gemini)';
+  @override
+  String get defaultAccount => 'default account';
+  @override
+  String keyImagesFor(String cuenta) => 'Image key · $cuenta';
+  @override
+  String get keyChannelToken => 'Channel token';
+  @override
+  String get keyWritePhrase => 'Write phrase';
+  @override
+  String get keyPairing => 'Phone pairing';
+  @override
+  String keyForgetAsk(String llave) => 'Forget "$llave"?';
+  @override
+  String get keyForgetWarning =>
+      'It is deleted from the keychain and cannot be undone. You will have to '
+      'set it again.';
   @override
   String get sectionPermissions => 'Permissions';
   @override

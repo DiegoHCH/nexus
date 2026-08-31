@@ -19,6 +19,9 @@ class VoicePreferenceController extends Notifier<NexusVoice> {
 
   Future<void> _load() async {
     final saved = await ref.read(voicePreferencesDataSourceProvider).read();
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = NexusVoice.byName(saved);
   }
 

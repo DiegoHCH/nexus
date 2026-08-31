@@ -54,6 +54,44 @@ class ActivityItem {
     parentId: parentId,
     startedAt: startedAt,
   );
+
+  /// Para guardarlo con la conversación.
+  ///
+  /// **Se guarda o se pierde**, que es la lección que ya dejaron los cambios de
+  /// cada turno: la actividad vivía solo en memoria y se borra al empezar el
+  /// encargo siguiente, así que «qué hizo aquella vez» no tenía respuesta ni
+  /// bajando por la conversación, mucho menos al día siguiente.
+  ///
+  /// Las claves van en español como las del resto del registro. `done` no se
+  /// escribe: lo que se guarda ya terminó, y leerlo como terminado es lo
+  /// correcto aunque el encargo se cortara a la mitad — un paso que quedó a
+  /// medias no va a seguir corriendo mañana.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'que': description,
+    if (writes) 'escribe': true,
+    if (parentId != null) 'padre': parentId,
+    'desde': startedAt.toIso8601String(),
+    if (detail != null) 'detalle': detail,
+    if (output != null) 'devolvio': output,
+  };
+
+  static ActivityItem? fromJson(Object? crudo) {
+    if (crudo is! Map<String, dynamic>) return null;
+    final id = crudo['id'];
+    final que = crudo['que'];
+    if (id is! String || que is! String) return null;
+    return ActivityItem(
+      id: id,
+      description: que,
+      writes: crudo['escribe'] == true,
+      parentId: crudo['padre'] as String?,
+      startedAt: DateTime.tryParse(crudo['desde'] as String? ?? ''),
+      detail: crudo['detalle'] as String?,
+      output: crudo['devolvio'] as String?,
+      done: true,
+    );
+  }
 }
 
 /// Todo lo que necesita pintar la pantalla principal: el estado del orbe y
@@ -71,6 +109,7 @@ class AssistantHudState {
     this.history = const [],
     this.meter = const SessionMeter(),
     this.errorMessage,
+    this.laSesionCaduco = false,
     this.notice,
     this.changes,
   });
@@ -104,6 +143,15 @@ class AssistantHudState {
 
   final String? errorMessage;
 
+  /// El fallo de arriba es una sesión caducada, y por eso se puede ofrecer
+  /// entrar desde aquí.
+  ///
+  /// Va como bandera y no se deduce del texto: [errorMessage] ya viene
+  /// traducido, así que para reconocerlo habría que buscar palabras en un
+  /// idioma que puede ser cualquiera de los dos. La señal se toma donde
+  /// todavía existe —la salida cruda del CLI— y se guarda.
+  final bool laSesionCaduco;
+
   /// Algo que conviene saber y que **no es un fallo**: hoy, que los archivos de
   /// reglas del repositorio no son los mismos que la última vez.
   ///
@@ -130,6 +178,7 @@ class AssistantHudState {
     List<String>? history,
     SessionMeter? meter,
     Object? errorMessage = _unset,
+    bool? laSesionCaduco,
     Object? notice = _unset,
     Object? changes = _unset,
   }) {
@@ -145,6 +194,7 @@ class AssistantHudState {
       errorMessage: errorMessage == _unset
           ? this.errorMessage
           : errorMessage as String?,
+      laSesionCaduco: laSesionCaduco ?? this.laSesionCaduco,
       notice: notice == _unset ? this.notice : notice as String?,
       changes: changes == _unset ? this.changes : changes as GitChanges?,
     );

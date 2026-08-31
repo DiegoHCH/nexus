@@ -34,6 +34,15 @@ abstract class ClaudeBridge {
     /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
     List<String> disallowedTools,
 
+    /// Lo que **sí** se puede ejecutar sin que nadie apruebe, en la sintaxis del
+    /// CLI. Llega vacía cuando la carpeta es de solo lectura: ese modo garantiza
+    /// el disco, y un comando permitido escribiría igual.
+    List<String> comandosPermitidos,
+
+    /// Lo que Claude tiene que saber antes de empezar sobre lo que puede y no
+    /// puede correr aquí. Sin esto tropieza a media tarea y se calla.
+    String? constraintsNotice,
+
     /// En qué idioma contestar si el encargo no pide otra cosa.
     ///
     /// **Va por aquí y no pegada al encargo**, y la diferencia no es de estilo. Lo que

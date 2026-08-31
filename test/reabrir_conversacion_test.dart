@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/domain/repositories/conversation_memory
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
@@ -136,6 +137,44 @@ void main() {
     expect(estado.messages.map((m) => m.text), [
       'ordena la casa',
       'ya está ordenada',
+    ]);
+  });
+
+  // «Si cierro la conversación y la vuelvo a traer, este botón debería estar.»
+  //
+  // Los pasos que dio cada encargo se borran de la pantalla al empezar el
+  // siguiente, así que si no vuelven del disco con su mensaje, «qué hizo aquella
+  // vez» no tiene respuesta. El botón que los abre solo se dibuja si el mensaje
+  // los trae.
+  test('al abrirla vuelven también los pasos que dio cada encargo', () async {
+    final c = _contenedor(
+      _Almacen([
+        _registro(
+          mensajes: [
+            const ChatMessage(author: ChatAuthor.user, text: 'mira el repo'),
+            ChatMessage(
+              author: ChatAuthor.nexus,
+              text: 'tres commits sin subir',
+              actividad: [
+                ActivityItem(
+                  id: 'a1',
+                  description: 'Corriendo git log',
+                  writes: false,
+                  done: true,
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]),
+    );
+
+    c.read(assistantControllerProvider(_id));
+    await Future<void>.delayed(Duration.zero);
+
+    final estado = c.read(assistantControllerProvider(_id));
+    expect(estado.messages.last.actividad.map((p) => p.description), [
+      'Corriendo git log',
     ]);
   });
 

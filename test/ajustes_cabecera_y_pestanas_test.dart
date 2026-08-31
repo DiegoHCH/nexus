@@ -68,6 +68,8 @@ void main() {
       // obliga a pasar por aquí, y así una pestaña nueva no puede colarse sin que
       // nadie compruebe que no deja un hueco. «mobile» entró justo así.
       for (final nombre in [
+        'llaves',
+        'imagenes',
         'permissions',
         'mobile',
         'history',

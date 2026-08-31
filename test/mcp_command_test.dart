@@ -126,4 +126,69 @@ roto: algo - ✘ Failed to connect
       expect(McpCommand.parseList('Checking MCP server health…\n\n'), isEmpty);
     });
   });
+
+  group('cabeceras', () {
+    // El motivo de que existan. El MCP de Hugging Face —y cualquiera con
+    // `Authorization`— rechaza toda petición sin cabecera: sin esto se
+    // registraba con tic verde y contestaba 401 en el primer encargo, y el
+    // único camino era la terminal.
+    test('van con -H, y antes del nombre y la URL', () {
+      final args = McpCommand.add(
+        name: 'huggingface',
+        url: 'https://huggingface.co/mcp',
+        headers: const ['Authorization: Bearer hf_secreto'],
+      )!;
+
+      expect(args, contains('-H'));
+      // Por posición: el CLI toma `<name> <commandOrUrl>` en orden, así que una
+      // cabecera colada detrás dejaría de ser una cabecera sin decir nada.
+      expect(
+        args.indexOf('-H') < args.indexOf('huggingface'),
+        isTrue,
+        reason: 'detrás del nombre, el CLI la tomaría por otra cosa',
+      );
+      expect(
+        args.indexOf('Authorization: Bearer hf_secreto') <
+            args.indexOf('https://huggingface.co/mcp'),
+        isTrue,
+      );
+    });
+
+    test('varias caben', () {
+      final args = McpCommand.add(
+        name: 'algo',
+        url: 'https://ejemplo.dev/mcp',
+        headers: const ['X-Api-Key: abc', 'X-Custom: 1'],
+      )!;
+
+      expect('-H'.allMatches(args.join(' ')).length, 2);
+    });
+
+    test('lo que no es una cabecera no viaja', () {
+      for (final mala in [
+        'sin dos puntos',
+        ': sin nombre',
+        'Nombre:',
+        'Con Espacio: valor',
+        // Un salto pegado en el campo partiría la cabecera en dos al llegar a
+        // la petición, y la segunda mitad sería una que nadie escribió.
+        'Authorization: Bearer x\r\nX-Otra: colada',
+      ]) {
+        expect(McpCommand.validHeader(mala), isFalse, reason: '«$mala»');
+      }
+      expect(McpCommand.validHeader('Authorization: Bearer hf_x'), isTrue);
+    });
+
+    // Un servidor de los de comando no habla HTTP: una cabecera ahí no es que
+    // sobre, es que no significa nada.
+    test('a un servidor de comando no se le cuelan', () {
+      final args = McpCommand.add(
+        name: 'local',
+        command: const ['npx', 'algo'],
+        headers: const ['Authorization: Bearer x'],
+      )!;
+
+      expect(args, isNot(contains('-H')));
+    });
+  });
 }

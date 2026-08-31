@@ -13,4 +13,7 @@ class GeminiKeyStoreImpl implements GeminiKeyStore {
 
   @override
   Future<void> save(String key) => _storage.write(_key, key);
+
+  @override
+  Future<void> clear() => _storage.delete(_key);
 }

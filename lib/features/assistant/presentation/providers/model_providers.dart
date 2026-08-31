@@ -109,6 +109,9 @@ class SeenModels extends Notifier<Map<String, String>> {
     if (raw == null) return;
     final decoded = jsonDecode(raw);
     if (decoded is! Map<String, dynamic>) return;
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     state = decoded.map((key, value) => MapEntry(key, value.toString()));
   }
 

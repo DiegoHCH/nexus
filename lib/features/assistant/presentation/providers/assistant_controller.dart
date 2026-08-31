@@ -7,6 +7,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
+import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
@@ -22,6 +24,7 @@ import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
@@ -29,6 +32,8 @@ import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
+import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -100,6 +105,9 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _folder;
     if (folder == null) return;
     final memory = await ref.read(conversationMemoryProvider).read(folder);
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!_vive) return;
     state = state.copyWith(history: memory.prompts);
   }
 
@@ -256,6 +264,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool allowWrites = true,
     bool esElParte = false,
     String? loQueSeVe,
+    bool reintento = false,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -265,6 +274,48 @@ class AssistantController extends Notifier<AssistantHudState> {
     // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
     // no en el compositor porque por escrito también se pide desde el móvil, y
     // el atajo tiene que valer por los dos sitios.
+    // `/imagen una cosa` no es un encargo para Claude: **no pasa por él**.
+    // Va derecho a Gemini, que es quien dibuja, y el resultado cae en la
+    // carpeta de documentos como cualquier otra cosa que produce Nexus.
+    //
+    // Se desvía aquí y no en el compositor por lo mismo que el parte: por
+    // escrito también se pide desde el móvil, y el atajo tiene que valer por
+    // los dos sitios.
+    // **Con adjuntos vale igual**, y por eso no se exige que no los haya: lo
+    // que se suelta en la caja son las imágenes de referencia —«este estilo»,
+    // «cámbiale esto»—, así que aquí son material y no un motivo para no
+    // reconocer el atajo.
+    if (!esElParte) {
+      if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
+        await _dibujar(
+          descripcion,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+          reintento: reintento,
+        );
+        return;
+      }
+      if (LoQueSePideDibujar.loQueSeCambia(trimmed) case final cambio?) {
+        // Sin nada anterior no hay qué editar, y decirlo es mejor que dibujar
+        // desde cero algo que no era lo que se pidió — y cobrarlo.
+        if (_laUltimaImagen == null) {
+          _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+          _sealLast();
+          _say(ChatAuthor.nexus, ref.read(stringsProvider).noImageToEdit);
+          _sealLast();
+          return;
+        }
+        await _dibujar(
+          cambio,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+          siguiendo: true,
+          reintento: reintento,
+        );
+        return;
+      }
+    }
+
     if (!esElParte &&
         attachments.isEmpty &&
         ElParteDeAyer.loEstanPidiendo(trimmed)) {
@@ -298,6 +349,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       errorMessage: null,
+      laSesionCaduco: false,
       // El aviso también es del turno anterior. Si las reglas siguen
       // cambiadas, este encargo lo vuelve a decir; si no, ya se leyó.
       notice: null,
@@ -308,8 +360,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Lo que se ve puede no ser lo que se manda: quien escribe «dame el daily»
     // pidió dos palabras, y enseñarle en su sitio las cuarenta líneas de
     // material que salieron hacia Claude no le dice nada.
-    _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
-    _sealLast();
+    // **Un reintento no se vuelve a escribir**: el mensaje ya está en la
+    // conversación, y añadirlo otra vez dejaría la misma petición dos veces
+    // seguidas con una sola respuesta debajo. Lo que se pidió fue reintentar
+    // *eso*, no mandarlo de nuevo.
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
+      _sealLast();
+    }
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
     unawaited(_markRepo());
@@ -328,6 +388,158 @@ class AssistantController extends Notifier<AssistantHudState> {
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
+  }
+
+  /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
+  /// que listar, hay una espera — pero una espera de veinte segundos sin nada
+  /// en pantalla se lee igual que un cuelgue.
+  static const _dibujoId = 'dibujando';
+
+  /// `/imagen …`: se genera, se guarda y se enseña. Sin pasar por Claude.
+  /// La última imagen que salió de esta conversación.
+  ///
+  /// Es lo que permite `/edita`: a la API se le manda **el identificador** de
+  /// aquella interacción en vez del PNG entero, así que encadenar cambios no
+  /// cuesta resubir la imagen en cada vuelta.
+  ///
+  /// Vive en el controlador y no en el estado porque no se pinta: es una pista
+  /// para la petición siguiente. Y por conversación, que es lo que hace que
+  /// «la anterior» signifique algo — con una global, editar en una pestaña
+  /// seguiría de lo que se dibujó en otra.
+  String? _laUltimaImagen;
+
+  Future<void> _dibujar(
+    String descripcion, {
+    required String loQueSeVe,
+    List<String> referencias = const [],
+    bool siguiendo = false,
+    bool reintento = false,
+  }) async {
+    await _subscription?.cancel();
+    _sealLast();
+    final strings = ref.read(stringsProvider);
+
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: '',
+      isStreaming: false,
+      errorMessage: null,
+      notice: null,
+      // Los cambios del turno anterior se van con él, igual que en un encargo.
+      changes: null,
+      activity: [
+        ActivityItem(
+          id: _dibujoId,
+          description: strings.drawingIt,
+          writes: true,
+        ),
+      ],
+    );
+    // 🔴 **Un reintento no se vuelve a escribir.** El desvío de `/imagen` ocurre
+    // antes de donde `submit` decide eso, así que si no se trae la bandera hasta
+    // aquí, pulsar «reintentar» dejaba la misma petición dos veces seguidas con
+    // una sola respuesta debajo. Y con las imágenes pasa más que con nada: el
+    // modelo se satura y contesta «vuelve a intentarlo más tarde».
+    //
+    // Los adjuntos van en el mensaje: son parte de lo que se pidió y se ven en
+    // su miniatura, igual que en un encargo normal.
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe, attachments: referencias);
+      _sealLast();
+    }
+
+    // Con la cuenta de la carpeta donde se está trabajando: la llave de
+    // imágenes es por cuenta, así que pedir un dibujo desde una carpeta del
+    // trabajo no puede gastar del saldo personal.
+    final carpeta = _folder;
+    final salio = await ref.read(generarUnaImagenProvider)((
+      descripcion: descripcion,
+      perfil: carpeta == null ? null : _cuentaDe(carpeta),
+      seguirDe: siguiendo ? _laUltimaImagen : null,
+      referencias: referencias,
+    ));
+    // La generación tarda, y en ese rato la pestaña se puede haber cerrado.
+    if (!_vive) return;
+
+    // Se apunta antes de pintar nada: es lo que hace que el siguiente `/edita`
+    // siga de ésta. Solo si salió — encadenar sobre una que falló no existe.
+    if (salio.id case final id?) _laUltimaImagen = id;
+
+    final texto = switch (salio.problema) {
+      null => strings.imageDone(salio.ruta!.split('/').last),
+      'sin-llave' => strings.imageNeedsKey,
+      'sin-carpeta' => strings.imageNeedsFolder,
+      final motivo => strings.imageFailed(motivo),
+    };
+
+    state = state.copyWith(
+      orbState: NexusOrbState.sleep,
+      isStreaming: false,
+      activity: [for (final paso in state.activity) paso.asDone()],
+      // Lo que falló se marca en tu mensaje, igual que un encargo caído: el
+      // botón de reintentar vale aquí exactamente igual — y con más motivo,
+      // porque volver a escribir la descripción es lo caro.
+    );
+    _say(ChatAuthor.nexus, texto);
+    _sealLast();
+    if (salio.ruta case final ruta?) {
+      _sellarEnElMensaje(documento: ruta);
+    } else {
+      _marcaElFallo();
+    }
+
+    // 🔴 Se archiva, pero **no se llama a `_afterErrand`**: ahí dentro está el
+    // diff de la tarea, y esto no tocó el repositorio. Con la marca de git de un
+    // encargo anterior todavía en memoria, enseñaría los cambios de aquél como
+    // si los hubiera hecho el dibujo.
+    unawaited(_archive());
+  }
+
+  /// Vuelve a mandar un encargo que no llegó a hacerse.
+  ///
+  /// Pedido mirándolo: cuando algo falla, la única salida era **copiar el
+  /// mensaje y pegarlo otra vez**. La petición ya está escrita ahí; volver a
+  /// teclearla es trabajo que la app puede ahorrarse.
+  ///
+  /// Se reconstruye desde lo que se ve más los adjuntos, y no desde el texto
+  /// que salió hacia Claude —que llevaba las rutas pegadas detrás y no se
+  /// guarda—: `submit` lo vuelve a componer igual que la primera vez, así que
+  /// el reintento manda exactamente lo mismo.
+  Future<void> reintentar(ChatMessage fallido) =>
+      submit(fallido.text, attachments: fallido.attachments, reintento: true);
+
+  /// La marca se quita de **todos**, no solo del que se reintenta.
+  ///
+  /// Solo puede haber un encargo en marcha, así que un intento nuevo deja sin
+  /// sentido cualquier «esto se quedó a medias» anterior. Quitarla de uno solo
+  /// dejaría botones de reintentar por la conversación que ya no reintentan
+  /// nada.
+  void _quitaLaMarcaDeFallo() {
+    if (!state.messages.any((mensaje) => mensaje.fallo)) return;
+    state = state.copyWith(
+      messages: [
+        for (final mensaje in state.messages)
+          mensaje.fallo ? mensaje.copyWith(fallo: false) : mensaje,
+      ],
+    );
+  }
+
+  /// Lo que se pidió y no se hizo, marcado en su propio mensaje.
+  ///
+  /// El tuyo y no el suyo: un fallo no deja respuesta que marcar, y lo que se
+  /// reintenta es la petición. Se busca el último tuyo porque un fallo puede
+  /// llegar con texto a medias ya escrito debajo, y entonces el último mensaje
+  /// de la lista es de Nexus.
+  void _marcaElFallo() {
+    final mensajes = [...state.messages];
+    final donde = mensajes.lastIndexWhere(
+      (mensaje) => mensaje.author == ChatAuthor.user,
+    );
+    if (donde == -1) return;
+    mensajes[donde] = mensajes[donde].copyWith(fallo: true);
+    state = state.copyWith(messages: mensajes);
   }
 
   /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
@@ -416,11 +628,37 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Y qué documentos había antes, para saber cuál salió de aquí.
   Set<String> _documentosAntes = const {};
 
+  /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
+  /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
+  /// cualquier archivo suelto de ayer contaba como creado por este encargo.
+  Set<String> _sinTrackearAntes = const {};
+
+  /// ¿Sigue existiendo esta conversación?
+  ///
+  /// 🔴 **Media docena de cosas del final de un encargo salen con `unawaited`**
+  /// —la marca del repo, el diff, el archivado, mirar si salió un documento— y
+  /// todas tocan `ref` o `state` **después de un `await`**. Si la pestaña se
+  /// cierra mientras tanto, el proveedor ya no existe y eso lanza en vez de no
+  /// hacer nada.
+  ///
+  /// Lo destapó el CI, no la máquina de nadie: en local el trabajo pendiente
+  /// solía terminar antes de que se desmontara el proveedor y no se veía. Es la
+  /// clase de fallo que solo asoma cuando la máquina va lenta — o cuando el
+  /// usuario cierra la pestaña justo después de mandar algo, que es exactamente
+  /// cuando esto ocurre de verdad.
+  bool get _vive => ref.mounted;
+
   Future<void> _markRepo() async {
     final folder = _workingDirectory;
-    _repoBase = folder == null
-        ? null
-        : await const GitDataSource().snapshot(folder);
+    if (folder == null) {
+      _repoBase = null;
+      _sinTrackearAntes = const {};
+    } else {
+      const git = GitDataSource();
+      _repoBase = await git.snapshot(folder);
+      _sinTrackearAntes = await git.sinTrackear(folder);
+    }
+    if (!_vive) return;
     _documentosAntes = await _documentosAhora();
   }
 
@@ -429,6 +667,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Se comparan antes y después por la misma razón que el repositorio: lo que
   /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
   Future<Set<String>> _documentosAhora() async {
+    if (!_vive) return const {};
     final carpeta = ref.read(artifactsFolderProvider);
     if (carpeta == null) return const {};
     final cuentas = ref
@@ -447,8 +686,12 @@ class AssistantController extends Notifier<AssistantHudState> {
     final folder = _workingDirectory;
     final base = _repoBase;
     if (folder == null || base == null) return;
-    final cambios = await const GitDataSource().changesSince(folder, base);
-    if (cambios == null) return;
+    final cambios = await const GitDataSource().changesSince(
+      folder,
+      base,
+      yaEstaban: _sinTrackearAntes,
+    );
+    if (cambios == null || !_vive) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
 
@@ -554,7 +797,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// guarda uno y lo pisa el siguiente, así que al subir por la conversación el
   /// segundo encargo borraba de la vista lo que había hecho el primero. Cada
   /// turno se queda con lo suyo.
-  void _sellarEnElMensaje({GitChanges? cambios, String? documento}) {
+  void _sellarEnElMensaje({
+    GitChanges? cambios,
+    String? documento,
+    List<ActivityItem>? actividad,
+  }) {
     final mensajes = [...state.messages];
     final donde = mensajes.lastIndexWhere(
       (mensaje) => mensaje.author == ChatAuthor.nexus,
@@ -563,6 +810,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     mensajes[donde] = mensajes[donde].copyWith(
       cambios: cambios,
       documento: documento,
+      actividad: actividad,
     );
     state = state.copyWith(messages: mensajes);
   }
@@ -575,7 +823,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _mirarSiHayDocumento() async {
     final ahora = await _documentosAhora();
     final nuevos = ahora.difference(_documentosAntes);
-    if (nuevos.isEmpty) return;
+    if (nuevos.isEmpty || !_vive) return;
     ref.invalidate(artifactsProvider);
     _sellarEnElMensaje(documento: nuevos.last);
   }
@@ -588,6 +836,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// miraba los cambios y —lo peor— **no se guardaba en el historial**, porque
   /// `_archive` colgaba de aquí y de ningún otro sitio.
   void _afterErrand() {
+    // **Los pasos se cuelgan del mensaje antes que nada**, y por eso van
+    // síncronos: `_archive()` sale unas líneas más abajo, y si el sellado
+    // esperara a un `await` el registro se guardaría sin ellos y solo los
+    // recogería el turno siguiente. Es el mismo cuidado que ya pedían los
+    // cambios, con el agravante de que la actividad se borra al empezar el
+    // encargo que viene — lo que no quede sellado aquí no existe después.
+    if (state.activity.isNotEmpty) {
+      _sellarEnElMensaje(actividad: state.activity);
+    }
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
     if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
@@ -647,6 +904,7 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     try {
       await ref.read(localConversationStoreProvider).save(record);
+      if (!_vive) return;
       ref.invalidate(savedConversationsProvider(folder));
     } catch (error) {
       falloLocal = true;
@@ -706,6 +964,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
+  /// La cuenta de Claude de esa carpeta, con la derivación canónica.
+  ///
+  /// 🔴 No se reusa [_profileName], que es la del vault y **no es la misma**:
+  /// aquella devuelve `.claude` para la cuenta de siempre y ésta devuelve
+  /// `null`, que es lo que espera el llavero. Con la otra, la llave se
+  /// guardaría bajo un nombre y se buscaría bajo otro.
+  String? _cuentaDe(String folder) => ClaudeProfile.nameFromPath(
+    ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull
+        ?.claudeProfile,
+  );
+
   String? _profileName(String folder) {
     final paired = ref
         .read(workspaceControllerProvider)
@@ -816,6 +1089,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       )) {
         if (event case ClaudeTurnCompleted(:final contextTokens)) {
           medido = contextTokens;
+          if (!_vive) return;
           state = state.copyWith(
             meter: state.meter.copyWith(contextTokens: contextTokens),
           );
@@ -852,14 +1126,83 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onFailed(String message) {
     _sealLast();
+    _marcaElFallo();
     state = state.copyWith(
       orbState: NexusOrbState.sleep,
       isStreaming: false,
-      errorMessage: message,
+      errorMessage: _loQuePaso(message),
+      laSesionCaduco: PorQueMurioClaude.esSesionCaducada(message),
     );
     // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
     // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
     unawaited(_avisar(ref.read(stringsProvider).errandFailed));
+  }
+
+  /// Entra en la cuenta de esta carpeta, abriendo el navegador.
+  ///
+  /// **Aquí y no en Ajustes** porque es aquí donde te enteras: el fallo dice
+  /// qué cuenta caducó y el botón está debajo. Mandar a buscar la pantalla de
+  /// cuentas sería dejar a medias justo el paso que se puede dar solo.
+  Future<void> entrarConLaCuenta() async {
+    final strings = ref.read(stringsProvider);
+    final perfil = _perfilDeLaCarpeta();
+    final cuenta =
+        ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre;
+
+    state = state.copyWith(
+      errorMessage: null,
+      laSesionCaduco: false,
+      notice: strings.entrandoEnLaCuenta(cuenta),
+    );
+
+    final resultado = await ref.read(claudeAuthProvider).entrar(perfil);
+    if (!ref.mounted) return;
+
+    // Las cuentas se leyeron una vez al abrir Ajustes; si ahí decía «sin
+    // sesión», ahora dice otra cosa.
+    ref.invalidate(claudeProfilesProvider);
+    state = switch (resultado.como) {
+      ComoAcabo.entro => state.copyWith(notice: strings.entroLaCuenta),
+      ComoAcabo.seAgotoElPlazo => state.copyWith(
+        notice: null,
+        errorMessage: strings.nadieTerminoDeEntrar,
+      ),
+      ComoAcabo.fallo => state.copyWith(
+        notice: null,
+        errorMessage: resultado.detalle,
+      ),
+    };
+  }
+
+  /// La cuenta con la que corre esta carpeta, o `null` si usa la de siempre.
+  String? _perfilDeLaCarpeta() {
+    final carpeta = _folder;
+    if (carpeta == null) return null;
+    return ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == carpeta)
+        .firstOrNull
+        ?.claudeProfile;
+  }
+
+  /// El fallo, dicho de forma que se pueda hacer algo con él.
+  ///
+  /// Solo se traduce lo que se reconoce; el resto sale literal, que es lo que
+  /// ya hacía y sigue siendo lo correcto: el CLI dice cosas accionables y
+  /// taparlas con un «no se pudo» obliga a abrir la terminal.
+  ///
+  /// **La cuenta se nombra**, y no es un adorno: las carpetas usan cuentas
+  /// distintas y quien lee esto no tiene por qué acordarse de cuál lleva la
+  /// suya. Un «entra otra vez» sin decir dónde deja el mismo trabajo de
+  /// averiguación que había antes.
+  String _loQuePaso(String message) {
+    if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
+    final strings = ref.read(stringsProvider);
+    return strings.sesionCaducada(
+      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ??
+          strings.laCuentaDeSiempre,
+    );
   }
 
   /// Mientras no hay sesión de voz, el campo de texto enfocado es la señal
@@ -1036,6 +1379,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();
     _voiceSubscription = null;
+    if (!_vive) return;
     state = state.copyWith(
       voiceActive: false,
       orbState: NexusOrbState.sleep,
@@ -1160,6 +1504,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _onVoiceFailed(String message) async {
     await _voiceSubscription?.cancel();
     _voiceSubscription = null;
+    if (!_vive) return;
     state = state.copyWith(
       voiceActive: false,
       orbState: NexusOrbState.sleep,

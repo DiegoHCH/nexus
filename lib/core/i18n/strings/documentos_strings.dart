@@ -30,6 +30,9 @@ mixin DocumentosStrings {
   String blockedTitle(String folder);
   String get blockedExplainer;
   String get blockedHint;
+  String allowedTitle(String folder);
+  String get allowedExplainer;
+  String get allowedHint;
   String get addFolderShort;
   String get openSettings;
   String get statusTalk;
@@ -37,6 +40,12 @@ mixin DocumentosStrings {
   String get statusQuit;
   String get errandDone;
   String get errandFailed;
+  String sesionCaducada(String cuenta);
+  String get entrarConLaCuenta;
+  String entrandoEnLaCuenta(String cuenta);
+  String get entroLaCuenta;
+  String get nadieTerminoDeEntrar;
+  String get laCuentaDeSiempre;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -121,6 +130,17 @@ mixin DocumentosStringsEs implements DocumentosStrings {
   @override
   String get blockedHint => 'build_runner\npod install\nmake generate';
   @override
+  String allowedTitle(String folder) => 'COMANDOS PERMITIDOS EN $folder';
+  @override
+  String get allowedExplainer =>
+      'Poder editar no incluye ejecutar: sin esto, Claude escribe archivos pero '
+      'no corre nada. Aquí se autoriza lo que quieras, uno por línea, y solo '
+      'cuenta mientras la carpeta pueda escribir. Descargar con «curl -o» ya '
+      'viene autorizado. Escribe el principio del comando, no un trozo suelto: '
+      'lo que se permite es lo que empiece por eso.';
+  @override
+  String get allowedHint => 'magick\nffmpeg\nnpm run build';
+  @override
   String get addFolderShort => 'Emparejar otra carpeta';
   @override
   String get openSettings => 'Ajustes…';
@@ -134,6 +154,22 @@ mixin DocumentosStringsEs implements DocumentosStrings {
   String get errandDone => 'El encargo terminó.';
   @override
   String get errandFailed => 'El encargo no se pudo terminar.';
+  @override
+  String sesionCaducada(String cuenta) =>
+      'La sesión de la cuenta «$cuenta» caducó. Entra otra vez con esa cuenta '
+      'y vuelve a lanzarlo.';
+  @override
+  String get laCuentaDeSiempre => 'la de siempre';
+  @override
+  String get entrarConLaCuenta => 'Entrar';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Abriendo el navegador para entrar en «$cuenta». Termina ahí y vuelve.';
+  @override
+  String get entroLaCuenta => 'Sesión iniciada. Vuelve a lanzar el encargo.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'No se completó la entrada en el navegador. Inténtalo otra vez.';
   @override
   String get modelTitle => 'Modelo';
   @override
@@ -229,6 +265,17 @@ mixin DocumentosStringsEn implements DocumentosStrings {
   @override
   String get blockedHint => 'build_runner\npod install\nmake generate';
   @override
+  String allowedTitle(String folder) => 'COMMANDS ALLOWED IN $folder';
+  @override
+  String get allowedExplainer =>
+      'Being able to edit does not include running: without this, Claude writes '
+      'files but runs nothing. Allow what you want here, one per line, and it '
+      'only counts while the folder can write. Downloading with «curl -o» is '
+      'already allowed. Write the start of the command, not a loose fragment: '
+      'what is allowed is whatever begins with it.';
+  @override
+  String get allowedHint => 'magick\nffmpeg\nnpm run build';
+  @override
   String get addFolderShort => 'Pair another folder';
   @override
   String get openSettings => 'Settings…';
@@ -242,6 +289,22 @@ mixin DocumentosStringsEn implements DocumentosStrings {
   String get errandDone => 'The errand is done.';
   @override
   String get errandFailed => 'The errand could not be finished.';
+  @override
+  String sesionCaducada(String cuenta) =>
+      'The session for the «$cuenta» account expired. Sign in again with that '
+      'account and run it once more.';
+  @override
+  String get laCuentaDeSiempre => 'the default one';
+  @override
+  String get entrarConLaCuenta => 'Sign in';
+  @override
+  String entrandoEnLaCuenta(String cuenta) =>
+      'Opening the browser to sign in to «$cuenta». Finish there and come back.';
+  @override
+  String get entroLaCuenta => 'Signed in. Run the errand again.';
+  @override
+  String get nadieTerminoDeEntrar =>
+      'The browser sign-in was not completed. Try again.';
   @override
   String get modelTitle => 'Model';
   @override
