@@ -70,6 +70,7 @@ void main() {
       for (final nombre in [
         'llaves',
         'imagenes',
+        'avisos',
         'permissions',
         'mobile',
         'history',

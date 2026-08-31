@@ -71,6 +71,23 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get sectionAvisos;
+  String get avisosExplainer;
+  String get avisosOn;
+  String get avisosCuanto;
+  String get avisosCarpeta;
+  String get avisosSinCarpeta;
+  String get avisosNota;
+  String get avisosReleer;
+  String get avisosProbar;
+  String get avisoDePrueba;
+  String get agendaVacia;
+  String get agendaFueraDeJornada;
+  String agendaDeHoy(int cuantas);
+  String get avisosSinLeer;
+  String avisosLeidoA(String hora);
+  String reunionEnMinutos(String titulo, int minutos);
+  String reunionAhora(String titulo);
   String get whichImageModel;
   String perImage(String precio);
   String get drawingIt;
@@ -227,6 +244,52 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get sectionKeys => 'Llaves';
   @override
   String get sectionImages => 'Imágenes';
+  @override
+  String get sectionAvisos => 'Avisos';
+  @override
+  String get avisosExplainer =>
+      'Nexus te dice en voz alta que tienes una reunión, unos minutos antes. Es '
+      'lo único que hace sin que se lo pidas, así que nace apagado.\n\nMira el '
+      'calendario de la cuenta de Claude de la carpeta que elijas, y solo avisa '
+      'de lo que tiene invitados: los bloques tuyos no suenan.';
+  @override
+  String get avisosOn => 'Avisarme de las reuniones';
+  @override
+  String get avisosCuanto => 'CUÁNTO ANTES';
+  @override
+  String get avisosCarpeta => 'DE QUÉ CUENTA MIRA EL CALENDARIO';
+  @override
+  String get avisosSinCarpeta => 'Elige una carpeta';
+  @override
+  String get avisosReleer => 'ACTUALIZAR EL CALENDARIO';
+  @override
+  String get avisosProbar => 'OÍR UN AVISO';
+  @override
+  String get avisoDePrueba => 'Reunión de prueba';
+  @override
+  String get agendaVacia => 'Hoy no tienes reuniones.';
+  @override
+  String get agendaFueraDeJornada =>
+      'La jornada terminó y la agenda del día ya no está en memoria. Si la '
+      'necesitas, actualízala en Ajustes › Avisos.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'Hoy tienes una reunión:'
+      : 'Hoy tienes $cuantas reuniones:';
+  @override
+  String get avisosSinLeer => 'todavía sin leer';
+  @override
+  String avisosLeidoA(String hora) => 'leído a las $hora';
+  @override
+  String get avisosNota =>
+      'Suena con la voz que elegiste en Voz, y también en el teléfono si está '
+      'conectado. Si estás hablando con Nexus, espera a que la conversación '
+      'termine; si no termina, lo deja en una notificación.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, en $minutos minutos.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, ahora.';
   @override
   String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
   @override
@@ -425,6 +488,52 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get sectionKeys => 'Keys';
   @override
   String get sectionImages => 'Images';
+  @override
+  String get sectionAvisos => 'Alerts';
+  @override
+  String get avisosExplainer =>
+      'Nexus tells you out loud that you have a meeting, a few minutes before. '
+      'It is the only thing it does without being asked, so it starts off.\n\nIt '
+      'looks at the calendar of the Claude account of the folder you pick, and '
+      'only announces what has guests: your own blocks stay quiet.';
+  @override
+  String get avisosOn => 'Tell me about meetings';
+  @override
+  String get avisosCuanto => 'HOW LONG BEFORE';
+  @override
+  String get avisosCarpeta => 'WHOSE CALENDAR IT LOOKS AT';
+  @override
+  String get avisosSinCarpeta => 'Pick a folder';
+  @override
+  String get avisosReleer => 'REFRESH THE CALENDAR';
+  @override
+  String get avisosProbar => 'HEAR AN ALERT';
+  @override
+  String get avisoDePrueba => 'Test meeting';
+  @override
+  String get agendaVacia => 'You have no meetings today.';
+  @override
+  String get agendaFueraDeJornada =>
+      'The day is over and the agenda is no longer in memory. Refresh it in '
+      'Settings › Alerts if you need it.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'You have one meeting today:'
+      : 'You have $cuantas meetings today:';
+  @override
+  String get avisosSinLeer => 'not read yet';
+  @override
+  String avisosLeidoA(String hora) => 'read at $hora';
+  @override
+  String get avisosNota =>
+      'It speaks with the voice you picked under Voice, and on the phone too if '
+      'it is connected. If you are talking to Nexus it waits for the '
+      'conversation to end; if it does not, it leaves a notification.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, in $minutos minutes.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, now.';
   @override
   String get whichImageModel => 'WHICH MODEL DRAWS';
   @override

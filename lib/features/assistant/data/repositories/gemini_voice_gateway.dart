@@ -247,6 +247,17 @@ class GeminiVoiceGateway implements VoiceGateway {
                 'es la que sabe cuál fue el último con trabajo.',
             'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
           },
+          {
+            'name': agendaToolName,
+            'description':
+                'Dice qué reuniones hay hoy. Úsala cuando pregunten «qué '
+                'reuniones tengo», «qué tengo hoy», «cómo está mi agenda» o '
+                'parecido, en vez de pasárselo a Claude: la app ya leyó el '
+                'calendario para poder avisar, así que por aquí contesta al '
+                'momento y sin gastar un encargo. No lleva parámetros: siempre '
+                'es hoy.',
+            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+          },
         ],
       },
     ],
@@ -258,6 +269,7 @@ class GeminiVoiceGateway implements VoiceGateway {
   static const skillToolName = 'crear_skill';
   static const testToolName = 'correr_prueba';
   static const parteToolName = 'pedir_el_parte';
+  static const agendaToolName = 'consultar_agenda';
 }
 
 class _GeminiVoiceSession implements VoiceSession {

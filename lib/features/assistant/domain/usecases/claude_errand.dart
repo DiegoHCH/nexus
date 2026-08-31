@@ -24,6 +24,11 @@ abstract final class ClaudeErrand {
   /// sale exactamente el mismo parte.
   static const parteTool = 'pedir_el_parte';
 
+  /// Qué hay hoy en el calendario. **La cuarta que no acaba en Claude**, y la
+  /// única que además no sale de la máquina: la agenda ya está leída en memoria
+  /// —hizo falta para poder avisar— así que contestarla es mirar, no preguntar.
+  static const agendaTool = 'consultar_agenda';
+
   /// Normaliza el nombre a lo que es una carpeta de skill: minúsculas y
   /// guiones medios.
   ///
