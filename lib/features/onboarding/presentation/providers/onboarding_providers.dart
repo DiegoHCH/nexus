@@ -72,11 +72,15 @@ class AppRouteController extends Notifier<AppRouteState> {
       ).wait;
       final Readiness readiness = results.$2;
       _hayCarpeta = results.$3.folders.isNotEmpty;
+      // Sale con `unawaited` y espera al menos lo que dure el splash: si la
+      // pantalla se fue antes, el proveedor ya no existe.
+      if (!ref.mounted) return;
       state = readiness.blocksWork
           ? AppRouteNotReady(readiness)
           : _dondeEntrar();
     } catch (error) {
       debugPrint('No se pudo resolver el arranque: $error');
+      if (!ref.mounted) return;
       state = const AppRouteNeedsSetup();
     }
   }

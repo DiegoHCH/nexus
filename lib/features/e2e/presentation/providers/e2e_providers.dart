@@ -570,6 +570,9 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
                 : actual.ruido,
           },
         );
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaria en vez de no hacer nada.
+    if (!ref.mounted) return;
     ref.invalidate(pasadasDePruebaProvider);
   }
 
