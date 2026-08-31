@@ -4,6 +4,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/onboarding/domain/repositories/gemini_key_store.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/domain/channel_token.dart';
@@ -24,6 +26,22 @@ const _valorSecreto = 'AIzaSyEsteValorNoDebeSalirNuncaEnPantalla';
 
 class _Llavero implements GeminiKeyStore {
   _Llavero(this._valor);
+  String? _valor;
+  var borrada = false;
+
+  @override
+  Future<String?> read() async => _valor;
+  @override
+  Future<void> save(String key) async => _valor = key;
+  @override
+  Future<void> clear() async {
+    borrada = true;
+    _valor = null;
+  }
+}
+
+class _Imagenes implements GeminiImageKeyStore {
+  _Imagenes(this._valor);
   String? _valor;
   var borrada = false;
 
@@ -73,15 +91,19 @@ class _Parejas implements PairingStore {
 
 void main() {
   late _Llavero llavero;
+  late _Imagenes imagenes;
 
   ProviderContainer contenedor({
     String? llave = _valorSecreto,
+    String? deImagenes,
     bool conToken = false,
   }) {
     llavero = _Llavero(llave);
+    imagenes = _Imagenes(deImagenes);
     final c = ProviderContainer(
       overrides: [
         geminiKeyStoreProvider.overrideWithValue(llavero),
+        geminiImageKeyStoreProvider.overrideWithValue(imagenes),
         channelTokenStoreProvider.overrideWithValue(
           _Tokens(conToken ? const ChannelToken('t0k3n') : null),
         ),
@@ -99,6 +121,7 @@ void main() {
     final hay = await c.read(lasLlavesGuardadasProvider.future);
 
     expect(hay[LlaveDeNexus.voz], isTrue);
+    expect(hay[LlaveDeNexus.imagenes], isFalse);
     expect(hay[LlaveDeNexus.tokenDelCanal], isTrue);
     expect(hay[LlaveDeNexus.fraseDeEscritura], isFalse);
     expect(hay[LlaveDeNexus.emparejamiento], isFalse);
@@ -117,6 +140,22 @@ void main() {
 
   // 🔴 Lo único que la pantalla contesta es «¿está puesta?». El valor no sale
   // ni recortado: iría a cualquier captura y a cualquier pantalla compartida.
+  // Dos llaves de la misma API y de proyectos distintos: la de voz vive del
+  // nivel gratuito y la de imágenes no puede, porque su modelo no está ahí.
+  // Quitar una no puede llevarse la otra por delante.
+  test('la de imágenes se guarda y se olvida sin tocar la de voz', () async {
+    final c = contenedor(deImagenes: 'AIzaLaDeLasImagenes');
+    await c.read(lasLlavesGuardadasProvider.future);
+
+    await c.read(olvidarUnaLlaveProvider)(LlaveDeNexus.imagenes);
+
+    expect(imagenes.borrada, isTrue);
+    expect(llavero.borrada, isFalse, reason: 'la voz no se toca');
+    final despues = await c.read(lasLlavesGuardadasProvider.future);
+    expect(despues[LlaveDeNexus.imagenes], isFalse);
+    expect(despues[LlaveDeNexus.voz], isTrue);
+  });
+
   testWidgets('la pantalla no enseña el valor de ninguna llave', (
     tester,
   ) async {
@@ -162,6 +201,6 @@ void main() {
     // Solo la de voz está puesta: un botón por cada llave enseñaría a no
     // pulsarlos.
     expect(find.text(strings.keyForget), findsOne);
-    expect(find.text(strings.keyIsMissing), findsNWidgets(3));
+    expect(find.text(strings.keyIsMissing), findsNWidgets(4));
   });
 }

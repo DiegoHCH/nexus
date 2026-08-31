@@ -1,4 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
+import 'package:nexus/features/artifacts/data/repositories/gemini_image_key_store_impl.dart';
+import 'package:nexus/core/storage/secure_storage_data_source.dart';
 import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -66,3 +69,14 @@ final artifactsProvider = FutureProvider<List<Artifact>>((ref) async {
       .onError((_, _) => const <String>{});
   return ref.watch(artifactsDataSourceProvider).list(folder, cuentas: cuentas);
 });
+
+/// La llave con la que se generan imágenes. Ver [GeminiImageKeyStore] para por
+/// qué no es la misma que la de voz.
+final geminiImageKeyStoreProvider = Provider<GeminiImageKeyStore>(
+  (ref) => GeminiImageKeyStoreImpl(SecureStorageDataSource()),
+);
+
+/// Si hay una puesta. La pantalla solo pregunta eso: el valor no sale nunca.
+final hayLlaveDeImagenesProvider = FutureProvider<bool>(
+  (ref) async => await ref.watch(geminiImageKeyStoreProvider).read() != null,
+);

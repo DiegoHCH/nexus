@@ -1,4 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_token_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/pairing_providers.dart';
@@ -20,6 +22,11 @@ enum LlaveDeNexus {
   /// La de Gemini, que enciende la voz.
   voz,
 
+  /// La otra de Gemini: con la que se generan imágenes. Va aparte porque su
+  /// proyecto necesita facturación y el de la voz no — ver
+  /// [GeminiImageKeyStore].
+  imagenes,
+
   /// Con el que entra el teléfono al canal del escritorio.
   tokenDelCanal,
 
@@ -38,6 +45,9 @@ final lasLlavesGuardadasProvider = FutureProvider<Map<LlaveDeNexus, bool>>((
 
   return {
     LlaveDeNexus.voz: await hay(ref.watch(geminiKeyStoreProvider).read()),
+    LlaveDeNexus.imagenes: await hay(
+      ref.watch(geminiImageKeyStoreProvider).read(),
+    ),
     LlaveDeNexus.tokenDelCanal: await hay(
       ref.watch(channelTokenStoreProvider).read(),
     ),
@@ -66,6 +76,9 @@ final olvidarUnaLlaveProvider = Provider<Future<void> Function(LlaveDeNexus)>((
         await ref.read(geminiKeyStoreProvider).clear();
         // Lo que decide si la voz se puede encender lee de aquí.
         ref.invalidate(geminiKeyStoreProvider);
+      case LlaveDeNexus.imagenes:
+        await ref.read(geminiImageKeyStoreProvider).clear();
+        ref.invalidate(geminiImageKeyStoreProvider);
       case LlaveDeNexus.tokenDelCanal:
         await ref.read(channelTokenControllerProvider.notifier).revocar();
       case LlaveDeNexus.fraseDeEscritura:

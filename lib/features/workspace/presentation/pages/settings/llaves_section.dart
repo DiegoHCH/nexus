@@ -151,6 +151,7 @@ class _Fila extends ConsumerWidget {
   static String _nombre(LlaveDeNexus llave, NexusStrings strings) =>
       switch (llave) {
         LlaveDeNexus.voz => strings.keyVoice,
+        LlaveDeNexus.imagenes => strings.keyImages,
         LlaveDeNexus.tokenDelCanal => strings.keyChannelToken,
         LlaveDeNexus.fraseDeEscritura => strings.keyWritePhrase,
         LlaveDeNexus.emparejamiento => strings.keyPairing,

@@ -15,6 +15,7 @@ import 'package:nexus/features/workspace/presentation/pages/settings/history_sec
 import 'package:nexus/features/workspace/presentation/pages/settings/cuentas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/pruebas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/language_section.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings/imagenes_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/llaves_section.dart';
 import 'package:nexus/features/remote/presentation/pages/mobile_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/permissions_section.dart';
@@ -128,6 +129,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                         child: switch (_section) {
                           _Section.voice => const VoiceSection(),
                           _Section.llaves => const LlavesSection(),
+                          _Section.imagenes => const ImagenesSection(),
                           _Section.permissions => const PermissionsSection(),
                           _Section.mobile => const MobileSection(),
                           _Section.history => const HistorySection(),
@@ -277,6 +279,7 @@ class _SettingsTopBar extends ConsumerWidget {
 enum _Section {
   voice,
   llaves,
+  imagenes,
   permissions,
   mobile,
   history,
@@ -295,6 +298,7 @@ enum _Section {
   String title(NexusStrings strings) => switch (this) {
     _Section.voice => strings.sectionVoice,
     _Section.llaves => strings.sectionKeys,
+    _Section.imagenes => strings.sectionImages,
     _Section.permissions => strings.sectionPermissions,
     _Section.mobile => strings.sectionMobile,
     _Section.history => strings.sectionHistory,

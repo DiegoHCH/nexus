@@ -69,11 +69,16 @@ mixin NucleoStrings {
   String get closeEsc;
   String get sectionVoice;
   String get sectionKeys;
+  String get sectionImages;
+  String get imagesExplainer;
+  String get imageKeyLabel;
+  String get imagesNotWiredYet;
   String get keysExplainer;
   String get keyIsSaved;
   String get keyIsMissing;
   String get keyForget;
   String get keyVoice;
+  String get keyImages;
   String get keyChannelToken;
   String get keyWritePhrase;
   String get keyPairing;
@@ -208,6 +213,20 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get sectionKeys => 'Llaves';
   @override
+  String get sectionImages => 'Imágenes';
+  @override
+  String get imagesExplainer =>
+      'La llave con la que se generarán las imágenes (Gemini 2.5 Flash Image, '
+      '«nano banana»). Va aparte de la de voz porque su proyecto necesita '
+      'facturación: con una sola, encender las imágenes empezaría a cobrar '
+      'también las conversaciones.';
+  @override
+  String get imageKeyLabel => 'LLAVE DE IMÁGENES (GEMINI)';
+  @override
+  String get imagesNotWiredYet =>
+      'Todavía no hay nada que la use: guardarla no genera ni cobra nada. '
+      'Queda lista para cuando se pueda pedir una imagen.';
+  @override
   String get keysExplainer =>
       'Lo que Nexus tiene guardado cifrado en este Mac. No se enseña ninguna: '
       'solo si está puesta o no. Para comprobar si es la que crees, quítala y '
@@ -220,6 +239,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get keyForget => 'OLVIDAR';
   @override
   String get keyVoice => 'Llave de voz (Gemini)';
+  @override
+  String get keyImages => 'Llave de imágenes (Gemini)';
   @override
   String get keyChannelToken => 'Token del canal';
   @override
@@ -362,6 +383,20 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get sectionKeys => 'Keys';
   @override
+  String get sectionImages => 'Images';
+  @override
+  String get imagesExplainer =>
+      'The key images will be generated with (Gemini 2.5 Flash Image, "nano '
+      'banana"). It is separate from the voice one because its project needs '
+      'billing: with a single key, turning images on would start charging for '
+      'conversations too.';
+  @override
+  String get imageKeyLabel => 'IMAGE KEY (GEMINI)';
+  @override
+  String get imagesNotWiredYet =>
+      'Nothing uses it yet: saving it neither generates nor charges anything. '
+      'It is ready for when an image can be asked for.';
+  @override
   String get keysExplainer =>
       'What Nexus keeps encrypted on this Mac. None of them is shown: only '
       'whether it is set. To check whether it is the one you think, remove it '
@@ -374,6 +409,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get keyForget => 'FORGET';
   @override
   String get keyVoice => 'Voice key (Gemini)';
+  @override
+  String get keyImages => 'Image key (Gemini)';
   @override
   String get keyChannelToken => 'Channel token';
   @override

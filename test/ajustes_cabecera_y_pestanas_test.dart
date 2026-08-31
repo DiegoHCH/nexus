@@ -69,6 +69,7 @@ void main() {
       // nadie compruebe que no deja un hueco. «mobile» entró justo así.
       for (final nombre in [
         'llaves',
+        'imagenes',
         'permissions',
         'mobile',
         'history',
