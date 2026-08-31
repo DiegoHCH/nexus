@@ -4,14 +4,30 @@ import 'dart:typed_data';
 
 /// Lo que devolvió pedir una imagen: los bytes, o el motivo por el que no.
 class ImagenGenerada {
-  const ImagenGenerada.ok(this.bytes, this.mime) : problema = null;
-  const ImagenGenerada.fallo(this.problema) : bytes = null, mime = null;
+  const ImagenGenerada.ok(this.bytes, this.mime, {this.id}) : problema = null;
+  const ImagenGenerada.fallo(this.problema)
+    : bytes = null,
+      mime = null,
+      id = null;
 
   final Uint8List? bytes;
   final String? mime;
   final String? problema;
 
+  /// El identificador de esta interacción, con el que se le puede pedir un
+  /// cambio después. Es lo que evita reenviar el PNG entero en cada vuelta.
+  final String? id;
+
   bool get salio => bytes != null;
+}
+
+/// Una imagen que se manda como referencia: «hazlo con este estilo», «cambia
+/// esto de aquí».
+class ImagenDeReferencia {
+  const ImagenDeReferencia(this.bytes, this.mime);
+
+  final Uint8List bytes;
+  final String mime;
 }
 
 /// Pide una imagen a Gemini.
@@ -24,7 +40,11 @@ class ImagenGenerada {
 class GeminiImageDataSource {
   const GeminiImageDataSource();
 
-  static const modelo = 'gemini-2.5-flash-image';
+  /// Nano banana 2. Se elige ésta y no la 2.5 que había: es la generación
+  /// actual y la de los ejemplos de la API, y la diferencia de precio son
+  /// céntimos por imagen — con la edición encadenada de por medio, la calidad
+  /// del resultado pesa más que eso.
+  static const modelo = 'gemini-3.1-flash-image';
   static const _host = 'generativelanguage.googleapis.com';
   static const _ruta = '/v1beta/interactions';
 
@@ -36,6 +56,12 @@ class GeminiImageDataSource {
   Future<ImagenGenerada> generar({
     required String llave,
     required String descripcion,
+
+    /// La interacción anterior, para seguir con aquella imagen en vez de
+    /// empezar de cero. Se manda el identificador y no el PNG: la API ya tiene
+    /// la imagen, y resubirla en cada vuelta sería pagar el viaje dos veces.
+    String? seguirDe,
+    List<ImagenDeReferencia> referencias = const [],
     Duration timeout = const Duration(seconds: 90),
   }) async {
     if (llave.isEmpty) return const ImagenGenerada.fallo('falta la llave');
@@ -52,7 +78,16 @@ class GeminiImageDataSource {
           'model': modelo,
           'input': [
             {'type': 'text', 'text': descripcion},
+            // Las referencias van **detrás del texto**: la instrucción es lo
+            // que manda y las imágenes son el material.
+            for (final referencia in referencias)
+              {
+                'type': 'image',
+                'mime_type': referencia.mime,
+                'data': base64Encode(referencia.bytes),
+              },
           ],
+          'previous_interaction_id': ?seguirDe,
         }),
       );
       final respuesta = await peticion.close().timeout(timeout);
@@ -105,9 +140,12 @@ class GeminiImageDataSource {
       return const ImagenGenerada.fallo('respuesta ilegible de Gemini');
     }
 
+    // El identificador de la interacción, para poder pedirle un cambio luego.
+    final id = leido['id'] is String ? leido['id'] as String : null;
+
     final atajo = leido['output_image'];
     if (atajo is Map<String, dynamic>) {
-      final hecha = _desde(atajo['data'], atajo['mime_type']);
+      final hecha = _desde(atajo['data'], atajo['mime_type'], id);
       if (hecha != null) return hecha;
     }
 
@@ -119,7 +157,7 @@ class GeminiImageDataSource {
         if (contenido is! List) continue;
         for (final trozo in contenido) {
           if (trozo is! Map<String, dynamic>) continue;
-          final hecha = _desde(trozo['data'], trozo['type']);
+          final hecha = _desde(trozo['data'], trozo['type'], id);
           if (hecha != null) return hecha;
         }
       }
@@ -130,12 +168,12 @@ class GeminiImageDataSource {
     return ImagenGenerada.fallo(_elTextoQueDijo(leido) ?? 'no devolvió imagen');
   }
 
-  static ImagenGenerada? _desde(Object? datos, Object? tipo) {
+  static ImagenGenerada? _desde(Object? datos, Object? tipo, String? id) {
     if (datos is! String || datos.isEmpty) return null;
     final mime = tipo is String && tipo.contains('/') ? tipo : 'image/png';
     if (!mime.startsWith('image/')) return null;
     try {
-      return ImagenGenerada.ok(base64Decode(datos), mime);
+      return ImagenGenerada.ok(base64Decode(datos), mime, id: id);
     } on FormatException {
       return null;
     }

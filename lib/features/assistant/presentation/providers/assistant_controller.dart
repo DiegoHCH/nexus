@@ -281,9 +281,35 @@ class AssistantController extends Notifier<AssistantHudState> {
     // Se desvía aquí y no en el compositor por lo mismo que el parte: por
     // escrito también se pide desde el móvil, y el atajo tiene que valer por
     // los dos sitios.
-    if (!esElParte && attachments.isEmpty) {
+    // **Con adjuntos vale igual**, y por eso no se exige que no los haya: lo
+    // que se suelta en la caja son las imágenes de referencia —«este estilo»,
+    // «cámbiale esto»—, así que aquí son material y no un motivo para no
+    // reconocer el atajo.
+    if (!esElParte) {
       if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
-        await _dibujar(descripcion, loQueSeVe: loQueSeVe ?? trimmed);
+        await _dibujar(
+          descripcion,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+        );
+        return;
+      }
+      if (LoQueSePideDibujar.loQueSeCambia(trimmed) case final cambio?) {
+        // Sin nada anterior no hay qué editar, y decirlo es mejor que dibujar
+        // desde cero algo que no era lo que se pidió — y cobrarlo.
+        if (_laUltimaImagen == null) {
+          _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+          _sealLast();
+          _say(ChatAuthor.nexus, ref.read(stringsProvider).noImageToEdit);
+          _sealLast();
+          return;
+        }
+        await _dibujar(
+          cambio,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+          siguiendo: true,
+        );
         return;
       }
     }
@@ -368,7 +394,24 @@ class AssistantController extends Notifier<AssistantHudState> {
   static const _dibujoId = 'dibujando';
 
   /// `/imagen …`: se genera, se guarda y se enseña. Sin pasar por Claude.
-  Future<void> _dibujar(String descripcion, {required String loQueSeVe}) async {
+  /// La última imagen que salió de esta conversación.
+  ///
+  /// Es lo que permite `/edita`: a la API se le manda **el identificador** de
+  /// aquella interacción en vez del PNG entero, así que encadenar cambios no
+  /// cuesta resubir la imagen en cada vuelta.
+  ///
+  /// Vive en el controlador y no en el estado porque no se pinta: es una pista
+  /// para la petición siguiente. Y por conversación, que es lo que hace que
+  /// «la anterior» signifique algo — con una global, editar en una pestaña
+  /// seguiría de lo que se dibujó en otra.
+  String? _laUltimaImagen;
+
+  Future<void> _dibujar(
+    String descripcion, {
+    required String loQueSeVe,
+    List<String> referencias = const [],
+    bool siguiendo = false,
+  }) async {
     await _subscription?.cancel();
     _sealLast();
     final strings = ref.read(stringsProvider);
@@ -389,19 +432,27 @@ class AssistantController extends Notifier<AssistantHudState> {
         ),
       ],
     );
-    _say(ChatAuthor.user, loQueSeVe);
+    // Los adjuntos van en el mensaje: son parte de lo que se pidió y se ven en
+    // su miniatura, igual que en un encargo normal.
+    _say(ChatAuthor.user, loQueSeVe, attachments: referencias);
     _sealLast();
 
     // Con la cuenta de la carpeta donde se está trabajando: la llave de
     // imágenes es por cuenta, así que pedir un dibujo desde una carpeta del
     // trabajo no puede gastar del saldo personal.
     final carpeta = _folder;
-    final salio = await ref.read(generarUnaImagenProvider)(
-      descripcion,
-      carpeta == null ? null : _profileName(carpeta),
-    );
+    final salio = await ref.read(generarUnaImagenProvider)((
+      descripcion: descripcion,
+      perfil: carpeta == null ? null : _cuentaDe(carpeta),
+      seguirDe: siguiendo ? _laUltimaImagen : null,
+      referencias: referencias,
+    ));
     // La generación tarda, y en ese rato la pestaña se puede haber cerrado.
     if (!_vive) return;
+
+    // Se apunta antes de pintar nada: es lo que hace que el siguiente `/edita`
+    // siga de ésta. Solo si salió — encadenar sobre una que falló no existe.
+    if (salio.id case final id?) _laUltimaImagen = id;
 
     final texto = switch (salio.problema) {
       null => strings.imageDone(salio.ruta!.split('/').last),
@@ -900,6 +951,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
+  /// La cuenta de Claude de esa carpeta, con la derivación canónica.
+  ///
+  /// 🔴 No se reusa [_profileName], que es la del vault y **no es la misma**:
+  /// aquella devuelve `.claude` para la cuenta de siempre y ésta devuelve
+  /// `null`, que es lo que espera el llavero. Con la otra, la llave se
+  /// guardaría bajo un nombre y se buscaría bajo otro.
+  String? _cuentaDe(String folder) => ClaudeProfile.nameFromPath(
+    ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull
+        ?.claudeProfile,
+  );
+
   String? _profileName(String folder) {
     final paired = ref
         .read(workspaceControllerProvider)

@@ -12,13 +12,27 @@
 abstract final class LoQueSePideDibujar {
   static const prefijos = {'/imagen', '/img'};
 
-  /// La descripción, o `null` si esto no era una petición de imagen.
-  static String? deLaFrase(String frase) {
+  /// Los de seguir con la anterior.
+  ///
+  /// 🔴 **Dos atajos y no uno con reglas.** La tentación era que `/imagen`
+  /// continuara solo cuando ya hubiera una, pero eso hace que la misma frase
+  /// signifique cosas distintas según lo que pasó antes — y lo que está en
+  /// juego es una imagen que se paga. Con dos, lo que escribes dice lo que
+  /// quieres: `/imagen` empieza de cero **siempre**, `/edita` sigue.
+  static const prefijosDeEdicion = {'/edita', '/editar'};
+
+  /// La descripción, o `null` si esto no era una petición de imagen nueva.
+  static String? deLaFrase(String frase) => _tras(frase, prefijos);
+
+  /// Lo que hay que cambiarle a la anterior, o `null` si no era eso.
+  static String? loQueSeCambia(String frase) => _tras(frase, prefijosDeEdicion);
+
+  static String? _tras(String frase, Set<String> cuales) {
     final limpia = frase.trim();
-    for (final prefijo in prefijos) {
+    for (final prefijo in cuales) {
       if (!limpia.toLowerCase().startsWith('$prefijo ')) continue;
-      final descripcion = limpia.substring(prefijo.length).trim();
-      if (descripcion.isNotEmpty) return descripcion;
+      final resto = limpia.substring(prefijo.length).trim();
+      if (resto.isNotEmpty) return resto;
     }
     return null;
   }

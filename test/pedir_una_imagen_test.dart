@@ -40,6 +40,25 @@ void main() {
       );
     });
 
+    // 🔴 **Dos atajos y no uno con reglas.** La tentación era que `/imagen`
+    // continuara solo cuando ya hubiera una, pero eso hace que la misma frase
+    // signifique cosas distintas según lo que pasó antes — y lo que está en
+    // juego es una imagen que se paga.
+    test('editar es otro atajo, y no se confunde con el de crear', () {
+      expect(
+        LoQueSePideDibujar.loQueSeCambia('/edita ponle fondo azul'),
+        'ponle fondo azul',
+      );
+      expect(
+        LoQueSePideDibujar.loQueSeCambia('/editar más grande'),
+        'más grande',
+      );
+
+      // Cada uno reconoce lo suyo y solo lo suyo.
+      expect(LoQueSePideDibujar.deLaFrase('/edita ponle fondo azul'), isNull);
+      expect(LoQueSePideDibujar.loQueSeCambia('/imagen un zorro'), isNull);
+    });
+
     test('el nombre del archivo sale de lo que pediste', () {
       final nombre = LoQueSePideDibujar.nombrePara(
         'Un zorro naranja leyendo un libro, estilo plano',
@@ -107,6 +126,22 @@ void main() {
 
       expect(hecha.salio, isFalse);
       expect(hecha.problema, 'no puedo dibujar eso');
+    });
+
+    // Sin esto no hay encadenado: es lo que se manda como
+    // `previous_interaction_id` para cambiar la anterior sin resubir el PNG.
+    test('trae el id de la interacción, que es lo que permite editarla', () {
+      final hecha = GeminiImageDataSource.leerLaImagen(
+        respuestaCon({
+          'id': 'int_abc123',
+          'output_image': {
+            'data': base64Encode([1]),
+            'mime_type': 'image/png',
+          },
+        }),
+      );
+
+      expect(hecha.id, 'int_abc123');
     });
 
     test('una respuesta ilegible no revienta', () {

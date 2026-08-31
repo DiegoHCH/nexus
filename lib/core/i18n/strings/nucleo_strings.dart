@@ -73,6 +73,7 @@ mixin NucleoStrings {
   String get sectionImages;
   String get drawingIt;
   String get imageNeedsKey;
+  String get noImageToEdit;
   String get imageNeedsFolder;
   String imageDone(String nombre);
   String imageFailed(String motivo);
@@ -229,6 +230,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get imageNeedsKey =>
       'Falta la llave de imágenes. Se pone en Ajustes → Imágenes.';
+  @override
+  String get noImageToEdit =>
+      'No hay ninguna imagen que editar en esta conversación. Pide una con '
+      '«/imagen» y luego cámbiala con «/edita».';
   @override
   String get imageNeedsFolder =>
       'No hay carpeta de documentos donde dejarla. Se elige en Ajustes.';
@@ -419,6 +424,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get imageNeedsKey =>
       'The image key is missing. Set it in Settings → Images.';
+  @override
+  String get noImageToEdit =>
+      'There is no image to edit in this conversation. Ask for one with '
+      '"/imagen" and then change it with "/edita".';
   @override
   String get imageNeedsFolder =>
       'There is no documents folder to put it in. Pick one in Settings.';
