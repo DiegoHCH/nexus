@@ -479,6 +479,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// cualquier archivo suelto de ayer contaba como creado por este encargo.
   Set<String> _sinTrackearAntes = const {};
 
+  /// ¿Sigue existiendo esta conversación?
+  ///
+  /// 🔴 **Media docena de cosas del final de un encargo salen con `unawaited`**
+  /// —la marca del repo, el diff, el archivado, mirar si salió un documento— y
+  /// todas tocan `ref` o `state` **después de un `await`**. Si la pestaña se
+  /// cierra mientras tanto, el proveedor ya no existe y eso lanza en vez de no
+  /// hacer nada.
+  ///
+  /// Lo destapó el CI, no la máquina de nadie: en local el trabajo pendiente
+  /// solía terminar antes de que se desmontara el proveedor y no se veía. Es la
+  /// clase de fallo que solo asoma cuando la máquina va lenta — o cuando el
+  /// usuario cierra la pestaña justo después de mandar algo, que es exactamente
+  /// cuando esto ocurre de verdad.
+  bool get _vive => ref.mounted;
+
   Future<void> _markRepo() async {
     final folder = _workingDirectory;
     if (folder == null) {
@@ -489,6 +504,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       _repoBase = await git.snapshot(folder);
       _sinTrackearAntes = await git.sinTrackear(folder);
     }
+    if (!_vive) return;
     _documentosAntes = await _documentosAhora();
   }
 
@@ -497,6 +513,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Se comparan antes y después por la misma razón que el repositorio: lo que
   /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
   Future<Set<String>> _documentosAhora() async {
+    if (!_vive) return const {};
     final carpeta = ref.read(artifactsFolderProvider);
     if (carpeta == null) return const {};
     final cuentas = ref
@@ -520,7 +537,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       base,
       yaEstaban: _sinTrackearAntes,
     );
-    if (cambios == null) return;
+    if (cambios == null || !_vive) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
 
@@ -652,7 +669,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _mirarSiHayDocumento() async {
     final ahora = await _documentosAhora();
     final nuevos = ahora.difference(_documentosAntes);
-    if (nuevos.isEmpty) return;
+    if (nuevos.isEmpty || !_vive) return;
     ref.invalidate(artifactsProvider);
     _sellarEnElMensaje(documento: nuevos.last);
   }
