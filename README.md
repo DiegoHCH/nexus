@@ -1,5 +1,10 @@
 # Nexus
 
+[![CI](https://github.com/DiegoHCH/nexus/actions/workflows/ci.yml/badge.svg)](https://github.com/DiegoHCH/nexus/actions/workflows/ci.yml)
+[![Última versión](https://img.shields.io/github/v/release/DiegoHCH/nexus?label=versi%C3%B3n)](https://github.com/DiegoHCH/nexus/releases/latest)
+[![Licencia Apache 2.0](https://img.shields.io/badge/licencia-Apache%202.0-blue)](LICENSE)
+![macOS 12+](https://img.shields.io/badge/macOS-12%2B-lightgrey)
+
 Un asistente de voz de escritorio para macOS que **ejecuta trabajo real en tu Mac**.
 Le hablas, y hace: lee tus repos, escribe archivos, corre comandos, lanza tu app,
 corre tus pruebas.
@@ -9,6 +14,37 @@ No es un chat con voz. La voz la pone [Gemini Live](https://ai.google.dev/gemini
 Claude Code** (`claude -p`, sin interfaz), que es quien toca de verdad tus
 archivos y va con tu suscripción, no con una clave de API. La cara es un orbe de
 malla sobre el vacío: un HUD, no una ventana de mensajería.
+
+<p align="center">
+  <img src="docs/orbe.png" alt="Nexus escuchando: el orbe encendido con la onda de la voz" width="820">
+</p>
+
+<p align="center">
+  <em>Escuchando. El orbe se enciende y la onda es tu voz entrando.</em>
+</p>
+
+<p align="center">
+  <img src="docs/hud.png" alt="El HUD de Nexus en reposo, con el compositor y las pastillas de carpeta y cuenta" width="820">
+</p>
+
+<p align="center">
+  <em>En reposo. Abajo, la carpeta emparejada, su cuenta de Claude, la rama y el
+  permiso de escritura — todo lo que decide qué puede hacer el siguiente encargo.</em>
+</p>
+
+## Características
+
+- **Hablar o escribir.** `⌥Espacio` abre la voz sin traer la ventana al frente; lo que no quieras dictar lo escribes, con archivos adjuntos si hacen falta.
+- **Trabajo real en tu carpeta.** Lee repos, edita archivos, corre comandos — con el permiso que le des a cada carpeta.
+- **Hasta tres conversaciones a la vez**, una por carpeta, trabajando en paralelo.
+- **Ver qué está haciendo**, paso a paso, en su propia ventana movible — y pararlo con `⌘.`.
+- **Generar imágenes** con Gemini: `/imagen un zorro leyendo` y `/edita ponle fondo azul`, encadenando cambios.
+- **Correr tu app y tus dispositivos**: entorno, simuladores de iOS y emuladores de Android, sin terminal.
+- **Pruebas E2E de [Maestro](https://maestro.dev)**: lanzarlas, ver la pasada con capturas y saber por qué se cayó.
+- **Mando desde el teléfono** por Tailscale, con el móvil naciendo en solo lectura.
+- **Cuánto llevas gastado**: el contexto de la conversación y el cupo de tu suscripción, que no son lo mismo.
+- **Se actualiza sola**, pero nunca se reinicia por su cuenta.
+- Tema **claro y oscuro**, en **español o inglés**.
 
 ## Por qué no solo el CLI
 
@@ -55,7 +91,7 @@ escribiendo— sin permiso de escritura y sin configurar el proyecto: la carpeta
 pruebas y los comandos vetados viajan en el `.nexus/` del repositorio, y las
 credenciales salen de su `.env.local`.
 
-## Para qué sirve
+## Uso
 
 El trabajo pasa siempre **dentro de una carpeta concreta** —un repo, un proyecto—
 que emparejas y a la que le das su cuenta de Claude, su modo de voz y su permiso
@@ -76,36 +112,6 @@ de escritura. A partir de ahí, Nexus es el sitio desde el que:
 | **Saber en qué anda sin mirar** | El icono de la barra de menús lo dice, y avisa cuando un encargo termina. |
 
 Todo con **tema claro y oscuro**, y en **español o inglés**.
-
-## Instalar
-
-Baja el `.dmg` de la [última versión](https://github.com/DiegoHCH/nexus/releases/latest),
-ábrelo y **arrastra Nexus a Aplicaciones**.
-
-Ese arrastre no es una formalidad. Una app en cuarentena que se abre **sin
-moverla** —doble clic en Descargas— la ejecuta macOS desde una copia de solo
-lectura con ruta aleatoria, y desde ahí **no puede actualizarse a sí misma**. En
-Aplicaciones sí.
-
-Está firmada con Developer ID y notarizada por Apple, así que se abre con doble
-clic: sin clic derecho y sin avisos. Pide macOS **12** o superior.
-
-## Qué necesita para funcionar
-
-La propia app lo comprueba al arrancar y te dice qué falta:
-
-| | Para qué | Sin ello |
-|---|---|---|
-| **Claude Code** instalado y con sesión | es quien hace el trabajo | te contesta pero no puede hacer nada |
-| Una **llave de Gemini** | la voz | funciona igual escribiendo |
-| El **micrófono** | hablarle | funciona igual escribiendo |
-| Una **carpeta emparejada** | dónde pasa el trabajo | se trabaja en tu carpeta de documentos |
-
-Opcional, según lo que uses: **Maestro** para las pruebas E2E, las herramientas de
-línea de comandos de Xcode y Android para los dispositivos, y **Tailscale** en el
-Mac y en el teléfono para el mando móvil.
-
-Dentro hay un tour la primera vez y una guía completa en **Ajustes › Ayuda**.
 
 ## Lo que sale de tu Mac y lo que no
 
@@ -150,6 +156,36 @@ trabajo, pero para que Claude escriba hay que subirlo a edición con la frase de
 escritura, y eso caduca a los 30 minutos. Las decisiones completas, con lo que se
 descartó y por qué, están en [`docs/PROTOCOL.md`](docs/PROTOCOL.md).
 
+## Requisitos previos
+
+La propia app lo comprueba al arrancar y te dice qué falta:
+
+| | Para qué | Sin ello |
+|---|---|---|
+| **Claude Code** instalado y con sesión | es quien hace el trabajo | te contesta pero no puede hacer nada |
+| Una **llave de Gemini** | la voz | funciona igual escribiendo |
+| El **micrófono** | hablarle | funciona igual escribiendo |
+| Una **carpeta emparejada** | dónde pasa el trabajo | se trabaja en tu carpeta de documentos |
+
+Opcional, según lo que uses: **Maestro** para las pruebas E2E, las herramientas de
+línea de comandos de Xcode y Android para los dispositivos, y **Tailscale** en el
+Mac y en el teléfono para el mando móvil.
+
+Dentro hay un tour la primera vez y una guía completa en **Ajustes › Ayuda**.
+
+## Instalación
+
+Baja el `.dmg` de la [última versión](https://github.com/DiegoHCH/nexus/releases/latest),
+ábrelo y **arrastra Nexus a Aplicaciones**.
+
+Ese arrastre no es una formalidad. Una app en cuarentena que se abre **sin
+moverla** —doble clic en Descargas— la ejecuta macOS desde una copia de solo
+lectura con ruta aleatoria, y desde ahí **no puede actualizarse a sí misma**. En
+Aplicaciones sí.
+
+Está firmada con Developer ID y notarizada por Apple, así que se abre con doble
+clic: sin clic derecho y sin avisos. Pide macOS **12** o superior.
+
 ## Se actualiza sola
 
 El motor es [Sparkle](https://sparkle-project.org/); la interfaz es de Nexus. Al
@@ -161,22 +197,7 @@ e instala. **Lo que nunca hace es reiniciarse por su cuenta**: eso mataría un
 Si lo dejas para luego, queda un punto rojo en el icono de la barra y en el menú
 del compositor. «Ahora no» no es «nunca».
 
-## Decisiones cerradas
-
-Dos cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
-que no se vuelvan a proponer sin argumentos nuevos:
-
-- **Voz propia, sin Gemini.** Se construyó la fase 1 —reconocimiento y síntesis
-  locales— y se probaron además Whisper y Piper. El reconocimiento local existe
-  pero **solo en los idiomas que trae Apple**, y ninguna voz local aguanta la
-  comparación con Gemini, que no es un lector de texto sino un modelo
-  conversacional. Código borrado, veredicto escrito.
-- **Una superficie que un líder mire del squad.** Nexus es una **herramienta de
-  equipo, de uso individual** —como un IDE—, así que no hay tablero que
-  construir. El estándar viaja en el `.nexus/` del repositorio y el valor lo
-  recoge cada dev trabajando solo.
-
-## Con qué está hecho
+## Tecnologías
 
 | Pieza | Qué es |
 |---|---|
@@ -244,3 +265,63 @@ lee la versión del `pubspec`, se etiqueta, compila, firma, notariza, publica el
 El número de build importa tanto como la versión: `sparkle:version` es el
 `CFBundleVersion`, y un build que no crece es una actualización que las apps
 instaladas se niegan a ver.
+
+## Decisiones cerradas
+
+Dos cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
+que no se vuelvan a proponer sin argumentos nuevos:
+
+- **Voz propia, sin Gemini.** Se construyó la fase 1 —reconocimiento y síntesis
+  locales— y se probaron además Whisper y Piper. El reconocimiento local existe
+  pero **solo en los idiomas que trae Apple**, y ninguna voz local aguanta la
+  comparación con Gemini, que no es un lector de texto sino un modelo
+  conversacional. Código borrado, veredicto escrito.
+- **Una superficie que un líder mire del squad.** Nexus es una **herramienta de
+  equipo, de uso individual** —como un IDE—, así que no hay tablero que
+  construir. El estándar viaja en el `.nexus/` del repositorio y el valor lo
+  recoge cada dev trabajando solo.
+
+## Contribución
+
+Es un proyecto personal, pero se trabaja como si no lo fuera: **cada cambio entra
+por PR y el CI corre solo**.
+
+1. Haz un fork y una rama desde `develop` — nunca desde `master`, que es producción.
+   El nombre dice qué es: `feat/…`, `fix/…`, `docs/…`.
+2. Los mensajes de commit siguen [Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/)
+   y van **en inglés**: `feat(assistant): …`, `fix(workspace): …`.
+3. Antes de abrir el PR, el gate entero en verde:
+
+```bash
+dart format lib/ test/
+flutter analyze
+flutter test
+```
+
+4. Abre el PR contra `develop`. El CI corre el análisis, las pruebas de Dart y las
+   nativas de macOS; los tres tienen que pasar.
+
+Dos cosas que este repositorio pide y no son habituales:
+
+- **Los comentarios explican por qué, no qué.** Si una decisión costó una medición
+  o vino de un fallo real, eso es lo que hay que dejar escrito — el código ya dice
+  lo que hace.
+- **Lo que se rompe en silencio lleva prueba.** Un cambio que solo se nota cuando
+  falla en producción necesita algo que lo sujete antes.
+
+## Licencia
+
+[Apache 2.0](LICENSE). Copyright © 2026 Diego Hoyos.
+
+Puedes usarlo, copiarlo, modificarlo y redistribuirlo —también comercialmente—
+con tres condiciones: conservar el aviso de copyright y el [NOTICE](NOTICE),
+**dejar constancia de los archivos que hayas modificado**, y no usar el nombre ni
+las marcas del proyecto para respaldar lo tuyo.
+
+Apache y no MIT por dos cosas que aquí importan. Trae una **concesión expresa de
+patentes** —MIT no dice nada de patentes, y esa ambigüedad es lo que frena a una
+empresa a adoptar algo—, y exige declarar lo modificado: con una app que se
+distribuye firmada y notarizada, eso evita que circule una versión tocada sin que
+se sepa.
+
+Se distribuye **sin garantía de ningún tipo**.
