@@ -11,6 +11,7 @@ import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/agenda/domain/usecases/la_jornada.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
+import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
@@ -316,19 +317,47 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
         return;
       }
 
+      // 🔴 **El altavoz se pide antes de sintetizar, no después.**
+      //
+      // Aquí se perdía el principio de la frase. Medido con el log del motor:
+      // arrancarlo cuesta ~316 ms, y sobre un dispositivo que no es el altavoz
+      // interno la ruta de audio tarda además en abrir de verdad — `isRunning`
+      // ya es cierto y el aparato todavía no rinde. Un aviso es **un solo
+      // buffer entregado de golpe** justo después de ese arranque en frío, así
+      // que lo que se come el despertar no es un chasquido: son las primeras
+      // palabras. En la conversación duplex no se ve porque el audio llega en
+      // muchos trozos a lo largo de segundos.
+      //
+      // Y por eso no se arregla metiendo una espera: se arregla poniendo el
+      // arranque **dentro del viaje de red que ya se paga**. Sintetizar tarda
+      // más de un segundo; el motor despierta durante ese tiempo y el coste
+      // añadido es cero. La demora que se siente no cambia — lo que cambia es
+      // que ya no se traga el principio.
+      final delMac = AudioOutputImpl(ref.read(nativeAudioDataSourceProvider));
+      final delMovil = ref.read(remoteAudioSinkProvider);
+      await delMac.start();
+      await delMovil.start();
+
       final dicho = await const GeminiTtsDataSource().decir(
         llave: llave,
         frase: frase,
         voz: ref.read(voicePreferenceProvider).name,
       );
-      if (!ref.mounted) return;
+      if (!ref.mounted) {
+        // El altavoz se pidió por adelantado: si ya no hay a quien avisarle, se
+        // suelta. Dejarlo cogido mantiene el micrófono abierto —el motor es el
+        // mismo— y eso se ve en la barra de macOS sin que nada lo justifique.
+        await delMac.stop();
+        return;
+      }
       if (!dicho.salio) {
         debugPrint('agenda · no se pudo decir el aviso: ${dicho.problema}');
+        await delMac.stop();
         await _soloNotificar(reunion.titulo, frase);
         return;
       }
 
-      await _sonarEnLosDos(dicho.pcm!);
+      await _sonarEnLosDos(delMac, delMovil, dicho.pcm!);
       // El aviso de macOS va **además** de la voz: si estabas en otra sala, la
       // frase se la lleva el aire y la notificación sigue ahí al volver.
       await NotificationsChannel.notify(title: reunion.titulo, body: frase);
@@ -348,18 +377,54 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// Al teléfono solo llega si está conectado: `RemoteAudioSink` se traga el
   /// trozo cuando no hay socket, que es exactamente lo que hay que hacer con
   /// audio sin conexión.
-  Future<void> _sonarEnLosDos(Uint8List pcm) async {
-    final delMac = AudioOutputImpl(ref.read(nativeAudioDataSourceProvider));
-    await delMac.start();
-    delMac.enqueue(pcm);
+  Future<void> _sonarEnLosDos(
+    AudioOutput delMac,
+    AudioOutput delMovil,
+    Uint8List pcm,
+  ) async {
+    // 🔴 **Cuánto audio llegó, dicho en el log.** Es lo que separa «la máquina
+    // se comió el principio» de «Gemini devolvió menos frase», que se oyen
+    // exactamente igual y se arreglan en sitios distintos. Sin esto, la única
+    // forma de distinguirlos era un experimento a mano con un cronómetro.
+    debugPrint(
+      'agenda · aviso de ${_milisegundosDe(pcm)} ms '
+      '(${pcm.lengthInBytes} bytes)',
+    );
 
-    final delMovil = ref.read(remoteAudioSinkProvider);
-    await delMovil.start();
-    delMovil.enqueue(pcm);
+    final conCabecera = _conSilencioDelante(pcm);
+    delMac.enqueue(conCabecera);
+    delMovil.enqueue(conCabecera);
 
     // Sin esperar a que termine no se puede parar el motor sin cortar a media
     // palabra — es la misma razón por la que `pending()` existe.
     await Future<void>.delayed(await delMac.pending());
+  }
+
+  /// PCM de 16 bits a 24 kHz: dos bytes por muestra.
+  static const _bytesPorSegundo = 24000 * 2;
+
+  /// El silencio que se pone delante, por si el arranque anticipado no llegó.
+  ///
+  /// Un cuarto de segundo y no más: con el motor ya caliente esto sobra, y sobra
+  /// poco. Es el seguro contra las primeras muestras, no el arreglo — el arreglo
+  /// es pedir el altavoz antes de sintetizar.
+  ///
+  /// 🔴 Va **concatenado en el mismo buffer** y no entregado aparte, y eso no es
+  /// estilo: dos entregas con la cola vacía en medio cuentan como un hueco de
+  /// reproducción, y ese contador existe para medir la red. Un seguro que
+  /// ensucia la medida de otra cosa no es gratis.
+  static const _silencio = Duration(milliseconds: 250);
+
+  static int _milisegundosDe(Uint8List pcm) =>
+      (pcm.lengthInBytes / _bytesPorSegundo * 1000).round();
+
+  static Uint8List _conSilencioDelante(Uint8List pcm) {
+    final muestras = _bytesPorSegundo * _silencio.inMilliseconds ~/ 1000;
+    // Un `Uint8List` nace en ceros, y cero es silencio en PCM de 16 bits con
+    // signo: no hay que rellenarlo.
+    final conCabecera = Uint8List(muestras + pcm.lengthInBytes)
+      ..setRange(muestras, muestras + pcm.lengthInBytes, pcm);
+    return conCabecera;
   }
 
   Future<void> _soloNotificar(String titulo, String frase) =>
