@@ -323,6 +323,17 @@ class AssistantController extends Notifier<AssistantHudState> {
       ].where((linea) => linea.isNotEmpty).join('\n\n'),
     );
     _sealLast();
+
+    // 🔴 **Y se archiva, como los otros tres caminos.** Faltaba, y el síntoma no
+    // se parecía a la causa: una conversación cuyos únicos turnos fueran `!`
+    // volvía **vacía** al relanzar la app, y eso se lee como «Nexus no guarda
+    // las conversaciones» y no como «este camino se olvidó de guardar».
+    //
+    // Los otros tres —el encargo, la imagen, la voz— llaman a [_archive] al
+    // terminar su turno. Este copió de ahí el `_say` y el `_sealLast` y se dejó
+    // justo la línea que persiste, que es la única que no se nota hasta que
+    // reinicias.
+    unawaited(_archive());
   }
 
   void _sealLast() {
