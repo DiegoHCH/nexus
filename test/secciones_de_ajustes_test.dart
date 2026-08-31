@@ -58,9 +58,9 @@ void main() {
       // El título de la prueba no lleva el número justamente por eso: decía
       // «ocho» cuando ya esperaba nueve, y un nombre que miente es peor que uno
       // vago.
-      15,
+      16,
       reason:
-          'se esperaban quince secciones y hay $cuantas: si se añade una al enum, '
+          'se esperaban dieciséis secciones y hay $cuantas: si se añade una al enum, '
           'esta prueba tiene que verla — y si desaparece, también',
     );
 

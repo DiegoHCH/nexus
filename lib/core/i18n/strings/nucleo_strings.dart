@@ -71,6 +71,15 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get sectionAvisos;
+  String get avisosExplainer;
+  String get avisosOn;
+  String get avisosCuanto;
+  String get avisosCarpeta;
+  String get avisosSinCarpeta;
+  String get avisosNota;
+  String reunionEnMinutos(String titulo, int minutos);
+  String reunionAhora(String titulo);
   String get whichImageModel;
   String perImage(String precio);
   String get drawingIt;
@@ -227,6 +236,32 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get sectionKeys => 'Llaves';
   @override
   String get sectionImages => 'Imágenes';
+  @override
+  String get sectionAvisos => 'Avisos';
+  @override
+  String get avisosExplainer =>
+      'Nexus te dice en voz alta que tienes una reunión, unos minutos antes. Es '
+      'lo único que hace sin que se lo pidas, así que nace apagado.\n\nMira el '
+      'calendario de la cuenta de Claude de la carpeta que elijas, y solo avisa '
+      'de lo que tiene invitados: los bloques tuyos no suenan.';
+  @override
+  String get avisosOn => 'Avisarme de las reuniones';
+  @override
+  String get avisosCuanto => 'CUÁNTO ANTES';
+  @override
+  String get avisosCarpeta => 'DE QUÉ CUENTA MIRA EL CALENDARIO';
+  @override
+  String get avisosSinCarpeta => 'Elige una carpeta';
+  @override
+  String get avisosNota =>
+      'Suena con la voz que elegiste en Voz, y también en el teléfono si está '
+      'conectado. Si estás hablando con Nexus, espera a que la conversación '
+      'termine; si no termina, lo deja en una notificación.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, en $minutos minutos.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, ahora.';
   @override
   String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
   @override
@@ -425,6 +460,32 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get sectionKeys => 'Keys';
   @override
   String get sectionImages => 'Images';
+  @override
+  String get sectionAvisos => 'Alerts';
+  @override
+  String get avisosExplainer =>
+      'Nexus tells you out loud that you have a meeting, a few minutes before. '
+      'It is the only thing it does without being asked, so it starts off.\n\nIt '
+      'looks at the calendar of the Claude account of the folder you pick, and '
+      'only announces what has guests: your own blocks stay quiet.';
+  @override
+  String get avisosOn => 'Tell me about meetings';
+  @override
+  String get avisosCuanto => 'HOW LONG BEFORE';
+  @override
+  String get avisosCarpeta => 'WHOSE CALENDAR IT LOOKS AT';
+  @override
+  String get avisosSinCarpeta => 'Pick a folder';
+  @override
+  String get avisosNota =>
+      'It speaks with the voice you picked under Voice, and on the phone too if '
+      'it is connected. If you are talking to Nexus it waits for the '
+      'conversation to end; if it does not, it leaves a notification.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, in $minutos minutes.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, now.';
   @override
   String get whichImageModel => 'WHICH MODEL DRAWS';
   @override
