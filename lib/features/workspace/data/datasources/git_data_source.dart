@@ -298,6 +298,83 @@ class GitDataSource {
     return sha1.convert(utf8.encode(material.toString())).toString();
   }
 
+  /// Un git que **cuenta lo que pasó**: la salida entera y el código de salida.
+  ///
+  /// Es lo contrario de [_run], y la diferencia es el motivo de que exista. Ese
+  /// se traga el fallo y devuelve `null` porque quien pregunta la rama no puede
+  /// romperse si no hay repositorio. Aquí el fallo **es la respuesta**: un
+  /// `push` rechazado tiene que decir por qué, y un `null` en su lugar deja al
+  /// que lo lanzó mirando una caja vacía.
+  ///
+  /// Las dos salidas van juntas y en el orden en que llegan: git escribe por
+  /// `stderr` cosas que no son errores —el progreso de un push, la rama que
+  /// acaba de crear, «Everything up-to-date»— así que separarlas obligaría a
+  /// elegir cuál se enseña, y la respuesta correcta es las dos.
+  Future<({int codigo, String salida, bool tardoDemasiado})> correr(
+    String folderPath,
+    List<String> argumentos, {
+    Duration limite = const Duration(minutes: 2),
+  }) async {
+    try {
+      final proceso = await Process.start(
+        await HerramientaExterna.rutaDeGit(),
+        [
+          '-C',
+          folderPath,
+          // Sin esto, `git log` o `git diff` intentan abrir un paginador. Con la
+          // salida capturada git suele decidir que no hace falta, pero si algo
+          // en la configuración del usuario fuerza el paginador el proceso se
+          // queda esperando a que alguien pulse `q` — y nadie va a pulsarla.
+          '--no-pager',
+          ...argumentos,
+        ],
+        environment: {
+          ...ClaudeEnvironment.forTools(),
+          // 🔴 Un `push` o un `fetch` sin credenciales en caché pide usuario y
+          // contraseña por la terminal. Aquí no hay terminal ni nadie a quien
+          // preguntar, así que sin esto el comando **no vuelve nunca**: se queda
+          // esperando una respuesta que no puede llegar. Con esto falla, que es
+          // lo que hay que hacer, y el fallo se puede leer.
+          'GIT_TERMINAL_PROMPT': '0',
+        },
+      );
+      // Nadie le va a escribir nada, y un git que espere por la entrada se
+      // quedaría colgado igual que con el paginador.
+      await proceso.stdin.close();
+
+      final salida = StringBuffer();
+      final leyendo = Future.wait([
+        proceso.stdout.transform(utf8.decoder).forEach(salida.write),
+        proceso.stderr.transform(utf8.decoder).forEach(salida.write),
+      ]);
+
+      var tardoDemasiado = false;
+      final codigo = await proceso.exitCode.timeout(
+        limite,
+        onTimeout: () {
+          // Se distingue del fallo normal porque lo que hay que decir es otra
+          // cosa: un código 1 se arregla leyendo la salida, y un plantón se
+          // arregla lanzándolo en la terminal.
+          tardoDemasiado = true;
+          proceso.kill();
+          return -1;
+        },
+      );
+      await leyendo;
+
+      return (
+        codigo: codigo,
+        salida: salida.toString().trim(),
+        tardoDemasiado: tardoDemasiado,
+      );
+    } on ProcessException catch (e) {
+      // Sin git instalado, o con una ruta que ya no existe. Se cuenta en vez de
+      // devolver vacío: «no pasó nada» y «no se pudo ni intentar» no son lo
+      // mismo para quien mira.
+      return (codigo: -1, salida: e.message, tardoDemasiado: false);
+    }
+  }
+
   /// Un `git` al que hay que darle algo por la entrada.
   Future<String?> _conEntrada(
     String folderPath,
