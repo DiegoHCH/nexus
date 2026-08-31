@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/artifacts/domain/entities/modelo_de_imagen.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings/settings_chooser.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/las_llaves_guardadas.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -36,6 +38,22 @@ class ImagenesSection extends ConsumerWidget {
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s5),
+        // Cuál dibuja, antes que las llaves: es lo que decide cuánto cuesta
+        // cada imagen, y con el doble de diferencia entre el más caro y el más
+        // barato conviene verlo al elegir y no en la factura.
+        Text(
+          strings.whichImageModel,
+          style: NexusTypography.label.copyWith(color: colors.faint),
+        ),
+        const SizedBox(height: NexusSpacing.s2),
+        SettingsChooser<ModeloDeImagen>(
+          value: ref.watch(modeloDeImagenProvider),
+          options: ModeloDeImagen.values,
+          label: (modelo) => modelo.nombre,
+          detail: (modelo) => strings.perImage(modelo.precio),
+          onSelected: ref.read(modeloDeImagenProvider.notifier).elegir,
+        ),
+        const SizedBox(height: NexusSpacing.s6),
         for (final cuenta in cuentas) _LaDeUnaCuenta(perfil: cuenta),
         const SizedBox(height: NexusSpacing.s3),
         Text(

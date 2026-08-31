@@ -41,11 +41,6 @@ class ImagenDeReferencia {
 class GeminiImageDataSource {
   const GeminiImageDataSource();
 
-  /// Nano banana 2. Se elige ésta y no la 2.5 que había: es la generación
-  /// actual y la de los ejemplos de la API, y la diferencia de precio son
-  /// céntimos por imagen — con la edición encadenada de por medio, la calidad
-  /// del resultado pesa más que eso.
-  static const modelo = 'gemini-3.1-flash-image';
   static const _host = 'generativelanguage.googleapis.com';
   static const _ruta = '/v1beta/interactions';
 
@@ -57,6 +52,11 @@ class GeminiImageDataSource {
   Future<ImagenGenerada> generar({
     required String llave,
     required String descripcion,
+
+    /// Cuál dibuja. Entra por parámetro y no se fija aquí: se elige en Ajustes
+    /// porque el precio sale del saldo de quien lo pide, y porque el bueno se
+    /// satura y hay que poder bajar a otro sin tocar código.
+    required String modelo,
 
     /// La interacción anterior, para seguir con aquella imagen en vez de
     /// empezar de cero. Se manda el identificador y no el PNG: la API ya tiene
@@ -84,6 +84,7 @@ class GeminiImageDataSource {
     try {
       return await _pedir(
         llave: llave,
+        modelo: modelo,
         descripcion: descripcion,
         seguirDe: seguirDe,
         referencias: referencias,
@@ -106,6 +107,7 @@ class GeminiImageDataSource {
 
   Future<ImagenGenerada> _pedir({
     required String llave,
+    required String modelo,
     required String descripcion,
     required String? seguirDe,
     required List<ImagenDeReferencia> referencias,

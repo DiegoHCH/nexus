@@ -44,6 +44,7 @@ final generarUnaImagenProvider = Provider<Future<LoQueSalio> Function(ElEncargo)
 
       final hecha = await const GeminiImageDataSource().generar(
         llave: llave,
+        modelo: ref.read(modeloDeImagenProvider).id,
         descripcion: encargo.descripcion,
         seguirDe: encargo.seguirDe,
         referencias: await _leerLasReferencias(encargo.referencias),

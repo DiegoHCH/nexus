@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'package:nexus/features/artifacts/data/datasources/modelo_de_imagen_data_source.dart';
+import 'package:nexus/features/artifacts/domain/entities/modelo_de_imagen.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
 import 'package:nexus/features/artifacts/data/repositories/gemini_image_key_store_impl.dart';
@@ -82,3 +85,35 @@ final hayLlaveDeImagenesProvider = FutureProvider.family<bool, String?>(
   (ref, perfil) async =>
       await ref.watch(geminiImageKeyStoreProvider).read(perfil) != null,
 );
+
+final modeloDeImagenDataSourceProvider = Provider<ModeloDeImagenDataSource>(
+  (ref) => const ModeloDeImagenDataSource(),
+);
+
+/// Con qué modelo se dibuja. Se elige en Ajustes y vale desde el siguiente
+/// encargo.
+class ModeloDeImagenController extends Notifier<ModeloDeImagen> {
+  @override
+  ModeloDeImagen build() {
+    unawaited(_cargar());
+    return ModeloDeImagen.nanoBanana2;
+  }
+
+  Future<void> _cargar() async {
+    final guardado = await ref.read(modeloDeImagenDataSourceProvider).read();
+    // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
+    // ya no existe y esto lanzaría en vez de no hacer nada.
+    if (!ref.mounted) return;
+    state = ModeloDeImagen.porId(guardado);
+  }
+
+  Future<void> elegir(ModeloDeImagen modelo) async {
+    state = modelo;
+    await ref.read(modeloDeImagenDataSourceProvider).write(modelo.id);
+  }
+}
+
+final modeloDeImagenProvider =
+    NotifierProvider<ModeloDeImagenController, ModeloDeImagen>(
+      ModeloDeImagenController.new,
+    );

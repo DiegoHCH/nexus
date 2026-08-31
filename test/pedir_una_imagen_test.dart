@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/artifacts/data/datasources/gemini_image_data_source.dart';
+import 'package:nexus/features/artifacts/domain/entities/modelo_de_imagen.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 
 /// Pedir una imagen escribiendo `/imagen …`.
@@ -11,6 +12,33 @@ import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.
 /// documentación acaba de cambiar —`generateContent` quedó marcada como legacy
 /// y las imágenes van por la Interactions API, que devuelve otra cosa—.
 void main() {
+  // 🔴 Un id mal escrito es un 404 en la cara de quien pide la imagen, y no se
+  // ve hasta que alguien paga por descubrirlo. Están copiados de la
+  // documentación, así que lo que se vigila es que nadie los toque de más.
+  group('los modelos que se ofrecen', () {
+    test('sus identificadores son los de la API', () {
+      expect(ModeloDeImagen.values.map((m) => m.id), [
+        'gemini-3.1-flash-image',
+        'gemini-3.1-flash-lite-image',
+        'gemini-2.5-flash-image',
+      ]);
+    });
+
+    // Lo guardado puede ser de una versión anterior o de un modelo retirado.
+    // Volver al de siempre es mejor que no dibujar.
+    test('lo que no se reconoce cae en el de siempre', () {
+      expect(
+        ModeloDeImagen.porId('el-que-ya-no-existe'),
+        ModeloDeImagen.nanoBanana2,
+      );
+      expect(ModeloDeImagen.porId(null), ModeloDeImagen.nanoBanana2);
+      expect(
+        ModeloDeImagen.porId('gemini-2.5-flash-image'),
+        ModeloDeImagen.nanoBanana,
+      );
+    });
+  });
+
   group('qué cuenta como pedir una imagen', () {
     test('el prefijo con su descripción detrás', () {
       expect(
@@ -80,6 +108,7 @@ void main() {
     test('sin llave se dice, y no se sale a la red', () async {
       final hecha = await const GeminiImageDataSource().generar(
         llave: '',
+        modelo: ModeloDeImagen.nanoBanana2.id,
         descripcion: 'lo que sea',
       );
 
@@ -93,6 +122,7 @@ void main() {
       final hecha = await const GeminiImageDataSource()
           .generar(
             llave: 'la-que-sea',
+            modelo: ModeloDeImagen.nanoBanana2.id,
             descripcion: 'lo que sea',
             timeout: const Duration(seconds: 5),
           )

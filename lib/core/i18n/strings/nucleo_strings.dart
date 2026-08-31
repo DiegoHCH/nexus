@@ -71,6 +71,8 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get whichImageModel;
+  String perImage(String precio);
   String get drawingIt;
   String get imageNeedsKey;
   String get noImageToEdit;
@@ -225,6 +227,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get sectionKeys => 'Llaves';
   @override
   String get sectionImages => 'Imágenes';
+  @override
+  String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
+  @override
+  String perImage(String precio) => '$precio por imagen';
   @override
   String get drawingIt => 'Generando la imagen…';
   @override
@@ -419,6 +425,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get sectionKeys => 'Keys';
   @override
   String get sectionImages => 'Images';
+  @override
+  String get whichImageModel => 'WHICH MODEL DRAWS';
+  @override
+  String perImage(String precio) => '$precio per image';
   @override
   String get drawingIt => 'Generating the image…';
   @override
