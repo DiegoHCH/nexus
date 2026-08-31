@@ -12,6 +12,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_ya_escribi.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
@@ -38,6 +39,7 @@ class ComposerBar extends ConsumerStatefulWidget {
     super.key,
     required this.onSubmit,
     required this.onFocusChanged,
+    this.loQueYaEscribi = const [],
     this.folderPath,
     this.meter = const SessionMeter(),
     this.voiceActive = false,
@@ -49,6 +51,15 @@ class ComposerBar extends ConsumerStatefulWidget {
   /// los textos del idioma; la caja solo dice qué se escribió y qué se adjuntó.
   final void Function(String text, List<String> attachments) onSubmit;
   final ValueChanged<bool> onFocusChanged;
+
+  /// Lo que ya se envió en esta conversación, en el orden en que se envió.
+  ///
+  /// La caja lo recorre con las flechas. Llega de fuera y no se guarda aquí
+  /// porque **ya existe**: son los turnos del usuario de esta conversación, y un
+  /// segundo almacén con lo mismo habría que mantenerlo sincronizado para
+  /// siempre. Ver [LoQueYaEscribi].
+  final List<String> loQueYaEscribi;
+
   final String? folderPath;
   final SessionMeter meter;
   final bool voiceActive;
@@ -171,6 +182,7 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
               _Field(
                 controller: _controller,
                 focusNode: _focusNode,
+                loQueYaEscribi: widget.loQueYaEscribi,
                 onSubmit: _handleSubmit,
                 onClear: _handleClear,
               ),
@@ -217,35 +229,109 @@ class _ComposerBarState extends ConsumerState<ComposerBar> {
   }
 }
 
-class _Field extends StatelessWidget {
+class _Field extends StatefulWidget {
   const _Field({
     required this.controller,
     required this.focusNode,
+    required this.loQueYaEscribi,
     required this.onSubmit,
     required this.onClear,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
+  final List<String> loQueYaEscribi;
   final ValueChanged<String> onSubmit;
   final VoidCallback onClear;
 
   @override
+  State<_Field> createState() => _FieldState();
+}
+
+class _FieldState extends State<_Field> {
+  /// Dónde va el recorrido del historial. Vive en el campo y no más arriba
+  /// porque se pierde a propósito al enviar: lo que se envió ya no está a medias.
+  var _historial = const LoQueYaEscribi();
+
+  /// Mueve el recorrido y pone en la caja lo que toque.
+  ///
+  /// **La lista se rearma solo cuando no se está recorriendo.** Mientras se
+  /// recorre hay que congelarla: si llegara un turno nuevo a mitad de recorrido,
+  /// las posiciones se moverían bajo los pies y la siguiente flecha daría un
+  /// salto que nadie pidió.
+  ///
+  /// Sin `setState`: `_historial` solo se lee al pulsar una tecla, y de repintar
+  /// el campo ya se encarga el controlador. Un `setState` aquí reconstruiría la
+  /// barra entera para nada.
+  void _mueveElHistorial({required bool atras}) {
+    final antes = _historial.recorriendo
+        ? _historial
+        : LoQueYaEscribi.de(widget.loQueYaEscribi);
+
+    final despues = atras
+        ? antes.haciaAtras(widget.controller.text)
+        : antes.haciaAdelante();
+    _historial = despues;
+
+    // Nada se movió: se llegó al tope del historial, o no hay historial. La caja
+    // **no se toca**, y eso es lo que hace que una flecha de más no borre lo que
+    // llevas escrito.
+    if (despues.posicion == antes.posicion) return;
+    widget.controller.value = TextEditingValue(
+      text: despues.texto,
+      // El cursor al final, que es donde uno quiere seguir escribiendo cuando
+      // recupera algo para cambiarle una palabra.
+      selection: TextSelection.collapsed(offset: despues.texto.length),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
     final colors = context.colors;
+    final controller = widget.controller;
+    final focusNode = widget.focusNode;
+    final onSubmit = widget.onSubmit;
+    final onClear = widget.onClear;
 
     // Enter envía; ⇧Enter hace salto de línea. Se intercepta la tecla porque un
     // campo de varias líneas trata Enter como salto por defecto, y entonces no
     // habría forma de enviar sin ratón.
+    //
+    // Y las flechas recorren el historial, como en una terminal — pero **solo
+    // desde el borde**: ver [LoQueYaEscribi.navegaHaciaAtras]. La caja llega a
+    // seis líneas, así que arriba también sirve para moverse dentro de lo que
+    // estás escribiendo.
     return Focus(
       onKeyEvent: (node, event) {
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+        final cursor = controller.selection.baseOffset;
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp && cursor >= 0) {
+          if (!LoQueYaEscribi.navegaHaciaAtras(controller.text, cursor)) {
+            return KeyEventResult.ignored;
+          }
+          _mueveElHistorial(atras: true);
+          return KeyEventResult.handled;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown && cursor >= 0) {
+          // Hacia delante solo cuando ya se estaba recorriendo: si no, abajo es
+          // una flecha normal y secuestrarla no haría nada visible salvo comerse
+          // el movimiento del cursor.
+          if (!_historial.recorriendo ||
+              !LoQueYaEscribi.navegaHaciaAdelante(controller.text, cursor)) {
+            return KeyEventResult.ignored;
+          }
+          _mueveElHistorial(atras: false);
+          return KeyEventResult.handled;
+        }
+
         if (event.logicalKey != LogicalKeyboardKey.enter) {
           return KeyEventResult.ignored;
         }
         if (HardwareKeyboard.instance.isShiftPressed) {
           return KeyEventResult.ignored;
         }
+        _historial = _historial.suelta();
         onSubmit(controller.text);
         return KeyEventResult.handled;
       },

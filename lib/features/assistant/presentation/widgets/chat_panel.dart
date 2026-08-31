@@ -8,6 +8,8 @@ import 'package:nexus/features/history/presentation/providers/slack_providers.da
 import 'package:nexus/features/assistant/presentation/providers/el_visor_de_cambios.dart';
 import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
+import 'package:markdown/markdown.dart' as md;
+import 'package:nexus/core/design_system/el_resaltado_del_codigo.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -433,6 +435,13 @@ class _Answer extends StatelessWidget {
       // dibuja decide a dónde va un enlace— y aquí no se había puesto nunca.
       onTapLink: (texto, destino, titulo) =>
           unawaited(_abrirEnlace(context, destino)),
+      // **Los bloques largos se pliegan.** Ver [_BloqueDeCodigo]: la salida de un
+      // `!git log` o un diff que escriba Claude pueden ser cientos de líneas, y
+      // una conversación en la que un turno ocupa cinco pantallas deja de poder
+      // recorrerse.
+      builders: {
+        'pre': _CodigoPlegable(estilo: mono, relleno: _rellenoDelCodigo),
+      },
       styleSheet: MarkdownStyleSheet(
         p: body,
         // Subrayado, y no solo en color: en una conversación de texto plano el
@@ -450,7 +459,7 @@ class _Answer extends StatelessWidget {
         h3: body.copyWith(fontWeight: FontWeight.w600),
         listBullet: body,
         code: mono,
-        codeblockPadding: const EdgeInsets.all(NexusSpacing.s3),
+        codeblockPadding: _rellenoDelCodigo,
         codeblockDecoration: BoxDecoration(
           color: colors.void_.withValues(alpha: 0.5),
           border: Border.all(color: colors.rule),
@@ -475,6 +484,209 @@ class _Answer extends StatelessWidget {
         ),
         horizontalRuleDecoration: BoxDecoration(
           border: Border(top: BorderSide(color: colors.rule)),
+        ),
+      ),
+    );
+  }
+}
+
+/// El relleno del bloque de código, en un solo sitio.
+///
+/// Lo comparten la hoja de estilo y [_BloqueDeCodigo] porque el paquete lo
+/// aplica **dentro** del scroll horizontal, no en la caja: quien pinta el
+/// contenido a mano tiene que ponerlo él, y dos valores distintos se ven como
+/// un bloque que salta de sitio según su largo.
+const _rellenoDelCodigo = EdgeInsets.all(NexusSpacing.s3);
+
+/// Cuántas líneas se ven de un bloque plegado.
+const _lineasAlaVista = 5;
+
+/// Desde cuántas líneas se pliega.
+///
+/// Doce y no seis: plegar un bloque de siete líneas molesta más de lo que
+/// ahorra, porque el propio botón ocupa una línea y esconde dos. El umbral
+/// tiene que dejar hueco a que plegar valga la pena.
+const _sePliegaDesde = 12;
+
+/// Pinta los bloques de código, plegando los largos.
+///
+/// 🔴 **Devuelve widget siempre, corto o largo.** El paquete hace
+/// `if (child != null)` con lo que devuelve esto y, si es nulo, no cae al camino
+/// por defecto: descarta el hijo y el bloque se pinta **vacío**. Así que aquí no
+/// hay «déjalo como estaba»; el caso corto también se dibuja a mano.
+class _CodigoPlegable extends MarkdownElementBuilder {
+  _CodigoPlegable({required this.estilo, required this.relleno});
+
+  final TextStyle estilo;
+  final EdgeInsets relleno;
+
+  /// El lenguaje del bloque que se está visitando ahora.
+  ///
+  /// 🔴 **Se guarda aquí porque `visitText` no lo recibe.** Solo llega el texto,
+  /// y el lenguaje vive en la clase del hijo `code` —`language-dart`— que se ve
+  /// desde el `pre`. Así que se lee al entrar y se usa al pintar. Funciona porque
+  /// el paquete recorre un bloque entero antes del siguiente; si algún día
+  /// intercalara, esto pintaría un bloque con la gramática del vecino.
+  String? _lenguaje;
+
+  @override
+  bool isBlockElement() => true;
+
+  @override
+  void visitElementBefore(md.Element element) {
+    _lenguaje = null;
+    for (final hijo in element.children ?? const <md.Node>[]) {
+      if (hijo is md.Element && hijo.tag == 'code') {
+        _lenguaje = ElResaltadoDelCodigo.lenguajeDe(hijo.attributes['class']);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget? visitText(md.Text text, TextStyle? preferredStyle) => _BloqueDeCodigo(
+    texto: text.text,
+    lenguaje: _lenguaje,
+    estilo: estilo,
+    relleno: relleno,
+  );
+}
+
+/// Un bloque de código con scroll horizontal y, si es largo, un pliegue.
+///
+/// El scroll horizontal se conserva porque es del paquete y hace falta: una
+/// línea de `git log --oneline` no cabe, y envolverla rompería la única cosa que
+/// hace legible un log — que los hashes queden en columna.
+class _BloqueDeCodigo extends StatefulWidget {
+  const _BloqueDeCodigo({
+    required this.texto,
+    required this.lenguaje,
+    required this.estilo,
+    required this.relleno,
+  });
+
+  final String texto;
+  final String? lenguaje;
+  final TextStyle estilo;
+  final EdgeInsets relleno;
+
+  @override
+  State<_BloqueDeCodigo> createState() => _BloqueDeCodigoState();
+}
+
+class _BloqueDeCodigoState extends State<_BloqueDeCodigo> {
+  final _scroll = ScrollController();
+  var _desplegado = false;
+
+  @override
+  void dispose() {
+    _scroll.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final lineas = widget.texto.trimRight().split('\n');
+    final pliega = lineas.length >= _sePliegaDesde;
+    final visibles = pliega && !_desplegado
+        ? lineas.take(_lineasAlaVista)
+        : lineas;
+    final escondidas = lineas.length - _lineasAlaVista;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        // El lenguaje, discreto y arriba: es lo que un editor te dice en una
+        // esquina. Solo cuando el cercado lo declaró — inventarlo para la salida
+        // de un `!`, que no es ningún lenguaje, sería decir algo falso en un
+        // sitio donde uno confía.
+        if (widget.lenguaje != null)
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.relleno.left,
+              right: widget.relleno.right,
+              top: widget.relleno.top,
+            ),
+            child: Text(
+              widget.lenguaje!,
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+          ),
+        Scrollbar(
+          controller: _scroll,
+          child: SingleChildScrollView(
+            controller: _scroll,
+            scrollDirection: Axis.horizontal,
+            padding: widget.relleno,
+            child: Text.rich(
+              ElResaltadoDelCodigo.enSpans(
+                visibles.join('\n'),
+                lenguaje: widget.lenguaje,
+                colores: colors,
+                base: widget.estilo,
+              ),
+            ),
+          ),
+        ),
+        // El botón va **fuera** del scroll horizontal: dentro se iría de la
+        // pantalla con la primera línea larga, que es justo el caso en que hace
+        // falta.
+        if (pliega)
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.relleno.left,
+              right: widget.relleno.right,
+              bottom: widget.relleno.bottom,
+            ),
+            child: _MasOMenos(
+              desplegado: _desplegado,
+              escondidas: escondidas,
+              color: colors.accent,
+              onTap: () => setState(() => _desplegado = !_desplegado),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _MasOMenos extends StatelessWidget {
+  const _MasOMenos({
+    required this.desplegado,
+    required this.escondidas,
+    required this.color,
+    required this.onTap,
+  });
+
+  final bool desplegado;
+  final int escondidas;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final s = context.strings;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(NexusRadius.sm),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s1),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              desplegado ? Icons.keyboard_arrow_up : Icons.keyboard_arrow_down,
+              size: 16,
+              color: color,
+            ),
+            const SizedBox(width: NexusSpacing.s1),
+            Text(
+              desplegado ? s.mostrarMenos : s.masLineas(escondidas),
+              style: NexusTypography.label.copyWith(color: color),
+            ),
+          ],
         ),
       ),
     );

@@ -88,6 +88,29 @@ mixin NucleoStrings {
   String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
   String reunionAhora(String titulo);
+
+  /// Lo que se dice cuando el `!` trae algo que no es git.
+  String soloGit(String comando);
+
+  /// La cabecera que dice **dónde** se corrió: repo y rama.
+  String dondeSeCorrio(String repo, String rama);
+
+  /// Cuando git terminó con error, dicho antes de su propia salida.
+  String gitFallo(int codigo);
+
+  /// El pliegue de un bloque de código largo.
+  String masLineas(int cuantas);
+  String get mostrarMenos;
+
+  /// Un comando que terminó bien y no dijo nada. `git add` es el caso.
+  String get sinNadaQueDecir;
+
+  /// Un comando que se quedó colgado y hubo que matarlo.
+  String get tardoDemasiado;
+
+  /// No hay carpeta sobre la que correrlo.
+  String get sinCarpetaDondeCorrer;
+
   String get whichImageModel;
   String perImage(String precio);
   String get drawingIt;
@@ -294,6 +317,28 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
   @override
   String perImage(String precio) => '$precio por imagen';
+  @override
+  String soloGit(String comando) =>
+      'Por ahora «!» solo corre git, y eso era «$comando». Lo demás se le pide '
+      'a Claude sin el «!».';
+  @override
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git terminó con error (código $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas líneas más';
+  @override
+  String get mostrarMenos => 'Mostrar menos';
+  @override
+  String get sinNadaQueDecir =>
+      'Hecho. git no dijo nada, que suele ser buena señal.';
+  @override
+  String get tardoDemasiado =>
+      'Se estaba tardando demasiado y lo corté. Si pedía una contraseña, no hay '
+      'quien la escriba desde aquí: ese va en la terminal.';
+  @override
+  String get sinCarpetaDondeCorrer =>
+      'No hay ninguna carpeta abierta sobre la que correrlo.';
   @override
   String get drawingIt => 'Generando la imagen…';
   @override
@@ -538,6 +583,27 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get whichImageModel => 'WHICH MODEL DRAWS';
   @override
   String perImage(String precio) => '$precio per image';
+  @override
+  String soloGit(String comando) =>
+      '"!" only runs git for now, and that was "$comando". Everything else goes '
+      'to Claude without the "!".';
+  @override
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git exited with an error (code $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas more lines';
+  @override
+  String get mostrarMenos => 'Show less';
+  @override
+  String get sinNadaQueDecir =>
+      'Done. git said nothing, which is usually a good sign.';
+  @override
+  String get tardoDemasiado =>
+      'It was taking too long, so I cut it off. If it was asking for a password, '
+      'there is nobody here to type it: run that one in the terminal.';
+  @override
+  String get sinCarpetaDondeCorrer => 'There is no open folder to run it in.';
   @override
   String get drawingIt => 'Generating the image…';
   @override

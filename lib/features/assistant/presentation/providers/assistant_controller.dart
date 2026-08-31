@@ -36,6 +36,7 @@ import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_comando_directo.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -244,6 +245,97 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// Cierra el turno en curso: se le quita el cursor.
+  /// Corre lo que se pidió con `!` y enseña lo que git contestó.
+  ///
+  /// 🔴 **La lista de comandos vetados de la carpeta no ata aquí, y es
+  /// deliberado.** Esa lista existe para lo contrario: su propio texto le dice a
+  /// Claude «no los ejecutes, y termina diciendo el comando exacto que tiene que
+  /// lanzar el usuario». O sea que está pensada para acabar justo aquí. Si el
+  /// `!` la respetara, Claude te pasaría un comando que la caja de texto te
+  /// niega, y el círculo se cerraría en el sitio equivocado.
+  ///
+  /// No es un agujero en la promesa del repo: lo que `.nexus/config.json`
+  /// declara es qué **no hace Claude solo**, y eso sigue intacto. Lo que tú
+  /// escribes con un `!` delante lo has escrito tú.
+  Future<void> _correrloYo(
+    ({String comando, List<String> argumentos}) directo, {
+    required String loQueSeVe,
+  }) async {
+    final s = ref.read(stringsProvider);
+    _say(ChatAuthor.user, loQueSeVe);
+    _sealLast();
+
+    if (directo.comando != ElComandoDirecto.soloEste) {
+      _say(ChatAuthor.nexus, s.soloGit(directo.comando));
+      _sealLast();
+      return;
+    }
+
+    final carpeta = _workingDirectory;
+    if (carpeta == null) {
+      _say(ChatAuthor.nexus, s.sinCarpetaDondeCorrer);
+      _sealLast();
+      return;
+    }
+
+    // 🔴 **Dónde se corrió, dicho siempre.** La salida de git no lo dice, y la
+    // primera vez que esto se usó de verdad contestó sobre un repo que no era
+    // el que se esperaba —la conversación en foco iba de otra carpeta— y lo
+    // único que lo delató fue que el nombre de una rama sonaba a otro
+    // proyecto. Con `!git log` o `!git stash` no habría habido ni esa pista, y
+    // ahí lo que está en juego es un stash en el repo equivocado.
+    //
+    // Y es además lo único que se puede decir en español: git en este Mac no
+    // trae traducciones, así que sus palabras van a seguir siendo inglesas
+    // haga lo que haga el `LC_ALL`. Lo que Nexus pone alrededor sí es tuyo.
+    final donde = await const GitDataSource().read(carpeta);
+    final hecho = await const GitDataSource().correr(
+      carpeta,
+      directo.argumentos,
+    );
+    if (!ref.mounted) return;
+
+    final cabecera = s.dondeSeCorrio(
+      donde?.repository ?? carpeta.split('/').last,
+      donde?.branch ?? '—',
+    );
+
+    // **Lo de git dentro del bloque, lo de Nexus fuera.** La salida va literal
+    // y monoespaciada porque es lo que se vino a ver —`git log --oneline` es una
+    // tabla y se lee alineada o no se lee—, y las frases de Nexus van en prosa
+    // porque no son salida de nada: son la cabecera que dice dónde se corrió y,
+    // si hizo falta, el aviso de que git terminó con error. Un código distinto
+    // de cero con la salida en blanco es un fallo mudo, y eso se lee como que
+    // la app no hizo nada.
+    _say(
+      ChatAuthor.nexus,
+      [
+        '**$cabecera**',
+        if (hecho.tardoDemasiado)
+          s.tardoDemasiado
+        else ...[
+          if (hecho.codigo != 0) s.gitFallo(hecho.codigo),
+          if (hecho.salida.isEmpty)
+            if (hecho.codigo == 0) s.sinNadaQueDecir else ''
+          else
+            ElComandoDirecto.enBloque(hecho.salida),
+        ],
+      ].where((linea) => linea.isNotEmpty).join('\n\n'),
+    );
+    _sealLast();
+
+    // 🔴 **Y se archiva, como los otros tres caminos.** Faltaba, y el síntoma no
+    // se parecía a la causa: una conversación cuyos únicos turnos fueran `!`
+    // volvía **vacía** al relanzar la app, y eso se lee como «Nexus no guarda
+    // las conversaciones» y no como «este camino se olvidó de guardar».
+    //
+    // Los otros tres —el encargo, la imagen, la voz— llaman a [_archive] al
+    // terminar su turno. Este copió de ahí el `_say` y el `_sealLast` y se dejó
+    // justo la línea que persiste, que es la única que no se nota hasta que
+    // reinicias.
+    unawaited(_archive());
+  }
+
   void _sealLast() {
     final messages = [...state.messages];
     final last = messages.lastOrNull;
@@ -287,6 +379,19 @@ class AssistantController extends Notifier<AssistantHudState> {
     // que se suelta en la caja son las imágenes de referencia —«este estilo»,
     // «cámbiale esto»—, así que aquí son material y no un motivo para no
     // reconocer el atajo.
+    // `!git status` no es un encargo: **no pasa por Claude**. Va derecho a git y
+    // la salida se enseña literal, que es lo que uno quiere de git — no un
+    // resumen de la salida de git.
+    //
+    // Va antes que los demás atajos porque es el único que no puede colisionar
+    // con nada: `!` no empieza ninguna frase que alguien escriba en serio.
+    if (!esElParte) {
+      if (ElComandoDirecto.deLaFrase(trimmed) case final directo?) {
+        await _correrloYo(directo, loQueSeVe: loQueSeVe ?? trimmed);
+        return;
+      }
+    }
+
     if (!esElParte) {
       if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
         await _dibujar(
