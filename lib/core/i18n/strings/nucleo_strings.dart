@@ -71,6 +71,46 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get sectionAvisos;
+  String get avisosExplainer;
+  String get avisosOn;
+  String get avisosCuanto;
+  String get avisosCarpeta;
+  String get avisosSinCarpeta;
+  String get avisosNota;
+  String get avisosReleer;
+  String get avisosProbar;
+  String get avisoDePrueba;
+  String get agendaVacia;
+  String get agendaFueraDeJornada;
+  String agendaDeHoy(int cuantas);
+  String get avisosSinLeer;
+  String avisosLeidoA(String hora);
+  String reunionEnMinutos(String titulo, int minutos);
+  String reunionAhora(String titulo);
+
+  /// Lo que se dice cuando el `!` trae algo que no es git.
+  String soloGit(String comando);
+
+  /// La cabecera que dice **dónde** se corrió: repo y rama.
+  String dondeSeCorrio(String repo, String rama);
+
+  /// Cuando git terminó con error, dicho antes de su propia salida.
+  String gitFallo(int codigo);
+
+  /// El pliegue de un bloque de código largo.
+  String masLineas(int cuantas);
+  String get mostrarMenos;
+
+  /// Un comando que terminó bien y no dijo nada. `git add` es el caso.
+  String get sinNadaQueDecir;
+
+  /// Un comando que se quedó colgado y hubo que matarlo.
+  String get tardoDemasiado;
+
+  /// No hay carpeta sobre la que correrlo.
+  String get sinCarpetaDondeCorrer;
+
   String get whichImageModel;
   String perImage(String precio);
   String get drawingIt;
@@ -228,9 +268,77 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get sectionImages => 'Imágenes';
   @override
+  String get sectionAvisos => 'Avisos';
+  @override
+  String get avisosExplainer =>
+      'Nexus te dice en voz alta que tienes una reunión, unos minutos antes. Es '
+      'lo único que hace sin que se lo pidas, así que nace apagado.\n\nMira el '
+      'calendario de la cuenta de Claude de la carpeta que elijas, y solo avisa '
+      'de lo que tiene invitados: los bloques tuyos no suenan.';
+  @override
+  String get avisosOn => 'Avisarme de las reuniones';
+  @override
+  String get avisosCuanto => 'CUÁNTO ANTES';
+  @override
+  String get avisosCarpeta => 'DE QUÉ CUENTA MIRA EL CALENDARIO';
+  @override
+  String get avisosSinCarpeta => 'Elige una carpeta';
+  @override
+  String get avisosReleer => 'ACTUALIZAR EL CALENDARIO';
+  @override
+  String get avisosProbar => 'OÍR UN AVISO';
+  @override
+  String get avisoDePrueba => 'Reunión de prueba';
+  @override
+  String get agendaVacia => 'Hoy no tienes reuniones.';
+  @override
+  String get agendaFueraDeJornada =>
+      'La jornada terminó y la agenda del día ya no está en memoria. Si la '
+      'necesitas, actualízala en Ajustes › Avisos.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'Hoy tienes una reunión:'
+      : 'Hoy tienes $cuantas reuniones:';
+  @override
+  String get avisosSinLeer => 'todavía sin leer';
+  @override
+  String avisosLeidoA(String hora) => 'leído a las $hora';
+  @override
+  String get avisosNota =>
+      'Suena con la voz que elegiste en Voz, y también en el teléfono si está '
+      'conectado. Si estás hablando con Nexus, espera a que la conversación '
+      'termine; si no termina, lo deja en una notificación.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, en $minutos minutos.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, ahora.';
+  @override
   String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
   @override
   String perImage(String precio) => '$precio por imagen';
+  @override
+  String soloGit(String comando) =>
+      'Por ahora «!» solo corre git, y eso era «$comando». Lo demás se le pide '
+      'a Claude sin el «!».';
+  @override
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git terminó con error (código $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas líneas más';
+  @override
+  String get mostrarMenos => 'Mostrar menos';
+  @override
+  String get sinNadaQueDecir =>
+      'Hecho. git no dijo nada, que suele ser buena señal.';
+  @override
+  String get tardoDemasiado =>
+      'Se estaba tardando demasiado y lo corté. Si pedía una contraseña, no hay '
+      'quien la escriba desde aquí: ese va en la terminal.';
+  @override
+  String get sinCarpetaDondeCorrer =>
+      'No hay ninguna carpeta abierta sobre la que correrlo.';
   @override
   String get drawingIt => 'Generando la imagen…';
   @override
@@ -426,9 +534,76 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get sectionImages => 'Images';
   @override
+  String get sectionAvisos => 'Alerts';
+  @override
+  String get avisosExplainer =>
+      'Nexus tells you out loud that you have a meeting, a few minutes before. '
+      'It is the only thing it does without being asked, so it starts off.\n\nIt '
+      'looks at the calendar of the Claude account of the folder you pick, and '
+      'only announces what has guests: your own blocks stay quiet.';
+  @override
+  String get avisosOn => 'Tell me about meetings';
+  @override
+  String get avisosCuanto => 'HOW LONG BEFORE';
+  @override
+  String get avisosCarpeta => 'WHOSE CALENDAR IT LOOKS AT';
+  @override
+  String get avisosSinCarpeta => 'Pick a folder';
+  @override
+  String get avisosReleer => 'REFRESH THE CALENDAR';
+  @override
+  String get avisosProbar => 'HEAR AN ALERT';
+  @override
+  String get avisoDePrueba => 'Test meeting';
+  @override
+  String get agendaVacia => 'You have no meetings today.';
+  @override
+  String get agendaFueraDeJornada =>
+      'The day is over and the agenda is no longer in memory. Refresh it in '
+      'Settings › Alerts if you need it.';
+  @override
+  String agendaDeHoy(int cuantas) => cuantas == 1
+      ? 'You have one meeting today:'
+      : 'You have $cuantas meetings today:';
+  @override
+  String get avisosSinLeer => 'not read yet';
+  @override
+  String avisosLeidoA(String hora) => 'read at $hora';
+  @override
+  String get avisosNota =>
+      'It speaks with the voice you picked under Voice, and on the phone too if '
+      'it is connected. If you are talking to Nexus it waits for the '
+      'conversation to end; if it does not, it leaves a notification.';
+  @override
+  String reunionEnMinutos(String titulo, int minutos) =>
+      '$titulo, in $minutos minutes.';
+  @override
+  String reunionAhora(String titulo) => '$titulo, now.';
+  @override
   String get whichImageModel => 'WHICH MODEL DRAWS';
   @override
   String perImage(String precio) => '$precio per image';
+  @override
+  String soloGit(String comando) =>
+      '"!" only runs git for now, and that was "$comando". Everything else goes '
+      'to Claude without the "!".';
+  @override
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git exited with an error (code $codigo):';
+  @override
+  String masLineas(int cuantas) => '$cuantas more lines';
+  @override
+  String get mostrarMenos => 'Show less';
+  @override
+  String get sinNadaQueDecir =>
+      'Done. git said nothing, which is usually a good sign.';
+  @override
+  String get tardoDemasiado =>
+      'It was taking too long, so I cut it off. If it was asking for a password, '
+      'there is nobody here to type it: run that one in the terminal.';
+  @override
+  String get sinCarpetaDondeCorrer => 'There is no open folder to run it in.';
   @override
   String get drawingIt => 'Generating the image…';
   @override

@@ -8,6 +8,7 @@ import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dar
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
+import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -65,5 +66,6 @@ final holdVoiceConversationProvider =
         debugPrint,
         ref.watch(correrUnaPruebaProvider),
         ref.watch(elParteDelDiaProvider(conversationId)),
+        ref.watch(laAgendaDeHoyProvider),
       ),
     );

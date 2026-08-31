@@ -15,6 +15,7 @@ import 'package:nexus/features/workspace/presentation/pages/settings/history_sec
 import 'package:nexus/features/workspace/presentation/pages/settings/cuentas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/pruebas_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/language_section.dart';
+import 'package:nexus/features/workspace/presentation/pages/settings/avisos_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/imagenes_section.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/llaves_section.dart';
 import 'package:nexus/features/remote/presentation/pages/mobile_section.dart';
@@ -105,21 +106,28 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   children: [
                     SizedBox(
                       width: 200,
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          for (final section in _Section.values)
-                            _SectionLink(
-                              // Con nombre propio: «VOZ» aparece dos veces en
-                              // esta pantalla —el enlace de la izquierda y la
-                              // modalidad de una carpeta— y sin una llave no
-                              // hay forma de decir cuál se pulsa.
-                              key: ValueKey('seccion-${section.name}'),
-                              label: section.title(context.strings),
-                              active: _section == section,
-                              onTap: () => setState(() => _section = section),
-                            ),
-                        ],
+                      // 🔴 **Rueda, porque la lista crece con cada sección.**
+                      // Se pasó del alto al llegar a la decimosexta —8 px
+                      // medidos— y el fallo no es de esa sección: es que una
+                      // columna fija se acerca al borde con cada una que se
+                      // añade, y la que lo cruce se lleva la culpa de todas.
+                      child: SingleChildScrollView(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            for (final section in _Section.values)
+                              _SectionLink(
+                                // Con nombre propio: «VOZ» aparece dos veces en
+                                // esta pantalla —el enlace de la izquierda y la
+                                // modalidad de una carpeta— y sin una llave no
+                                // hay forma de decir cuál se pulsa.
+                                key: ValueKey('seccion-${section.name}'),
+                                label: section.title(context.strings),
+                                active: _section == section,
+                                onTap: () => setState(() => _section = section),
+                              ),
+                          ],
+                        ),
                       ),
                     ),
                     const SizedBox(width: 96),
@@ -130,6 +138,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                           _Section.voice => const VoiceSection(),
                           _Section.llaves => const LlavesSection(),
                           _Section.imagenes => const ImagenesSection(),
+                          _Section.avisos => const AvisosSection(),
                           _Section.permissions => const PermissionsSection(),
                           _Section.mobile => const MobileSection(),
                           _Section.history => const HistorySection(),
@@ -280,6 +289,7 @@ enum _Section {
   voice,
   llaves,
   imagenes,
+  avisos,
   permissions,
   mobile,
   history,
@@ -299,6 +309,7 @@ enum _Section {
     _Section.voice => strings.sectionVoice,
     _Section.llaves => strings.sectionKeys,
     _Section.imagenes => strings.sectionImages,
+    _Section.avisos => strings.sectionAvisos,
     _Section.permissions => strings.sectionPermissions,
     _Section.mobile => strings.sectionMobile,
     _Section.history => strings.sectionHistory,

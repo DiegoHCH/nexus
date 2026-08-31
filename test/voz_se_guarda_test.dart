@@ -1,3 +1,4 @@
+import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -71,6 +72,7 @@ class _Guionizada extends HoldVoiceConversation {
         (_) {},
         const _SinPruebas(),
         const _SinParte(),
+        _Agenda(),
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();
@@ -243,4 +245,12 @@ void main() {
       expect(estado.meter.turnTokens, 1200);
     },
   );
+}
+
+/// La agenda ya leída: es lo que hace que preguntarla no vuelva a Claude.
+class _Agenda implements LaAgendaDeHoy {
+  const _Agenda();
+
+  @override
+  Future<String?> deHoy() async => 'Hoy no tienes reuniones.';
 }

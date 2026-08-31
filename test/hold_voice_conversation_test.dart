@@ -1,3 +1,4 @@
+import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'dart:async';
 import 'dart:typed_data';
 
@@ -190,6 +191,7 @@ HoldVoiceConversation _conversation(
   void Function(String)? log,
   _Lanzador? lanzador,
   _Parte? parte,
+  _Agenda? agenda,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
@@ -198,6 +200,7 @@ HoldVoiceConversation _conversation(
   log ?? (_) {},
   lanzador ?? _Lanzador(),
   parte ?? _Parte(),
+  agenda ?? _Agenda(),
 );
 
 /// El lanzador de pruebas, que apunta lo que se le pidió. Su gracia en estas
@@ -315,6 +318,7 @@ void main() {
         (_) {},
         _Lanzador(),
         _Parte(),
+        _Agenda(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -360,6 +364,7 @@ void main() {
         (_) {},
         _Lanzador(),
         _Parte(),
+        _Agenda(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -455,6 +460,7 @@ void main() {
         (_) {},
         _Lanzador(),
         _Parte(),
+        _Agenda(),
       );
 
       final subscription = conversation().listen((_) {});
@@ -528,6 +534,7 @@ void main() {
       (_) {},
       _Lanzador(),
       _Parte(),
+      _Agenda(),
     );
 
     final vistos = <VoiceEvent>[];
@@ -780,6 +787,7 @@ void main() {
       (_) {},
       _Lanzador(),
       _Parte(),
+      _Agenda(),
     );
 
     final sub = conversation().listen((_) {});
@@ -796,4 +804,80 @@ void main() {
     );
     await sub.cancel();
   });
+
+  // 🔴 «¿Qué reuniones tengo hoy?» **no vuelve a Claude.** La app ya leyó el
+  // calendario para poder avisar, así que mandar un encargo para releer lo
+  // mismo cuesta un minuto de espera y tokens, y devuelve lo que ya está en
+  // memoria.
+  group('la agenda se contesta de memoria', () {
+    test('preguntarla no manda ningún encargo a Claude', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final agenda = _Agenda('Hoy tienes una reunión:\n- 10:00 · Refinamiento');
+      final conversation = _conversation(session, bridge, agenda: agenda);
+
+      final sub = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.agendaTool,
+          arguments: <String, Object?>{},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(agenda.seLaPidieron, 1);
+      expect(
+        bridge.asked,
+        isEmpty,
+        reason: 'releer lo que ya está en memoria cuesta tokens y un minuto',
+      );
+      expect(session.toolResults.single, contains('Refinamiento'));
+      await sub.cancel();
+    });
+
+    // Sin agenda que mirar se dice tal cual: contestar «no tienes nada» cuando
+    // en realidad no se ha mirado sería mentir con cara de dato.
+    test(
+      'sin avisos configurados lo dice, en vez de decir que no hay nada',
+      () async {
+        final session = _Session();
+        final conversation = _conversation(
+          session,
+          _Bridge(),
+          agenda: _Agenda(),
+        );
+
+        final sub = conversation().listen((_) {});
+        await Future<void>.delayed(Duration.zero);
+        session.emit(
+          const VoiceToolRequested(
+            callId: 'c1',
+            name: ClaudeErrand.agendaTool,
+            arguments: <String, Object?>{},
+          ),
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(session.toolResults.single, contains('Ajustes'));
+        await sub.cancel();
+      },
+    );
+  });
+}
+
+/// La agenda ya leída: es lo que hace que preguntarla no vuelva a Claude.
+class _Agenda implements LaAgendaDeHoy {
+  _Agenda([this.respuesta]);
+
+  /// `null` es «no hay agenda que mirar»: avisos apagados o sin carpeta.
+  final String? respuesta;
+  var seLaPidieron = 0;
+
+  @override
+  Future<String?> deHoy() async {
+    seLaPidieron++;
+    return respuesta;
+  }
 }

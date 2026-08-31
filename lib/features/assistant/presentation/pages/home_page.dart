@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hotkey_manager/hotkey_manager.dart';
+import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -374,6 +375,14 @@ class _HomePageState extends ConsumerState<HomePage> {
                   onSubmit: (texto, adjuntos) =>
                       controller.submit(texto, attachments: adjuntos),
                   onFocusChanged: controller.setListening,
+                  // El historial de las flechas: lo que ya escribiste en esta
+                  // conversación. Sale de los turnos que ya están y no de un
+                  // almacén nuevo — son lo mismo, y dos sitios con lo mismo hay
+                  // que mantenerlos de acuerdo para siempre.
+                  loQueYaEscribi: [
+                    for (final mensaje in hud.messages)
+                      if (mensaje.author == ChatAuthor.user) mensaje.text,
+                  ],
                   folderPath: focused.folderPath,
                   meter: hud.meter,
                   voiceActive: hud.voiceActive,

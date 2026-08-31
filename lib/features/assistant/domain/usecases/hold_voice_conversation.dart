@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
@@ -33,13 +34,21 @@ class HoldVoiceConversation {
     this._log,
     this._correrUnaPrueba,
     this._elParteDelDia,
+    this._laAgendaDeHoy,
   );
+
+  static const _sinAgenda =
+      'Los avisos de agenda están apagados o no tienen carpeta, así que no hay '
+      'calendario leído. Dilo así, y sugiere encenderlos en Ajustes › Avisos.';
 
   /// Quien sabe lanzar una prueba sin pasar por Claude. Ver [CorrerUnaPrueba].
   final CorrerUnaPrueba _correrUnaPrueba;
 
   /// Quien sabe qué se hizo el último día de trabajo. Ver [ElParteDelDia].
   final ElParteDelDia _elParteDelDia;
+
+  /// Quien ya tiene leída la agenda de hoy. Ver [LaAgendaDeHoy].
+  final LaAgendaDeHoy _laAgendaDeHoy;
 
   /// A dónde van los diagnósticos de la sesión. **Se inyecta y no se elige
   /// aquí** por una razón medida: los de b11 se escribieron con
@@ -459,6 +468,22 @@ class HoldVoiceConversation {
       // en qué carpetas— lo trae el puerto. De ahí en adelante es un encargo
       // como cualquier otro, y por eso pasa por `runErrand`: así el servicio de
       // voz se mantiene vivo mientras Claude redacta, que puede ser un minuto.
+      // 🔴 **No pasa por Claude ni sale de la máquina.** La agenda ya está
+      // leída —hizo falta para poder avisar— así que esto se contesta al
+      // momento. Y no usa `runErrand` por lo mismo: no hay encargo que
+      // mantener vivo, hay una lectura de memoria.
+      if (request.name == ClaudeErrand.agendaTool) {
+        final agenda = await _laAgendaDeHoy.deHoy();
+        session?.sendToolResult(
+          callId: request.callId,
+          name: request.name,
+          // Sin agenda que mirar —avisos apagados, sin carpeta— se dice tal
+          // cual en vez de contestar «no tienes nada», que sería mentira.
+          result: agenda ?? _sinAgenda,
+        );
+        return;
+      }
+
       if (request.name == ClaudeErrand.parteTool) {
         final delDia = await _elParteDelDia.instruccion();
         if (delDia == null) {
