@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/presentation/providers/el_visor_de_camb
 import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
+import 'package:nexus/core/design_system/el_resaltado_del_codigo.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -519,12 +520,36 @@ class _CodigoPlegable extends MarkdownElementBuilder {
   final TextStyle estilo;
   final EdgeInsets relleno;
 
+  /// El lenguaje del bloque que se está visitando ahora.
+  ///
+  /// 🔴 **Se guarda aquí porque `visitText` no lo recibe.** Solo llega el texto,
+  /// y el lenguaje vive en la clase del hijo `code` —`language-dart`— que se ve
+  /// desde el `pre`. Así que se lee al entrar y se usa al pintar. Funciona porque
+  /// el paquete recorre un bloque entero antes del siguiente; si algún día
+  /// intercalara, esto pintaría un bloque con la gramática del vecino.
+  String? _lenguaje;
+
   @override
   bool isBlockElement() => true;
 
   @override
-  Widget? visitText(md.Text text, TextStyle? preferredStyle) =>
-      _BloqueDeCodigo(texto: text.text, estilo: estilo, relleno: relleno);
+  void visitElementBefore(md.Element element) {
+    _lenguaje = null;
+    for (final hijo in element.children ?? const <md.Node>[]) {
+      if (hijo is md.Element && hijo.tag == 'code') {
+        _lenguaje = ElResaltadoDelCodigo.lenguajeDe(hijo.attributes['class']);
+        return;
+      }
+    }
+  }
+
+  @override
+  Widget? visitText(md.Text text, TextStyle? preferredStyle) => _BloqueDeCodigo(
+    texto: text.text,
+    lenguaje: _lenguaje,
+    estilo: estilo,
+    relleno: relleno,
+  );
 }
 
 /// Un bloque de código con scroll horizontal y, si es largo, un pliegue.
@@ -535,11 +560,13 @@ class _CodigoPlegable extends MarkdownElementBuilder {
 class _BloqueDeCodigo extends StatefulWidget {
   const _BloqueDeCodigo({
     required this.texto,
+    required this.lenguaje,
     required this.estilo,
     required this.relleno,
   });
 
   final String texto;
+  final String? lenguaje;
   final TextStyle estilo;
   final EdgeInsets relleno;
 
@@ -571,13 +598,36 @@ class _BloqueDeCodigoState extends State<_BloqueDeCodigo> {
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
+        // El lenguaje, discreto y arriba: es lo que un editor te dice en una
+        // esquina. Solo cuando el cercado lo declaró — inventarlo para la salida
+        // de un `!`, que no es ningún lenguaje, sería decir algo falso en un
+        // sitio donde uno confía.
+        if (widget.lenguaje != null)
+          Padding(
+            padding: EdgeInsets.only(
+              left: widget.relleno.left,
+              right: widget.relleno.right,
+              top: widget.relleno.top,
+            ),
+            child: Text(
+              widget.lenguaje!,
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+          ),
         Scrollbar(
           controller: _scroll,
           child: SingleChildScrollView(
             controller: _scroll,
             scrollDirection: Axis.horizontal,
             padding: widget.relleno,
-            child: Text(visibles.join('\n'), style: widget.estilo),
+            child: Text.rich(
+              ElResaltadoDelCodigo.enSpans(
+                visibles.join('\n'),
+                lenguaje: widget.lenguaje,
+                colores: colors,
+                base: widget.estilo,
+              ),
+            ),
           ),
         ),
         // El botón va **fuera** del scroll horizontal: dentro se iría de la

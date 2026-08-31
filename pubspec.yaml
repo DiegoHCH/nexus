@@ -33,6 +33,11 @@ dependencies:
   # algo que no pediste — y el día que `flutter_markdown_plus` deje de traerla,
   # esto se rompe sin que nadie haya tocado nada.
   markdown: ^7.3.1
+  # El resaltado de los bloques de código. Solo la gramática: los colores no
+  # salen de un tema enlatado suyo, sino de la paleta de Nexus — ver
+  # [ElResaltadoDelCodigo]. Un tema importado no conoce el claro/oscuro ni el
+  # acento configurable, así que pegaría en una mitad de los casos.
+  highlight: ^0.7.0
   package_info_plus: ^10.2.1
   path_provider: ^2.1.6
   shared_preferences: ^2.5.5
