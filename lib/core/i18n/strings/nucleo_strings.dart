@@ -92,8 +92,11 @@ mixin NucleoStrings {
   /// Lo que se dice cuando el `!` trae algo que no es git.
   String soloGit(String comando);
 
-  /// El encabezado de la salida de un comando que se corrió aquí.
-  String get corriendoloYo;
+  /// La cabecera que dice **dónde** se corrió: repo y rama.
+  String dondeSeCorrio(String repo, String rama);
+
+  /// Cuando git terminó con error, dicho antes de su propia salida.
+  String gitFallo(int codigo);
 
   /// Un comando que terminó bien y no dijo nada. `git add` es el caso.
   String get sinNadaQueDecir;
@@ -315,7 +318,9 @@ mixin NucleoStringsEs implements NucleoStrings {
       'Por ahora «!» solo corre git, y eso era «$comando». Lo demás se le pide '
       'a Claude sin el «!».';
   @override
-  String get corriendoloYo => 'Corriendo aquí mismo, sin pasar por Claude.';
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git terminó con error (código $codigo):';
   @override
   String get sinNadaQueDecir =>
       'Hecho. git no dijo nada, que suele ser buena señal.';
@@ -575,8 +580,9 @@ mixin NucleoStringsEn implements NucleoStrings {
       '"!" only runs git for now, and that was "$comando". Everything else goes '
       'to Claude without the "!".';
   @override
-  String get corriendoloYo =>
-      'Running it right here, without going through Claude.';
+  String dondeSeCorrio(String repo, String rama) => '$repo · $rama';
+  @override
+  String gitFallo(int codigo) => 'git exited with an error (code $codigo):';
   @override
   String get sinNadaQueDecir =>
       'Done. git said nothing, which is usually a good sign.';

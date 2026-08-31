@@ -44,6 +44,42 @@ abstract final class ElComandoDirecto {
     return (comando: piezas.first, argumentos: piezas.skip(1).toList());
   }
 
+  /// La salida de git, envuelta para que se lea **como en un editor**.
+  ///
+  /// La conversación pinta markdown, y su hoja de estilo ya tiene el bloque de
+  /// código con monoespaciado, fondo y borde. Sin el cercado, la salida se
+  /// pinta como prosa: `git log --oneline` es una tabla —hashes a la izquierda,
+  /// mensajes a la derecha— y con salto suave y tipografía proporcional pierde
+  /// exactamente lo que la hace legible.
+  ///
+  /// 🔴 **El cercado se mide, no se asume.** Un mensaje de commit puede llevar
+  /// comillas invertidas dentro —y en un repo donde se habla de código, las
+  /// lleva— así que un cercado de tres se rompería con el primer `git log` que
+  /// las tuviera: el bloque se cerraría a media salida y el resto se pintaría
+  /// como prosa suelta. Se cuenta la racha más larga y se pone una más.
+  static String enBloque(String salida) {
+    final cercado = '`' * _laRachaMasLarga(salida);
+    // El salto antes del cierre es obligatorio: sin él, una salida sin salto
+    // final deja el cercado pegado a la última línea y deja de ser un cercado.
+    return '$cercado\n${salida.trimRight()}\n$cercado';
+  }
+
+  /// Cuántas comillas invertidas necesita el cercado: una más que la racha más
+  /// larga que haya dentro, y nunca menos de tres.
+  static int _laRachaMasLarga(String texto) {
+    var mayor = 0;
+    var actual = 0;
+    for (final letra in texto.split('')) {
+      if (letra == '`') {
+        actual++;
+        if (actual > mayor) mayor = actual;
+      } else {
+        actual = 0;
+      }
+    }
+    return mayor < 3 ? 3 : mayor + 1;
+  }
+
   /// Parte la línea en argumentos, respetando las comillas.
   ///
   /// 🔴 **Las comillas no son un lujo: sin ellas no se puede commitear.** Un

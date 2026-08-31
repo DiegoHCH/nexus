@@ -278,22 +278,49 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
 
+    // 🔴 **Dónde se corrió, dicho siempre.** La salida de git no lo dice, y la
+    // primera vez que esto se usó de verdad contestó sobre un repo que no era
+    // el que se esperaba —la conversación en foco iba de otra carpeta— y lo
+    // único que lo delató fue que el nombre de una rama sonaba a otro
+    // proyecto. Con `!git log` o `!git stash` no habría habido ni esa pista, y
+    // ahí lo que está en juego es un stash en el repo equivocado.
+    //
+    // Y es además lo único que se puede decir en español: git en este Mac no
+    // trae traducciones, así que sus palabras van a seguir siendo inglesas
+    // haga lo que haga el `LC_ALL`. Lo que Nexus pone alrededor sí es tuyo.
+    final donde = await const GitDataSource().read(carpeta);
     final hecho = await const GitDataSource().correr(
       carpeta,
       directo.argumentos,
     );
     if (!ref.mounted) return;
 
-    // Lo que se enseña es la salida de git y nada más, sin adornarla. Solo se
-    // pone algo cuando git **no** dijo nada, porque una respuesta en blanco no
-    // se distingue de que la app no hiciera nada.
+    final cabecera = s.dondeSeCorrio(
+      donde?.repository ?? carpeta.split('/').last,
+      donde?.branch ?? '—',
+    );
+
+    // **Lo de git dentro del bloque, lo de Nexus fuera.** La salida va literal
+    // y monoespaciada porque es lo que se vino a ver —`git log --oneline` es una
+    // tabla y se lee alineada o no se lee—, y las frases de Nexus van en prosa
+    // porque no son salida de nada: son la cabecera que dice dónde se corrió y,
+    // si hizo falta, el aviso de que git terminó con error. Un código distinto
+    // de cero con la salida en blanco es un fallo mudo, y eso se lee como que
+    // la app no hizo nada.
     _say(
       ChatAuthor.nexus,
-      hecho.tardoDemasiado
-          ? s.tardoDemasiado
-          : hecho.salida.isEmpty
-          ? s.sinNadaQueDecir
-          : hecho.salida,
+      [
+        '**$cabecera**',
+        if (hecho.tardoDemasiado)
+          s.tardoDemasiado
+        else ...[
+          if (hecho.codigo != 0) s.gitFallo(hecho.codigo),
+          if (hecho.salida.isEmpty)
+            if (hecho.codigo == 0) s.sinNadaQueDecir else ''
+          else
+            ElComandoDirecto.enBloque(hecho.salida),
+        ],
+      ].where((linea) => linea.isNotEmpty).join('\n\n'),
     );
     _sealLast();
   }

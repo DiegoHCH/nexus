@@ -92,6 +92,54 @@ void main() {
     });
   });
 
+  group('cómo se enseña la salida', () {
+    test('va en un bloque de código, que es lo que la alinea', () {
+      expect(
+        ElComandoDirecto.enBloque('a1b2c3 primero\nd4e5f6 segundo'),
+        '```\na1b2c3 primero\nd4e5f6 segundo\n```',
+      );
+    });
+
+    // Una o dos comillas sueltas **no** obligan a crecer, y conviene fijarlo:
+    // para cerrar un bloque hacen falta comillas al principio de una línea, así
+    // que una a media línea no cierra nada. Crecer aquí sería cercado de sobra.
+    test('una comilla suelta no obliga a crecer', () {
+      expect(
+        ElComandoDirecto.enBloque(
+          'a1b2c3 refactor: quitar `json_serializable`',
+        ),
+        startsWith('```\n'),
+      );
+    });
+
+    // 🔴 Tres sí: ahí el bloque se cerraría a media salida y el resto se
+    // pintaría como prosa suelta. En un repo donde se habla de código, un
+    // mensaje de commit con un bloque dentro pasa.
+    test('el cercado crece cuando la salida trae uno igual de largo', () {
+      final puesto = ElComandoDirecto.enBloque(
+        'a1b2c3 docs: explicar el ``` de los bloques',
+      );
+
+      expect(puesto, startsWith('````\n'));
+      expect(puesto, endsWith('\n````'));
+    });
+
+    test('y crece lo que haga falta, no un escalón fijo', () {
+      expect(
+        ElComandoDirecto.enBloque('esto lleva ````cuatro```` dentro'),
+        startsWith('`````\n'),
+      );
+    });
+
+    // Sin esto, una salida sin salto final deja el cierre pegado a la última
+    // línea y deja de ser un cercado.
+    test('el cierre siempre va en su propia línea', () {
+      for (final salida in ['una línea', 'con salto al final\n', 'dos\n\n']) {
+        expect(ElComandoDirecto.enBloque(salida), endsWith('\n```'));
+      }
+    });
+  });
+
   group('en piezas', () {
     test('los espacios de sobra no hacen argumentos vacíos', () {
       expect(ElComandoDirecto.enPiezas('  a   b  '), ['a', 'b']);
