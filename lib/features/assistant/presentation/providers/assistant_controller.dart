@@ -36,6 +36,7 @@ import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_comando_directo.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// El pegamento entre los dos modelos y la pantalla: traduce cada
@@ -244,6 +245,59 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// Cierra el turno en curso: se le quita el cursor.
+  /// Corre lo que se pidió con `!` y enseña lo que git contestó.
+  ///
+  /// 🔴 **La lista de comandos vetados de la carpeta no ata aquí, y es
+  /// deliberado.** Esa lista existe para lo contrario: su propio texto le dice a
+  /// Claude «no los ejecutes, y termina diciendo el comando exacto que tiene que
+  /// lanzar el usuario». O sea que está pensada para acabar justo aquí. Si el
+  /// `!` la respetara, Claude te pasaría un comando que la caja de texto te
+  /// niega, y el círculo se cerraría en el sitio equivocado.
+  ///
+  /// No es un agujero en la promesa del repo: lo que `.nexus/config.json`
+  /// declara es qué **no hace Claude solo**, y eso sigue intacto. Lo que tú
+  /// escribes con un `!` delante lo has escrito tú.
+  Future<void> _correrloYo(
+    ({String comando, List<String> argumentos}) directo, {
+    required String loQueSeVe,
+  }) async {
+    final s = ref.read(stringsProvider);
+    _say(ChatAuthor.user, loQueSeVe);
+    _sealLast();
+
+    if (directo.comando != ElComandoDirecto.soloEste) {
+      _say(ChatAuthor.nexus, s.soloGit(directo.comando));
+      _sealLast();
+      return;
+    }
+
+    final carpeta = _workingDirectory;
+    if (carpeta == null) {
+      _say(ChatAuthor.nexus, s.sinCarpetaDondeCorrer);
+      _sealLast();
+      return;
+    }
+
+    final hecho = await const GitDataSource().correr(
+      carpeta,
+      directo.argumentos,
+    );
+    if (!ref.mounted) return;
+
+    // Lo que se enseña es la salida de git y nada más, sin adornarla. Solo se
+    // pone algo cuando git **no** dijo nada, porque una respuesta en blanco no
+    // se distingue de que la app no hiciera nada.
+    _say(
+      ChatAuthor.nexus,
+      hecho.tardoDemasiado
+          ? s.tardoDemasiado
+          : hecho.salida.isEmpty
+          ? s.sinNadaQueDecir
+          : hecho.salida,
+    );
+    _sealLast();
+  }
+
   void _sealLast() {
     final messages = [...state.messages];
     final last = messages.lastOrNull;
@@ -287,6 +341,19 @@ class AssistantController extends Notifier<AssistantHudState> {
     // que se suelta en la caja son las imágenes de referencia —«este estilo»,
     // «cámbiale esto»—, así que aquí son material y no un motivo para no
     // reconocer el atajo.
+    // `!git status` no es un encargo: **no pasa por Claude**. Va derecho a git y
+    // la salida se enseña literal, que es lo que uno quiere de git — no un
+    // resumen de la salida de git.
+    //
+    // Va antes que los demás atajos porque es el único que no puede colisionar
+    // con nada: `!` no empieza ninguna frase que alguien escriba en serio.
+    if (!esElParte) {
+      if (ElComandoDirecto.deLaFrase(trimmed) case final directo?) {
+        await _correrloYo(directo, loQueSeVe: loQueSeVe ?? trimmed);
+        return;
+      }
+    }
+
     if (!esElParte) {
       if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
         await _dibujar(

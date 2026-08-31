@@ -88,6 +88,21 @@ mixin NucleoStrings {
   String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
   String reunionAhora(String titulo);
+  /// Lo que se dice cuando el `!` trae algo que no es git.
+  String soloGit(String comando);
+
+  /// El encabezado de la salida de un comando que se corrió aquí.
+  String get corriendoloYo;
+
+  /// Un comando que terminó bien y no dijo nada. `git add` es el caso.
+  String get sinNadaQueDecir;
+
+  /// Un comando que se quedó colgado y hubo que matarlo.
+  String get tardoDemasiado;
+
+  /// No hay carpeta sobre la que correrlo.
+  String get sinCarpetaDondeCorrer;
+
   String get whichImageModel;
   String perImage(String precio);
   String get drawingIt;
@@ -294,6 +309,21 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
   @override
   String perImage(String precio) => '$precio por imagen';
+  @override
+  String soloGit(String comando) =>
+      'Por ahora «!» solo corre git, y eso era «$comando». Lo demás se le pide '
+      'a Claude sin el «!».';
+  @override
+  String get corriendoloYo => 'Corriendo aquí mismo, sin pasar por Claude.';
+  @override
+  String get sinNadaQueDecir => 'Hecho. git no dijo nada, que suele ser buena señal.';
+  @override
+  String get tardoDemasiado =>
+      'Se estaba tardando demasiado y lo corté. Si pedía una contraseña, no hay '
+      'quien la escriba desde aquí: ese va en la terminal.';
+  @override
+  String get sinCarpetaDondeCorrer =>
+      'No hay ninguna carpeta abierta sobre la que correrlo.';
   @override
   String get drawingIt => 'Generando la imagen…';
   @override
@@ -538,6 +568,20 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get whichImageModel => 'WHICH MODEL DRAWS';
   @override
   String perImage(String precio) => '$precio per image';
+  @override
+  String soloGit(String comando) =>
+      '"!" only runs git for now, and that was "$comando". Everything else goes '
+      'to Claude without the "!".';
+  @override
+  String get corriendoloYo => 'Running it right here, without going through Claude.';
+  @override
+  String get sinNadaQueDecir => 'Done. git said nothing, which is usually a good sign.';
+  @override
+  String get tardoDemasiado =>
+      'It was taking too long, so I cut it off. If it was asking for a password, '
+      'there is nobody here to type it: run that one in the terminal.';
+  @override
+  String get sinCarpetaDondeCorrer => 'There is no open folder to run it in.';
   @override
   String get drawingIt => 'Generating the image…';
   @override
