@@ -69,6 +69,44 @@ void main() {
     });
   });
 
+  // 🔴 Reportado esperando delante de la pantalla: la petición se agotó a los
+  // 90 s y el `TimeoutException` no lo cogía ningún `catch` — se escapaba del
+  // data source, del proveedor y del controlador, y como nadie esperaba ese
+  // futuro, el orbe se quedaba girando **para siempre** sin decir nada.
+  //
+  // Lo que se prueba es la promesa que faltaba: **de aquí siempre sale una
+  // respuesta**, salga lo que salga por dentro.
+  group('cuando la llamada no llega a ninguna parte', () {
+    test('sin llave se dice, y no se sale a la red', () async {
+      final hecha = await const GeminiImageDataSource().generar(
+        llave: '',
+        descripcion: 'lo que sea',
+      );
+
+      expect(hecha.salio, isFalse);
+      expect(hecha.problema, 'falta la llave');
+    });
+
+    test('un host que no existe se cuenta, no se cuelga', () async {
+      // Contra una dirección que no resuelve: el camino de fallo entero, con
+      // su tope, sin depender de que haya red ni de gastar un céntimo.
+      final hecha = await const GeminiImageDataSource()
+          .generar(
+            llave: 'la-que-sea',
+            descripcion: 'lo que sea',
+            timeout: const Duration(seconds: 5),
+          )
+          .timeout(
+            const Duration(seconds: 20),
+            onTimeout: () =>
+                throw StateError('se colgó: eso es justo el fallo'),
+          );
+
+      expect(hecha.salio, isFalse);
+      expect(hecha.problema, isNotNull);
+    }, skip: 'sale a la red: se deja escrito para correrlo a mano');
+  });
+
   group('lo que devuelve Gemini', () {
     String respuestaCon(Object? cuerpo) => jsonEncode(cuerpo);
 

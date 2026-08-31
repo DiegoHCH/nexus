@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -62,10 +63,54 @@ class GeminiImageDataSource {
     /// la imagen, y resubirla en cada vuelta sería pagar el viaje dos veces.
     String? seguirDe,
     List<ImagenDeReferencia> referencias = const [],
-    Duration timeout = const Duration(seconds: 90),
+
+    /// Tres minutos, y no los noventa segundos de antes: **generar una imagen
+    /// tarda de verdad**, y con una edición encadenada o referencias de por
+    /// medio, más. Un tope corto no protege de nada aquí — solo convierte un
+    /// trabajo que iba bien en un fallo.
+    Duration timeout = const Duration(minutes: 3),
   }) async {
     if (llave.isEmpty) return const ImagenGenerada.fallo('falta la llave');
 
+    // 🔴 **El tope envuelve la operación entera, y todo lo que salga se
+    // atrapa.** Antes el `timeout` colgaba solo de esperar las cabeceras y su
+    // `TimeoutException` no la cogía ningún `catch`: se escapaba del data
+    // source, del proveedor y del controlador, y como nadie la esperaba, la
+    // pantalla se quedaba girando **para siempre** sin decir nada. Reportado
+    // esperando delante de ella.
+    //
+    // Leer el cuerpo tampoco tenía tope, que era la otra mitad del mismo
+    // agujero: unas cabeceras rápidas y un cuerpo que no llega cuelgan igual.
+    try {
+      return await _pedir(
+        llave: llave,
+        descripcion: descripcion,
+        seguirDe: seguirDe,
+        referencias: referencias,
+        timeout: timeout,
+      ).timeout(timeout);
+    } on TimeoutException {
+      return ImagenGenerada.fallo(
+        'Gemini no contestó en ${timeout.inSeconds}s',
+      );
+    } on SocketException {
+      return const ImagenGenerada.fallo('sin conexión');
+    } on HttpException catch (e) {
+      return ImagenGenerada.fallo(e.message);
+    } on Object catch (e) {
+      // Lo que no se reconoce **se cuenta igual**: quien está mirando la
+      // pantalla prefiere un nombre raro a un giro eterno.
+      return ImagenGenerada.fallo('fallo inesperado: ${e.runtimeType}');
+    }
+  }
+
+  Future<ImagenGenerada> _pedir({
+    required String llave,
+    required String descripcion,
+    required String? seguirDe,
+    required List<ImagenDeReferencia> referencias,
+    required Duration timeout,
+  }) async {
     final cliente = HttpClient()..connectionTimeout = timeout;
     try {
       final peticion = await cliente.postUrl(Uri.https(_host, _ruta));
@@ -90,7 +135,7 @@ class GeminiImageDataSource {
           'previous_interaction_id': ?seguirDe,
         }),
       );
-      final respuesta = await peticion.close().timeout(timeout);
+      final respuesta = await peticion.close();
       final cuerpo = await respuesta.transform(utf8.decoder).join();
       if (respuesta.statusCode != 200) {
         return ImagenGenerada.fallo(
@@ -98,10 +143,6 @@ class GeminiImageDataSource {
         );
       }
       return leerLaImagen(cuerpo);
-    } on SocketException {
-      return const ImagenGenerada.fallo('sin conexión');
-    } on HttpException catch (e) {
-      return ImagenGenerada.fallo(e.message);
     } finally {
       cliente.close(force: true);
     }
