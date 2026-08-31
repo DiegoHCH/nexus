@@ -16,7 +16,20 @@ archivos y va con tu suscripción, no con una clave de API. La cara es un orbe d
 malla sobre el vacío: un HUD, no una ventana de mensajería.
 
 <p align="center">
-  <img src="docs/orbe.png" alt="El orbe de Nexus sobre el vacío" width="720">
+  <img src="docs/orbe.png" alt="Nexus escuchando: el orbe encendido con la onda de la voz" width="820">
+</p>
+
+<p align="center">
+  <em>Escuchando. El orbe se enciende y la onda es tu voz entrando.</em>
+</p>
+
+<p align="center">
+  <img src="docs/hud.png" alt="El HUD de Nexus en reposo, con el compositor y las pastillas de carpeta y cuenta" width="820">
+</p>
+
+<p align="center">
+  <em>En reposo. Abajo, la carpeta emparejada, su cuenta de Claude, la rama y el
+  permiso de escritura — todo lo que decide qué puede hacer el siguiente encargo.</em>
 </p>
 
 ## Características
