@@ -76,7 +76,9 @@ final geminiImageKeyStoreProvider = Provider<GeminiImageKeyStore>(
   (ref) => GeminiImageKeyStoreImpl(SecureStorageDataSource()),
 );
 
-/// Si hay una puesta. La pantalla solo pregunta eso: el valor no sale nunca.
-final hayLlaveDeImagenesProvider = FutureProvider<bool>(
-  (ref) async => await ref.watch(geminiImageKeyStoreProvider).read() != null,
+/// Si hay una puesta **para esa cuenta**. La pantalla solo pregunta eso: el
+/// valor no sale nunca.
+final hayLlaveDeImagenesProvider = FutureProvider.family<bool, String?>(
+  (ref, perfil) async =>
+      await ref.watch(geminiImageKeyStoreProvider).read(perfil) != null,
 );

@@ -392,7 +392,14 @@ class AssistantController extends Notifier<AssistantHudState> {
     _say(ChatAuthor.user, loQueSeVe);
     _sealLast();
 
-    final salio = await ref.read(generarUnaImagenProvider)(descripcion);
+    // Con la cuenta de la carpeta donde se está trabajando: la llave de
+    // imágenes es por cuenta, así que pedir un dibujo desde una carpeta del
+    // trabajo no puede gastar del saldo personal.
+    final carpeta = _folder;
+    final salio = await ref.read(generarUnaImagenProvider)(
+      descripcion,
+      carpeta == null ? null : _profileName(carpeta),
+    );
     // La generación tarda, y en ese rato la pestaña se puede haber cerrado.
     if (!_vive) return;
 
