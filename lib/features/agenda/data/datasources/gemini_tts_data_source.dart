@@ -143,26 +143,56 @@ class GeminiTtsDataSource {
     if (leido['output_audio'] case final Map<String, dynamic> atajo) {
       if (_desde(atajo['data']) case final hecho?) return hecho;
     }
+
+    // 🔴 **Todos los trozos, no el primero.** Esto devolvía en el primero que
+    // decodificaba, así que una respuesta partida en varios sonaba a medias y
+    // **cortada por el final**: la frase se iba apagando donde acabara el
+    // primer trozo. No se ha visto ocurrir —hasta hoy siempre vino de una
+    // pieza— y eso es justo lo que lo hacía peligroso: el día que la API
+    // decida partir el audio, el síntoma es un aviso que dice media reunión y
+    // ningún error en ninguna parte.
+    //
+    // Se juntan en vez de elegir porque son PCM en crudo del mismo formato:
+    // concatenar bytes **es** la forma de unirlos, sin cabeceras que resolver.
     if (leido['steps'] case final List<dynamic> pasos) {
+      final trozos = <Uint8List>[];
       for (final paso in pasos) {
         if (paso is! Map<String, dynamic>) continue;
         if (paso['content'] case final List<dynamic> contenido) {
           for (final trozo in contenido) {
             if (trozo is! Map<String, dynamic>) continue;
-            if (_desde(trozo['data']) case final hecho?) return hecho;
+            if (_pcmDe(trozo['data']) case final pcm?) trozos.add(pcm);
           }
         }
       }
+      if (trozos.isNotEmpty) return LoDicho.ok(_juntos(trozos));
     }
     return const LoDicho.fallo('no devolvió audio');
   }
 
   static LoDicho? _desde(Object? datos) {
+    if (_pcmDe(datos) case final pcm?) return LoDicho.ok(pcm);
+    return null;
+  }
+
+  static Uint8List? _pcmDe(Object? datos) {
     if (datos is! String || datos.isEmpty) return null;
     try {
-      return LoDicho.ok(base64Decode(datos));
+      return base64Decode(datos);
     } on FormatException {
       return null;
     }
+  }
+
+  static Uint8List _juntos(List<Uint8List> trozos) {
+    if (trozos.length == 1) return trozos.first;
+    final total = trozos.fold(0, (suma, t) => suma + t.lengthInBytes);
+    final todo = Uint8List(total);
+    var puesto = 0;
+    for (final trozo in trozos) {
+      todo.setRange(puesto, puesto + trozo.lengthInBytes, trozo);
+      puesto += trozo.lengthInBytes;
+    }
+    return todo;
   }
 }
