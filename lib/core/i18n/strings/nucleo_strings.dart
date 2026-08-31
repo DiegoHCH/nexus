@@ -71,6 +71,14 @@ mixin NucleoStrings {
   String get sectionVoice;
   String get sectionKeys;
   String get sectionImages;
+  String get whichImageModel;
+  String perImage(String precio);
+  String get drawingIt;
+  String get imageNeedsKey;
+  String get noImageToEdit;
+  String get imageNeedsFolder;
+  String imageDone(String nombre);
+  String imageFailed(String motivo);
   String get imagesExplainer;
   String get imageKeyLabel;
   String get imagesNotWiredYet;
@@ -80,6 +88,8 @@ mixin NucleoStrings {
   String get keyForget;
   String get keyVoice;
   String get keyImages;
+  String get defaultAccount;
+  String keyImagesFor(String cuenta);
   String get keyChannelToken;
   String get keyWritePhrase;
   String get keyPairing;
@@ -218,17 +228,39 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get sectionImages => 'Imágenes';
   @override
+  String get whichImageModel => 'CON QUÉ MODELO SE DIBUJA';
+  @override
+  String perImage(String precio) => '$precio por imagen';
+  @override
+  String get drawingIt => 'Generando la imagen…';
+  @override
+  String get imageNeedsKey =>
+      'Falta la llave de imágenes. Se pone en Ajustes → Imágenes.';
+  @override
+  String get noImageToEdit =>
+      'No hay ninguna imagen que editar en esta conversación. Pide una con '
+      '«/imagen» y luego cámbiala con «/edita».';
+  @override
+  String get imageNeedsFolder =>
+      'No hay carpeta de documentos donde dejarla. Se elige en Ajustes.';
+  @override
+  String imageDone(String nombre) => 'Listo: $nombre';
+  @override
+  String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
+  @override
   String get imagesExplainer =>
-      'La llave con la que se generarán las imágenes (Gemini 2.5 Flash Image, '
-      '«nano banana»). Va aparte de la de voz porque su proyecto necesita '
+      'La llave con la que se generan las imágenes. Va aparte de la de voz '
+      'porque su proyecto necesita '
       'facturación: con una sola, encender las imágenes empezaría a cobrar '
-      'también las conversaciones.';
+      'también las conversaciones.\n\nY hay una por cuenta de Claude: el gasto '
+      'sale de un bolsillo concreto, así que ponerla solo en una cuenta es la '
+      'forma de decir que desde las demás no se generan imágenes.';
   @override
   String get imageKeyLabel => 'LLAVE DE IMÁGENES (GEMINI)';
   @override
   String get imagesNotWiredYet =>
-      'Todavía no hay nada que la use: guardarla no genera ni cobra nada. '
-      'Queda lista para cuando se pueda pedir una imagen.';
+      'Se pide con «/imagen» y lo que escribas detrás. Cada imagen se cobra de '
+      'tu saldo.';
   @override
   String get keysExplainer =>
       'Lo que Nexus tiene guardado cifrado en este Mac. No se enseña ninguna: '
@@ -244,6 +276,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get keyVoice => 'Llave de voz (Gemini)';
   @override
   String get keyImages => 'Llave de imágenes (Gemini)';
+  @override
+  String get defaultAccount => 'cuenta por defecto';
+  @override
+  String keyImagesFor(String cuenta) => 'Llave de imágenes · $cuenta';
   @override
   String get keyChannelToken => 'Token del canal';
   @override
@@ -390,17 +426,39 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get sectionImages => 'Images';
   @override
+  String get whichImageModel => 'WHICH MODEL DRAWS';
+  @override
+  String perImage(String precio) => '$precio per image';
+  @override
+  String get drawingIt => 'Generating the image…';
+  @override
+  String get imageNeedsKey =>
+      'The image key is missing. Set it in Settings → Images.';
+  @override
+  String get noImageToEdit =>
+      'There is no image to edit in this conversation. Ask for one with '
+      '"/imagen" and then change it with "/edita".';
+  @override
+  String get imageNeedsFolder =>
+      'There is no documents folder to put it in. Pick one in Settings.';
+  @override
+  String imageDone(String nombre) => 'Done: $nombre';
+  @override
+  String imageFailed(String motivo) => 'Could not generate the image: $motivo';
+  @override
   String get imagesExplainer =>
-      'The key images will be generated with (Gemini 2.5 Flash Image, "nano '
-      'banana"). It is separate from the voice one because its project needs '
+      'The key images are generated with. It is separate from the voice one '
+      'because its project needs '
       'billing: with a single key, turning images on would start charging for '
-      'conversations too.';
+      'conversations too.\n\nAnd there is one per Claude account: the spend '
+      'comes out of a specific pocket, so setting it on one account only is how '
+      'you say images are not generated from the others.';
   @override
   String get imageKeyLabel => 'IMAGE KEY (GEMINI)';
   @override
   String get imagesNotWiredYet =>
-      'Nothing uses it yet: saving it neither generates nor charges anything. '
-      'It is ready for when an image can be asked for.';
+      'Ask for one with "/imagen" and whatever you type after it. Each image is '
+      'charged to your balance.';
   @override
   String get keysExplainer =>
       'What Nexus keeps encrypted on this Mac. None of them is shown: only '
@@ -416,6 +474,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get keyVoice => 'Voice key (Gemini)';
   @override
   String get keyImages => 'Image key (Gemini)';
+  @override
+  String get defaultAccount => 'default account';
+  @override
+  String keyImagesFor(String cuenta) => 'Image key · $cuenta';
   @override
   String get keyChannelToken => 'Channel token';
   @override

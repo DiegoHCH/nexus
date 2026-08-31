@@ -68,18 +68,35 @@ class SettingsChooser<T> extends StatelessWidget {
             for (final option in options)
               DropdownMenuItem<T>(
                 value: option,
+                // 🔴 **Los dos textos ceñidos, y el nombre antes que la
+                // coletilla.** Iban sueltos en la fila, así que cabían de
+                // casualidad: con las opciones que había —una voz, un idioma—
+                // nunca se pasaban, y con «Nano Banana 2 Lite» y su precio
+                // detrás desbordó 192 px en la columna de Ajustes.
+                //
+                // Si hay que recortar algo se recorta la coletilla, que es el
+                // dato de apoyo; el nombre es lo que se está eligiendo y sin
+                // él la fila no dice nada.
                 child: Row(
                   children: [
-                    Text(
-                      label(option),
-                      style: NexusTypography.data.copyWith(color: colors.ink),
+                    Flexible(
+                      child: Text(
+                        label(option),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: NexusTypography.data.copyWith(color: colors.ink),
+                      ),
                     ),
                     if (detail case final describe?) ...[
                       const SizedBox(width: NexusSpacing.s3),
-                      Text(
-                        describe(option),
-                        style: NexusTypography.mono.copyWith(
-                          color: colors.faint,
+                      Flexible(
+                        child: Text(
+                          describe(option),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: NexusTypography.mono.copyWith(
+                            color: colors.faint,
+                          ),
                         ),
                       ),
                     ],

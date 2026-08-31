@@ -34,28 +34,26 @@ class LlavesSection extends ConsumerWidget {
           style: NexusTypography.mono.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s5),
-        for (final llave in LlaveDeNexus.values)
-          _Fila(
-            llave: llave,
-            // Mientras se lee el llavero no se dice «sin poner»: sería una
-            // respuesta falsa a la única pregunta que contesta la pantalla.
-            hay: guardadas?[llave],
-          ),
+        // Mientras se lee el llavero no se pinta nada: decir «sin poner» sin
+        // haber mirado sería una respuesta falsa a la única pregunta que
+        // contesta esta pantalla.
+        for (final llave in guardadas ?? const <LlaveEnElLlavero>[])
+          _Fila(llave: llave),
       ],
     );
   }
 }
 
 class _Fila extends ConsumerWidget {
-  const _Fila({required this.llave, required this.hay});
+  const _Fila({required this.llave});
 
-  final LlaveDeNexus llave;
-  final bool? hay;
+  final LlaveEnElLlavero llave;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
+    final hay = llave.hay;
     final nombre = _nombre(llave, strings);
 
     return Container(
@@ -72,7 +70,7 @@ class _Fila extends ConsumerWidget {
               height: 7,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: hay ?? false ? colors.ok : colors.rule2,
+                color: hay ? colors.ok : colors.rule2,
               ),
             ),
           ),
@@ -83,14 +81,12 @@ class _Fila extends ConsumerWidget {
             ),
           ),
           Text(
-            hay == null
-                ? '…'
-                : (hay! ? strings.keyIsSaved : strings.keyIsMissing),
+            hay ? strings.keyIsSaved : strings.keyIsMissing,
             style: NexusTypography.data.copyWith(color: colors.faint),
           ),
           // El botón solo si hay algo que quitar. Uno que a veces no hace nada
           // enseña a no pulsarlo, y entonces tampoco se pulsa el día que sí.
-          if (hay ?? false)
+          if (hay)
             Padding(
               padding: const EdgeInsets.only(left: NexusSpacing.s4),
               child: TextButton(
@@ -148,10 +144,14 @@ class _Fila extends ConsumerWidget {
     await ref.read(olvidarUnaLlaveProvider)(llave);
   }
 
-  static String _nombre(LlaveDeNexus llave, NexusStrings strings) =>
-      switch (llave) {
+  /// Las de imágenes llevan la cuenta en el nombre: hay una por cada una, y
+  /// sin decirlo serían tres filas idénticas sin forma de saber cuál se borra.
+  static String _nombre(LlaveEnElLlavero llave, NexusStrings strings) =>
+      switch (llave.cual) {
         LlaveDeNexus.voz => strings.keyVoice,
-        LlaveDeNexus.imagenes => strings.keyImages,
+        LlaveDeNexus.imagenes => strings.keyImagesFor(
+          llave.perfil ?? strings.defaultAccount,
+        ),
         LlaveDeNexus.tokenDelCanal => strings.keyChannelToken,
         LlaveDeNexus.fraseDeEscritura => strings.keyWritePhrase,
         LlaveDeNexus.emparejamiento => strings.keyPairing,

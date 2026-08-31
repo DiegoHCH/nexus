@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
@@ -49,6 +51,18 @@ class _Claude implements AskClaude {
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Sin llave de imágenes: `/imagen` falla enseguida, que es lo que hace falta
+/// para medir la conversación sin salir a la red ni gastar un céntimo.
+class _SinLlaveDeImagenes implements GeminiImageKeyStore {
+  const _SinLlaveDeImagenes();
+  @override
+  Future<String?> read(String? perfil) async => null;
+  @override
+  Future<void> save(String? perfil, String key) async {}
+  @override
+  Future<void> clear(String? perfil) async {}
 }
 
 class _SinMemoria implements ConversationMemory {
@@ -110,6 +124,9 @@ void main() {
         workspaceControllerProvider.overrideWith(_Espacio.new),
         localConversationStoreProvider.overrideWithValue(const _SinAlmacen()),
         askClaudeProvider(_id).overrideWithValue(claude),
+        geminiImageKeyStoreProvider.overrideWithValue(
+          const _SinLlaveDeImagenes(),
+        ),
       ],
     );
     addTearDown(c.dispose);
@@ -143,6 +160,37 @@ void main() {
       c.read(assistantControllerProvider(_id)).messages.any((m) => m.fallo),
       isFalse,
       reason: 'un botón que está siempre enseña a no mirarlo',
+    );
+  });
+
+  // 🔴 El desvío de `/imagen` ocurre **antes** de donde `submit` decide no
+  // reescribir el mensaje, así que sin traerse la bandera hasta el dibujo,
+  // reintentar dejaba la misma petición dos veces con una sola respuesta.
+  //
+  // Y con las imágenes pasa más que con nada: el modelo se satura y contesta
+  // «vuelve a intentarlo más tarde», que es una invitación a pulsar el botón.
+  test('reintentar una imagen tampoco la escribe dos veces', () async {
+    final c = contenedor();
+    final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+    // Sin llave de imágenes falla enseguida, que es lo que hace falta: lo que
+    // se mide es la conversación, no la generación.
+    await controlador.submit('/imagen un zorro');
+    await vueltas();
+
+    final mensajes = c.read(assistantControllerProvider(_id)).messages;
+    final fallido = mensajes.firstWhere((m) => m.author == ChatAuthor.user);
+    await controlador.reintentar(fallido);
+    await vueltas();
+
+    expect(
+      c
+          .read(assistantControllerProvider(_id))
+          .messages
+          .where((m) => m.author == ChatAuthor.user)
+          .length,
+      1,
+      reason: 'la misma petición dos veces seguidas sobraría en la ventana',
     );
   });
 

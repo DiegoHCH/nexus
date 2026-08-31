@@ -7,6 +7,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
+import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
@@ -272,6 +274,48 @@ class AssistantController extends Notifier<AssistantHudState> {
     // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
     // no en el compositor porque por escrito también se pide desde el móvil, y
     // el atajo tiene que valer por los dos sitios.
+    // `/imagen una cosa` no es un encargo para Claude: **no pasa por él**.
+    // Va derecho a Gemini, que es quien dibuja, y el resultado cae en la
+    // carpeta de documentos como cualquier otra cosa que produce Nexus.
+    //
+    // Se desvía aquí y no en el compositor por lo mismo que el parte: por
+    // escrito también se pide desde el móvil, y el atajo tiene que valer por
+    // los dos sitios.
+    // **Con adjuntos vale igual**, y por eso no se exige que no los haya: lo
+    // que se suelta en la caja son las imágenes de referencia —«este estilo»,
+    // «cámbiale esto»—, así que aquí son material y no un motivo para no
+    // reconocer el atajo.
+    if (!esElParte) {
+      if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
+        await _dibujar(
+          descripcion,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+          reintento: reintento,
+        );
+        return;
+      }
+      if (LoQueSePideDibujar.loQueSeCambia(trimmed) case final cambio?) {
+        // Sin nada anterior no hay qué editar, y decirlo es mejor que dibujar
+        // desde cero algo que no era lo que se pidió — y cobrarlo.
+        if (_laUltimaImagen == null) {
+          _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+          _sealLast();
+          _say(ChatAuthor.nexus, ref.read(stringsProvider).noImageToEdit);
+          _sealLast();
+          return;
+        }
+        await _dibujar(
+          cambio,
+          loQueSeVe: loQueSeVe ?? trimmed,
+          referencias: attachments,
+          siguiendo: true,
+          reintento: reintento,
+        );
+        return;
+      }
+    }
+
     if (!esElParte &&
         attachments.isEmpty &&
         ElParteDeAyer.loEstanPidiendo(trimmed)) {
@@ -344,6 +388,113 @@ class AssistantController extends Notifier<AssistantHudState> {
       },
       onError: (Object error) => _onFailed(error.toString()),
     );
+  }
+
+  /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
+  /// que listar, hay una espera — pero una espera de veinte segundos sin nada
+  /// en pantalla se lee igual que un cuelgue.
+  static const _dibujoId = 'dibujando';
+
+  /// `/imagen …`: se genera, se guarda y se enseña. Sin pasar por Claude.
+  /// La última imagen que salió de esta conversación.
+  ///
+  /// Es lo que permite `/edita`: a la API se le manda **el identificador** de
+  /// aquella interacción en vez del PNG entero, así que encadenar cambios no
+  /// cuesta resubir la imagen en cada vuelta.
+  ///
+  /// Vive en el controlador y no en el estado porque no se pinta: es una pista
+  /// para la petición siguiente. Y por conversación, que es lo que hace que
+  /// «la anterior» signifique algo — con una global, editar en una pestaña
+  /// seguiría de lo que se dibujó en otra.
+  String? _laUltimaImagen;
+
+  Future<void> _dibujar(
+    String descripcion, {
+    required String loQueSeVe,
+    List<String> referencias = const [],
+    bool siguiendo = false,
+    bool reintento = false,
+  }) async {
+    await _subscription?.cancel();
+    _sealLast();
+    final strings = ref.read(stringsProvider);
+
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: '',
+      isStreaming: false,
+      errorMessage: null,
+      notice: null,
+      // Los cambios del turno anterior se van con él, igual que en un encargo.
+      changes: null,
+      activity: [
+        ActivityItem(
+          id: _dibujoId,
+          description: strings.drawingIt,
+          writes: true,
+        ),
+      ],
+    );
+    // 🔴 **Un reintento no se vuelve a escribir.** El desvío de `/imagen` ocurre
+    // antes de donde `submit` decide eso, así que si no se trae la bandera hasta
+    // aquí, pulsar «reintentar» dejaba la misma petición dos veces seguidas con
+    // una sola respuesta debajo. Y con las imágenes pasa más que con nada: el
+    // modelo se satura y contesta «vuelve a intentarlo más tarde».
+    //
+    // Los adjuntos van en el mensaje: son parte de lo que se pidió y se ven en
+    // su miniatura, igual que en un encargo normal.
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe, attachments: referencias);
+      _sealLast();
+    }
+
+    // Con la cuenta de la carpeta donde se está trabajando: la llave de
+    // imágenes es por cuenta, así que pedir un dibujo desde una carpeta del
+    // trabajo no puede gastar del saldo personal.
+    final carpeta = _folder;
+    final salio = await ref.read(generarUnaImagenProvider)((
+      descripcion: descripcion,
+      perfil: carpeta == null ? null : _cuentaDe(carpeta),
+      seguirDe: siguiendo ? _laUltimaImagen : null,
+      referencias: referencias,
+    ));
+    // La generación tarda, y en ese rato la pestaña se puede haber cerrado.
+    if (!_vive) return;
+
+    // Se apunta antes de pintar nada: es lo que hace que el siguiente `/edita`
+    // siga de ésta. Solo si salió — encadenar sobre una que falló no existe.
+    if (salio.id case final id?) _laUltimaImagen = id;
+
+    final texto = switch (salio.problema) {
+      null => strings.imageDone(salio.ruta!.split('/').last),
+      'sin-llave' => strings.imageNeedsKey,
+      'sin-carpeta' => strings.imageNeedsFolder,
+      final motivo => strings.imageFailed(motivo),
+    };
+
+    state = state.copyWith(
+      orbState: NexusOrbState.sleep,
+      isStreaming: false,
+      activity: [for (final paso in state.activity) paso.asDone()],
+      // Lo que falló se marca en tu mensaje, igual que un encargo caído: el
+      // botón de reintentar vale aquí exactamente igual — y con más motivo,
+      // porque volver a escribir la descripción es lo caro.
+    );
+    _say(ChatAuthor.nexus, texto);
+    _sealLast();
+    if (salio.ruta case final ruta?) {
+      _sellarEnElMensaje(documento: ruta);
+    } else {
+      _marcaElFallo();
+    }
+
+    // 🔴 Se archiva, pero **no se llama a `_afterErrand`**: ahí dentro está el
+    // diff de la tarea, y esto no tocó el repositorio. Con la marca de git de un
+    // encargo anterior todavía en memoria, enseñaría los cambios de aquél como
+    // si los hubiera hecho el dibujo.
+    unawaited(_archive());
   }
 
   /// Vuelve a mandar un encargo que no llegó a hacerse.
@@ -813,6 +964,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   /// `work`, `private`… tal como se llama la cuenta elegida para esta carpeta.
+  /// La cuenta de Claude de esa carpeta, con la derivación canónica.
+  ///
+  /// 🔴 No se reusa [_profileName], que es la del vault y **no es la misma**:
+  /// aquella devuelve `.claude` para la cuenta de siempre y ésta devuelve
+  /// `null`, que es lo que espera el llavero. Con la otra, la llave se
+  /// guardaría bajo un nombre y se buscaría bajo otro.
+  String? _cuentaDe(String folder) => ClaudeProfile.nameFromPath(
+    ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull
+        ?.claudeProfile,
+  );
+
   String? _profileName(String folder) {
     final paired = ref
         .read(workspaceControllerProvider)
