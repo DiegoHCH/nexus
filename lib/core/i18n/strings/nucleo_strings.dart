@@ -82,6 +82,7 @@ mixin NucleoStrings {
   String get avisosProbar;
   String get avisoDePrueba;
   String get agendaVacia;
+  String get agendaFueraDeJornada;
   String agendaDeHoy(int cuantas);
   String get avisosSinLeer;
   String avisosLeidoA(String hora);
@@ -267,6 +268,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get avisoDePrueba => 'Reunión de prueba';
   @override
   String get agendaVacia => 'Hoy no tienes reuniones.';
+  @override
+  String get agendaFueraDeJornada =>
+      'La jornada terminó y la agenda del día ya no está en memoria. Si la '
+      'necesitas, actualízala en Ajustes › Avisos.';
   @override
   String agendaDeHoy(int cuantas) => cuantas == 1
       ? 'Hoy tienes una reunión:'
@@ -507,6 +512,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get avisoDePrueba => 'Test meeting';
   @override
   String get agendaVacia => 'You have no meetings today.';
+  @override
+  String get agendaFueraDeJornada =>
+      'The day is over and the agenda is no longer in memory. Refresh it in '
+      'Settings › Alerts if you need it.';
   @override
   String agendaDeHoy(int cuantas) => cuantas == 1
       ? 'You have one meeting today:'

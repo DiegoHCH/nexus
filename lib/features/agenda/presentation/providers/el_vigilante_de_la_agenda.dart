@@ -8,6 +8,7 @@ import 'package:nexus/features/agenda/data/datasources/agenda_data_source.dart';
 import 'package:nexus/features/agenda/data/datasources/avisos_preferencias_data_source.dart';
 import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.dart';
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
+import 'package:nexus/features/agenda/domain/usecases/la_jornada.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
@@ -99,11 +100,6 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// Cada cuánto se mira el reloj. Treinta segundos: con la ventana de cinco
   /// minutos, es imposible que una reunión entre y salga sin que se vea.
   static const _cadencia = Duration(seconds: 30);
-
-  /// A qué hora se vuelve a mirar la agenda del día. Las ocho: lo que se
-  /// programa de un día para otro ya está puesto, y lo que se programe después
-  /// se pide a mano.
-  static const horaDeRelectura = 8;
 
   /// Cuánto se espera a que una sesión de voz calle antes de rendirse y dejarlo
   /// en notificación.
@@ -197,10 +193,15 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// el camino largo en vez de recibir un «no tengo» que sería mentira.
   Future<String?> loDeHoy() async {
     if (!state.listos) return null;
-    await _leerSiHaceFalta(DateTime.now());
+    final ahora = DateTime.now();
+    await _leerSiHaceFalta(ahora);
     if (!ref.mounted) return null;
 
     final s = ref.read(stringsProvider);
+    // Fuera de jornada la agenda está borrada, y decir «no tienes reuniones»
+    // sería mentir sobre un día que sí las tuvo. Se dice lo que pasa, y queda
+    // el botón de actualizar para quien la quiera igual.
+    if (!LaJornada.dentro(ahora)) return s.agendaFueraDeJornada;
     final reuniones = [
       for (final reunion in _agenda)
         if (reunion.esUnaReunion) reunion,
@@ -249,14 +250,14 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     _yaAvisadas.clear();
   }
 
-  /// El ancla que toca ahora: hoy a las ocho si ya pasaron, y si no, el arranque
-  /// del día. Son dos lecturas como mucho.
-  static DateTime anclaPara(DateTime ahora) => ahora.hour >= horaDeRelectura
-      ? DateTime(ahora.year, ahora.month, ahora.day, horaDeRelectura)
-      : DateTime(ahora.year, ahora.month, ahora.day);
-
   Future<void> _leerSiHaceFalta(DateTime ahora) async {
-    final ancla = anclaPara(ahora);
+    final ancla = LaJornada.anclaPara(ahora);
+    // Fuera de jornada no se lee y **no se conserva**: lo que quedara en
+    // memoria sería la lista de un día que terminó, y sirve para contestar mal.
+    if (ancla == null) {
+      if (_agenda.isNotEmpty) _olvidarLaAgenda();
+      return;
+    }
     if (_leidoDesde == ancla) return;
     final carpeta = state.carpeta;
     if (carpeta == null) return;
