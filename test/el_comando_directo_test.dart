@@ -54,18 +54,19 @@ void main() {
     });
 
     test('las simples valen igual', () {
-      expect(ElComandoDirecto.deLaFrase("!git commit -m 'y esto'")?.argumentos, [
-        'commit',
-        '-m',
-        'y esto',
-      ]);
+      expect(
+        ElComandoDirecto.deLaFrase("!git commit -m 'y esto'")?.argumentos,
+        ['commit', '-m', 'y esto'],
+      );
     });
 
     // Una comilla de un tipo dentro del otro es texto, no una comilla: sin esto,
     // un mensaje con un apóstrofo —«no funcionó»— partiría la pieza a la mitad.
     test('una comilla dentro de la otra es texto', () {
       expect(
-        ElComandoDirecto.deLaFrase('!git commit -m "no funcionó\'"')?.argumentos,
+        ElComandoDirecto.deLaFrase(
+          '!git commit -m "no funcionó\'"',
+        )?.argumentos,
         ['commit', '-m', "no funcionó'"],
       );
     });
@@ -73,11 +74,10 @@ void main() {
     // Alguien a medio escribir. Devolver lo que hay se parece más a lo que
     // quería que negarse.
     test('una comilla sin cerrar se cierra al final', () {
-      expect(ElComandoDirecto.deLaFrase('!git commit -m "a medio')?.argumentos, [
-        'commit',
-        '-m',
-        'a medio',
-      ]);
+      expect(
+        ElComandoDirecto.deLaFrase('!git commit -m "a medio')?.argumentos,
+        ['commit', '-m', 'a medio'],
+      );
     });
 
     // 🔴 Una pieza vacía **es una pieza**: `-m ""` es un mensaje vacío, no la

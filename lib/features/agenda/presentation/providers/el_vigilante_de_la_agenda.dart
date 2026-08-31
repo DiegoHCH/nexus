@@ -251,7 +251,28 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     _yaAvisadas.clear();
   }
 
-  Future<void> _leerSiHaceFalta(DateTime ahora) async {
+  /// Una sola lectura en vuelo, y quien llegue en medio **espera a esa**.
+  ///
+  /// 🔴 Sin esto se leía el calendario dos veces por arranque, medido: el reloj
+  /// tira cada treinta segundos, la lectura tarda entre veintiséis y cuarenta, y
+  /// el tic siguiente entraba mientras el primero todavía esperaba —el ancla se
+  /// marca **después** del `await`, así que el segundo la veía sin marcar y
+  /// arrancaba su propia consulta—. Dos `claude -p` por arranque, o sea el doble
+  /// de cupo de la suscripción para leer la misma agenda.
+  ///
+  /// Se guarda el futuro en vez de un `bool` porque hay dos clases de llamante y
+  /// necesitan cosas distintas. Al reloj le basta con no duplicar. Pero
+  /// [loDeHoy] **usa el resultado**: con una bandera que solo saltara la
+  /// lectura, preguntar «¿qué reuniones tengo hoy?» durante la lectura del
+  /// arranque contestaría «no tienes» —con la agenda a medio llegar— y eso es
+  /// mentir, no esperar. Esperando al mismo futuro, contesta bien y tarde.
+  Future<void> _leerSiHaceFalta(DateTime ahora) =>
+      _enVuelo ??= _leerAhora(ahora).whenComplete(() => _enVuelo = null);
+
+  /// La lectura que está ocurriendo, si hay alguna.
+  Future<void>? _enVuelo;
+
+  Future<void> _leerAhora(DateTime ahora) async {
     final ancla = LaJornada.anclaPara(ahora);
     // Fuera de jornada no se lee y **no se conserva**: lo que quedara en
     // memoria sería la lista de un día que terminó, y sirve para contestar mal.

@@ -88,6 +88,7 @@ mixin NucleoStrings {
   String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
   String reunionAhora(String titulo);
+
   /// Lo que se dice cuando el `!` trae algo que no es git.
   String soloGit(String comando);
 
@@ -316,7 +317,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get corriendoloYo => 'Corriendo aquí mismo, sin pasar por Claude.';
   @override
-  String get sinNadaQueDecir => 'Hecho. git no dijo nada, que suele ser buena señal.';
+  String get sinNadaQueDecir =>
+      'Hecho. git no dijo nada, que suele ser buena señal.';
   @override
   String get tardoDemasiado =>
       'Se estaba tardando demasiado y lo corté. Si pedía una contraseña, no hay '
@@ -573,9 +575,11 @@ mixin NucleoStringsEn implements NucleoStrings {
       '"!" only runs git for now, and that was "$comando". Everything else goes '
       'to Claude without the "!".';
   @override
-  String get corriendoloYo => 'Running it right here, without going through Claude.';
+  String get corriendoloYo =>
+      'Running it right here, without going through Claude.';
   @override
-  String get sinNadaQueDecir => 'Done. git said nothing, which is usually a good sign.';
+  String get sinNadaQueDecir =>
+      'Done. git said nothing, which is usually a good sign.';
   @override
   String get tardoDemasiado =>
       'It was taking too long, so I cut it off. If it was asking for a password, '
