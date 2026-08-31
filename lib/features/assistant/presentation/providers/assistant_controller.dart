@@ -291,6 +291,7 @@ class AssistantController extends Notifier<AssistantHudState> {
           descripcion,
           loQueSeVe: loQueSeVe ?? trimmed,
           referencias: attachments,
+          reintento: reintento,
         );
         return;
       }
@@ -309,6 +310,7 @@ class AssistantController extends Notifier<AssistantHudState> {
           loQueSeVe: loQueSeVe ?? trimmed,
           referencias: attachments,
           siguiendo: true,
+          reintento: reintento,
         );
         return;
       }
@@ -411,6 +413,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     required String loQueSeVe,
     List<String> referencias = const [],
     bool siguiendo = false,
+    bool reintento = false,
   }) async {
     await _subscription?.cancel();
     _sealLast();
@@ -432,10 +435,20 @@ class AssistantController extends Notifier<AssistantHudState> {
         ),
       ],
     );
+    // 🔴 **Un reintento no se vuelve a escribir.** El desvío de `/imagen` ocurre
+    // antes de donde `submit` decide eso, así que si no se trae la bandera hasta
+    // aquí, pulsar «reintentar» dejaba la misma petición dos veces seguidas con
+    // una sola respuesta debajo. Y con las imágenes pasa más que con nada: el
+    // modelo se satura y contesta «vuelve a intentarlo más tarde».
+    //
     // Los adjuntos van en el mensaje: son parte de lo que se pidió y se ven en
     // su miniatura, igual que en un encargo normal.
-    _say(ChatAuthor.user, loQueSeVe, attachments: referencias);
-    _sealLast();
+    if (reintento) {
+      _quitaLaMarcaDeFallo();
+    } else {
+      _say(ChatAuthor.user, loQueSeVe, attachments: referencias);
+      _sealLast();
+    }
 
     // Con la cuenta de la carpeta donde se está trabajando: la llave de
     // imágenes es por cuenta, así que pedir un dibujo desde una carpeta del
