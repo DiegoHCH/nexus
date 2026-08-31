@@ -188,6 +188,31 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     await _leerSiHaceFalta(DateTime.now());
   }
 
+  /// Suelta un aviso de mentira, ahora mismo.
+  ///
+  /// 🔴 **Existe porque esto no se puede probar de otra forma.** Un aviso
+  /// depende de que tengas una reunión dentro de cinco minutos, así que sin
+  /// esto la única manera de saber si funciona —o de oír a qué volumen suena, o
+  /// de descubrir que falta la llave— es esperar a que te pase de verdad. Y el
+  /// día que te pase de verdad es justo el día en que no quieres descubrir que
+  /// no funcionaba.
+  ///
+  /// Recorre el mismo camino que uno real: la misma llave, la misma voz, los
+  /// mismos dos altavoces y la misma espera si estás hablando. Lo único que se
+  /// salta es el calendario.
+  Future<void> probar() {
+    final ahora = DateTime.now();
+    return _avisar(
+      Reunion(
+        id: 'prueba-${ahora.microsecondsSinceEpoch}',
+        titulo: ref.read(stringsProvider).avisoDePrueba,
+        comienza: ahora.add(Duration(minutes: state.minutos)),
+        invitados: 1,
+      ),
+      ahora,
+    );
+  }
+
   void _olvidarLaAgenda() {
     _leidoDesde = null;
     _agenda = const [];

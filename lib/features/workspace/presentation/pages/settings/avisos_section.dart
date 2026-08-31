@@ -91,6 +91,20 @@ class AvisosSection extends ConsumerWidget {
                 child: Text(strings.avisosReleer),
               ),
               const SizedBox(width: NexusSpacing.s3),
+              // Oírlo cuando quieras, y no cuando te toque una reunión.
+              //
+              // Sin esto, la única forma de saber si funciona —o a qué volumen
+              // suena, o si falta la llave— es esperar a que pase de verdad. Y
+              // ese día es justo el peor para descubrir que no funcionaba.
+              //
+              // No pide carpeta: no mira el calendario, así que se puede pulsar
+              // antes de haber configurado nada.
+              OutlinedButton(
+                onPressed: () =>
+                    ref.read(elVigilanteDeLaAgendaProvider.notifier).probar(),
+                child: Text(strings.avisosProbar),
+              ),
+              const SizedBox(width: NexusSpacing.s3),
               Text(switch (avisos.ultimaLectura) {
                 final cuando? => strings.avisosLeidoA(_laHora(cuando)),
                 null => strings.avisosSinLeer,

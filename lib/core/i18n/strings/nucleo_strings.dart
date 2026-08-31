@@ -79,6 +79,8 @@ mixin NucleoStrings {
   String get avisosSinCarpeta;
   String get avisosNota;
   String get avisosReleer;
+  String get avisosProbar;
+  String get avisoDePrueba;
   String get avisosSinLeer;
   String avisosLeidoA(String hora);
   String reunionEnMinutos(String titulo, int minutos);
@@ -257,6 +259,10 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get avisosSinCarpeta => 'Elige una carpeta';
   @override
   String get avisosReleer => 'ACTUALIZAR EL CALENDARIO';
+  @override
+  String get avisosProbar => 'OÍR UN AVISO';
+  @override
+  String get avisoDePrueba => 'Reunión de prueba';
   @override
   String get avisosSinLeer => 'todavía sin leer';
   @override
@@ -487,6 +493,10 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get avisosSinCarpeta => 'Pick a folder';
   @override
   String get avisosReleer => 'REFRESH THE CALENDAR';
+  @override
+  String get avisosProbar => 'HEAR AN ALERT';
+  @override
+  String get avisoDePrueba => 'Test meeting';
   @override
   String get avisosSinLeer => 'not read yet';
   @override
