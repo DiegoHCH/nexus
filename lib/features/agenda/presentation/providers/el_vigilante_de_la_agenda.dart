@@ -359,10 +359,22 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       await delMac.start();
       await delMovil.start();
 
+      // 🔴 **Cuánto tardó en sintetizar, dicho en el log.** Esta línea resolvió
+      // en una pulsación lo que llevaba media hora sin resolverse: cuatro
+      // avisos seguidos habían muerto en «no contestó en 30s» contra un host
+      // que respondía en 250 ms, y no había forma de saber si el servicio iba
+      // lento o si la petición no volvía nunca. Con el número delante se vio
+      // que lo normal son ~3,9 s, o sea que un tope agotado no es «faltó un
+      // poco»: es el servicio en problemas.
+      final empezo = DateTime.now();
       final dicho = await const GeminiTtsDataSource().decir(
         llave: llave,
         frase: frase,
         voz: ref.read(voicePreferenceProvider).name,
+      );
+      debugPrint(
+        'agenda · el TTS tardó '
+        '${DateTime.now().difference(empezo).inMilliseconds} ms',
       );
       if (!ref.mounted) {
         // El altavoz se pidió por adelantado: si ya no hay a quien avisarle, se

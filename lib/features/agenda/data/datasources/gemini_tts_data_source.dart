@@ -46,7 +46,23 @@ class GeminiTtsDataSource {
     required String llave,
     required String frase,
     required String voz,
-    Duration timeout = const Duration(seconds: 30),
+
+    /// Cuarenta y cinco segundos, y los tres números que lo eligen.
+    ///
+    /// Sintetizar una frase de aviso tarda **~3,9 s medidos**, así que esto no
+    /// es un margen ajustado: es diez veces lo normal. Agotarlo significa que
+    /// el servicio está en problemas, no que faltó un poco.
+    ///
+    /// No más, y por dos motivos que empujan en la misma dirección. El altavoz
+    /// se pide **antes** de sintetizar —es lo que evita que el arranque del
+    /// motor se coma las primeras palabras— así que cada segundo de espera es
+    /// un segundo con el micrófono abierto. Y un aviso de cinco minutos que
+    /// llega un minuto tarde se ha comido un quinto de su propio sentido.
+    ///
+    /// No menos, porque con 30 s se cayó a notificación cuatro veces seguidas
+    /// una tarde en que el servicio iba lento: una frase que llega hablada y
+    /// tarde sigue siendo un aviso, y una notificación silenciosa ya no.
+    Duration timeout = const Duration(seconds: 45),
   }) async {
     if (llave.isEmpty) return const LoDicho.fallo('falta la llave');
     if (frase.trim().isEmpty) {
