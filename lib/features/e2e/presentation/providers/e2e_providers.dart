@@ -2,8 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/core/platform/lo_que_pide_la_pagina.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/e2e/data/datasources/e2e_data_source.dart';
@@ -329,18 +329,17 @@ class PruebaEnMarchaController extends Notifier<PruebaEnMarcha?> {
   PruebaEnMarcha? build() {
     // **El botón de detener de la ventana llega por aquí.** La página es estática
     // y su botón un enlace `nexus://parar`; el visor lo intercepta y lo reenvía a
-    // este canal. Se escucha una sola vez, al construirse el controlador.
-    _visor.setMethodCallHandler((llamada) async {
-      if (llamada.method != 'desdeLaPagina') return null;
-      final que = (llamada.arguments as Map?)?['que'];
-      if (que == 'parar') parar();
-      return null;
-    });
+    // la app. Se escucha una sola vez, al construirse el controlador.
+    //
+    // 🔴 Antes esto ponía su propio `setMethodCallHandler` sobre el canal, y
+    // eso es **exclusivo**: la segunda ventana que quisiera un botón se lo
+    // quitaba en silencio y dejaba de funcionar el de aquí. Ahora hay un
+    // despachador y cada uno atiende lo suyo.
+    LoQuePideLaPagina.escuchar('parar', (_) => parar());
     return null;
   }
 
   /// El mismo canal del visor: es su ventana la que habla.
-  static const _visor = MethodChannel('com.katanalabs.nexus/artifacts');
 
   /// Lanza [prueba] en [deviceId]. `null` si arrancó.
   Future<String?> lanzar({

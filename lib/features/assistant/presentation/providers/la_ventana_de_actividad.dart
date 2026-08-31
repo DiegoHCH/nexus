@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/core/platform/lo_que_pide_la_pagina.dart';
 import 'package:nexus/core/platform/ventana_del_visor.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_actividad_como_html.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
@@ -34,8 +35,30 @@ class LaVentanaDeActividad {
   /// está delante en vez de abrir otra en cada paso.
   final Map<String, ProviderSubscription<AssistantHudState>> _siguiendo = {};
 
+  /// El botón de parar de la ventana llega por aquí.
+  ///
+  /// La página es estática y su botón un enlace `nexus://detener/<id>`; el
+  /// visor lo intercepta y lo reenvía. El identificador viaja en la ruta porque
+  /// **puede haber varias ventanas abiertas** —una por conversación— y «parar»
+  /// a secas no diría cuál.
+  ///
+  /// Se pone una sola vez y no por ventana: el despachador reparte por lo que
+  /// se pide, así que dos oyentes de `detener` serían dos respuestas a un clic.
+  void _atiendeElParar() {
+    if (_atendiendo) return;
+    _atendiendo = true;
+    LoQuePideLaPagina.escuchar('detener', (ruta) {
+      final id = ruta.replaceAll('/', '');
+      if (id.isEmpty || !_siguiendo.containsKey(id)) return;
+      unawaited(_ref.read(assistantControllerProvider(id).notifier).stopWork());
+    });
+  }
+
+  bool _atendiendo = false;
+
   /// El encargo en curso, avanzando en su ventana.
   Future<void> seguir(String conversationId) async {
+    _atiendeElParar();
     final primeraVez = !_siguiendo.containsKey(conversationId);
     await _pinta(conversationId, primeraVez: primeraVez);
     if (!primeraVez) return;
@@ -83,6 +106,9 @@ class LaVentanaDeActividad {
       pasos: hud.activity,
       viva: hud.orbState == NexusOrbState.think,
       primeraVez: primeraVez,
+      // Solo la ventana en vivo lleva botón de parar. La de un turno cerrado no
+      // tiene nada que parar, y un botón que no hace nada enseña a no pulsarlo.
+      detenerEn: conversationId,
     );
   }
 
@@ -91,6 +117,7 @@ class LaVentanaDeActividad {
     required List<ActivityItem> pasos,
     required bool viva,
     required bool primeraVez,
+    String? detenerEn,
   }) async {
     // **Fuera de la carpeta emparejada, y no por orden.** Escribir aquí dentro
     // del repo dejaría un archivo sin trackear en el árbol, y eso lo recoge el
@@ -110,6 +137,7 @@ class LaVentanaDeActividad {
         filas: layoutActivity(pasos),
         terminados: pasos.where((paso) => paso.done).length,
         viva: viva,
+        detenerEn: detenerEn,
         textos: TextosDeActividad(
           titulo: s.rightNow,
           progreso: s.stepsProgress,
@@ -119,6 +147,7 @@ class LaVentanaDeActividad {
           devolvio: s.returnedLabel,
           todaviaCorriendo: s.stillRunning,
           sinPasos: s.noStepsYet,
+          detener: s.stopNow,
         ),
       ),
     );

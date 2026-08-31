@@ -50,6 +50,7 @@ mixin NucleoStrings {
   String get seeActivity;
   String get expandWindow;
   String get retryErrand;
+  String get stopNow;
   String get restoreWindow;
   String stepsProgress(int done, int total);
   String stepsTaken(int steps);
@@ -151,6 +152,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get expandWindow => 'Ampliar';
   @override
   String get retryErrand => 'REINTENTAR';
+  @override
+  String get stopNow => 'Detener el encargo';
   @override
   String get restoreWindow => 'Restaurar';
   @override
@@ -280,6 +283,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get expandWindow => 'Expand';
   @override
   String get retryErrand => 'RETRY';
+  @override
+  String get stopNow => 'Stop the errand';
   @override
   String get restoreWindow => 'Restore';
   @override

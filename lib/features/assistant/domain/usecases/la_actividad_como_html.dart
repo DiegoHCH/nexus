@@ -15,6 +15,7 @@ class TextosDeActividad {
     required this.devolvio,
     required this.todaviaCorriendo,
     required this.sinPasos,
+    required this.detener,
   });
 
   final String titulo;
@@ -25,6 +26,7 @@ class TextosDeActividad {
   final String devolvio;
   final String todaviaCorriendo;
   final String sinPasos;
+  final String detener;
 }
 
 /// Lo que está haciendo el encargo, escrito como una página.
@@ -43,11 +45,19 @@ class TextosDeActividad {
 /// Autocontenida: sin fuentes ni hojas de fuera. La ventana carga un archivo
 /// local y cualquier petición a la red sería un hueco en blanco.
 abstract final class LaActividadComoHtml {
+  /// El esquema con el que la página le habla a la app.
+  ///
+  /// El visor intercepta cualquier URL que no sea de archivo; con este esquema,
+  /// en vez de abrirla en el navegador se la reenvía a Nexus. Es lo que hace
+  /// que el botón de detener funcione desde una página estática.
+  static const esquema = 'nexus';
+
   static String escribe({
     required List<ActivityRow> filas,
     required int terminados,
     required bool viva,
     required TextosDeActividad textos,
+    String? detenerEn,
   }) {
     final cuerpo = filas.isEmpty
         ? '<p class="vacio">${_e(textos.sinPasos)}</p>'
@@ -61,13 +71,14 @@ abstract final class LaActividadComoHtml {
 <style>
   :root{
     --bg:#0b0d10; --panel:#111419; --ink:#e8eaee; --faint:#6e7683; --line:#22262e;
-    --ok:#6fd39b; --warn:#e0a86a; --acento:#7aa0ff;
+    --ok:#6fd39b; --warn:#e0a86a; --acento:#7aa0ff; --err:#f08a8a;
     --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
     --sans:-apple-system,BlinkMacSystemFont,sans-serif;
   }
   @media (prefers-color-scheme:light){
     :root{ --bg:#f3f2f0; --panel:#fff; --ink:#16181d; --faint:#8b91a0;
-           --line:#e4e2dd; --ok:#1c7a4a; --warn:#8a5a1c; --acento:#2f5bd7; }
+           --line:#e4e2dd; --ok:#1c7a4a; --warn:#8a5a1c; --acento:#2f5bd7;
+           --err:#b02a2a; }
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);font-family:var(--mono);font-size:12.5px;
@@ -127,6 +138,11 @@ abstract final class LaActividadComoHtml {
   .cmd{color:var(--acento)}
   .sal{color:var(--faint)}
   .vacio{color:var(--faint);padding:14px;margin:0}
+  .parar{flex:none;width:22px;height:22px;display:flex;align-items:center;
+         justify-content:center;border-radius:5px;border:1px solid var(--line);
+         color:var(--faint);text-decoration:none}
+  .parar:hover{color:var(--err);border-color:var(--err)}
+  .parar span{width:7px;height:7px;background:currentColor;border-radius:1px}
   @media (prefers-reduced-motion:reduce){ .gira{animation:none} }
 </style></head>
 <body>
@@ -135,12 +151,20 @@ abstract final class LaActividadComoHtml {
       ${viva ? '<span class="gira"></span>' : '<span class="punto hecho"></span>'}
       <h1>${_e(textos.titulo)}</h1>
       <span class="cuenta">${_e(textos.progreso(terminados, filas.length))}</span>
+      ${viva && detenerEn != null ? _parar(detenerEn, textos.detener) : ''}
     </header>
     $cuerpo
   </div>
 </body></html>
 ''';
   }
+
+  /// El cuadrado de parar. Es un enlace y no un botón: la página no lleva
+  /// JavaScript, así que lo único que puede hacer es navegar — y el visor
+  /// intercepta esa navegación antes de que salga a ninguna parte.
+  static String _parar(String conversacion, String titulo) =>
+      '<a class="parar" href="$esquema://detener/${_e(conversacion)}" '
+      'title="${_e(titulo)}"><span></span></a>';
 
   static String _fila(ActivityRow fila, TextosDeActividad textos) {
     final item = fila.item;
