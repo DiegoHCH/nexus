@@ -291,4 +291,7 @@ class _Llavero implements GeminiKeyStore {
 
   @override
   Future<void> save(String key) async {}
+
+  @override
+  Future<void> clear() async {}
 }

@@ -4,4 +4,13 @@ abstract class GeminiKeyStore {
   Future<String?> read();
 
   Future<void> save(String key);
+
+  /// La borra del llavero.
+  ///
+  /// Faltaba, y era el único secreto de la app sin forma de quitarlo: los del
+  /// canal y la frase de escritura ya tenían su `clear()`. Sin esto, cambiarla
+  /// era sobrescribirla y **quitarla del todo obligaba a abrir Acceso a
+  /// Llaveros** — que es pedirle a alguien que hurgue en el llavero de su Mac
+  /// para deshacer algo que hizo desde una pantalla de Ajustes.
+  Future<void> clear();
 }
