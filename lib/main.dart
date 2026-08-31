@@ -23,6 +23,7 @@ import 'package:nexus/features/onboarding/presentation/pages/app_root.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
+import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 
 Future<void> main() async {
@@ -214,6 +215,19 @@ class _MainAppState extends ConsumerState<MainApp> {
     // Es lo que hace verdad la promesa de recordarlo: la razón de encender el canal
     // es precisamente no tener que tocar el Mac.
     ref.watch(channelControllerProvider);
+
+    // **Y el vigilante de la agenda, por lo mismo y por segunda vez.**
+    //
+    // 🔴 Es el bug de arriba otra vez: lo único que construía el vigilante era la
+    // sección «Avisos» de Ajustes, así que el reloj que dispara los avisos no
+    // existía hasta que abrías esa pantalla. El interruptor quedaba guardado
+    // diciendo que sí y no armaba nada, y cada relanzamiento volvía a empezar sin
+    // vigilante — con la app abierta toda la mañana y ni un aviso.
+    //
+    // Que haya pasado dos veces dice algo del patrón: un provider perezoso que
+    // *hace* algo por su cuenta no puede tener como único testigo la pantalla que
+    // lo configura. Se arma donde vive la app, no donde se ajusta.
+    ref.watch(elVigilanteDeLaAgendaProvider);
 
     return MaterialApp(
       navigatorKey: _navigatorKey,

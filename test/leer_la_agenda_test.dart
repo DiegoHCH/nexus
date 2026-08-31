@@ -45,6 +45,41 @@ void main() {
     expect(leidas.map((r) => r.id), ['e2']);
   });
 
+  // 🔴 **La forma que devuelve el conector de verdad**, medida contra un
+  // `claude -p` real el 31-08-2026. Los datos son inventados —el calendario del
+  // que salió es de trabajo y este repo es público— pero la forma es la que
+  // llegó, y es la que el resto del archivo no probaba: los ids del calendario
+  // son compuestos (`<id>_<fechaZ>`), la hora viene con desplazamiento y no en
+  // `Z`, y los invitados pueden ser tres cifras. Si el conector cambia de forma,
+  // es aquí donde tiene que romperse.
+  test('la forma real del conector, con ids compuestos y hora con huso', () {
+    final leidas = AgendaDataSource.leer(
+      '[{"id": "5f3a91c2d4e6b8a0f1c3d5e7b9a1c3d5_20260831T140000Z", '
+      '"titulo": "Daily", '
+      '"comienza": "2026-08-31T09:00:00-05:00", "invitados": 9}, '
+      '{"id": "a1b2c3d4e5f60718293a4b5c6d7e8f90", '
+      '"titulo": "Todos a una", '
+      '"comienza": "2026-08-31T15:00:00-05:00", "invitados": 113}]',
+    );
+
+    expect(leidas.length, 2);
+    expect(leidas.map((r) => r.titulo), ['Daily', 'Todos a una']);
+    // Las dos son reuniones de verdad, no bloques propios.
+    expect(leidas.every((r) => r.esUnaReunion), isTrue);
+    // El id compuesto se conserva entero: es lo que separa dos apariciones de la
+    // misma reunión repetida, y recortarlo haría que la de mañana llegue ya
+    // avisada.
+    expect(leidas.first.id, endsWith('_20260831T140000Z'));
+    // La hora se guarda en local, que es contra lo que compara el reloj del
+    // vigilante: comparar un instante con desplazamiento contra `DateTime.now()`
+    // es justo el error que adelantaría o atrasaría el aviso cinco horas.
+    expect(leidas.first.comienza.isUtc, isFalse);
+    expect(
+      leidas.first.comienza,
+      DateTime.parse('2026-08-31T09:00:00-05:00').toLocal(),
+    );
+  });
+
   // 🔴 No se pide la descripción, y eso es a propósito: lo que no se pide no
   // puede acabar sonando por el altavoz con alguien delante.
   test('la instrucción no pide la descripción del evento', () {

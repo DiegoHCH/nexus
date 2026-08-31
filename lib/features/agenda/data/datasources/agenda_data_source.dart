@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
+import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 
 /// Le pregunta el calendario a Claude, con el conector de Calendar.
 ///
@@ -22,6 +23,18 @@ class AgendaDataSource {
   final ClaudeCliDataSource cli;
 
   static const conector = 'mcp__claude_ai_Google_Calendar';
+
+  /// Las herramientas del conector que **escriben**, para negarlas.
+  ///
+  /// 🔴 Se pasan de verdad porque antes solo estaban prometidas en un
+  /// comentario: `--allowedTools` autoriza el servidor **entero**, así que sin
+  /// esto mover o borrar un evento sí entraba por aquí. Salen de la lista del
+  /// canal en vez de repetirse a mano: una segunda copia se queda vieja el día
+  /// que el conector estrene una escritura nueva.
+  static List<String> get _loQueEscribe => [
+    for (final herramienta in McpPermissions.escrituraDeFuera)
+      if (herramienta.startsWith('${conector}__')) herramienta,
+  ];
 
   /// La instrucción, escrita para que la conteste una máquina.
   ///
@@ -55,6 +68,7 @@ class AgendaDataSource {
         permissionMode: 'manual',
         configDir: configDir,
         herramientasMcp: const [conector],
+        disallowedTools: _loQueEscribe,
       )) {
         if (evento['type'] == 'result' && evento['result'] is String) {
           buffer.write(evento['result'] as String);

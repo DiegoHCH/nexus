@@ -18,7 +18,7 @@ import 'package:nexus/features/assistant/presentation/providers/voice_input_prov
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
-import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// Cómo están los avisos de agenda.
@@ -262,10 +262,22 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
     final carpeta = state.carpeta;
     if (carpeta == null) return;
 
+    // 🔴 **La carpeta emparejada, o no se lee todavía.** El workspace se carga
+    // solo y en paralelo, y el vigilante le gana la carrera al arrancar: la
+    // lista de carpetas está vacía, la cuenta llega `null` y la agenda se leería
+    // con la cuenta por defecto en vez de con la de la carpeta. Que es otra
+    // cuenta, con otro calendario o con ninguno.
+    //
+    // Se espera al siguiente tic en vez de arrastrar la cuenta equivocada, y no
+    // se marca `_leidoDesde`: son treinta segundos y no cuesta una consulta,
+    // porque aquí todavía no se ha llamado a nadie.
+    final emparejada = _laCarpeta(carpeta);
+    if (emparejada == null) return;
+
     final leida = await const AgendaDataSource().delDia(
       DateTime(ahora.year, ahora.month, ahora.day),
       carpeta: carpeta,
-      configDir: _cuentaDe(carpeta),
+      configDir: emparejada.claudeProfile,
     );
     if (!ref.mounted) return;
     _agenda = leida;
@@ -370,14 +382,27 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       .items
       .any((c) => ref.read(assistantControllerProvider(c.id)).voiceActive);
 
-  String? _cuentaDe(String carpeta) => ClaudeProfile.nameFromPath(
-    ref
-        .read(workspaceControllerProvider)
-        .folders
-        .where((f) => f.path == carpeta)
-        .firstOrNull
-        ?.claudeProfile,
-  );
+  /// La carpeta emparejada, o `null` si todavía no está en el workspace.
+  ///
+  /// **Devuelve la carpeta y no su cuenta a propósito**: quien lee necesita
+  /// distinguir «la carpeta no está todavía» de «está y usa la cuenta por
+  /// defecto». Las dos daban `null` cuando esto devolvía la cuenta, y la primera
+  /// se leía como la segunda.
+  ///
+  /// 🔴 De aquí salía el bug que dejó los avisos mudos desde el primer día: se
+  /// devolvía `ClaudeProfile.nameFromPath(...)`, o sea `work` donde hacía falta
+  /// `/Users/…/.claude-work`. Eso acababa en `CLAUDE_CONFIG_DIR=work`, una ruta
+  /// **relativa**: `claude -p` se creaba una cuenta nueva y vacía dentro de la
+  /// carpeta emparejada, contestaba «Not logged in · Please run /login» y el
+  /// `catch` de la lectura lo convertía en una agenda vacía. Sin conector, sin
+  /// reuniones y sin un solo error a la vista. El resto de la app —el puente de
+  /// los encargos— siempre pasó la ruta; esto era el único sitio que pasaba el
+  /// nombre, y también el único que nadie podía probar a mano.
+  PairedFolder? _laCarpeta(String carpeta) => ref
+      .read(workspaceControllerProvider)
+      .folders
+      .where((f) => f.path == carpeta)
+      .firstOrNull;
 }
 
 final elVigilanteDeLaAgendaProvider =
