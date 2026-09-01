@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
@@ -270,6 +270,29 @@ class GeminiVoiceGateway implements VoiceGateway {
   static const testToolName = 'correr_prueba';
   static const parteToolName = 'pedir_el_parte';
   static const agendaToolName = 'consultar_agenda';
+
+  /// Qué anotar cuando el servicio manda un marco que no se entiende.
+  ///
+  /// 🔴 **Las claves sí, el contenido no.** Por este socket viaja lo que dices y
+  /// lo que Claude leyó de tu carpeta, y este registro acaba en los informes de
+  /// fallo: volcar el marco entero sería sacar de la máquina —por una puerta que
+  /// nadie mira— exactamente lo que la app promete no sacar.
+  ///
+  /// Los nombres de las claves bastan para saber qué llegó. Y si dentro hay un
+  /// error, su mensaje se saca aparte: ahí está la respuesta que se vino a
+  /// buscar, y un código de cuota o un modelo retirado no son datos de nadie.
+  ///
+  /// Pura y pública para poder probar justo eso: que el contenido no aparece.
+  static String loQueMandoElServicio(Map<String, dynamic> marco) {
+    final claves = marco.keys.join(', ');
+    final error = marco['error'];
+    final detalle = switch (error) {
+      final Map<String, Object?> e => ' · ${e['message'] ?? e['status'] ?? ''}',
+      null => '',
+      _ => ' · $error',
+    };
+    return 'voz · el servicio mandó algo que no se entiende: $claves$detalle';
+  }
 }
 
 class _GeminiVoiceSession implements VoiceSession {
@@ -307,6 +330,12 @@ class _GeminiVoiceSession implements VoiceSession {
   @override
   Stream<VoiceEvent> get events => _events.stream;
 
+  /// Deja en el registro qué mandó el servicio cuando no se entiende. La línea
+  /// la compone [GeminiVoiceGateway.loQueMandoElServicio], que es pura para
+  /// poder probar lo que **no** lleva dentro.
+  void _anotaLoDesconocido(Map<String, dynamic> message) =>
+      debugPrint(GeminiVoiceGateway.loQueMandoElServicio(message));
+
   void _translate(Map<String, dynamic> message) {
     if (message.containsKey('setupComplete')) {
       _events.add(const VoiceSessionReady());
@@ -337,7 +366,29 @@ class _GeminiVoiceSession implements VoiceSession {
     }
 
     final server = message['serverContent'] as Map<String, dynamic>?;
-    if (server == null) return;
+    if (server == null) {
+      // 🔴 **Lo que no se reconoce se anota, no se tira.**
+      //
+      // Aquí había un `return` seco, y con él se perdía **lo único que el
+      // servicio tenía que decir** cuando algo iba mal. Medido en el registro de
+      // la app: cinco sesiones seguidas con «203 trozos del micro, 203 enviados,
+      // 1 eventos recibidos · primera señal del servicio en todavía nada». Ese
+      // «1 evento» era el `setupComplete`; si además hubiera llegado un marco de
+      // error —cuota, modelo retirado, petición rechazada— habría entrado por
+      // aquí y habría desaparecido igual.
+      //
+      // Para quien usa la app eso es silencio: el orbe escucha, se calla y
+      // vuelve a dormir sin decir nada. Y desde fuera no hay forma de saber si
+      // el problema es el micrófono, la red, la llave o el modelo.
+      //
+      // Se anotan **las claves y no el contenido**: un marco de este socket
+      // puede llevar dentro lo que dijiste o lo que Claude leyó de tu carpeta, y
+      // el registro se manda en los informes. Los nombres de las claves bastan
+      // para saber qué llegó — y si es un error, su mensaje se saca aparte,
+      // porque ahí sí está la respuesta.
+      _anotaLoDesconocido(message);
+      return;
+    }
 
     final userText =
         (server['inputTranscription'] as Map<String, dynamic>?)?['text']
