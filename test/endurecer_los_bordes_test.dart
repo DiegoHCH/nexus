@@ -20,6 +20,120 @@ void main() {
   // pedir contraseña. Anteponerlos es correcto —una app de GUI no hereda el
   // `PATH` de la shell—; lo que faltaba es decidirlo una vez en vez de dejar que
   // el sistema lo resuelva en cada arranque.
+  // Lo que costó una instalación fallida el primer día que la usó alguien que no
+  // era yo: `claude` estaba instalado, funcionaba en su terminal, y Nexus decía
+  // que no. Estaba dentro de una versión de Node gestionada por fnm.
+  group('donde fnm y nvm esconden lo que instala npm', () {
+    late Directory casa;
+
+    setUp(() {
+      casa = Directory.systemTemp.createTempSync('casa_de_prueba');
+    });
+    tearDown(() => casa.deleteSync(recursive: true));
+
+    void inventa(String ruta) =>
+        File('${casa.path}/$ruta').createSync(recursive: true);
+
+    test('encuentra el binario dentro de una versión de fnm', () {
+      inventa('.local/share/fnm/node-versions/v22.3.0/installation/bin/claude');
+
+      expect(
+        HerramientaExterna.enLosGestoresDeNode(casa.path, 'claude'),
+        contains(
+          '${casa.path}/.local/share/fnm/node-versions/v22.3.0'
+          '/installation/bin/claude',
+        ),
+      );
+    });
+
+    // nvm no mete el nivel `installation/`, así que se prueban las dos formas.
+    test('y dentro de una de nvm, que tiene otra forma', () {
+      inventa('.nvm/versions/node/v20.11.0/bin/claude');
+
+      expect(
+        HerramientaExterna.enLosGestoresDeNode(casa.path, 'claude'),
+        contains('${casa.path}/.nvm/versions/node/v20.11.0/bin/claude'),
+      );
+    });
+
+    // Con varias instaladas gana la más nueva: es la que el usuario tiene activa
+    // casi siempre, y probar primero la vieja daría una versión de Claude que no
+    // es la que usa en su terminal.
+    test('con varias versiones, la más nueva va primero', () {
+      for (final v in ['v18.19.0', 'v20.11.0', 'v22.3.0']) {
+        inventa('.nvm/versions/node/$v/bin/claude');
+      }
+
+      final donde = HerramientaExterna.enLosGestoresDeNode(casa.path, 'claude');
+      final soloNvm = [
+        for (final r in donde)
+          if (r.contains('.nvm')) r,
+      ];
+
+      expect(soloNvm.first, contains('v22.3.0'));
+      expect(soloNvm.last, contains('v18.19.0'));
+    });
+
+    test('sin ningún gestor instalado no inventa rutas', () {
+      expect(
+        HerramientaExterna.enLosGestoresDeNode(casa.path, 'claude'),
+        isEmpty,
+      );
+    });
+
+    test('y sin HOME tampoco', () {
+      expect(HerramientaExterna.enLosGestoresDeNode('', 'claude'), isEmpty);
+    });
+  });
+
+  // 🔴 Estos dos no prueban comportamiento: fijan decisiones que se deshacen
+  // solas al «simplificar», y cuyo fallo **solo se ve en la máquina de otro**.
+  group('cómo se le pregunta al shell del usuario', () {
+    // `-lc` no lee `.zshrc` y `-lic` sí, medido con un ZDOTDIR de prueba, y ahí
+    // es donde se configuran fnm, nvm y volta.
+    test('en modo interactivo, o no ve el gestor de Node', () {
+      expect(HerramientaExterna.banderasDelShell, contains('-i'));
+      expect(HerramientaExterna.banderasDelShell, contains('-l'));
+    });
+
+    // Combinar cortas en `-lic` es costumbre de bash y zsh, no una garantía.
+    test('y con las banderas sueltas, que aquí no todos usan zsh', () {
+      expect(HerramientaExterna.banderasDelShell, hasLength(3));
+      expect(HerramientaExterna.banderasDelShell.last, '-c');
+    });
+  });
+
+  group('el PATH que declara el shell', () {
+    test('de zsh y bash viene con dos puntos', () {
+      expect(
+        HerramientaExterna.carpetasDelPath('/usr/bin:/opt/homebrew/bin\n'),
+        '/usr/bin:/opt/homebrew/bin',
+      );
+    });
+
+    // 🔴 fish lo imprime **separado por espacios**: para él el PATH es una lista
+    // y no una cadena. Sin esto, su PATH entero se leía como una sola carpeta
+    // con espacios dentro y no se encontraba nada — que es exactamente lo que le
+    // pasaba a quien usa fish.
+    test('y el de fish viene con espacios', () {
+      expect(
+        HerramientaExterna.carpetasDelPath('/usr/bin /opt/homebrew/bin\n'),
+        '/usr/bin:/opt/homebrew/bin',
+      );
+    });
+
+    test('mezclados también, y sin dejar huecos', () {
+      expect(
+        HerramientaExterna.carpetasDelPath('  /a:/b  /c \n /d  '),
+        '/a:/b:/c:/d',
+      );
+    });
+
+    test('una salida vacía no da carpetas', () {
+      expect(HerramientaExterna.carpetasDelPath('   \n '), '');
+    });
+  });
+
   group('la ruta de una herramienta', () {
     setUp(HerramientaExterna.olvidar);
 
