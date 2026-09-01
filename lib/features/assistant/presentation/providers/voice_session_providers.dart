@@ -30,7 +30,12 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
     ref.watch(geminiLiveDataSourceProvider),
     keyStore.read,
     () => ref.read(voicePreferenceProvider).name,
-    () => ref.read(stringsProvider).languageName,
+    // El idioma **con su variante**. Se compone aquí, en el cableado, porque
+    // es donde se juntan las dos piezas: el idioma lo pone la app y el acento
+    // lo pone quien la usa.
+    () => ref
+        .read(elAcentoProvider)
+        .conElIdioma(ref.read(stringsProvider).languageName),
   );
 });
 
