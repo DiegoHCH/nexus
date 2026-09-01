@@ -54,15 +54,39 @@ abstract final class ClaudeEnvironment {
     env.remove('ANTHROPIC_API_KEY');
     env.remove('ANTHROPIC_AUTH_TOKEN');
 
-    final home = env['HOME'] ?? '';
     // El perfil es de la carpeta: los repos del trabajo con la cuenta del
-    // trabajo, los personales con la personal. Si no se dice nada se respeta lo
-    // que traiga el entorno —lanzar desde una shell con el alias exportado
-    // sigue funcionando— y en último caso, el de fábrica.
+    // trabajo, los personales con la personal.
+    //
+    // 🔴 **Y sin perfil no se pone nada.** Aquí había un
+    // `env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude'` «en último caso, el de
+    // fábrica», y era exactamente lo contrario de lo que pretendía: nombrar el
+    // directorio por defecto **cambia de dónde lee las credenciales**.
+    //
+    // Claude Code guarda el token en el llavero, y el nombre de la entrada
+    // depende de si la variable está puesta —lo dice el comentario de
+    // `ClaudeProfilesDataSource.keychainService`: «el del directorio por defecto
+    // no lleva sufijo»—. Medido en esta máquina:
+    //
+    //     sin la variable   → «Claude Code-credentials»
+    //     con la variable   → «Claude Code-credentials-<sha256(ruta)[:8]>»
+    //
+    // Son dos almacenes distintos **aunque la ruta sea la misma**. Así que poner
+    // la variable convertía «usa la cuenta de siempre» en «usa un perfil con
+    // nombre que resulta apuntar al mismo sitio», y ese perfil no tiene la
+    // sesión que la persona inició en su terminal.
+    //
+    // Le pasó a la primera persona ajena que instaló Nexus: la app le decía
+    // «ninguna cuenta tiene sesión abierta» mientras `claude auth status --json`
+    // contestaba `loggedIn: true` en su terminal. Y aquí no se vio porque esta
+    // shell **exporta** `CLAUDE_CONFIG_DIR`, así que el `??=` nunca aplicaba el
+    // valor por defecto: el bug solo existía para quien no la exporta, o sea
+    // para todos menos para quien lo escribió.
+    //
+    // Lo que sigue en pie: si el entorno trae la variable, se respeta —lanzar
+    // desde una shell con el alias exportado sigue funcionando—. Lo que se quita
+    // es **inventarla** cuando nadie la ha puesto.
     if (configDir != null && configDir.isNotEmpty) {
       env['CLAUDE_CONFIG_DIR'] = configDir;
-    } else {
-      env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude';
     }
 
     return env;
