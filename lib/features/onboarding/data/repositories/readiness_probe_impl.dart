@@ -20,14 +20,25 @@ class ReadinessProbeImpl implements ReadinessProbe {
   Future<bool> cliInstalled() => _cli.installed();
 
   @override
-  Future<bool> anySession() async {
+  Future<bool?> anySession() async {
     // Primero la de por defecto, que es la que usa quien no ha separado cuentas.
-    if (await _cli.loggedIn(null)) return true;
+    final deSiempre = await _cli.sesion(null);
+    if (deSiempre == EstadoDeSesion.hay) return true;
 
     // Y si esa no, cualquiera con nombre. Solo se llega aquí cuando la de
     // fábrica no tiene sesión, así que el coste de listar se paga una vez y en
     // el único camino donde importa.
     final profiles = await _profiles.list();
-    return profiles.any((profile) => profile.signedIn);
+    if (profiles.any((profile) => profile.signedIn)) return true;
+
+    // 🔴 **Y aquí la diferencia que costó una instalación bloqueada.** Si a la
+    // cuenta de siempre no se le pudo preguntar, no se puede afirmar que no haya
+    // sesión en ninguna parte: puede que sí y que el CLI contestara raro. `null`
+    // significa «no se sabe» y la pantalla no bloquea con eso.
+    //
+    // Solo se dice «no hay» cuando el CLI **contestó** que no. Ese es el único
+    // caso en que mandar a iniciar sesión es un consejo correcto.
+    if (deSiempre == EstadoDeSesion.noSeSabe) return null;
+    return false;
   }
 }
