@@ -1,0 +1,50 @@
+t+9.9s · escuchando · candidatos: hestia, patricia, orión
+t+15.1s · «es» ← casi «hestia»
+t+15.3s · «tía»
+t+16.8s · «es» ← casi «hestia»
+t+17.3s · «tía»
+t+17.7s · «hestia» ← ACIERTA «hestia»
+t+18.3s · «es» ← casi «hestia»
+t+18.7s · «hestia» ← ACIERTA «hestia»
+t+19.5s · «sí»
+t+21.3s · «es» ← casi «hestia»
+t+21.9s · «hestia» ← ACIERTA «hestia»
+t+24.0s · «tía»
+t+24.0s · «patricia» ← ACIERTA «patricia»
+t+24.7s · «ori» ← casi «orión»
+t+24.9s · «orión» ← ACIERTA «orión»
+t+28.8s · «hestia» ← ACIERTA «hestia»
+t+29.1s · «patricia» ← ACIERTA «patricia»
+t+29.5s · «ori» ← casi «orión»
+t+29.7s · «orión» ← ACIERTA «orión»
+t+30.7s · «hestia» ← ACIERTA «hestia»
+t+30.9s · «patricia» ← ACIERTA «patricia»
+t+31.7s · «ori» ← casi «orión»
+t+31.7s · «orión» ← ACIERTA «orión»
+t+32.7s · «tía»
+t+32.9s · «patricia» ← ACIERTA «patricia»
+t+33.6s · «ori» ← casi «orión»
+t+33.9s · «orión» ← ACIERTA «orión»
+t+35.1s · «tía»
+t+35.5s · «patricia» ← ACIERTA «patricia»
+t+36.3s · «ori» ← casi «orión»
+t+36.3s · «orión» ← ACIERTA «orión»
+t+37.2s · «tía»
+t+37.5s · «patricia» ← ACIERTA «patricia»
+t+38.1s · «ori» ← casi «orión»
+t+38.4s · «orión» ← ACIERTA «orión»
+t+39.3s · «tía»
+t+39.9s · «patricia» ← ACIERTA «patricia»
+t+40.5s · «ori» ← casi «orión»
+t+40.5s · «orión» ← ACIERTA «orión»
+t+41.7s · «tía»
+t+41.7s · «hestia» ← ACIERTA «hestia»
+t+42.0s · «patricia» ← ACIERTA «patricia»
+t+42.7s · «ori» ← casi «orión»
+t+42.9s · «orión» ← ACIERTA «orión»
+t+44.4s · «orión» ← ACIERTA «orión»
+
+=== marcador ===
+  hestia     6 aciertos exactos
+  patricia   8 aciertos exactos
+  orión      9 aciertos exactos
