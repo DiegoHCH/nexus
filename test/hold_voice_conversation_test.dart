@@ -813,6 +813,72 @@ void main() {
   // mismo cuesta un minuto de espera y tokens, y devuelve lo que ya está en
   // memoria.
   group('la agenda se contesta de memoria', () {
+    /// 🔴 **Contestar de memoria no puede matar la sesión.**
+    ///
+    /// Se vio pidiendo la agenda por voz: dijo «consulto tu agenda, Argonauta»
+    /// y se quedó ahí. La lectura es instantánea y no pasa por `runErrand`, así
+    /// que ni `abortErrand` ni los eventos de Claude tocaban el reloj de
+    /// inactividad — **nada lo reiniciaba**. Y al modelo todavía le quedaba lo
+    /// que más tarda: generar la respuesta hablada, medido entre 5 y 11 s en
+    /// esta máquina. El plazo ganaba la carrera y la sesión se cerraba con la
+    /// respuesta a medio generar.
+    test('y contestarla reinicia el reloj, o la respuesta muere sin nacer', () {
+      fakeAsync((async) {
+        final session = _Session();
+        final registro = <String>[];
+        final agenda = _Agenda(
+          'Hoy tienes una reunión:\n- 10:00 · Refinamiento',
+        );
+        final conversation = _conversation(
+          session,
+          _Bridge(),
+          agenda: agenda,
+          log: registro.add,
+        );
+        conversation().listen((_) {});
+        async.flushMicrotasks();
+
+        // El servicio ya habló —anunció que iba a consultar— así que el plazo
+        // corto está en marcha desde este momento.
+        session.emit(const VoiceSessionReady());
+        session.emit(const VoiceReplyTranscript('consulto tu agenda'));
+        async.flushMicrotasks();
+
+        session.emit(
+          const VoiceToolRequested(
+            callId: 'c1',
+            name: ClaudeErrand.agendaTool,
+            arguments: <String, Object?>{},
+          ),
+        );
+        async.flushMicrotasks();
+
+        // Los 10 s que el modelo puede tardar en empezar a narrarla. El plazo
+        // corto son 6, así que aquí se ve la diferencia: con él la sesión ya
+        // está cerrada y no se oye nada.
+        async
+          ..elapse(const Duration(seconds: 10))
+          ..flushMicrotasks();
+
+        expect(agenda.seLaPidieron, 1);
+        expect(
+          registro.where((l) => l.contains('cierre por inactividad')),
+          isEmpty,
+          reason: 'se cerró mientras el modelo generaba la respuesta hablada',
+        );
+
+        // Y sigue siendo un plazo: si el modelo no narra nunca, la sesión no
+        // se queda abierta con el micrófono puesto.
+        async
+          ..elapse(const Duration(seconds: 15))
+          ..flushMicrotasks();
+        expect(
+          registro.where((l) => l.contains('cierre por inactividad')),
+          hasLength(1),
+        );
+      });
+    });
+
     test('preguntarla no manda ningún encargo a Claude', () async {
       final session = _Session();
       final bridge = _Bridge();

@@ -167,6 +167,21 @@ class HoldVoiceConversation {
     /// que decide si esto era una carrera perdida.
     int? heardAt;
 
+    /// Se acaba de mandar el resultado de una herramienta y el modelo todavía
+    /// no ha dicho nada sobre él.
+    ///
+    /// 🔴 **Es el mismo caso que abrir la sesión, no el de una pausa al
+    /// hablar.** Al modelo le toca generar una respuesta entera desde cero, y
+    /// eso tarda lo que tarda una primera señal: medido entre 5 y 11 s en esta
+    /// máquina. Los 6 s del plazo corto están calibrados para el silencio de
+    /// alguien que está pensando qué decir, que es otra cosa.
+    ///
+    /// Se vio pidiendo la agenda: dijo «consulto tu agenda, Argonauta» y se
+    /// quedó ahí. Reiniciar el reloj no arreglaba nada —cada evento del
+    /// servicio ya lo reinicia, y la petición de la herramienta es un evento—:
+    /// lo que hacía falta era **darle el plazo largo** mientras se espera.
+    var esperandoRespuesta = false;
+
     String reloj() {
       final ready = readyAt == null ? '—' : '${readyAt}ms';
       final heard = heardAt == null ? 'todavía nada' : '${heardAt}ms';
@@ -221,7 +236,9 @@ class HoldVoiceConversation {
       // —`silenceDurationMs: 1200`, sensibilidad baja— para no cortar frases
       // largas. No es que fuera lento: es que se le estaba dando menos tiempo
       // del que su propia configuración necesita.
-      final grace = heardAt == null ? _openingGrace : _idleTimeout;
+      final grace = heardAt == null || esperandoRespuesta
+          ? _openingGrace
+          : _idleTimeout;
       idleTimer?.cancel();
       idleTimer = Timer(grace, () async {
         // Con un encargo en marcha no se cierra, y punto. Reiniciar la cuenta
@@ -257,6 +274,36 @@ class HoldVoiceConversation {
       });
     }
 
+    /// Le devuelve al servicio el resultado de una herramienta **y reinicia el
+    /// reloj de inactividad**.
+    ///
+    /// 🔴 **Las dos cosas juntas, y por eso existe esta función.** Mandar un
+    /// resultado significa que ahora le toca al modelo lo que más tarda:
+    /// generar la respuesta hablada. Eso son los mismos segundos que la primera
+    /// señal de cualquier turno —medido entre 5 y 11 s en esta máquina— y en
+    /// ese rato no llega ni un evento, así que el plazo de inactividad corría
+    /// desde antes de la llamada y podía ganar la carrera.
+    ///
+    /// Pasó pidiendo la agenda por voz: dijo «consulto tu agenda, Argonauta» y
+    /// se quedó ahí. La agenda se contesta de memoria y no pasa por
+    /// `runErrand`, así que ni `abortErrand` ni los eventos de Claude tocaban
+    /// el reloj — nada lo reiniciaba. Los caminos con encargo tenían la misma
+    /// carrera, solo que menos visible porque el último evento de Claude cae
+    /// más cerca de la narración.
+    ///
+    /// Se resuelve aquí y no con un `keepAlive()` en cada sitio porque hay seis
+    /// y ya se habían olvidado en cuatro. Un invariante que hay que recordar en
+    /// seis puntos se rompe en el séptimo.
+    void responder({
+      required String callId,
+      required String name,
+      required String result,
+    }) {
+      session?.sendToolResult(callId: callId, name: name, result: result);
+      esperandoRespuesta = true;
+      keepAlive();
+    }
+
     /// Atiende un encargo del modelo: se lo pasa a Claude y le devuelve el
     /// resultado para que lo narre.
     ///
@@ -287,6 +334,9 @@ class HoldVoiceConversation {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por
           // inactividad justo mientras se trabaja para ella.
+          // Ya dijo algo sobre el resultado: a partir de aquí el silencio
+          // vuelve a ser silencio conversacional y manda el plazo corto.
+          if (event is! VoiceSessionReady) esperandoRespuesta = false;
           keepAlive();
           switch (event) {
             // Otra conversación tiene la carpeta ocupada. Hablando esto hay
@@ -455,7 +505,7 @@ class HoldVoiceConversation {
         controller.add(VoiceToolStarted('Pruebas: $pedido'));
         final dicho = await _correrUnaPrueba.loQuePidieron(pedido);
         controller.add(const VoiceToolFinished(ok: true));
-        session?.sendToolResult(
+        responder(
           callId: request.callId,
           name: request.name,
           result: loQueCabe(dicho, request.name),
@@ -474,7 +524,7 @@ class HoldVoiceConversation {
       // mantener vivo, hay una lectura de memoria.
       if (request.name == ClaudeErrand.agendaTool) {
         final agenda = await _laAgendaDeHoy.deHoy();
-        session?.sendToolResult(
+        responder(
           callId: request.callId,
           name: request.name,
           // Sin agenda que mirar —avisos apagados, sin carpeta— se dice tal
@@ -487,7 +537,7 @@ class HoldVoiceConversation {
       if (request.name == ClaudeErrand.parteTool) {
         final delDia = await _elParteDelDia.instruccion();
         if (delDia == null) {
-          session?.sendToolResult(
+          responder(
             callId: request.callId,
             name: request.name,
             result:
@@ -503,7 +553,7 @@ class HoldVoiceConversation {
         // narración, y el parte tiene que estar ya puesto —con su botón— para
         // cuando quien escucha mire la pantalla.
         _elParteDelDia.yaEstaEscrito(parte);
-        session?.sendToolResult(
+        responder(
           callId: request.callId,
           name: request.name,
           result: loQueCabe(parte, request.name),
@@ -516,7 +566,7 @@ class HoldVoiceConversation {
       // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
       // y la conversación muda para siempre.
       if (instruction == null || instruction.isEmpty) {
-        session?.sendToolResult(
+        responder(
           callId: request.callId,
           name: request.name,
           result:
@@ -527,7 +577,7 @@ class HoldVoiceConversation {
 
       final answer = await runErrand(instruction, _headline(request));
       if (answer == null) return;
-      session?.sendToolResult(
+      responder(
         callId: request.callId,
         name: request.name,
         result: loQueCabe(answer, request.name),
