@@ -175,6 +175,15 @@ class NexusOrbPainter extends CustomPainter {
   /// la casa empieza a cortarlo por arriba y por abajo.
   static const _envolvente = 1.55;
 
+  /// El círculo que de verdad se pinta dentro de [caja] con [fillsBox].
+  ///
+  /// Vive aquí porque el radio se decide aquí, y hay dos sitios más que
+  /// necesitan saberlo: el muelle, para decidir si le estorba al orbe, y la
+  /// prueba que lo comprueba. Con la fórmula copiada en cada uno, cambiar
+  /// [_envolvente] dejaría a los tres en desacuerdo sin que nada se quejara.
+  static Rect envolventeEn(Rect caja) =>
+      Rect.fromCircle(center: caja.center, radius: caja.shortestSide / 2);
+
   double _dot(_StateConfig cfg) =>
       (onLight ? cfg.dot * _refuerzoPuntos : cfg.dot).clamp(0.0, 1.0);
   double _edge(_StateConfig cfg) =>

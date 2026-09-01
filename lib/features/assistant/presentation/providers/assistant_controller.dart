@@ -1569,6 +1569,18 @@ class AssistantController extends Notifier<AssistantHudState> {
   void _onToolStarted(String instruction) {
     _heard.clear();
     _reply.clear();
+    // 🔴 **La misma marca que toma `submit`, y aquí faltaba.**
+    //
+    // Este es el arranque de un encargo hablado, el gemelo de `submit`, y
+    // `_afterErrand` —que corre por los dos caminos— compara contra lo marcado
+    // aquí. Sin esta línea, hablando la lista de partida se quedaba vacía para
+    // siempre: `_mirarSiHayDocumento` restaba contra el conjunto vacío, así que
+    // **todos** los documentos de la carpeta contaban como recién salidos y
+    // cada turno se colgaba uno cualquiera. Se vio en pantalla con un resumen
+    // viejo pegado a dos respuestas que no tenían nada que ver, y de nuevo con
+    // el mismo patrón: se arregló la mitad de después para la voz y la de antes
+    // se quedó en el camino de escribir.
+    unawaited(_markRepo());
     state = state.copyWith(
       orbState: NexusOrbState.think,
       subtitle: instruction,
