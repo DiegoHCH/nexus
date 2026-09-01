@@ -16,6 +16,7 @@ import 'package:nexus/features/assistant/presentation/providers/voice_preference
 import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
   (ref) => const GeminiLiveDataSource(),
@@ -31,6 +32,8 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
     keyStore.read,
     () => ref.read(voicePreferenceProvider).name,
     () => ref.read(stringsProvider).languageName,
+    () => ref.read(losNombresProvider).paraElPrompt(),
+    () => ref.read(losNombresProvider).agente,
   );
 });
 
