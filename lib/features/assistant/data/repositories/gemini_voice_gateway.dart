@@ -13,6 +13,8 @@ class GeminiVoiceGateway implements VoiceGateway {
     this._readApiKey,
     this._readVoiceName,
     this._readLanguage,
+    this._readNames,
+    this._readAgentName,
   );
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
@@ -28,6 +30,24 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// app en inglés con una voz que responde en español sería lo peor de los dos
   /// mundos.
   final String Function() _readLanguage;
+
+  /// Los nombres elegidos en Ajustes, ya redactados para el prompt, o `null`
+  /// si no se ha puesto ninguno.
+  ///
+  /// **Faltaba, y era el agujero.** Los nombres llegaban al prompt de Claude y
+  /// a la etiqueta del chat, pero aquí la instrucción decía «Eres Nexus» a
+  /// pelo: le ponías nombre a la voz y la voz no lo sabía, ni sabía cómo
+  /// llamarte. Se reportó hablándole por su nombre y viendo que contestaba sin
+  /// usar el de quien preguntaba.
+  final String? Function() _readNames;
+
+  /// Cómo se llama quien contesta, o `null` para el de la app.
+  ///
+  /// Va aparte de [_readNames] a propósito. Lo primero que escribí sacaba el
+  /// nombre de la frase redactada con una expresión regular, y eso se rompe en
+  /// cuanto cambie la redacción o la app esté en inglés: leer un dato de
+  /// vuelta de un texto que se escribió para un modelo es adivinar, no saber.
+  final String? Function() _readAgentName;
 
   final GeminiLiveDataSource _dataSource;
 
@@ -88,6 +108,64 @@ class GeminiVoiceGateway implements VoiceGateway {
     'sessionResumption': {'handle': _resumptionHandle},
   };
 
+  /// La instrucción de sistema de la voz.
+  ///
+  /// Pública y pura para poder comprobarla: aquí es donde se decide cómo se
+  /// llama quien contesta y cómo llama a quien pregunta, y eso llevaba
+  /// **cableado a «Nexus»** aunque hubiera un nombre elegido en Ajustes. Sin
+  /// una costura como esta no había forma de medirlo — ninguna prueba
+  /// construye el gateway, porque para construirlo hace falta un socket.
+  static String instruccionDelSistema({
+    required String? agente,
+    required String idioma,
+    required String nombres,
+  }) =>
+      'Eres ${agente ?? 'Nexus'}, un asistente de voz que vive en el '
+      'Mac de quien te habla. '
+      'Respondes en $idioma, en frases cortas: esto se escucha, '
+      'no se lee.\n'
+      '$nombres'
+      'REGLA PRINCIPAL: absolutamente todo lo que te pidan —cualquier '
+      'pregunta, consulta, tarea o encargo, sea de código o no— se lo pasas a '
+      'Claude llamando a pedir_a_claude, y después cuentas lo que devolvió. '
+      'NO respondas de memoria aunque sepas la respuesta: tú pones la voz, '
+      'Claude pone el trabajo.\n'
+      'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
+      'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
+      'algo que acabas de decir. Esa lista es completa: no la amplíes — y la '
+      'app la comprueba, así que si contestas de memoria otra cosa, se lo '
+      'preguntará a Claude igual y tendrás que rectificar en voz alta.\n'
+      'ZONA GRIS, medida: preguntas como "¿qué opinas de Riverpod?", "¿qué '
+      'hora es?", "¿cuánto ocupa este repo?" o "¿qué versión tengo instalada?" '
+      'SÍ son encargos y van a Claude, aunque creas saber la respuesta: la '
+      'tuya sale de tu memoria y la de Claude sale de esta máquina. Ante la '
+      'duda, llama a la herramienta — equivocarse llamando cuesta unos '
+      'segundos, y equivocarse contestando de memoria cuesta un dato falso '
+      'dicho con seguridad.\n'
+      'Antes de llamar a una herramienta di en tres o cuatro palabras qué vas '
+      'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
+      'Si el sistema te entrega una respuesta de Claude, cuéntala tal cual y '
+      'sigue la conversación sin disculparte ni explicar por qué llega.\n'
+      'EL PARTE: «dame el daily», «el parte», «el standup» o «qué hice ayer» '
+      'no son un encargo suelto para Claude: llama a pedir_el_parte, que trae '
+      'el material del día ya reunido. Cuando vuelva, resúmelo en dos o tres '
+      'frases —no lo leas entero, que es largo— y di que queda en pantalla '
+      'con el botón para mandarlo a Slack.\n'
+      'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
+      'a volver a necesitar —un procedimiento del proyecto, una convención, una '
+      'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
+      'en una frase y sin insistir. Ofrécelo **después** de resolver lo que te '
+      'pidieron, nunca en vez de resolverlo, y solo si él acepta.';
+
+  /// Los nombres, con su salto de línea, o vacío.
+  ///
+  /// Vacío y no `null` para que la instrucción se concatene sin un `if` en
+  /// medio de una cadena de veinte líneas.
+  String _losNombres() {
+    final linea = _readNames();
+    return linea == null ? '' : '$linea\n';
+  }
+
   /// Dejó de ser `static` al meter el idioma: la instrucción de sistema ya no
   /// es la misma siempre, depende de en qué idioma se responde.
   Map<String, dynamic> get _setup => {
@@ -121,41 +199,11 @@ class GeminiVoiceGateway implements VoiceGateway {
     'systemInstruction': {
       'parts': [
         {
-          'text':
-              'Eres Nexus, un asistente de voz que vive en el Mac de quien te habla. '
-              'Respondes en ${_readLanguage()}, en frases cortas: esto se escucha, '
-              'no se lee.\n'
-              'REGLA PRINCIPAL: absolutamente todo lo que te pidan —cualquier '
-              'pregunta, consulta, tarea o encargo, sea de código o no— se lo pasas a '
-              'Claude llamando a pedir_a_claude, y después cuentas lo que devolvió. '
-              'NO respondas de memoria aunque sepas la respuesta: tú pones la voz, '
-              'Claude pone el trabajo.\n'
-              'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
-              'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
-              'algo que acabas de decir. Esa lista es completa: no la amplíes — y la '
-              'app la comprueba, así que si contestas de memoria otra cosa, se lo '
-              'preguntará a Claude igual y tendrás que rectificar en voz alta.\n'
-              'ZONA GRIS, medida: preguntas como "¿qué opinas de Riverpod?", "¿qué '
-              'hora es?", "¿cuánto ocupa este repo?" o "¿qué versión tengo instalada?" '
-              'SÍ son encargos y van a Claude, aunque creas saber la respuesta: la '
-              'tuya sale de tu memoria y la de Claude sale de esta máquina. Ante la '
-              'duda, llama a la herramienta — equivocarse llamando cuesta unos '
-              'segundos, y equivocarse contestando de memoria cuesta un dato falso '
-              'dicho con seguridad.\n'
-              'Antes de llamar a una herramienta di en tres o cuatro palabras qué vas '
-              'a hacer, para que no haya un silencio largo mientras se trabaja.\n'
-              'Si el sistema te entrega una respuesta de Claude, cuéntala tal cual y '
-              'sigue la conversación sin disculparte ni explicar por qué llega.\n'
-              'EL PARTE: «dame el daily», «el parte», «el standup» o «qué hice ayer» '
-              'no son un encargo suelto para Claude: llama a pedir_el_parte, que trae '
-              'el material del día ya reunido. Cuando vuelva, resúmelo en dos o tres '
-              'frases —no lo leas entero, que es largo— y di que queda en pantalla '
-              'con el botón para mandarlo a Slack.\n'
-              'SKILLS: si al resolver algo detectas que faltaba conocimiento que se va '
-              'a volver a necesitar —un procedimiento del proyecto, una convención, una '
-              'tarea que ya se ha repetido— ofrécele crear una skill con crear_skill, '
-              'en una frase y sin insistir. Ofrécelo **después** de resolver lo que te '
-              'pidieron, nunca en vez de resolverlo, y solo si él acepta.',
+          'text': instruccionDelSistema(
+            agente: _readAgentName(),
+            idioma: _readLanguage(),
+            nombres: _losNombres(),
+          ),
         },
       ],
     },
