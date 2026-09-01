@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -324,7 +325,14 @@ class _BotonDeEscuchaState extends ConsumerState<_BotonDeEscucha> {
 
     setState(() => _pidiendo = true);
     try {
-      final llave = await ref.read(geminiKeyStoreProvider).read();
+      // El llavero también se acota. Sin esto, la espera total era la lectura
+      // del llavero **más** los 45 s de la síntesis, y el mensaje de fallo
+      // decía «45s»: se reportó contando más que eso, y con razón. Cinco
+      // segundos son de sobra para leer una clave ya desbloqueada.
+      final llave = await ref
+          .read(geminiKeyStoreProvider)
+          .read()
+          .timeout(const Duration(seconds: 5));
       if (llave == null || llave.isEmpty) {
         // Sin llave no hay voz, y decirlo aquí ahorra el viaje: la fila de la
         // llave está en esta misma pantalla, justo debajo.
@@ -337,6 +345,16 @@ class _BotonDeEscuchaState extends ConsumerState<_BotonDeEscucha> {
         // lo único que responde a la pregunta que se está haciendo.
         frase: frase,
         voz: voz,
+        // 🔴 **Menos que el aviso de agenda, a propósito.**
+        //
+        // Los 45 s de allí están calibrados para algo que nadie mira: una
+        // frase que llega tarde sigue siendo un aviso. Aquí hay una persona
+        // delante mirando un giro, y para ella 45 s no son «paciencia», son
+        // «esto no funciona». Lo normal medido son 3,9 s, así que quince dan
+        // margen de sobra y fallan pronto cuando el servicio está en problemas
+        // —que hoy lo está: cuatro caídas por tope ayer y un bloqueo por
+        // política esta tarde.
+        timeout: const Duration(seconds: 15),
       );
       // 🔴 **`decir` no lanza: devuelve el problema.** Así es como llegó el
       // «Request blocked for an unspecified policy reason» que bloqueó un aviso
