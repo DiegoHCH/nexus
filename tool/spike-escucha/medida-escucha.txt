@@ -1,0 +1,67 @@
+t+3.4s · reconocedor es-MX listo · onDevice sí · buscando «nexus»
+t+5.7s · micrófono abierto a 48000 Hz
+t+9.6s · oye: «Ne»
+t+9.6s · oye: «Nex»
+t+9.7s · oye: «Nexus»
+t+9.7s · ¡ACIERTO nº 1! en «Nexus»
+t+9.9s · oye: «Nexus Nex»
+t+9.9s · ¡ACIERTO nº 2! en «Nexus Nex»
+t+10.2s · oye: «Nexus nexus»
+t+10.2s · ¡ACIERTO nº 3! en «Nexus nexus»
+t+10.5s · oye: «Nexus nexus ne»
+t+10.5s · ¡ACIERTO nº 4! en «Nexus nexus ne»
+t+10.6s · oye: «Nexus nexus Nex»
+t+10.6s · ¡ACIERTO nº 5! en «Nexus nexus Nex»
+t+10.7s · oye: «Nexus nexus nexus»
+t+10.7s · ¡ACIERTO nº 6! en «Nexus nexus nexus»
+t+10.7s · oye: «Nexus nexus nexus ne»
+t+10.7s · ¡ACIERTO nº 7! en «Nexus nexus nexus ne»
+t+10.9s · oye: «Nexus nexus nexus Nex»
+t+10.9s · ¡ACIERTO nº 8! en «Nexus nexus nexus Nex»
+t+10.9s · oye: «Nexus nexus nexus nexus»
+t+10.9s · ¡ACIERTO nº 9! en «Nexus nexus nexus nexus»
+t+11.1s · oye: «Nexus nexus nexus nexus ne»
+t+11.1s · ¡ACIERTO nº 10! en «Nexus nexus nexus nexus ne»
+t+11.1s · oye: «Nexus nexus nexus nexus Nex»
+t+11.1s · ¡ACIERTO nº 11! en «Nexus nexus nexus nexus Nex»
+t+11.4s · oye: «Nexus nexus nexus nexus nexus»
+t+11.4s · ¡ACIERTO nº 12! en «Nexus nexus nexus nexus nexus»
+t+11.7s · oye: «Nexus nexus nexus nexus nexus ne»
+t+11.7s · ¡ACIERTO nº 13! en «Nexus nexus nexus nexus nexus ne»
+t+11.9s · oye: «Nexos nexos nexos nexos nexos ne»
+t+11.9s · oye: «Nexos nexos nexos nexos nexos nexos»
+t+12.1s · oye: «Nexos nexos nexos nexos nexos nexos ne»
+t+12.3s · oye: «Nexos nexos nexos nexos nexos nexos nexos»
+t+12.6s · oye: «Nexos nexos nexos nexos nexos nexos nexos ne»
+t+12.9s · oye: «Nexos nexos nexos nexos nexos nexos nexos nexos»
+t+14.8s · oye: «XOX»
+t+18.9s · oye: «Net»
+t+19.0s · oye: «Nachos»
+t+20.8s · oye: «Nachos Nex»
+t+21.1s · oye: «Nachos nexus»
+t+21.1s · ¡ACIERTO nº 14! en «Nachos nexus»
+t+22.8s · oye: «Nachos nexus hechos»
+t+22.8s · ¡ACIERTO nº 15! en «Nachos nexus hechos»
+t+22.9s · oye: «Hechos hechos hechos»
+t+23.0s · oye: «Hechos hechos hechos cómo»
+t+23.5s · oye: «Hechos hechos hechos cómo estás»
+t+23.5s · oye: «Nachos nexus nexus cómo estás»
+t+23.5s · ¡ACIERTO nº 16! en «Nachos nexus nexus cómo estás»
+t+25.1s · oye: «Nachos oye nexus estos cómo estás»
+t+25.1s · ¡ACIERTO nº 17! en «Nachos oye nexus estos cómo estás»
+t+26.1s · oye: «Hola»
+t+26.5s · oye: «Hola Nex»
+t+26.5s · oye: «Hola nexus»
+t+26.5s · ¡ACIERTO nº 18! en «Hola nexus»
+t+28.5s · ¡ACIERTO nº 19! en «Hola nexus»
+t+30.3s · oye: «Qué»
+t+30.6s · oye: «Qué hay»
+t+30.9s · oye: «Qué hay de»
+t+30.9s · oye: «Qué hay de nuevo»
+t+31.1s · oye: «Qué hay de nuevo ne»
+t+31.3s · oye: «Qué hay de nuevo Nex»
+t+31.3s · oye: «Qué hay de nuevo nexos»
+=== resumen ===
+duración de la prueba: 60 s
+veces que el reconocedor cortó la sesión: 0
+veces que oyó la palabra: 19
