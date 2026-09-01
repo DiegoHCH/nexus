@@ -87,14 +87,83 @@ abstract final class HerramientaExterna {
   /// ese directorio editando el perfil de la shell, que una app de escritorio no
   /// lee. Los dos prefijos de Homebrew detrás, y el `local/` que usa la
   /// instalación gestionada por el propio Claude Code.
+  /// Con qué se invoca al shell del usuario para que declare su entorno.
+  ///
+  /// 🔴 **La `-i` no es decorativa, y van sueltas y no pegadas.**
+  ///
+  /// `-l` es login pero no interactivo, y zsh solo lee `.zshrc` en shells
+  /// interactivos — que es justo donde se configuran fnm, nvm y volta. Sin la
+  /// `-i`, este rescate era ciego para los tres gestores de Node que usa
+  /// cualquier dev de front: Claude instalado con npm quedaba invisible y la app
+  /// decía «no está instalado» a alguien que lo tenía funcionando en su terminal.
+  /// Medido con un ZDOTDIR de prueba.
+  ///
+  /// Y sueltas porque **aquí no todo el mundo usa zsh**. Combinar cortas en un
+  /// `-lic` es una costumbre de bash y zsh, no una garantía: pasarlas una a una
+  /// es lo que entienden los tres por igual.
+  static const banderasDelShell = ['-l', '-i', '-c'];
+
+  /// Las carpetas que el shell declaró, en el formato que [BinarioEnElPath]
+  /// espera.
+  ///
+  /// 🔴 **fish imprime el PATH separado por espacios**, no por dos puntos: para
+  /// él es una lista y no una cadena. Se parte por los dos separadores, que
+  /// además no colisionan — una ruta con espacios dentro es lo bastante rara
+  /// como para no pagar por ella el no funcionar en fish.
+  static String carpetasDelPath(String salida) => [
+    for (final trozo in salida.trim().split(RegExp(r'[:\s]+')))
+      if (trozo.isNotEmpty) trozo,
+  ].join(':');
+
   static List<String> candidatosDeClaude(String home) => [
     if (home.isNotEmpty) ...[
       '$home/.local/bin/claude',
       '$home/.claude/local/claude',
+      // **Volta**, que sí tiene un sitio fijo: sus shims no dependen de la
+      // versión de Node activa, así que basta con nombrarlo.
+      '$home/.volta/bin/claude',
     ],
     '/opt/homebrew/bin/claude',
     '/usr/local/bin/claude',
+    // **fnm y nvm** no caben en una lista fija: guardan los binarios *dentro de
+    // cada versión de Node*, así que la ruta lleva un número que cambia al
+    // actualizar. Se buscan aparte, mirando qué versiones hay. Ver
+    // [enLosGestoresDeNode].
   ];
+
+  /// Donde fnm y nvm dejan lo que se instaló con npm.
+  ///
+  /// 🔴 **Esto existe porque el squad es de front.** Node con un gestor de
+  /// versiones no es un caso raro ahí, es lo normal, y `claude` instalado con
+  /// npm acaba dentro de la versión que estuviera activa — nunca en un sitio
+  /// fijo. La ruta que devuelve fnm en el PATH ni siquiera sirve para guardarla:
+  /// `fnm_multishells/<pid>_<hora>/` la crea por cada terminal y desaparece al
+  /// cerrarla. Lo estable es la carpeta de la versión, y es la que se busca.
+  ///
+  /// Se ordenan al revés para que gane la versión más nueva cuando hay varias,
+  /// que es la que el usuario tiene activa casi siempre.
+  static List<String> enLosGestoresDeNode(String home, String nombre) {
+    if (home.isEmpty) return const [];
+    final rutas = <String>[];
+    for (final raiz in [
+      Directory('$home/.local/share/fnm/node-versions'),
+      Directory('$home/Library/Application Support/fnm/node-versions'),
+      Directory('$home/.nvm/versions/node'),
+    ]) {
+      if (!raiz.existsSync()) continue;
+      final versiones = [
+        for (final v in raiz.listSync())
+          if (v is Directory) v.path,
+      ]..sort();
+      for (final version in versiones.reversed) {
+        // fnm mete otro nivel —`installation/`— y nvm no.
+        rutas
+          ..add('$version/installation/bin/$nombre')
+          ..add('$version/bin/$nombre');
+      }
+    }
+    return rutas;
+  }
 
   /// git viene con las herramientas de línea de comandos de Xcode y siempre está
   /// en el mismo sitio. Se listan igual por si alguien usa el de Homebrew, que es
@@ -184,21 +253,38 @@ abstract final class HerramientaExterna {
   static void olvidar() => _resueltas.clear();
 
   /// El `claude` de esta máquina, por ruta absoluta.
-  static Future<String> rutaDeClaude() => ruta(
-    'claude',
-    candidatos: candidatosDeClaude(Platform.environment['HOME'] ?? ''),
-  );
+  static Future<String> rutaDeClaude() {
+    final home = Platform.environment['HOME'] ?? '';
+    return ruta(
+      'claude',
+      candidatos: [
+        ...candidatosDeClaude(home),
+        ...enLosGestoresDeNode(home, 'claude'),
+      ],
+    );
+  }
 
   /// El `git` de esta máquina, por ruta absoluta.
   static Future<String> rutaDeGit() =>
       ruta('git', candidatos: candidatosDeGit());
 
-  /// `zsh -lc 'command -v flutter'`.
+  /// `$SHELL -l -i -c 'echo $PATH'`, y luego se resuelve aquí.
   ///
-  /// `-l` es la parte que importa: sin él no se leen los archivos de perfil, que
-  /// es justo donde vive el PATH que esta función viene a rescatar. Y se acepta
-  /// el `SHELL` del usuario porque quien usa fish o bash tiene su PATH en otro
-  /// archivo.
+  /// 🔴 **Este comentario decía otra cosa, y la diferencia costó una instalación
+  /// fallida.** Decía «`zsh -lc 'command -v flutter'`» y que «`-l` es la parte
+  /// que importa». Las dos mitades estaban mal:
+  ///
+  /// `-l` no basta. Es login pero **no interactivo**, y zsh solo lee `.zshrc` en
+  /// shells interactivos — que es donde se configuran fnm, nvm y volta. Sin la
+  /// `-i` esto era ciego para los tres gestores de Node.
+  ///
+  /// Y pedir `command -v` obliga a acertar con el builtin de cada shell. El
+  /// comentario ya avisaba de que «quien usa fish o bash tiene su PATH en otro
+  /// archivo» — se acordó del `SHELL` y no de que fish tampoco entiende las
+  /// mismas opciones. Ahora se le pide **el PATH**, que es de las pocas cosas
+  /// que los tres hacen igual, y la ruta la resuelve [BinarioEnElPath].
+  ///
+  /// Ver [banderasDelShell] y [carpetasDelPath].
   static Future<String?> _alShellDeLogin(String nombre) async {
     // El nombre lo pone esta clase, no el usuario, pero se comprueba igual: va a
     // una línea de comandos y un día alguien lo llamará con algo de fuera.
@@ -206,15 +292,24 @@ abstract final class HerramientaExterna {
 
     final shell = Platform.environment['SHELL'] ?? '/bin/zsh';
     try {
+      // 🔴 **Se le pide el PATH, no que resuelva él.** Antes se le mandaba un
+      // `command -v`, y eso obliga a acertar con el builtin de cada shell: fish
+      // no acepta las mismas opciones que zsh en `command`, así que en su
+      // máquina la pregunta fallaba sin decir por qué. Imprimir una variable es
+      // de las pocas cosas que los tres hacen igual — y resolver la ruta ya lo
+      // sabe hacer [BinarioEnElPath], que está probado.
       final resultado = await Process.run(
         shell,
-        ['-lc', 'command -v $nombre'],
+        [...banderasDelShell, 'echo \$PATH'],
         environment: ClaudeEnvironment.forTools(),
         includeParentEnvironment: false,
       );
       if (resultado.exitCode != 0) return null;
-      final ruta = '${resultado.stdout}'.trim().split('\n').first.trim();
-      return ruta.isNotEmpty && File(ruta).existsSync() ? ruta : null;
+      return BinarioEnElPath.resolver(
+        nombre,
+        path: carpetasDelPath('${resultado.stdout}'),
+        existe: (ruta) => File(ruta).existsSync(),
+      );
     } on ProcessException {
       return null;
     }
