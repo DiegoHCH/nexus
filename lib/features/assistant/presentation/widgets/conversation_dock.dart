@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
 import 'package:nexus/features/assistant/presentation/orb/nexus_orb.dart';
+import 'package:nexus/features/assistant/presentation/orb/nexus_orb_painter.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
@@ -39,14 +40,66 @@ class ConversationDock extends ConsumerWidget {
   /// medirse porque el muelle es una rejilla de fichas de tamaño fijo: manda
   /// la columna más alta, y nunca pasa de [Conversations.porColumna] filas.
   static double espacioReservado(Conversations conversaciones) {
-    final piezas =
-        conversaciones.items.length + (conversaciones.isFull ? 0 : 1);
-    final filas = piezas < Conversations.porColumna
-        ? piezas
+    final filas = _piezas(conversaciones) < Conversations.porColumna
+        ? _piezas(conversaciones)
         : Conversations.porColumna;
     // El `+ s2` es la separación entre fichas, que cada una lleva debajo.
     // Sobra ese hueco en la última: mejor un pelo de aire de más que un cruce.
     return alDelSuelo + filas * (tabHeight + NexusSpacing.s2) + NexusSpacing.s5;
+  }
+
+  /// Las fichas que se pintan: las conversaciones más el hueco de «NUEVA»,
+  /// que ocupa sitio como una más y por eso cuenta.
+  static int _piezas(Conversations conversaciones) =>
+      conversaciones.items.length + (conversaciones.isFull ? 0 : 1);
+
+  /// Lo que ocupa el muelle **a lo ancho**.
+  ///
+  /// No es siempre [tabWidth]: en cuanto pasa de [Conversations.porColumna] se
+  /// parte en columnas puestas al lado, y con dos ya llega al doble. Darlo por
+  /// una sola columna dejaba a [franjaQueEstorba] midiendo contra un muelle más
+  /// estrecho que el de verdad, y diciendo que no había cruce donde sí lo hay.
+  static double anchoOcupado(Conversations conversaciones) {
+    final columnas = (_piezas(conversaciones) / Conversations.porColumna)
+        .ceil();
+    return columnas * tabWidth + (columnas - 1) * NexusSpacing.s3;
+  }
+
+  /// Lo que hay que apartarle al muelle **de la caja del orbe**: la franja si
+  /// de verdad se cruzan, y cero si restarla solo encogería el orbe.
+  ///
+  /// [espacioReservado] dice cuánto ocupa el muelle; esto dice si le estorba a
+  /// alguien. Se separan porque la respuesta no es la misma: el muelle ocupa su
+  /// sitio siempre, pero el orbe solo tiene que cederlo cuando de verdad se
+  /// pisan.
+  ///
+  /// **Restarla siempre daba por hecho el cruce, y en la pantalla de arranque
+  /// no lo hay.** Ahí la caja del orbe es la ventana entera, y el orbe llena su
+  /// lado corto —el alto—, así que su borde izquierdo se queda a
+  /// `(ancho − alto) / 2` del margen: en una ventana apaisada eso son cientos
+  /// de píxeles, muy por delante de los [tabWidth] del muelle. La franja no
+  /// evitaba ningún cruce, solo le quitaba tamaño al único sujeto de esa
+  /// pantalla — y crecía con cada conversación abierta, así que el orbe se
+  /// encogía por abrir conversaciones que nunca lo tocaron.
+  ///
+  /// [cajaDelOrbe] es el sitio que tendría el orbe **sin** restar nada: es el
+  /// tamaño que se defiende, y la pregunta es si a ese tamaño hay cruce.
+  static double franjaQueEstorba(
+    Size cajaDelOrbe,
+    Conversations conversaciones,
+  ) {
+    final banda = espacioReservado(conversaciones);
+    // Lo que se compara es **el orbe pintado**, no su caja: la caja puede
+    // solapar el muelle de sobra sin que el círculo lo roce, y dar la caja por
+    // buena medida es exactamente lo que lo encogía.
+    final orbe = NexusOrbPainter.envolventeEn(Offset.zero & cajaDelOrbe);
+    final muelle = Rect.fromLTWH(
+      0,
+      cajaDelOrbe.height - banda,
+      anchoOcupado(conversaciones),
+      banda,
+    );
+    return orbe.overlaps(muelle) ? banda : 0;
   }
 
   @override
@@ -93,6 +146,14 @@ class ConversationDock extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
+              // **La separación la pone la columna, no cada pieza.** La ponía
+              // cada ficha con un `Padding` de abajo, y `_OpenAnother` no lo
+              // llevaba: con las columnas alineadas por abajo
+              // (`CrossAxisAlignment.end`), la que acaba en «NUEVA» medía esos
+              // 8 px menos y se hundía enteros — dos columnas de fichas del
+              // mismo alto, desalineadas entre sí. Con un solo dueño no hay
+              // pieza que pueda olvidarse de su hueco.
+              spacing: NexusSpacing.s2,
               children: piezas
                   .skip(desde)
                   .take(Conversations.porColumna)
@@ -137,97 +198,94 @@ class _DockOrbState extends ConsumerState<_DockOrb> {
     final name = conversation.folderPath.split('/').last;
     final working = hud.orbState == NexusOrbState.think;
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
-      child: SizedBox(
-        width: ConversationDock.tabWidth,
-        height: ConversationDock.tabHeight,
-        child: MouseRegion(
-          onEnter: (_) => setState(() => _hovering = true),
-          onExit: (_) => setState(() => _hovering = false),
-          child: Tooltip(
-            message: conversation.folderPath.replaceFirst(home, '~'),
-            child: InkWell(
-              onTap: widget.onTap,
-              child: Container(
-                padding: const EdgeInsets.only(right: NexusSpacing.s3),
-                decoration: BoxDecoration(
-                  // La actual se marca con fondo y filo cian; las demás solo se
-                  // insinúan al pasar por encima. Es el mismo recurso que el
-                  // interruptor de permisos usa para decir cuál está puesta.
+    return SizedBox(
+      width: ConversationDock.tabWidth,
+      height: ConversationDock.tabHeight,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovering = true),
+        onExit: (_) => setState(() => _hovering = false),
+        child: Tooltip(
+          message: conversation.folderPath.replaceFirst(home, '~'),
+          child: InkWell(
+            onTap: widget.onTap,
+            child: Container(
+              padding: const EdgeInsets.only(right: NexusSpacing.s3),
+              decoration: BoxDecoration(
+                // La actual se marca con fondo y filo cian; las demás solo se
+                // insinúan al pasar por encima. Es el mismo recurso que el
+                // interruptor de permisos usa para decir cuál está puesta.
+                color: widget.isFocused
+                    ? colors.accent.withValues(alpha: 0.07)
+                    : null,
+                border: Border.all(
                   color: widget.isFocused
-                      ? colors.accent.withValues(alpha: 0.07)
-                      : null,
-                  border: Border.all(
-                    color: widget.isFocused
-                        ? colors.accent.withValues(alpha: 0.45)
-                        : (_hovering ? colors.rule2 : Colors.transparent),
-                  ),
-                  borderRadius: BorderRadius.circular(NexusRadius.sm),
+                      ? colors.accent.withValues(alpha: 0.45)
+                      : (_hovering ? colors.rule2 : Colors.transparent),
                 ),
-                // En línea, no apilado: el nombre al lado del orbe. Apilados
-                // ocupaban el alto de dos elementos por conversación y con tres
-                // abiertas la esquina se convertía en una torre.
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    SizedBox(
-                      width: 46,
-                      height: 46,
-                      child: Stack(
-                        children: [
-                          // Sin horizonte: a este tamaño la línea no se lee y solo
-                          // ensucia. El movimiento del orbe ya distingue el estado.
-                          Positioned.fill(
-                            child: NexusOrb(
-                              state: hud.orbState,
-                              showHorizon: false,
-                            ),
+                borderRadius: BorderRadius.circular(NexusRadius.sm),
+              ),
+              // En línea, no apilado: el nombre al lado del orbe. Apilados
+              // ocupaban el alto de dos elementos por conversación y con tres
+              // abiertas la esquina se convertía en una torre.
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  SizedBox(
+                    width: 46,
+                    height: 46,
+                    child: Stack(
+                      children: [
+                        // Sin horizonte: a este tamaño la línea no se lee y solo
+                        // ensucia. El movimiento del orbe ya distingue el estado.
+                        Positioned.fill(
+                          child: NexusOrb(
+                            state: hud.orbState,
+                            showHorizon: false,
                           ),
-                          // Cerrar tiene que verse. Estaba en el clic derecho, y un
-                          // gesto que nadie descubre equivale a no poder cerrarla:
-                          // las conversaciones parecían aparecidas de la nada y
-                          // fijas para siempre.
-                          if (_hovering)
-                            Positioned(
-                              top: 0,
-                              right: 0,
-                              child: InkWell(
-                                onTap: widget.onClose,
-                                child: Container(
-                                  padding: const EdgeInsets.all(2),
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: colors.void_,
-                                    border: Border.all(color: colors.rule2),
-                                  ),
-                                  child: Icon(
-                                    Icons.close,
-                                    size: 10,
-                                    color: colors.faint,
-                                  ),
+                        ),
+                        // Cerrar tiene que verse. Estaba en el clic derecho, y un
+                        // gesto que nadie descubre equivale a no poder cerrarla:
+                        // las conversaciones parecían aparecidas de la nada y
+                        // fijas para siempre.
+                        if (_hovering)
+                          Positioned(
+                            top: 0,
+                            right: 0,
+                            child: InkWell(
+                              onTap: widget.onClose,
+                              child: Container(
+                                padding: const EdgeInsets.all(2),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: colors.void_,
+                                  border: Border.all(color: colors.rule2),
+                                ),
+                                child: Icon(
+                                  Icons.close,
+                                  size: 10,
+                                  color: colors.faint,
                                 ),
                               ),
                             ),
-                        ],
-                      ),
+                          ),
+                      ],
                     ),
-                    const SizedBox(width: NexusSpacing.s2),
-                    ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 130),
-                      child: Text(
-                        name,
-                        style: NexusTypography.label.copyWith(
-                          color: widget.isFocused
-                              ? colors.ink
-                              : (working ? colors.accent : colors.faint),
-                        ),
-                        overflow: TextOverflow.ellipsis,
-                        maxLines: 1,
+                  ),
+                  const SizedBox(width: NexusSpacing.s2),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 130),
+                    child: Text(
+                      name,
+                      style: NexusTypography.label.copyWith(
+                        color: widget.isFocused
+                            ? colors.ink
+                            : (working ? colors.accent : colors.faint),
                       ),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 1,
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
           ),
