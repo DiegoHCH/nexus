@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 
@@ -19,6 +21,35 @@ void main() {
     expect(
       ClaudeEnvironment.forProfile(null)['PATH'],
       ClaudeEnvironment.forTools()['PATH'],
+    );
+  });
+
+  // 🔴 **El bug que bloqueó a la primera persona ajena que instaló Nexus.**
+  //
+  // Aquí había un `env['CLAUDE_CONFIG_DIR'] ??= '$home/.claude'` puesto por
+  // prudencia — «en último caso, el de fábrica»— y hacía lo contrario de lo que
+  // pretendía: **nombrar el directorio por defecto cambia de dónde lee las
+  // credenciales**. Claude Code guarda el token en el llavero con un nombre que
+  // depende de si la variable está puesta:
+  //
+  //     sin la variable   → «Claude Code-credentials»
+  //     con la variable   → «Claude Code-credentials-<sha256(ruta)[:8]>»
+  //
+  // Dos almacenes distintos **aunque la ruta sea la misma**. La app decía
+  // «ninguna cuenta tiene sesión abierta» a alguien cuyo `claude auth status`
+  // contestaba `loggedIn: true` en su terminal.
+  //
+  // La prueba se escribe contra `Platform.environment` y no contra un valor
+  // fijo, y es deliberado: en la máquina donde se escribió esto la variable
+  // **está exportada**, así que un `isNull` pasaría en CI y fallaría en local —
+  // exactamente la asimetría que escondió el bug. Lo que hay que fijar no es
+  // «no hay variable»: es **«no se inventa ninguna»**.
+  test('sin perfil no se inventa una cuenta: se respeta lo que haya', () {
+    expect(
+      ClaudeEnvironment.forProfile(null)['CLAUDE_CONFIG_DIR'],
+      Platform.environment['CLAUDE_CONFIG_DIR'],
+      reason:
+          'poner el directorio por defecto a mano cambia el llavero que lee',
     );
   });
 
