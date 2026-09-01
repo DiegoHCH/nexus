@@ -268,12 +268,23 @@ abstract final class HerramientaExterna {
   static Future<String> rutaDeGit() =>
       ruta('git', candidatos: candidatosDeGit());
 
-  /// `zsh -lc 'command -v flutter'`.
+  /// `$SHELL -l -i -c 'echo $PATH'`, y luego se resuelve aquí.
   ///
-  /// `-l` es la parte que importa: sin él no se leen los archivos de perfil, que
-  /// es justo donde vive el PATH que esta función viene a rescatar. Y se acepta
-  /// el `SHELL` del usuario porque quien usa fish o bash tiene su PATH en otro
-  /// archivo.
+  /// 🔴 **Este comentario decía otra cosa, y la diferencia costó una instalación
+  /// fallida.** Decía «`zsh -lc 'command -v flutter'`» y que «`-l` es la parte
+  /// que importa». Las dos mitades estaban mal:
+  ///
+  /// `-l` no basta. Es login pero **no interactivo**, y zsh solo lee `.zshrc` en
+  /// shells interactivos — que es donde se configuran fnm, nvm y volta. Sin la
+  /// `-i` esto era ciego para los tres gestores de Node.
+  ///
+  /// Y pedir `command -v` obliga a acertar con el builtin de cada shell. El
+  /// comentario ya avisaba de que «quien usa fish o bash tiene su PATH en otro
+  /// archivo» — se acordó del `SHELL` y no de que fish tampoco entiende las
+  /// mismas opciones. Ahora se le pide **el PATH**, que es de las pocas cosas
+  /// que los tres hacen igual, y la ruta la resuelve [BinarioEnElPath].
+  ///
+  /// Ver [banderasDelShell] y [carpetasDelPath].
   static Future<String?> _alShellDeLogin(String nombre) async {
     // El nombre lo pone esta clase, no el usuario, pero se comprueba igual: va a
     // una línea de comandos y un día alguien lo llamará con algo de fuera.
