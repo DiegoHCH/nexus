@@ -52,5 +52,9 @@ abstract class ClaudeBridge {
     /// título de la tarea. Medido: un flow abierto llamado «(Si no se te pide otra cosa,
     /// responde en español.)».
     String? language,
+
+    /// Cómo se llama quien contesta y cómo llamar a quien pregunta, ya compuesto
+    /// para el prompt del sistema. Ver `LosNombres.paraElPrompt`.
+    String? nombres,
   });
 }

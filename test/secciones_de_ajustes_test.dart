@@ -50,15 +50,15 @@ void main() {
       cuantas,
       // Trece desde que entró «Qué sale», la que enseña las cuatro puertas
       // juntas. Este número se toca **a mano y a propósito** — es lo que hace
-      // que añadir o quitar una sección pase por aquí, y ya avisó seis veces: de
+      // que añadir o quitar una sección pase por aquí, y ya avisó siete veces: de
       // la novena («Móvil», al dejar de estar apagada), de la décima, de
-      // «Corridas» al entrar, de «Pruebas», de «Corridas» otra vez al salir, y
-      // de esta última.
+      // «Corridas» al entrar, de «Pruebas», de «Corridas» otra vez al salir, de
+      // la anterior, y de «Nombres».
       //
       // El título de la prueba no lleva el número justamente por eso: decía
       // «ocho» cuando ya esperaba nueve, y un nombre que miente es peor que uno
       // vago.
-      16,
+      17,
       reason:
           'se esperaban dieciséis secciones y hay $cuantas: si se añade una al enum, '
           'esta prueba tiene que verla — y si desaparece, también',

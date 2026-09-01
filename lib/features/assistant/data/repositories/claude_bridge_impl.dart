@@ -49,6 +49,10 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
     String? language,
+
+    /// Cómo se llama quien contesta y cómo llamarte a ti, ya compuesto
+    /// para el prompt. Ver [LosNombres.paraElPrompt].
+    String? nombres,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
     /// duplicaría trabajo ya hecho.
@@ -165,6 +169,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           if (!canEdit) ...McpPermissions.escrituraDeFuera,
         ],
         appendSystemPrompt: ProjectContextPrompt.compose(
+          nombres: nombres,
           rules: context.rules,
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,

@@ -39,6 +39,17 @@ void main() {
     );
     // Las pestañas se pintan en mayúsculas; se transforma igual que la pantalla
     // para que un cambio de texto no rompa la prueba por el lado equivocado.
+    //
+    // 🔴 **Y se desplaza hasta ella antes de pulsar.** «Ayuda» es la última de
+    // la lista y la columna dejó de caber en el alto al pasar de dieciséis
+    // secciones — está dicho en la propia pantalla, que por eso rueda. Pulsar
+    // sin desplazar daba en el vacío, y el test fallaba tres veces por no
+    // encontrar los textos de una guía que nunca se había abierto.
+    await tester.scrollUntilVisible(
+      find.text(es.sectionHelp.toUpperCase()),
+      100,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.tap(find.text(es.sectionHelp.toUpperCase()));
     await tester.pump(const Duration(milliseconds: 100));
   }

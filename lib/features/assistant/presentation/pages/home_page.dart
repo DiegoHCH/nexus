@@ -245,6 +245,11 @@ class _HomePageState extends ConsumerState<HomePage> {
                             Expanded(
                               child: ChatPanel(
                                 messages: hud.messages,
+                                // El nombre configurado en Ajustes › Nombres, o
+                                // el de la app si no se ha elegido ninguno.
+                                etiquetaDelAgente: ref
+                                    .watch(losNombresProvider)
+                                    .etiqueta(context.strings.nexus),
                                 onRetry: controller.reintentar,
                               ),
                             ),

@@ -61,8 +61,20 @@ abstract final class ProjectContextPrompt {
     String? carpetaDePruebas,
     String? language,
     String? constraintsNotice,
+
+    /// Cómo se llama quien contesta y cómo llamar a quien pregunta. Ver
+    /// [LosNombres.paraElPrompt].
+    String? nombres,
   }) {
     final sections = <String>[];
+
+    // **Los nombres van primero.** Es lo único de aquí que habla de con quién
+    // está hablando, y ponerlo detrás de las reglas del repo lo dejaría al final
+    // de un bloque largo — donde lo que se dice pesa menos. No es una orden ni un
+    // personaje: es información, y por eso cabe en dos líneas.
+    if (nombres != null && nombres.isNotEmpty) {
+      sections.add(nombres);
+    }
 
     // **Lo que puede y no puede ejecutar aquí.**
     //

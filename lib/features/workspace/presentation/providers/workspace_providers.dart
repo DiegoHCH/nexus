@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:nexus/features/workspace/data/datasources/los_nombres_data_source.dart';
+import 'package:nexus/features/workspace/domain/entities/los_nombres.dart';
 import 'package:nexus/features/workspace/data/datasources/workspace_preferences_data_source.dart';
 import 'package:nexus/features/workspace/data/repositories/workspace_store_impl.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_auth_data_source.dart';
@@ -356,4 +358,36 @@ final gitInfoProvider = FutureProvider.family<GitInfo?, String>(
 /// **es** el repo, que es el caso normal y no necesita elegir nada.
 final reposInsideProvider = FutureProvider.family<List<String>, String>(
   (ref, folderPath) => const GitDataSource().reposInside(folderPath),
+);
+
+/// Los dos nombres: el de quien contesta y el tuyo.
+///
+/// Global y no por carpeta, al revés que la cuenta, el modelo y los permisos:
+/// esos cambian con el trabajo y esto no. Ver [LosNombres].
+class LosNombresController extends Notifier<LosNombres> {
+  @override
+  LosNombres build() {
+    unawaited(_cargar());
+    return const LosNombres();
+  }
+
+  Future<void> _cargar() async {
+    final guardados = await const LosNombresDataSource().leer();
+    if (!ref.mounted) return;
+    state = guardados;
+  }
+
+  /// Un `null` explícito borra; omitir el parámetro conserva. Es la distinción
+  /// que hace falta para poder **quitar** un nombre desde Ajustes.
+  Future<void> cambiar({Object? agente, Object? tuyo}) async {
+    state = state.copyWith(
+      agente: agente ?? LosNombres.nada,
+      tuyo: tuyo ?? LosNombres.nada,
+    );
+    await const LosNombresDataSource().escribir(state);
+  }
+}
+
+final losNombresProvider = NotifierProvider<LosNombresController, LosNombres>(
+  LosNombresController.new,
 );

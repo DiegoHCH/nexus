@@ -26,7 +26,17 @@ import 'package:url_launcher/url_launcher.dart';
 /// colores, autor en etiqueta— para que siga pareciendo un panel de control y
 /// no una app de mensajería.
 class ChatPanel extends StatefulWidget {
-  const ChatPanel({super.key, required this.messages, this.onRetry});
+  const ChatPanel({
+    super.key,
+    required this.messages,
+    this.onRetry,
+    this.etiquetaDelAgente,
+  });
+
+  /// Cómo se llama quien contesta. Opcional a propósito: sin ella se usa el
+  /// nombre de la app, así que quien solo quiere pintar mensajes —los tests, y
+  /// cualquier sitio futuro— no tiene que saber que esto se configura.
+  final String? etiquetaDelAgente;
 
   /// Volver a mandar un encargo que no llegó a hacerse.
   ///
@@ -87,15 +97,32 @@ class _ChatPanelState extends State<ChatPanel> {
         controller: _controller,
         padding: const EdgeInsets.only(bottom: NexusSpacing.s5),
         itemCount: widget.messages.length,
-        itemBuilder: (context, index) =>
-            _Turn(message: widget.messages[index], onRetry: widget.onRetry),
+        itemBuilder: (context, index) => _Turn(
+          message: widget.messages[index],
+          etiqueta: widget.etiquetaDelAgente,
+          onRetry: widget.onRetry,
+        ),
       ),
     );
   }
 }
 
+/// 🔴 **La etiqueta llega de fuera, no se lee de un provider aquí.**
+///
+/// El primer intento hizo esto un `ConsumerWidget` para leer el nombre
+/// configurado, y reventó **siete tests de widget** con «No ProviderScope
+/// found»: pintar una conversación no necesitaba un contenedor de providers y
+/// de pronto sí. Meter un `ProviderScope` en siete pruebas para que un widget
+/// lea una cadena es pagar mucho por poco.
+///
+/// Llega como parámetro desde donde el provider ya está a mano —la pantalla— y
+/// con eso este widget sigue siendo una función de sus datos. Que es además lo
+/// que lo hace fácil de probar.
 class _Turn extends StatelessWidget {
-  const _Turn({required this.message, this.onRetry});
+  const _Turn({required this.message, this.etiqueta, this.onRetry});
+
+  /// Cómo se llama quien contesta, o `null` para el nombre de la app.
+  final String? etiqueta;
 
   final ChatMessage message;
   final void Function(ChatMessage mensaje)? onRetry;
@@ -113,7 +140,9 @@ class _Turn extends StatelessWidget {
           Row(
             children: [
               Text(
-                isUser ? context.strings.you : context.strings.nexus,
+                isUser
+                    ? context.strings.you
+                    : etiqueta ?? context.strings.nexus,
                 style: NexusTypography.label.copyWith(
                   color: isUser ? colors.faint : colors.accent,
                 ),
