@@ -27,6 +27,7 @@ class _Bridge implements ClaudeBridge {
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
     String? language,
+    String? nombres,
   }) async* {
     asked.add(instruction);
     resumed.add(resumeSessionId);
@@ -89,6 +90,7 @@ AskClaude _askWith(
           effort: null,
           artifactsFolder: null,
           carpetaDePruebas: null,
+          nombres: null,
           disallowedTools: const <String>[],
           comandosPermitidos: const <String>[],
           constraintsNotice: null,

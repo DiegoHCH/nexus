@@ -107,6 +107,9 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         constraintsNotice: AllowedCommands.loQuePuedeCorrer(
           BlockedCommands.notice(paired?.blockedCommands ?? const []),
         ),
+        // Cómo se llama quien contesta y cómo llamarte a ti. Global y no por
+        // carpeta: tu nombre no cambia según el repo. Ver [LosNombres].
+        nombres: ref.read(losNombresProvider).paraElPrompt(),
         model: paired?.claudeModel,
         effort: paired?.claudeEffort,
         claudeProfile: paired?.claudeProfile,

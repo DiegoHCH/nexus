@@ -153,6 +153,7 @@ class _Bridge implements ClaudeBridge {
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
     String? language,
+    String? nombres,
   }) async* {
     _raw.add(instruction);
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
@@ -260,6 +261,7 @@ AskClaude _armar(ClaudeBridge bridge) => AskClaude(
     disallowedTools: const <String>[],
     comandosPermitidos: const <String>[],
     constraintsNotice: null,
+    nombres: null,
   ),
   _Memory(),
   FolderErrandQueue(),
@@ -292,6 +294,7 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
     String? language,
+    String? nombres,
   }) async* {
     // El orden es el de verdad: primero el `init` con el modelo, y el fin de
     // turno con las cifras al final.
