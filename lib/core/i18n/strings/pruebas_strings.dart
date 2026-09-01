@@ -148,6 +148,9 @@ mixin PruebasStrings {
   String get audioOutputExplainer;
   String get audioOutputSystem;
   String get voiceExplainer;
+  String get elAcento;
+  String get elAcentoExplainer;
+  String get elAcentoAutomatico;
   String get filePermissionsTitle;
   String get filePermissionsExplainer;
   String get repoDeclaraTitle;
@@ -524,6 +527,15 @@ mixin PruebasStringsEs implements PruebasStrings {
   String get voiceExplainer =>
       'Se fija al abrir la sesión, así que un cambio vale desde la próxima vez '
       'que le hables.';
+  @override
+  String get elAcento => 'ACENTO';
+  @override
+  String get elAcentoExplainer =>
+      'Las voces no traen acento: se pide con palabras, así que esto entra en '
+      'la instrucción y no en un ajuste del servicio. Vale desde la próxima '
+      'vez que le hables.';
+  @override
+  String get elAcentoAutomatico => 'El que elija ella';
   @override
   String get filePermissionsTitle => 'PERMISOS SOBRE TUS ARCHIVOS';
   @override
@@ -952,6 +964,15 @@ mixin PruebasStringsEn implements PruebasStrings {
   String get voiceExplainer =>
       'It is fixed when the session opens, so a change applies the next time '
       'you talk to it.';
+  @override
+  String get elAcento => 'ACCENT';
+  @override
+  String get elAcentoExplainer =>
+      'Voices carry no accent of their own: it is asked for in words, so this '
+      'goes into the instruction rather than a service setting. It applies the '
+      'next time you talk to it.';
+  @override
+  String get elAcentoAutomatico => 'Whichever it picks';
   @override
   String get filePermissionsTitle => 'PERMISSIONS OVER YOUR FILES';
   @override
