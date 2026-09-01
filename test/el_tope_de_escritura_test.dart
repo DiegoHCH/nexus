@@ -34,6 +34,7 @@ class _Bridge implements ClaudeBridge {
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
     String? language,
+    String? nombres,
   }) async* {
     // Lo único que esta prueba mira: con qué permiso llegó al puente, que es lo
     // último antes de `claude -p`.
@@ -76,6 +77,7 @@ void main() {
       effort: null,
       artifactsFolder: null,
       carpetaDePruebas: null,
+      nombres: null,
       disallowedTools: const <String>[],
       comandosPermitidos: const <String>[],
       constraintsNotice: null,

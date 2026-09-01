@@ -40,9 +40,14 @@ class CheckReadiness extends UseCase<Readiness, NoParams> {
     );
   }
 
-  Future<CheckResult> _ask(Future<bool> Function() probe) async {
+  Future<CheckResult> _ask(Future<bool?> Function() probe) async {
     try {
       final yes = await probe().timeout(timeout);
+      // 🔴 `null` es «no se pudo preguntar», y va a `unknown` — que no bloquea.
+      // Antes esta función solo aceptaba `bool`, así que una sonda que no sabía
+      // tenía que mentir en un sentido o en el otro. Elegía «no», y eso le negó
+      // la entrada a alguien que tenía todo bien montado.
+      if (yes == null) return CheckResult.unknown;
       return yes ? CheckResult.ok : CheckResult.failed;
     } on TimeoutException {
       return CheckResult.unknown;

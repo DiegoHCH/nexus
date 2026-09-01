@@ -11,5 +11,11 @@ abstract class ReadinessProbe {
   /// «Alguna» y no «la de por defecto» a propósito: quien usa solo perfiles con
   /// nombre —`work`, `private`— tiene el de fábrica sin sesión, y decirle que
   /// inicie sesión sería exactamente el falso negativo de b18.
-  Future<bool> anySession();
+  ///
+  /// 🔴 **`null` es «no se pudo preguntar», y no es lo mismo que `false`.**
+  /// Devolvía un `bool` y por eso un CLI que contestaba raro se leía como «no
+  /// tienes sesión»: le pasó a la primera persona ajena que instaló la app, con
+  /// sesión abierta y `auth status` diciendo `loggedIn: true` en su terminal.
+  /// Un `null` llega a la pantalla como `CheckResult.unknown`, que **no bloquea**.
+  Future<bool?> anySession();
 }

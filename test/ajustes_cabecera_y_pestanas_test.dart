@@ -71,6 +71,7 @@ void main() {
         'llaves',
         'imagenes',
         'avisos',
+        'nombres',
         'permissions',
         'mobile',
         'history',
