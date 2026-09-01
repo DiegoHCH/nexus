@@ -151,14 +151,6 @@ mixin PruebasStrings {
   String get elAcento;
   String get elAcentoExplainer;
   String get elAcentoAutomatico;
-  String get escucharLaVoz;
-  String get escuchandoLaVoz;
-
-  /// La frase que se dice al probar una voz.
-  ///
-  /// Lleva el nombre dentro para que la prueba sirva también de comprobación de
-  /// que el nombre llegó: si te llama por el tuyo, los nombres funcionan.
-  String fraseDePrueba(String vocativo);
   String get filePermissionsTitle;
   String get filePermissionsExplainer;
   String get repoDeclaraTitle;
@@ -544,13 +536,6 @@ mixin PruebasStringsEs implements PruebasStrings {
       'vez que le hables.';
   @override
   String get elAcentoAutomatico => 'El que elija ella';
-  @override
-  String get escucharLaVoz => 'Escuchar esta voz';
-  @override
-  String get escuchandoLaVoz => 'Sonando…';
-  @override
-  String fraseDePrueba(String vocativo) =>
-      '${vocativo}así suena esta voz. Si te gusta, déjala puesta.';
   @override
   String get filePermissionsTitle => 'PERMISOS SOBRE TUS ARCHIVOS';
   @override
@@ -988,13 +973,6 @@ mixin PruebasStringsEn implements PruebasStrings {
       'next time you talk to it.';
   @override
   String get elAcentoAutomatico => 'Whichever it picks';
-  @override
-  String get escucharLaVoz => 'Listen to this voice';
-  @override
-  String get escuchandoLaVoz => 'Playing…';
-  @override
-  String fraseDePrueba(String vocativo) =>
-      '${vocativo}this is how this voice sounds. If you like it, keep it.';
   @override
   String get filePermissionsTitle => 'PERMISSIONS OVER YOUR FILES';
   @override
