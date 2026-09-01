@@ -39,9 +39,15 @@ class _Guardado implements WorkspaceStore {
 }
 
 void main() {
+  // Todos inyectan `donde` a propósito: sin él, cada test llamaría al resolutor
+  // de verdad —disco, y en el peor caso el shell de login de quien corre las
+  // pruebas— y entonces dependerían de si esa máquina tiene Claude instalado.
+  // Es la misma razón por la que se inyecta el lanzador, dicha en la propia
+  // clase: hay que cubrir los dos casos, y ninguno puede depender del entorno.
   group('lo que se le pregunta al CLI', () {
     test('sin binario, «no está» — y no revienta', () async {
       final cli = ClaudeCli(
+        donde: () async => '/no/existe/claude',
         run: (executable, args, {environment}) =>
             throw const ProcessException('claude', [], 'no such file', 2),
       );
@@ -50,6 +56,7 @@ void main() {
 
     test('con binario que arranca, «está»', () async {
       final cli = ClaudeCli(
+        donde: () async => '/donde/sea/claude',
         run: (executable, args, {environment}) async {
           expect(args, ['--version']);
           return ProcessResult(1, 0, '2.1.0', '');
@@ -58,8 +65,48 @@ void main() {
       expect(await cli.installed(), isTrue);
     });
 
+    // 🔴 **Lo que ningún test miraba, y costó una instalación bloqueada.** Esto
+    // se lanzaba por nombre —`Process.run('claude', …)`— y dejaba que el sistema
+    // lo resolviera con un PATH de cuatro carpetas fijas. Quien tiene Claude
+    // dentro de una versión de Node de fnm, nvm o volta no está en ninguna, así
+    // que la app decía «no está instalado» a alguien que lo tenía funcionando.
+    //
+    // El resolutor ya sabía buscar en los gestores; lo que faltaba era que la
+    // comprobación del arranque le preguntara a él y no al PATH.
+    test('se lanza por la ruta resuelta, no por el nombre', () async {
+      const ruta = '/Users/x/.local/share/fnm/node-versions/v22/bin/claude';
+      String? conQue;
+      final cli = ClaudeCli(
+        donde: () async => ruta,
+        run: (executable, args, {environment}) async {
+          conQue = executable;
+          return ProcessResult(1, 0, '2.1.0', '');
+        },
+      );
+
+      expect(await cli.installed(), isTrue);
+      expect(conQue, ruta);
+      expect(conQue, isNot('claude'));
+    });
+
+    test('y la sesión se pregunta por esa misma ruta', () async {
+      const ruta = '/opt/homebrew/bin/claude';
+      String? conQue;
+      final cli = ClaudeCli(
+        donde: () async => ruta,
+        run: (executable, args, {environment}) async {
+          conQue = executable;
+          return ProcessResult(1, 0, '{"loggedIn": true}', '');
+        },
+      );
+
+      expect(await cli.loggedIn(null), isTrue);
+      expect(conQue, ruta);
+    });
+
     test('la sesión se lee del JSON del CLI, no del llavero', () async {
       final cli = ClaudeCli(
+        donde: () async => '/donde/sea/claude',
         run: (executable, args, {environment}) async =>
             ProcessResult(1, 0, '{"loggedIn": true}', ''),
       );
@@ -68,6 +115,7 @@ void main() {
 
     test('y un código de salida distinto de cero es «no»', () async {
       final cli = ClaudeCli(
+        donde: () async => '/donde/sea/claude',
         run: (executable, args, {environment}) async =>
             ProcessResult(1, 1, '', 'not logged in'),
       );
