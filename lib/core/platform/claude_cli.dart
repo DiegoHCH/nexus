@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/core/platform/herramienta_externa.dart';
 
 /// Lo que se le puede preguntar al CLI **sobre sí mismo**: si está y si esa
 /// cuenta tiene sesión.
@@ -22,20 +23,40 @@ typedef ProcessRunner =
     });
 
 class ClaudeCli {
-  ClaudeCli({ProcessRunner? run}) : _run = run ?? Process.run;
+  ClaudeCli({ProcessRunner? run, Future<String> Function()? donde})
+    : _run = run ?? Process.run,
+      _donde = donde ?? HerramientaExterna.rutaDeClaude;
 
   final ProcessRunner _run;
+
+  /// Cómo se averigua **dónde** está el binario.
+  ///
+  /// 🔴 **Esto se lanzaba por nombre, y ahí estuvo el bug que bloqueó la primera
+  /// instalación ajena.** `Process.run('claude', …)` deja que el sistema lo
+  /// resuelva con el PATH que se le inyecta, y ese PATH son cuatro carpetas
+  /// fijas: no cubre a quien tiene Claude dentro de una versión de Node de fnm,
+  /// nvm o volta — o sea, a cualquier dev de front.
+  ///
+  /// [HerramientaExterna] existe justo para esto y ya sabía buscar en los
+  /// gestores de versiones y preguntarle al shell del usuario. Lo que faltaba
+  /// era que **la pantalla que bloquea la entrada** usara la misma respuesta que
+  /// los encargos: se arregló el lanzar y no el comprobar, así que la app
+  /// seguía diciendo «no está instalado» a alguien que lo tenía.
+  ///
+  /// Se inyecta por el mismo motivo que [_run]: para poder probar **con qué
+  /// ruta** se lanza, que es lo que ningún test miraba.
+  final Future<String> Function() _donde;
 
   /// Si el binario se resuelve **y arranca**.
   ///
   /// Se le pide la versión en vez de buscarlo con `which`: lo que importa no es
-  /// que el archivo exista, es que se pueda ejecutar. Y se lanza con el PATH
-  /// inyectado porque una app de GUI no hereda el de una shell — es la trampa
-  /// de `v3`, y sin eso esto diría «no está instalado» en un Mac donde sí lo
-  /// está.
+  /// que el archivo exista, es que se pueda ejecutar. Y va por ruta absoluta,
+  /// resuelta por [HerramientaExterna]: el PATH inyectado no basta —es la trampa
+  /// de `v3` a medio resolver— porque una app de GUI no hereda el de la shell y
+  /// las cuatro carpetas fijas no son donde vive todo el mundo.
   Future<bool> installed() async {
     try {
-      final result = await _run('claude', [
+      final result = await _run(await _donde(), [
         '--version',
       ], environment: ClaudeEnvironment.forTools());
       return result.exitCode == 0;
@@ -55,7 +76,7 @@ class ClaudeCli {
   /// que el CLI renueve el token, que es justo lo que nos vendría bien.
   Future<bool> loggedIn(String? configDir) async {
     try {
-      final result = await _run('claude', [
+      final result = await _run(await _donde(), [
         'auth',
         'status',
         '--json',
