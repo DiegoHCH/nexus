@@ -72,6 +72,18 @@ mixin NucleoStrings {
   String get sectionKeys;
   String get sectionImages;
   String get sectionAvisos;
+
+  /// Los dos nombres: el de quien contesta y el tuyo.
+  String get sectionNombres;
+  String get nombresExplainer;
+  String get comoSeLlamaElAgente;
+  String get comoSeLlamaElAgentePista;
+  String get comoTeLlamas;
+  String get comoTeLlamasPista;
+  String get asiSeVera;
+  String get sinPalabraDeActivacion;
+  String ejemploDeLoQuePides(String agente);
+  String ejemploDeLoQueContesta(String vocativo);
   String get avisosExplainer;
   String get avisosOn;
   String get avisosCuanto;
@@ -269,6 +281,34 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get sectionImages => 'Imágenes';
   @override
   String get sectionAvisos => 'Avisos';
+  @override
+  String get sectionNombres => 'Nombres';
+  @override
+  String get nombresExplainer =>
+      'La app se seguirá llamando Nexus: eso va compilado dentro. Lo que se '
+      'elige aquí es cómo se llama quien te contesta, y cómo quieres que te '
+      'llame a ti.';
+  @override
+  String get comoSeLlamaElAgente => 'Cómo se llama quien te contesta';
+  @override
+  String get comoSeLlamaElAgentePista => 'Nexus';
+  @override
+  String get comoTeLlamas => 'Cómo quieres que te llame';
+  @override
+  String get comoTeLlamasPista => 'Tu nombre, o vacío para que no te llame';
+  @override
+  String get asiSeVera => 'Así se verá';
+  @override
+  String get sinPalabraDeActivacion =>
+      'Ponerle nombre no hace que despierte al decirlo: la voz se sigue '
+      'abriendo con ⌥Espacio. Sí entiende que le hablas a ella si la nombras '
+      'por escrito.';
+  @override
+  String ejemploDeLoQuePides(String agente) =>
+      '$agente, ¿qué reuniones tengo hoy?';
+  @override
+  String ejemploDeLoQueContesta(String vocativo) =>
+      '${vocativo}tienes tres: la primera a las nueve.';
   @override
   String get avisosExplainer =>
       'Nexus te dice en voz alta que tienes una reunión, unos minutos antes. Es '
@@ -535,6 +575,34 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get sectionImages => 'Images';
   @override
   String get sectionAvisos => 'Alerts';
+  @override
+  String get sectionNombres => 'Names';
+  @override
+  String get nombresExplainer =>
+      'The app will still be called Nexus: that is compiled in. What you pick '
+      'here is what the one answering you is called, and how you want to be '
+      'addressed.';
+  @override
+  String get comoSeLlamaElAgente => 'What the one answering is called';
+  @override
+  String get comoSeLlamaElAgentePista => 'Nexus';
+  @override
+  String get comoTeLlamas => 'How you want to be addressed';
+  @override
+  String get comoTeLlamasPista => 'Your name, or empty for none';
+  @override
+  String get asiSeVera => 'How it will look';
+  @override
+  String get sinPalabraDeActivacion =>
+      'Naming it does not make it wake on hearing that name: voice still opens '
+      'with ⌥Space. It does understand you are addressing it when you write '
+      'the name.';
+  @override
+  String ejemploDeLoQuePides(String agente) =>
+      '$agente, what meetings do I have today?';
+  @override
+  String ejemploDeLoQueContesta(String vocativo) =>
+      '${vocativo}you have three: the first at nine.';
   @override
   String get avisosExplainer =>
       'Nexus tells you out loud that you have a meeting, a few minutes before. '

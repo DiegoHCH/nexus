@@ -20,6 +20,11 @@ typedef ClaudeWorkContext = ({
   String? constraintsNotice,
   String? artifactsFolder,
   String? carpetaDePruebas,
+
+  /// Cómo se llama quien contesta y cómo llamar a quien pregunta, ya compuesto
+  /// para el prompt. Viaja en el contexto y no como parámetro suelto porque es
+  /// lo mismo que el idioma: una preferencia de la app, no del encargo.
+  String? nombres,
 });
 
 /// No extiende `UseCase<ReturnType, Params>`: ese contrato es para trabajo
@@ -138,6 +143,7 @@ class AskClaude {
               ? context.comandosPermitidos
               : const [],
           constraintsNotice: context.constraintsNotice,
+          nombres: context.nombres,
           language: context.language,
           artifactsFolder: context.artifactsFolder,
           carpetaDePruebas: context.carpetaDePruebas,
