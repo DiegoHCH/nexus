@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings/settings_chooser.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,6 +7,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/el_acento.dart';
+import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
@@ -270,13 +273,32 @@ class _BotonDeEscucha extends ConsumerStatefulWidget {
 }
 
 class _BotonDeEscuchaState extends ConsumerState<_BotonDeEscucha> {
+  bool _pidiendo = false;
   bool _sonando = false;
   String? _fallo;
 
+  /// Lo ya sintetizado, por voz y acento.
+  ///
+  /// 🔴 **Porque comparar voces es ir y volver.** La síntesis es un viaje a
+  /// Google y tarda unos cuatro segundos —medido en el registro de los avisos:
+  /// «el TTS tardó 4256 ms»—, así que con treinta voces y sin esto cada
+  /// segunda escucha vuelve a pagar la espera entera. Se reportó como «al
+  /// darle play se demora en reproducir».
+  ///
+  /// Estático a propósito: sobrevive a cerrar y abrir Ajustes, que es
+  /// exactamente cuando se vuelve a la voz que ya gustaba. No sobrevive a
+  /// cerrar la app, y no hace falta que lo haga.
+  static final _yaSintetizado = <String, Uint8List>{};
+
+  /// El tope. Dos segundos de PCM a 24 kHz y 16 bits son unos 96 KB, así que
+  /// treinta voces son ~3 MB: se guarda con holgura, pero con tope, porque las
+  /// combinaciones de voz y acento se multiplican y esto no es una caché de
+  /// verdad, es un recuerdo corto.
+  static const _tope = 40;
+
   Future<void> _probar() async {
-    if (_sonando) return;
+    if (_pidiendo || _sonando) return;
     setState(() {
-      _sonando = true;
       _fallo = null;
     });
 
@@ -292,6 +314,15 @@ class _BotonDeEscuchaState extends ConsumerState<_BotonDeEscucha> {
       strings.fraseDePrueba(ref.read(losNombresProvider).vocativo),
     );
     final voz = ref.read(voicePreferenceProvider).name;
+    final clave = '$voz · ${acento.variante ?? ''} · $frase';
+
+    // Ya oída: suena sin viajar a ningún sitio.
+    if (_yaSintetizado[clave] case final pcm?) {
+      await _sonar(altavoz, pcm);
+      return;
+    }
+
+    setState(() => _pidiendo = true);
     try {
       final llave = await ref.read(geminiKeyStoreProvider).read();
       if (llave == null || llave.isEmpty) {
@@ -315,42 +346,121 @@ class _BotonDeEscuchaState extends ConsumerState<_BotonDeEscucha> {
         if (mounted) setState(() => _fallo = dicho.problema);
         return;
       }
-      await altavoz.start();
-      altavoz.enqueue(dicho.pcm!);
+      if (_yaSintetizado.length >= _tope) {
+        _yaSintetizado.remove(_yaSintetizado.keys.first);
+      }
+      _yaSintetizado[clave] = dicho.pcm!;
+      await _sonar(altavoz, dicho.pcm!);
     } catch (error) {
       // Se dice, no se traga. Un botón que no hace nada y no explica por qué es
       // peor que no tener botón: no distingues «no hay llave» de «no hay red».
       if (mounted) setState(() => _fallo = '$error');
     } finally {
-      if (mounted) setState(() => _sonando = false);
+      if (mounted) setState(() => _pidiendo = false);
     }
+  }
+
+  /// Suena, y el botón lo dice mientras dura.
+  ///
+  /// El alto se pregunta al altavoz en vez de cronometrarlo aquí: es él quien
+  /// sabe cuánto PCM le queda por delante, y estimarlo por el tamaño del
+  /// búfer sería adivinar la frecuencia por segunda vez.
+  Future<void> _sonar(AudioOutput altavoz, Uint8List pcm) async {
+    await altavoz.start();
+    altavoz.enqueue(pcm);
+    if (!mounted) return;
+    setState(() => _sonando = true);
+    await Future<void>.delayed(await altavoz.pending());
+    if (mounted) setState(() => _sonando = false);
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
-    if (_fallo case final dicho?) {
-      return Tooltip(
-        message: dicho,
-        child: IconButton(
-          onPressed: _probar,
-          icon: Icon(Icons.error_outline, size: 16, color: colors.warn),
-          splashRadius: 16,
-        ),
-      );
-    }
+    final fallo = _fallo;
     return Tooltip(
-      message: _sonando
-          ? context.strings.escuchandoLaVoz
-          : context.strings.escucharLaVoz,
-      child: IconButton(
-        onPressed: _sonando ? null : _probar,
-        icon: Icon(
-          _sonando ? Icons.graphic_eq : Icons.play_arrow,
-          size: 16,
-          color: _sonando ? colors.accent : colors.faint,
+      message:
+          fallo ??
+          (_sonando
+              ? context.strings.escuchandoLaVoz
+              : context.strings.escucharLaVoz),
+      child: _Marco(
+        onTap: _pidiendo || _sonando ? null : _probar,
+        pidiendo: _pidiendo,
+        child: Icon(
+          switch ((fallo, _sonando)) {
+            (final String _, _) => Icons.error_outline,
+            (_, true) => Icons.graphic_eq,
+            _ => Icons.play_arrow,
+          },
+          size: 18,
+          color: switch ((fallo, _sonando)) {
+            (final String _, _) => colors.warn,
+            (_, true) => colors.accent,
+            _ => colors.ink,
+          },
         ),
-        splashRadius: 16,
+      ),
+    );
+  }
+}
+
+/// El marco del botón de escucha: **el mismo que el del selector de al lado**.
+///
+/// 🔴 **Sin esto no se veía.** Iba como un `IconButton` pelado, 16 px en
+/// `colors.faint` —el color de los textos de apoyo, el más apagado de la
+/// paleta— sin borde ni fondo, pegado a un selector que sí tiene marco y
+/// relleno. Se reportó como «sigo sin ver lo que pusiste»: estaba pintado y no
+/// parecía un botón, que en una interfaz es lo mismo que no estar.
+///
+/// Repite la decoración de `SettingsChooser` a propósito, para que la fila se
+/// lea como un control con dos partes y no como un control y una mota.
+class _Marco extends StatelessWidget {
+  const _Marco({required this.child, this.onTap, this.pidiendo = false});
+
+  final Widget child;
+  final VoidCallback? onTap;
+
+  /// Se está esperando a que Google devuelva el audio.
+  ///
+  /// Va aparte del icono porque no es un estado del icono, es un estado del
+  /// botón: **cuatro segundos sin señal de vida se leen como que no funciona**,
+  /// y era el reporte literal. El giro no acorta la espera, la explica.
+  final bool pidiendo;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Container(
+          // El alto lo pone el selector, que se dimensiona por su contenido:
+          // 44 px es lo que mide con la tipografía de datos y su relleno. Un
+          // botón más bajo dejaba la fila escalonada.
+          height: 44,
+          width: 44,
+          decoration: BoxDecoration(
+            color: colors.void_.withValues(alpha: 0.5),
+            border: Border.all(color: colors.rule),
+            borderRadius: BorderRadius.circular(NexusRadius.sm),
+          ),
+          child: Center(
+            child: pidiendo
+                ? SizedBox(
+                    width: 14,
+                    height: 14,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 1.5,
+                      color: colors.accent,
+                    ),
+                  )
+                : child,
+          ),
+        ),
       ),
     );
   }
