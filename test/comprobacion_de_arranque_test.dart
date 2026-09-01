@@ -126,7 +126,7 @@ void main() {
   group('el informe', () {
     Future<Readiness> informe({
       required bool cli,
-      required bool session,
+      required bool? session,
       String? key = 'una-llave',
       Duration cliTarda = Duration.zero,
     }) => CheckReadiness(
@@ -253,6 +253,49 @@ void main() {
     });
   });
 
+  // 🔴 **El fallo que bloqueó a la primera persona ajena que instaló Nexus.**
+  //
+  // La sonda no sabía si había sesión —el CLI contestó raro— y eso se leía como
+  // «no hay». La app le negó la entrada y le dijo que abriera una terminal y
+  // escribiera `claude`, cuando `claude auth status --json` ya decía
+  // `loggedIn: true` en esa misma terminal.
+  //
+  // «No se sabe» **no bloquea**: se entra, y si de verdad falta algo el error lo
+  // dará el CLI, que sabe de qué habla. Es la doctrina que `CheckResult` ya tenía
+  // escrita y que esta ruta no cumplía.
+  group('cuando no se pudo preguntar por la sesión', () {
+    Future<Readiness> informe({required bool? session}) => CheckReadiness(
+      _Sonda(cli: true, session: session),
+      const _Llavero('una-llave'),
+      timeout: const Duration(milliseconds: 50),
+    )(const NoParams());
+
+    test('no se sabe: se deja entrar', () async {
+      final r = await informe(session: null);
+
+      expect(r.session, CheckResult.unknown);
+      expect(
+        r.blocksWork,
+        isFalse,
+        reason: 'un «no se sabe» no puede bloquear',
+      );
+    });
+
+    test('y un «no» de verdad sí bloquea, que para eso está', () async {
+      final r = await informe(session: false);
+
+      expect(r.session, CheckResult.failed);
+      expect(r.blocksWork, isTrue);
+    });
+
+    test('con sesión, ni una cosa ni la otra', () async {
+      final r = await informe(session: true);
+
+      expect(r.session, CheckResult.ok);
+      expect(r.blocksWork, isFalse);
+    });
+  });
+
   group('las dos salidas de la pantalla', () {
     ProviderContainer contenedor({
       String? key = 'una-llave',
@@ -319,14 +362,14 @@ class _Sonda implements ReadinessProbe {
   });
 
   final bool cli;
-  final bool session;
+  final bool? session;
   final Duration tarda;
 
   @override
   Future<bool> cliInstalled() => Future<bool>.delayed(tarda, () => cli);
 
   @override
-  Future<bool> anySession() async => session;
+  Future<bool?> anySession() async => session;
 }
 
 class _Llavero implements GeminiKeyStore {
