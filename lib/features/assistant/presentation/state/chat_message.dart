@@ -18,6 +18,7 @@ class ChatMessage {
     this.spoken = false,
     this.streaming = false,
     this.attachments = const [],
+    this.respondeA,
     this.cambios,
     this.documento,
     this.esElParte = false,
@@ -82,6 +83,21 @@ class ChatMessage {
   /// la misma miniatura que ya se veía en la caja al adjuntarlo.
   final List<String> attachments;
 
+  /// La pregunta a la que contesta este mensaje, **cuando no es la de justo
+  /// arriba**.
+  ///
+  /// 🔴 **Solo lo llevan las respuestas a lo que esperó turno.** En un
+  /// intercambio normal la respuesta va pegada a su pregunta y citarla sería
+  /// ruido: se lee el orden y ya está. Pero al encolar, escribes tres cosas
+  /// seguidas y las tres respuestas llegan después, así que el orden deja de
+  /// decir a cuál contesta cada una — que es justo lo que la cola introdujo y
+  /// hay que devolver.
+  ///
+  /// Se guarda **el texto** y no un identificador porque tiene que sobrevivir a
+  /// guardar y releer la conversación desde el disco, donde los mensajes no
+  /// tienen identidad propia.
+  final String? respondeA;
+
   ChatMessage copyWith({
     String? text,
     bool? streaming,
@@ -101,6 +117,7 @@ class ChatMessage {
     esElParte: esElParte ?? this.esElParte,
     actividad: actividad ?? this.actividad,
     fallo: fallo ?? this.fallo,
+    respondeA: respondeA,
   );
 
   /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y

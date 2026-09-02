@@ -168,6 +168,17 @@ class _Turn extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 4),
+          // A qué pregunta contesta, **cuando no es la de justo arriba**.
+          //
+          // La cola introdujo el problema: escribes tres cosas seguidas y las
+          // tres respuestas llegan después, así que el orden deja de decir a
+          // cuál contesta cada una. En un intercambio normal esto no aparece,
+          // porque ahí la respuesta va pegada a su pregunta y citarla sería
+          // ruido.
+          if (message.respondeA case final pregunta?) ...[
+            _LaPreguntaCitada(pregunta),
+            const SizedBox(height: NexusSpacing.s2),
+          ],
           // Lo tuyo se enseña tal cual lo escribiste: interpretar markdown en
           // lo que uno teclea convertiría un `*` en cursiva sin haberlo
           // pedido. Lo que responde Claude sí viene en markdown —tablas,
@@ -717,6 +728,46 @@ class _MasOMenos extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// La pregunta que se está contestando, citada encima de la respuesta.
+///
+/// La forma es la de cualquier chat que cite —barra al canto, autor, y el texto
+/// atenuado en una línea— porque es la convención que la gente ya sabe leer sin
+/// que nadie se la explique. Se recorta a una línea a propósito: es una
+/// referencia para reconocer cuál era, no para volver a leerla entera.
+class _LaPreguntaCitada extends StatelessWidget {
+  const _LaPreguntaCitada(this.pregunta);
+
+  final String pregunta;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+
+    return Container(
+      padding: const EdgeInsets.only(left: NexusSpacing.s3),
+      decoration: BoxDecoration(
+        border: Border(left: BorderSide(color: colors.accent, width: 2)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.strings.you,
+            style: NexusTypography.label.copyWith(color: colors.accent),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            pregunta,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+        ],
       ),
     );
   }
