@@ -26,7 +26,6 @@ mixin NucleoStrings {
   String get canEditExplainer;
   String get readOnlyExplainer;
   // El permiso que se pregunta
-  String get permisoTitulo;
   String permisoPregunta(String herramienta);
   String get permisoEscribe;
   String get permisoConceder;
@@ -34,6 +33,11 @@ mixin NucleoStrings {
   String get permisoDenegar;
   String get permisoDenegadoMotivo;
   String get permisoCanceladoMotivo;
+  String get permisoEnEspera;
+  String get permisoDichoConcedido;
+  String get permisoDichoConcedidoTodo;
+  String get permisoDichoDenegado;
+  String get permisoDichoCancelado;
   String contextUsed(int percent);
   String get attachFile;
   String get orbLabel;
@@ -192,8 +196,6 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get readOnlyExplainer => 'Lee y ejecuta, pero no escribe';
   @override
-  String get permisoTitulo => 'Claude pide permiso';
-  @override
   String permisoPregunta(String herramienta) => '¿Le dejas usar $herramienta?';
   @override
   String get permisoEscribe => 'Esto modifica archivos.';
@@ -208,6 +210,17 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get permisoCanceladoMotivo =>
       'El encargo se detuvo antes de que nadie contestara.';
+  @override
+  String get permisoEnEspera => 'Esperando tu permiso';
+  @override
+  String get permisoDichoConcedido => 'Lo permitiste';
+  @override
+  String get permisoDichoConcedidoTodo =>
+      'Lo permitiste, y el resto de la sesión';
+  @override
+  String get permisoDichoDenegado => 'No lo permitiste';
+  @override
+  String get permisoDichoCancelado => 'Se detuvo antes de que contestaras';
   @override
   String contextUsed(int percent) =>
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
@@ -505,8 +518,6 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get readOnlyExplainer => 'Reads and runs, but never writes';
   @override
-  String get permisoTitulo => 'Claude is asking';
-  @override
   String permisoPregunta(String herramienta) => 'Let it use $herramienta?';
   @override
   String get permisoEscribe => 'This changes files.';
@@ -521,6 +532,17 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get permisoCanceladoMotivo =>
       'The errand stopped before anyone answered.';
+  @override
+  String get permisoEnEspera => 'Waiting for your answer';
+  @override
+  String get permisoDichoConcedido => 'You allowed it';
+  @override
+  String get permisoDichoConcedidoTodo =>
+      'You allowed it, and the rest of the session';
+  @override
+  String get permisoDichoDenegado => "You didn't allow it";
+  @override
+  String get permisoDichoCancelado => 'It stopped before you answered';
   @override
   String contextUsed(int percent) =>
       'Context used: $percent%. At 85% the conversation compacts itself.';

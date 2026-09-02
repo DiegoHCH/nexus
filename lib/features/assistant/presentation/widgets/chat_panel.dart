@@ -14,6 +14,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/assistant/domain/usecases/los_enlaces_del_texto.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:url_launcher/url_launcher.dart';
 
@@ -30,6 +31,7 @@ class ChatPanel extends StatefulWidget {
     super.key,
     required this.messages,
     this.onRetry,
+    this.onPermiso,
     this.etiquetaDelAgente,
   });
 
@@ -44,6 +46,11 @@ class ChatPanel extends StatefulWidget {
   /// este panel no sabe de qué conversación es —recibe los mensajes ya
   /// resueltos— y hacer que lo supiera solo por esto lo ataría a una.
   final void Function(ChatMessage mensaje)? onRetry;
+
+  /// Contestar a una petición de permiso. Entra por parámetro por lo mismo que
+  /// [onRetry]: el panel no sabe de qué conversación es, y los completers que
+  /// hay al otro lado sí son de una.
+  final void Function(String id, DecisionDePermiso decision)? onPermiso;
 
   final List<ChatMessage> messages;
 
@@ -101,6 +108,7 @@ class _ChatPanelState extends State<ChatPanel> {
           message: widget.messages[index],
           etiqueta: widget.etiquetaDelAgente,
           onRetry: widget.onRetry,
+          onPermiso: widget.onPermiso,
         ),
       ),
     );
@@ -119,7 +127,14 @@ class _ChatPanelState extends State<ChatPanel> {
 /// con eso este widget sigue siendo una función de sus datos. Que es además lo
 /// que lo hace fácil de probar.
 class _Turn extends StatelessWidget {
-  const _Turn({required this.message, this.etiqueta, this.onRetry});
+  const _Turn({
+    required this.message,
+    this.etiqueta,
+    this.onRetry,
+    this.onPermiso,
+  });
+
+  final void Function(String id, DecisionDePermiso decision)? onPermiso;
 
   /// Cómo se llama quien contesta, o `null` para el nombre de la app.
   final String? etiqueta;
@@ -216,12 +231,194 @@ class _Turn extends StatelessWidget {
           // condición se escribió cuando solo había cambios y documento, y al
           // añadir el parte se quedó fuera: el botón existía y no se dibujaba
           // nunca, porque el bloque entero se saltaba antes de llegar a él.
+          // La pregunta de permiso, con sus salidas. Va **debajo del texto** y
+          // no en la fila del autor como `_Reintentar`, porque aquí el texto es
+          // la pregunta y los botones son su respuesta: separarlos rompería lo
+          // único que hace que se entienda de un vistazo.
+          if (message.permiso case final peticion?)
+            _ElPermiso(
+              peticion: peticion,
+              decision: message.decision,
+              onPermiso: onPermiso,
+            ),
           if (message.cambios != null ||
               message.documento != null ||
               message.esElParte ||
               message.actividad.isNotEmpty)
             _LoQueDejo(message: message),
         ],
+      ),
+    );
+  }
+}
+
+/// Lo que Claude pide y las tres salidas, dentro de la conversación.
+///
+/// **No es una modal, y eso es la decisión.** Una ventana obliga a contestar
+/// antes de seguir, que es cómodo para el programa y molesto para la persona:
+/// tapa lo que estabas leyendo y no deja mirar el resto de la conversación para
+/// decidir. Aquí la pregunta se queda donde ocurrió, se puede subir a releerla
+/// después, y el turno conserva qué se contestó.
+class _ElPermiso extends StatelessWidget {
+  const _ElPermiso({
+    required this.peticion,
+    required this.decision,
+    required this.onPermiso,
+  });
+
+  final PeticionDePermiso peticion;
+  final DecisionDePermiso? decision;
+  final void Function(String id, DecisionDePermiso decision)? onPermiso;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Qué exactamente. Es lo que se aprueba —el nombre de la herramienta
+          // no dice nada— y por eso va antes que los botones y no plegado.
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(NexusSpacing.s3),
+            decoration: BoxDecoration(
+              color: colors.deep,
+              borderRadius: BorderRadius.circular(NexusRadius.sm),
+              border: Border.all(color: colors.rule),
+            ),
+            // Con tope: un `Write` trae el archivo entero, y sin esto la
+            // conversación se convierte en el archivo.
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 160),
+              child: SingleChildScrollView(
+                child: Text(
+                  peticion.resumen,
+                  style: NexusTypography.mono.copyWith(color: colors.faint),
+                ),
+              ),
+            ),
+          ),
+          if (peticion.escribe)
+            Padding(
+              padding: const EdgeInsets.only(top: 6),
+              child: Text(
+                strings.permisoEscribe,
+                style: NexusTypography.label.copyWith(color: colors.warn),
+              ),
+            ),
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: switch (decision) {
+              // Contestado: quedan el qué y el qué se dijo, sin botones. Subir
+              // por la conversación tiene que contar lo que autorizaste.
+              final DecisionDePermiso ya => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    ya == DecisionDePermiso.denegado ||
+                            ya == DecisionDePermiso.cancelado
+                        ? Icons.block
+                        : Icons.check,
+                    size: 12,
+                    color: ya == DecisionDePermiso.denegado
+                        ? colors.err
+                        : ya == DecisionDePermiso.cancelado
+                        ? colors.faint
+                        : colors.ok,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    switch (ya) {
+                      DecisionDePermiso.concedido =>
+                        strings.permisoDichoConcedido,
+                      DecisionDePermiso.concedidoTodo =>
+                        strings.permisoDichoConcedidoTodo,
+                      DecisionDePermiso.denegado =>
+                        strings.permisoDichoDenegado,
+                      DecisionDePermiso.cancelado =>
+                        strings.permisoDichoCancelado,
+                    },
+                    style: NexusTypography.label.copyWith(color: colors.faint),
+                  ),
+                ],
+              ),
+              // Sin contestar: las salidas. «Permitir todo» solo si el CLI la
+              // ofrece — sin sugerencia que aplicar sería un botón que promete
+              // dejar de preguntar y no lo hace.
+              null => Wrap(
+                spacing: NexusSpacing.s2,
+                runSpacing: NexusSpacing.s2,
+                children: [
+                  _BotonDePermiso(
+                    texto: strings.permisoDenegar,
+                    color: colors.err,
+                    onTap: () => onPermiso?.call(
+                      peticion.id,
+                      DecisionDePermiso.denegado,
+                    ),
+                  ),
+                  _BotonDePermiso(
+                    texto: strings.permisoConceder,
+                    color: colors.ink,
+                    onTap: () => onPermiso?.call(
+                      peticion.id,
+                      DecisionDePermiso.concedido,
+                    ),
+                  ),
+                  if (peticion.sePuedeConcederTodo)
+                    _BotonDePermiso(
+                      texto: strings.permisoConcederTodo,
+                      color: colors.accent,
+                      onTap: () => onPermiso?.call(
+                        peticion.id,
+                        DecisionDePermiso.concedidoTodo,
+                      ),
+                    ),
+                ],
+              ),
+            },
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _BotonDePermiso extends StatelessWidget {
+  const _BotonDePermiso({
+    required this.texto,
+    required this.color,
+    required this.onTap,
+  });
+
+  final String texto;
+  final Color color;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    return Semantics(
+      button: true,
+      label: texto,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(NexusRadius.sm),
+            border: Border.all(color: colors.rule),
+          ),
+          child: Text(
+            texto,
+            style: NexusTypography.label.copyWith(color: color),
+          ),
+        ),
       ),
     );
   }
