@@ -380,9 +380,7 @@ final _elHeadDelRepo = StreamProvider.family<void, String>((
   final carpeta = head.parent;
   if (!carpeta.existsSync()) return;
 
-  final cambios = carpeta.watch().where(
-    (evento) => evento.path.endsWith('/HEAD'),
-  );
+  final cambios = carpeta.watch().where(_tocaElHead);
 
   await for (final _ in cambios) {
     // 🔴 **Se deja pasar la ráfaga antes de avisar, y sale gratis.** Un
@@ -400,6 +398,27 @@ final _elHeadDelRepo = StreamProvider.family<void, String>((
     yield null;
   }
 });
+
+/// Si este aviso del sistema de archivos habla del `HEAD`.
+///
+/// 🔴 **Mira también el destino, y eso lo enseñó CI.** Filtrando solo por
+/// `evento.path` la prueba pasaba en macOS y fallaba en Linux con la rama vieja,
+/// porque los dos sistemas cuentan un renombrado de forma distinta: git escribe
+/// `HEAD.lock` y lo renombra encima de `HEAD`, y donde macOS avisa del archivo
+/// tocado, inotify manda un evento de movimiento cuyo `path` es **el nombre
+/// viejo** —`HEAD.lock`— y deja `HEAD` en `destination`. El filtro se quedaba
+/// mirando el lado que no era.
+///
+/// Se acepta también `HEAD.lock` a propósito: es el baile del renombrado y
+/// llega antes: releer ahí no cuesta nada —se espera la ráfaga y se lee el
+/// estado final— y ahorra depender de qué mitad del movimiento reporta cada
+/// sistema. `ORIG_HEAD` y `FETCH_HEAD` no entran: no empiezan por `HEAD`.
+bool _tocaElHead(FileSystemEvent evento) {
+  bool esElHead(String? ruta) =>
+      ruta != null && ruta.split('/').last.startsWith('HEAD');
+  return esElHead(evento.path) ||
+      (evento is FileSystemMoveEvent && esElHead(evento.destination));
+}
 
 /// El repositorio y la rama de una carpeta.
 ///
