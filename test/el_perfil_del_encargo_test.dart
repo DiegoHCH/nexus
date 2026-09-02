@@ -22,7 +22,10 @@ void main() {
     test('la carpeta del perfil se nombra, no se deja adivinar', () async {
       inventario('{"version":2,"plugins":{}}');
 
-      expect(await ElPerfilDelEncargo.describir(perfil.path), contains(perfil.path));
+      expect(
+        await ElPerfilDelEncargo.describir(perfil.path),
+        contains(perfil.path),
+      );
     });
 
     test('los plugins puestos salen con su versión', () async {
@@ -91,8 +94,7 @@ void main() {
     // distinta de la que se va a usar.
     test('sin perfil, lo que vaya a usar el CLI de verdad', () {
       final env = Platform.environment;
-      final esperado =
-          env['CLAUDE_CONFIG_DIR']?.isNotEmpty == true
+      final esperado = env['CLAUDE_CONFIG_DIR']?.isNotEmpty == true
           ? env['CLAUDE_CONFIG_DIR']
           : '${env['HOME']}/.claude';
 

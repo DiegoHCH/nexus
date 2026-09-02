@@ -80,10 +80,9 @@ void main() {
                "marketplaceName":"flash-g66","installCount":3}]}
 ''');
 
-      expect(
-        plugins.where((plugin) => plugin.installed).map((p) => p.id),
-        ['flash-flutter@flash-g66'],
-      );
+      expect(plugins.where((plugin) => plugin.installed).map((p) => p.id), [
+        'flash-flutter@flash-g66',
+      ]);
     });
 
     // Las dos entradas del mismo plugin traen mitades distintas: la instalada
@@ -103,7 +102,7 @@ void main() {
 
     // Los instalados empatan todos a cero instalaciones y `List.sort` no
     // promete ser estable: sin desempate la lista se reordenaba sola.
-    test('el orden no depende de la suerte cuando nadie tiene instalaciones', () {
+    test('el orden no depende de la suerte sin instalaciones', () {
       final orden = PluginCommand.parseList('''
 {"installed":[{"id":"zeta@x"},{"id":"alfa@x"},{"id":"media@x"}],
  "available":[]}
