@@ -13,5 +13,11 @@ abstract class LaAgendaDeHoy {
   /// Lo que hay hoy, contado en una frase. `null` cuando esto no se puede
   /// contestar sin salir a preguntar —los avisos apagados, sin carpeta— y
   /// entonces quien pregunta decide si sigue por el camino largo.
+  ///
+  /// 🔴 **Casi siempre es inmediato, pero no siempre**, y creer lo contrario
+  /// costó una respuesta hablada que no llegó nunca: si la lectura del día está
+  /// en vuelo, esto la espera, y esa lectura es un `claude -p` con el conector
+  /// de Calendar —32 s medidos al arrancar la app—. Quien llame desde una
+  /// sesión con reloj tiene que sostenerla mientras tanto.
   Future<String?> deHoy();
 }
