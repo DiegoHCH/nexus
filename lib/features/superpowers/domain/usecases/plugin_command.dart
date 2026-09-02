@@ -65,35 +65,94 @@ abstract final class PluginCommand {
         byId[plugin.id] = plugin;
       }
     }
-    // Los instalados pisan a los disponibles: el mismo plugin sale en las dos
-    // listas, y lo que interesa saber de él es que ya lo tienes.
+    // Los instalados pisan a los disponibles cuando el mismo plugin sale en las
+    // dos listas — pero **fundiéndose** con lo que ya había, no borrándolo: ver
+    // [_fundidos].
     for (final item in installed is List ? installed : const []) {
       for (final plugin in _one(item, installed: true)) {
-        byId[plugin.id] = plugin;
+        final delCatalogo = byId[plugin.id];
+        byId[plugin.id] = delCatalogo == null
+            ? plugin
+            : _fundidos(plugin, delCatalogo);
       }
     }
 
+    // El nombre desempata, y no es cosmético: los instalados llegan sin
+    // `installCount`, así que empatan todos a cero y `List.sort` no promete ser
+    // estable. Sin el desempate, la lista de plugins puestos se reordenaba sola
+    // entre recargas.
     final plugins = byId.values.toList()
-      ..sort((a, b) => b.installs.compareTo(a.installs));
+      ..sort((a, b) {
+        final porInstalaciones = b.installs.compareTo(a.installs);
+        return porInstalaciones != 0
+            ? porInstalaciones
+            : a.name.compareTo(b.name);
+      });
     return plugins;
   }
 
+  /// 🔴 **Las dos listas no nombran las cosas igual, y por eso los instalados
+  /// se caían enteros.**
+  ///
+  /// Esto leía `name ?? pluginId` y descartaba lo que no tuviera nombre. Medido
+  /// contra el binario, un instalado llega así —sin `name` y sin `pluginId`—:
+  ///
+  ///     {"id":"flash-flutter@flash-g66","version":"0.2.179","scope":"user",
+  ///      "enabled":true,"installPath":"…","installedAt":"…"}
+  ///
+  /// O sea que `name` salía vacío para **todos** los instalados y la guarda los
+  /// tiraba. El fallback de [parseList] tampoco los rescataba, porque el
+  /// `available` de este CLI **excluye lo ya puesto** —comprobado: con
+  /// `flash-flutter` instalado, el catálogo trae `flashmemory` del mismo
+  /// marketplace y a él no—. Resultado: un plugin puesto no aparecía en
+  /// ninguna de las dos listas de la pantalla, y su versión no existía en
+  /// ninguna parte de la app.
+  ///
+  /// El nombre y el marketplace se derivan del identificador cuando no vienen,
+  /// que es lo que hace el propio CLI al pedirlos: `flash-flutter@flash-g66`
+  /// ya dice las dos cosas.
   static Iterable<ClaudePlugin> _one(Object? item, {required bool installed}) {
     if (item is! Map) return const [];
-    final name = '${item['name'] ?? item['pluginId'] ?? ''}';
-    if (name.isEmpty) return const [];
+    final id = '${item['pluginId'] ?? item['id'] ?? item['name'] ?? ''}';
+    if (id.isEmpty) return const [];
+    final partes = id.split('@');
     return [
       ClaudePlugin(
-        id: '${item['pluginId'] ?? name}',
-        name: name,
+        id: id,
+        name: '${item['name'] ?? partes.first}',
         description: '${item['description'] ?? ''}',
-        marketplace: '${item['marketplaceName'] ?? ''}',
+        marketplace:
+            '${item['marketplaceName'] ?? (partes.length > 1 ? partes.last : '')}',
+        version: item['version'] == null ? null : '${item['version']}',
         installs: (item['installCount'] as num?)?.toInt() ?? 0,
         enabled: item['enabled'] != false,
         installed: installed,
       ),
     ];
   }
+
+  /// Lo puesto manda en estado y versión; el catálogo, en lo que solo él sabe.
+  ///
+  /// Hace falta porque las dos entradas del mismo plugin traen mitades
+  /// distintas: la instalada sabe la versión y si está apagado, y la del
+  /// catálogo la descripción y cuánta gente lo tiene. El sobrescribir a secas
+  /// que había aquí se quedaba con la mitad instalada y perdía la descripción,
+  /// así que un plugin puesto se enseñaba sin una línea que dijera qué hace.
+  static ClaudePlugin _fundidos(ClaudePlugin puesto, ClaudePlugin catalogo) =>
+      ClaudePlugin(
+        id: puesto.id,
+        name: puesto.name.isEmpty ? catalogo.name : puesto.name,
+        description: puesto.description.isEmpty
+            ? catalogo.description
+            : puesto.description,
+        marketplace: puesto.marketplace.isEmpty
+            ? catalogo.marketplace
+            : puesto.marketplace,
+        version: puesto.version ?? catalogo.version,
+        installs: puesto.installs == 0 ? catalogo.installs : puesto.installs,
+        enabled: puesto.enabled,
+        installed: true,
+      );
 
   static List<Marketplace> parseMarketplaces(String raw) {
     final Object? decoded;
