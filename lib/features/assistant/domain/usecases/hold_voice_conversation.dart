@@ -573,9 +573,12 @@ class HoldVoiceConversation {
       // sin nada en pantalla se leen como que no oyó; y `atender`, que sostiene
       // la sesión mientras esto tarda.
       if (request.name == ClaudeErrand.agendaTool) {
-        controller.add(const VoiceToolStarted('La agenda de hoy'));
+        // 🔴 `VoiceLookupStarted` y **no** la pareja de un encargo: esto no
+        // toca el repositorio, no produce documentos y no gasta contexto.
+        // Anunciarlo como encargo hacía que al terminar corriera la cola de
+        // después de uno, y eso colgó un documento viejo de la respuesta.
+        controller.add(const VoiceLookupStarted('La agenda de hoy'));
         final agenda = await _laAgendaDeHoy.deHoy();
-        controller.add(const VoiceToolFinished(ok: true));
         responder(
           callId: request.callId,
           name: request.name,

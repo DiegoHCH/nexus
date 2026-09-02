@@ -816,7 +816,19 @@ class AssistantController extends Notifier<AssistantHudState> {
   String? _repoBase;
 
   /// Y qué documentos había antes, para saber cuál salió de aquí.
-  Set<String> _documentosAntes = const {};
+  /// Los documentos que había **antes de este encargo**, o `null` si nadie ha
+  /// tomado la marca todavía.
+  ///
+  /// 🔴 **`null` y no un conjunto vacío, y esa es la diferencia que importa.**
+  /// Vacío significa «mirado, y no había ninguno»; `null` significa «no se ha
+  /// mirado». Confundirlos es lo que colgó un documento viejo de una respuesta
+  /// que no tenía nada que ver: sin marca, restar contra el vacío hace que
+  /// **toda** la carpeta parezca recién salida.
+  ///
+  /// Con esto, un camino que llegue al final de un encargo sin haber tomado la
+  /// marca no cuelga nada — que es lo correcto, porque no hay forma de saber
+  /// qué es nuevo.
+  Set<String>? _documentosAntes;
 
   /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
   /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
@@ -1011,8 +1023,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// ofrece el último: son las notas de la misma tarea y el botón lleva a la
   /// carpeta igual, con el resto al lado.
   Future<void> _mirarSiHayDocumento() async {
+    // Sin marca no se cuelga nada. Y **se consume**: la marca vale para un
+    // encargo, así que el siguiente tiene que tomar la suya. Dejarla puesta
+    // haría que un turno sin marca comparase contra la del anterior y colgase
+    // el documento de aquél.
+    final antes = _documentosAntes;
+    _documentosAntes = null;
+    if (antes == null) return;
     final ahora = await _documentosAhora();
-    final nuevos = ahora.difference(_documentosAntes);
+    final nuevos = ahora.difference(antes);
     if (nuevos.isEmpty || !_vive) return;
     ref.invalidate(artifactsProvider);
     _sellarEnElMensaje(documento: nuevos.last);
@@ -1574,6 +1593,7 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceInterrupted() => _onInterrupted(),
         VoiceTurnCompleted() => _onVoiceTurnCompleted(),
         VoiceToolStarted() => _onToolStarted(event.instruction),
+        VoiceLookupStarted() => _onLookupStarted(event.headline),
         VoiceToolProgress() => _onToolProgress(event.text),
         VoiceToolActivity() => _onVoiceActivity(event),
         VoiceToolFinished() => _onToolFinished(event),
@@ -1731,6 +1751,28 @@ class AssistantController extends Notifier<AssistantHudState> {
       isStreaming: true,
       activity: const [],
       history: _remember(instruction),
+    );
+  }
+
+  /// Se está mirando algo aquí mismo: TRABAJANDO con su titular, **y nada
+  /// más**.
+  ///
+  /// 🔴 El contraste con [_onToolStarted] es el arreglo entero. Aquél toma la
+  /// marca del repositorio y apunta la instrucción en «lo que has pedido»,
+  /// porque un encargo lo necesita: hay que saber qué había antes para saber
+  /// qué dejó, y lo pedido sirve para repetirlo. Una lectura de memoria no deja
+  /// nada y no es una petición que nadie quiera repetir desde una lista.
+  ///
+  /// Tampoco suelta el estado al acabar, porque no hay «acabar» que anunciar:
+  /// lo siguiente es el modelo hablando, y ahí `_onReply` lo pasa a hablando.
+  void _onLookupStarted(String headline) {
+    _heard.clear();
+    _reply.clear();
+    state = state.copyWith(
+      orbState: NexusOrbState.think,
+      subtitle: headline,
+      isStreaming: true,
+      activity: const [],
     );
   }
 
