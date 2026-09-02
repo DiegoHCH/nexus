@@ -1056,7 +1056,17 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
     // La rama puede haber cambiado durante el encargo —se lo pediste tú, o
     // Claude hizo checkout—, así que se relee en vez de dejar la de antes.
-    if (_folder case final folder?) ref.invalidate(gitInfoProvider(folder));
+    //
+    // 🔴 **Con `_workingDirectory` y no con la carpeta emparejada**, que es lo
+    // que había y no coincidía. El chip lee la rama de donde Claude trabaja de
+    // verdad, y con una raíz de varios repos eso es el repo elegido, no la
+    // raíz: se invalidaba una clave de la familia que nadie estaba mirando, así
+    // que en ese caso el fin del encargo no refrescaba nada. Ya no se nota,
+    // porque el vigía del `HEAD` cubre el mismo hueco desde el otro lado, pero
+    // dejar las dos claves en desacuerdo es una trampa para quien lo lea luego.
+    if (_workingDirectory case final donde?) {
+      ref.invalidate(gitInfoProvider(donde));
+    }
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
     _elParteEnCurso = false;
