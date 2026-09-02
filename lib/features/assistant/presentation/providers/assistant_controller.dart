@@ -206,6 +206,10 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
     if (mia == null || mia.messages.isEmpty) return;
+    // 🔴 Y que la pestaña siga viva, igual que arriba. Este salto se quedó sin
+    // el guardia que sí tienen los dos anteriores: leer `state` de un notifier
+    // desechado lanza lo mismo que escribirlo.
+    if (!ref.mounted) return;
     // Se vuelve a mirar después de leer: entre una cosa y otra ha habido una
     // espera, y en ese hueco el usuario puede haber empezado a hablar.
     if (state.messages.isNotEmpty) return;
@@ -464,7 +468,12 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (!esElParte &&
         attachments.isEmpty &&
         LoQueSePreguntaDeLaAgenda.loEstanPidiendo(trimmed)) {
-      if (await ref.read(laAgendaDeHoyProvider).deHoy() case final agenda?) {
+      // 🔴 La misma espera que hablando: si la lectura del día va en vuelo,
+      // esto son los 32 s del `claude -p` con el conector. Escribiendo no mata
+      // ninguna sesión, pero sí puede volver a una conversación ya cerrada.
+      final agendaDeHoy = await ref.read(laAgendaDeHoyProvider).deHoy();
+      if (!_vive) return;
+      if (agendaDeHoy case final agenda?) {
         _say(ChatAuthor.user, loQueSeVe ?? trimmed);
         _sealLast();
         _say(ChatAuthor.nexus, agenda);
@@ -590,6 +599,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool reintento = false,
   }) async {
     await _subscription?.cancel();
+    // Cancelar **espera a que el generador llegue a un punto donde pueda
+    // parar**, y uno detenido en un `await` que no vuelve tarda lo que tarde:
+    // está medido y escrito en `stopWork`. Ese es el hueco.
+    if (!_vive) return;
     _sealLast();
     final strings = ref.read(stringsProvider);
 
@@ -1312,6 +1325,12 @@ class AssistantController extends Notifier<AssistantHudState> {
           );
         }
       }
+      // 🔴 **El plazo más largo de todos los `unawaited` de esta clase.**
+      // `/compact` es un turno entero de Claude —un minuto largo— y no cuelga
+      // de `_subscription`, así que el `onDispose` que cancela las
+      // suscripciones no lo alcanza: cerrar la conversación mientras comprime
+      // dejaba todo lo de abajo tocando `state` sobre un proveedor muerto.
+      if (!_vive) return;
       _onClaudeToolFinished(_compactItemId);
 
       // **Solo se anuncia una bajada si de verdad se midió otra vez.**
@@ -1332,9 +1351,14 @@ class AssistantController extends Notifier<AssistantHudState> {
       }
     } catch (error) {
       // Que falle la compresión no puede tumbar la conversación: se sigue con
-      // el contexto lleno, que es exactamente como se estaba antes.
+      // el contexto lleno, que es exactamente como se estaba antes. Y el mismo
+      // guardia: por aquí también se pasa después del turno.
+      if (!_vive) return;
       _onClaudeToolFinished(_compactItemId);
     } finally {
+      // Fuera del guardia a propósito: es un campo, no el estado, y dejarlo en
+      // `true` bloquearía la compresión de la siguiente conversación que use
+      // este mismo notifier.
       _compacting = false;
     }
   }
@@ -1476,14 +1500,22 @@ class AssistantController extends Notifier<AssistantHudState> {
     // intentaba abrirse y lo que salía era el error del motor de audio, que no
     // dice a dónde ir. Y en «sin decidir» hay que **preguntar**, no rendirse:
     // ahí sí toca el diálogo del sistema, que es lo que hace `hasPermission`.
-    switch (await ref.read(microphoneAccessProvider).status()) {
+    // 🔴 **Los dos guardias son porque aquí se espera a una persona.** Esto se
+    // llama desde el `onTap` del orbe, sin que nadie lo espere, y en «sin
+    // decidir» lo que hay en medio es el diálogo del sistema: tarda lo que
+    // tarde quien lo lea, y puede cerrar la conversación antes de contestarlo.
+    final permiso = await ref.read(microphoneAccessProvider).status();
+    if (!_vive) return;
+    switch (permiso) {
       case MicrophoneStatus.denied:
         state = state.copyWith(
           errorMessage: ref.read(stringsProvider).microphoneBlocked,
         );
         return;
       case MicrophoneStatus.notAsked:
-        if (!await ref.read(voiceInputProvider).hasPermission()) {
+        final concedido = await ref.read(voiceInputProvider).hasPermission();
+        if (!_vive) return;
+        if (!concedido) {
           state = state.copyWith(
             errorMessage: ref.read(stringsProvider).microphoneBlocked,
           );
@@ -1570,6 +1602,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // —o con la marca colgada— el botón paraba el micrófono y dejaba a Claude
     // trabajando. Detener es detener.
     if (state.voiceActive) await stopVoice();
+    if (!_vive) return;
 
     // Y se tira lo que esperaba turno. Detener es «para», no «pausa»: dejar la
     // cola viva haría que al soltar el botón arrancara solo lo siguiente, que
