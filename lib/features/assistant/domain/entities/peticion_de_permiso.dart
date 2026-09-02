@@ -17,6 +17,7 @@ class PeticionDePermiso {
     required this.entrada,
     this.descripcion,
     this.toolUseId,
+    this.sugerencias = const [],
   });
 
   /// El `request_id` del CLI. **Es el dato que hay que devolver intacto**: sin
@@ -42,6 +43,23 @@ class PeticionDePermiso {
   /// La llamada concreta a la que pertenece el permiso, para poder casarla con
   /// el paso que ya se está enseñando en la columna de actividad.
   final String? toolUseId;
+
+  /// Las salidas que el propio CLI ofrece además de sí o no: hoy, «concede
+  /// esto para el resto de la sesión».
+  ///
+  /// **Sin esto la pantalla es inusable, y está medido.** Preguntar por cada
+  /// herramienta suena razonable hasta que se cuenta: un encargo que crea tres
+  /// archivos pregunta **tres veces**, y uno que toca quince, quince. Eso es
+  /// peor que el `acceptEdits` que había, no mejor.
+  ///
+  /// Se guardan tal cual llegan —son estructuras del CLI, no nuestras— y
+  /// devolverlas es lo que corta la sangría: medido contra el binario, esas
+  /// tres escrituras pasaron a **una sola pregunta**, con los tres archivos
+  /// escritos igual.
+  final List<Map<String, dynamic>> sugerencias;
+
+  /// Si hay una salida de «no me lo vuelvas a preguntar» que ofrecer.
+  bool get sePuedeConcederTodo => sugerencias.isNotEmpty;
 
   /// Si conceder esto toca el disco.
   ///
@@ -90,9 +108,14 @@ sealed class RespuestaDePermiso {
 /// aprobar; hoy se devuelve tal cual llegó, pero el hueco es del CLI y no
 /// nuestro, así que se respeta.
 final class PermisoConcedido extends RespuestaDePermiso {
-  const PermisoConcedido(this.entrada);
+  const PermisoConcedido(this.entrada, {this.permisosNuevos = const []});
 
   final Map<String, dynamic> entrada;
+
+  /// Lo que además cambia de aquí en adelante. Vacío significa «solo esta
+  /// vez»; con las sugerencias de la petición dentro, «y no me lo vuelvas a
+  /// preguntar en esta sesión».
+  final List<Map<String, dynamic>> permisosNuevos;
 }
 
 /// No.

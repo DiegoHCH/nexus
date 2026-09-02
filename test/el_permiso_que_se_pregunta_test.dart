@@ -130,6 +130,10 @@ void main() {
       expect(peticion.escribe, isTrue);
       expect(peticion.toolUseId, 'toolu_019UAUgo7DqcExuZyH85xkZM');
       expect(peticion.entrada['file_path'], '/private/tmp/prueba.txt');
+      // La salida de «no me lo preguntes más» viene en la propia petición.
+      expect(peticion.sugerencias, hasLength(1));
+      expect(peticion.sugerencias.first['mode'], 'acceptEdits');
+      expect(peticion.sePuedeConcederTodo, isTrue);
     });
 
     // Por el mismo canal llegan cosas que no son preguntas para nadie. Tomar
@@ -245,6 +249,44 @@ void main() {
 
     // Leer no lleva el aviso de que escribe: si lo llevara todo, no avisaría
     // de nada.
+    testWidgets('el tercer botón solo sale si el CLI lo ofrece', (
+      tester,
+    ) async {
+      final container = await pintar(tester);
+      final pendiente = container.read(elPermisoPendienteProvider.notifier);
+      final strings = const NexusStringsEs();
+
+      pendiente.preguntar(
+        const PeticionDePermiso(
+          id: 'r3',
+          herramienta: 'Write',
+          nombreVisible: 'Write',
+          entrada: {'file_path': '/tmp/a.txt'},
+        ),
+      );
+      await tester.pump();
+      expect(find.text(strings.permisoConcederTodo), findsNothing);
+
+      pendiente.conceder();
+      pendiente.preguntar(
+        const PeticionDePermiso(
+          id: 'r4',
+          herramienta: 'Write',
+          nombreVisible: 'Write',
+          entrada: {'file_path': '/tmp/b.txt'},
+          sugerencias: [
+            {
+              'type': 'setMode',
+              'mode': 'acceptEdits',
+              'destination': 'session',
+            },
+          ],
+        ),
+      );
+      await tester.pump();
+      expect(find.text(strings.permisoConcederTodo), findsOneWidget);
+    });
+
     testWidgets('leer no se anuncia como escritura', (tester) async {
       final container = await pintar(tester);
       container
@@ -289,6 +331,38 @@ void main() {
       expect((await respuesta as PermisoConcedido).entrada, {
         'file_path': '/uno',
       });
+    });
+
+    // 🔴 Medido contra el CLI: un encargo de tres escrituras preguntaba tres
+    // veces, y devolviendo la sugerencia pasó a **una**. Sin esto, preguntar
+    // es peor que el `acceptEdits` que había.
+    test('conceder todo devuelve la sugerencia que mandó el CLI', () async {
+      const sugerencia = {
+        'type': 'setMode',
+        'mode': 'acceptEdits',
+        'destination': 'session',
+      };
+      final respuesta = pendiente.preguntar(
+        const PeticionDePermiso(
+          id: 'uno',
+          herramienta: 'Write',
+          nombreVisible: 'Write',
+          entrada: {'file_path': '/uno'},
+          sugerencias: [sugerencia],
+        ),
+      );
+      pendiente.concederTodo();
+
+      final concedido = await respuesta as PermisoConcedido;
+      expect(concedido.permisosNuevos, [sugerencia]);
+    });
+
+    // Y conceder a secas **no** cambia nada de aquí en adelante: son dos
+    // botones distintos porque son dos decisiones distintas.
+    test('conceder a secas no cambia ningún permiso', () async {
+      final respuesta = pendiente.preguntar(peticion('uno'));
+      pendiente.conceder();
+      expect((await respuesta as PermisoConcedido).permisosNuevos, isEmpty);
     });
 
     test('lo que se niega vuelve con un motivo para el modelo', () async {

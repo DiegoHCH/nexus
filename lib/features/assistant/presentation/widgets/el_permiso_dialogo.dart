@@ -80,9 +80,17 @@ class ElPermisoDialogo extends ConsumerWidget {
         ),
         TextButton(
           onPressed: pendiente.conceder,
-          style: TextButton.styleFrom(foregroundColor: colors.accent),
           child: Text(strings.permisoConceder),
         ),
+        // La salida de «y no me lo preguntes más», solo si el CLI la ofrece.
+        // Sin ella un encargo que toca quince archivos son quince diálogos, y
+        // eso es peor que conceder sin preguntar — que es lo que había.
+        if (peticion.sePuedeConcederTodo)
+          TextButton(
+            onPressed: pendiente.concederTodo,
+            style: TextButton.styleFrom(foregroundColor: colors.accent),
+            child: Text(strings.permisoConcederTodo),
+          ),
       ],
     );
   }

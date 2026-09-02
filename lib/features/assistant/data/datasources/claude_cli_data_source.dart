@@ -261,6 +261,7 @@ class ClaudeCliDataSource {
     final nombreVisible = request['display_name'];
     final descripcion = request['description'];
     final toolUseId = request['tool_use_id'];
+    final sugerencias = request['permission_suggestions'];
     return PeticionDePermiso(
       id: id,
       herramienta: herramienta,
@@ -270,6 +271,12 @@ class ClaudeCliDataSource {
       entrada: entrada is Map<String, dynamic> ? entrada : const {},
       descripcion: descripcion is String ? descripcion : null,
       toolUseId: toolUseId is String ? toolUseId : null,
+      sugerencias: sugerencias is List
+          ? [
+              for (final una in sugerencias)
+                if (una is Map<String, dynamic>) una,
+            ]
+          : const [],
     );
   }
 
@@ -295,9 +302,12 @@ class ClaudeCliDataSource {
     }
 
     final cuerpo = switch (respuesta) {
-      PermisoConcedido(:final entrada) => {
+      PermisoConcedido(:final entrada, :final permisosNuevos) => {
         'behavior': 'allow',
         'updatedInput': entrada,
+        // Solo cuando hay algo que cambiar: mandar la lista vacía sería pedirle
+        // al CLI que toque los permisos para no tocar ninguno.
+        if (permisosNuevos.isNotEmpty) 'updatedPermissions': permisosNuevos,
       },
       PermisoDenegado(:final motivo) => {'behavior': 'deny', 'message': motivo},
     };

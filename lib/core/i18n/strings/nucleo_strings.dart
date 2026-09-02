@@ -30,6 +30,7 @@ mixin NucleoStrings {
   String permisoPregunta(String herramienta);
   String get permisoEscribe;
   String get permisoConceder;
+  String get permisoConcederTodo;
   String get permisoDenegar;
   String get permisoDenegadoMotivo;
   String get permisoCanceladoMotivo;
@@ -198,6 +199,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get permisoEscribe => 'Esto modifica archivos.';
   @override
   String get permisoConceder => 'Permitir';
+  @override
+  String get permisoConcederTodo => 'Permitir todo';
   @override
   String get permisoDenegar => 'No';
   @override
@@ -509,6 +512,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get permisoEscribe => 'This changes files.';
   @override
   String get permisoConceder => 'Allow';
+  @override
+  String get permisoConcederTodo => 'Allow all';
   @override
   String get permisoDenegar => 'No';
   @override

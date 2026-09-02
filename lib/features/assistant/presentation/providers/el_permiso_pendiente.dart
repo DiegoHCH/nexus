@@ -66,10 +66,22 @@ class ElPermisoPendiente extends Notifier<PeticionDePermiso?> {
     return espera.completer.future;
   }
 
-  /// Adelante con lo que se está preguntando.
+  /// Adelante, solo con esto.
   void conceder() {
     if (_cola.isEmpty) return;
     _contesta(PermisoConcedido(_cola.first.peticion.entrada));
+  }
+
+  /// Adelante, y deja de preguntar lo mismo en esta sesión.
+  ///
+  /// Lo que se aplica lo propone el CLI en la propia petición; aquí no se
+  /// inventa ninguna regla, solo se le devuelve la suya.
+  void concederTodo() {
+    if (_cola.isEmpty) return;
+    final peticion = _cola.first.peticion;
+    _contesta(
+      PermisoConcedido(peticion.entrada, permisosNuevos: peticion.sugerencias),
+    );
   }
 
   /// No.

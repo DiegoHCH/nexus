@@ -25,6 +25,7 @@ import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
+import 'package:nexus/features/assistant/presentation/widgets/el_permiso_dialogo.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -254,8 +255,20 @@ class _MainAppState extends ConsumerState<MainApp> {
       // el scope ahí abajo, abrir Ajustes reventaba con «falta un
       // StringsScope» — y solo en esa pantalla, que es lo que lo hacía fácil
       // de no ver hasta usarla.
-      builder: (context, child) =>
-          StringsScope(strings: NexusStrings.of(locale), child: child!),
+      builder: (context, child) => StringsScope(
+        strings: NexusStrings.of(locale),
+        // El permiso, por el mismo motivo que el scope y un párrafo más
+        // arriba: Ajustes es una ruta nueva y se construye **fuera** del hijo
+        // de `home`. Colgado de la pantalla principal, abrir Ajustes con una
+        // pregunta en pie la tapaba — y como al otro lado hay un proceso
+        // detenido esperando, taparla es dejar el encargo colgado hasta que
+        // alguien cierre Ajustes sin saber por qué.
+        //
+        // El `Stack` va suelto y no en `expand`: aquí el hijo ya recibe el
+        // tamaño entero de la ventana, así que las dos formas miden igual
+        // —medido— y la suelta no promete nada que no haga falta.
+        child: Stack(children: [child!, ElPermisoDialogo.enElArbol()]),
+      ),
       home: const AppRoot(),
     );
   }
