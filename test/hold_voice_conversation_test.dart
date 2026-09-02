@@ -879,6 +879,71 @@ void main() {
       });
     });
 
+    /// 🔴 **Y tampoco puede matarla mientras se contesta, no solo mientras se
+    /// narra.**
+    ///
+    /// La lectura no siempre está hecha: si la del arranque va en vuelo,
+    /// `deHoy()` espera a que acabe, y esa es un `claude -p` con el conector de
+    /// Calendar —32 s medidos—. Pasó a los 34 s de abrir la app: dijo «consulto
+    /// tu agenda de hoy» y se quedó ahí. Reiniciar el reloj **al contestar** no
+    /// alcanza para esto, porque para cuando hay algo que contestar la sesión
+    /// lleva dieciocho segundos cerrada y el resultado se entrega a nadie.
+    test('aunque la lectura tarde más que el plazo entero', () {
+      fakeAsync((async) {
+        final session = _Session();
+        final registro = <String>[];
+        final agenda = _Agenda(
+          'Hoy tienes una reunión:\n- 10:00 · Refinamiento',
+          const Duration(seconds: 32),
+        );
+        final conversation = _conversation(
+          session,
+          _Bridge(),
+          agenda: agenda,
+          log: registro.add,
+        );
+        conversation().listen((_) {});
+        async.flushMicrotasks();
+
+        session.emit(const VoiceSessionReady());
+        session.emit(const VoiceReplyTranscript('consulto tu agenda de hoy'));
+        async.flushMicrotasks();
+
+        session.emit(
+          const VoiceToolRequested(
+            callId: 'c1',
+            name: ClaudeErrand.agendaTool,
+            arguments: <String, Object?>{},
+          ),
+        );
+        async
+          ..elapse(const Duration(seconds: 32))
+          ..flushMicrotasks();
+
+        expect(
+          registro.where((l) => l.contains('cierre por inactividad')),
+          isEmpty,
+          reason: 'se cerró mientras se leía lo que ella misma había pedido',
+        );
+        expect(
+          session.toolResults.single,
+          contains('Refinamiento'),
+          reason:
+              'la agenda llegó a una sesión ya cerrada, y no la narró nadie',
+        );
+
+        // Y después de contestar sigue mandando el plazo: lo que queda es la
+        // narración, no una sesión abierta para siempre.
+        async
+          ..elapse(const Duration(seconds: 25))
+          ..flushMicrotasks();
+        expect(
+          registro.where((l) => l.contains('cierre por inactividad')),
+          hasLength(1),
+        );
+      });
+    });
+
     test('preguntarla no manda ningún encargo a Claude', () async {
       final session = _Session();
       final bridge = _Bridge();
@@ -938,15 +1003,24 @@ void main() {
 
 /// La agenda ya leída: es lo que hace que preguntarla no vuelva a Claude.
 class _Agenda implements LaAgendaDeHoy {
-  _Agenda([this.respuesta]);
+  _Agenda([this.respuesta, this.tarda = Duration.zero]);
 
   /// `null` es «no hay agenda que mirar»: avisos apagados o sin carpeta.
   final String? respuesta;
+
+  /// Lo que cuesta contestar.
+  ///
+  /// 🔴 Contestar al momento era **el único caso que se estaba probando**, y es
+  /// el que no falla. Cuando la lectura del día está en vuelo, `deHoy()` espera
+  /// a que acabe — y esa es un `claude -p` con el conector de Calendar.
+  final Duration tarda;
+
   var seLaPidieron = 0;
 
   @override
   Future<String?> deHoy() async {
     seLaPidieron++;
+    if (tarda > Duration.zero) await Future<void>.delayed(tarda);
     return respuesta;
   }
 }

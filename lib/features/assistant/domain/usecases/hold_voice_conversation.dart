@@ -182,6 +182,26 @@ class HoldVoiceConversation {
     /// lo que hacía falta era **darle el plazo largo** mientras se espera.
     var esperandoRespuesta = false;
 
+    /// Cuántas herramientas del modelo se están atendiendo ahora mismo.
+    ///
+    /// 🔴 **El plazo largo de [responder] llega tarde: hay que sostener la
+    /// sesión mientras se *calcula* el resultado, no solo mientras se narra.**
+    /// `responder` reinicia el reloj cuando el resultado ya está listo, y eso no
+    /// sirve de nada si producirlo tarda más que el plazo: para cuando por fin
+    /// se manda, `session` ya es `null` y el resultado no va a ninguna parte.
+    ///
+    /// Medido pidiendo la agenda a los 34 s de abrir la app: la lectura del
+    /// calendario del arranque seguía en vuelo —un `claude -p` con el conector,
+    /// 32 s— y `deHoy()` se queda esperándola. Dijo «consulto tu agenda de hoy»
+    /// y ahí acabó todo. En el registro se ve entero: cierre por inactividad a
+    /// las 07:38:49 y el resultado saliendo a las 07:39:07, contra una sesión
+    /// que llevaba dieciocho segundos cerrada.
+    ///
+    /// Es un contador y no un booleano porque el modelo puede pedir dos
+    /// herramientas en el mismo turno, y la primera que acabe no puede levantar
+    /// la protección de la otra.
+    var herramientasEnVuelo = 0;
+
     String reloj() {
       final ready = readyAt == null ? '—' : '${readyAt}ms';
       final heard = heardAt == null ? 'todavía nada' : '${heardAt}ms';
@@ -218,6 +238,13 @@ class HoldVoiceConversation {
     /// diciendo que te oyó. Mientras el modelo responde también llegan
     /// eventos, así que nunca se corta a media frase.
     void keepAlive() {
+      // Apagando no hay nada que mantener vivo. Sin esto, un `keepAlive` que
+      // llegara después del cierre —el resultado de una herramienta que volvió
+      // tarde, por ejemplo— dejaba un temporizador huérfano que vencía solo
+      // para escribir un segundo «cierre por inactividad» de una sesión que ya
+      // no existía. Se vio en el registro justo debajo del cierre de verdad.
+      if (closing) return;
+
       // **Antes de la primera señal se espera más**, y ese era b11.
       //
       // El plazo corto está pensado para notar que una conversación viva se
@@ -241,12 +268,17 @@ class HoldVoiceConversation {
           : _idleTimeout;
       idleTimer?.cancel();
       idleTimer = Timer(grace, () async {
-        // Con un encargo en marcha no se cierra, y punto. Reiniciar la cuenta
-        // con cada evento de Claude no bastaba: **el primero tarda más que el
-        // propio plazo** —arrancar el CLI, cargar los CLAUDE.md del árbol— así
-        // que la sesión se cerraba antes de recibir nada y `shutdown()` mataba
-        // el proceso. Silencio mientras se trabaja no es inactividad.
-        if (abortErrand != null) {
+        // Con un encargo en marcha —o con una herramienta a medio atender— no
+        // se cierra, y punto. Reiniciar la cuenta con cada evento de Claude no
+        // bastaba: **el primero tarda más que el propio plazo** —arrancar el
+        // CLI, cargar los CLAUDE.md del árbol— así que la sesión se cerraba
+        // antes de recibir nada y `shutdown()` mataba el proceso. Silencio
+        // mientras se trabaja no es inactividad.
+        //
+        // Las dos condiciones porque `abortErrand` solo cubre las herramientas
+        // que pasan por `runErrand`, y hay tres que no: la agenda, las pruebas
+        // y la herramienta inventada. Esas se creían instantáneas.
+        if (abortErrand != null || herramientasEnVuelo > 0) {
           keepAlive();
           return;
         }
@@ -299,7 +331,18 @@ class HoldVoiceConversation {
       required String name,
       required String result,
     }) {
-      session?.sendToolResult(callId: callId, name: name, result: result);
+      final viva = session;
+      // Sin sesión no hay a quién contestar, y callarlo era parte de por qué
+      // esto costó dos intentos: el `?.` se comía la entrega sin dejar rastro y
+      // en pantalla no había ni fallo ni respuesta, solo la frase de antes.
+      if (viva == null || closing) {
+        _log(
+          'voz · el resultado de «$name» llegó a una sesión ya cerrada, '
+          'así que nadie lo va a narrar · ${reloj()}',
+        );
+        return;
+      }
+      viva.sendToolResult(callId: callId, name: name, result: result);
       esperandoRespuesta = true;
       keepAlive();
     }
@@ -518,12 +561,21 @@ class HoldVoiceConversation {
       // en qué carpetas— lo trae el puerto. De ahí en adelante es un encargo
       // como cualquier otro, y por eso pasa por `runErrand`: así el servicio de
       // voz se mantiene vivo mientras Claude redacta, que puede ser un minuto.
-      // 🔴 **No pasa por Claude ni sale de la máquina.** La agenda ya está
-      // leída —hizo falta para poder avisar— así que esto se contesta al
-      // momento. Y no usa `runErrand` por lo mismo: no hay encargo que
-      // mantener vivo, hay una lectura de memoria.
+      // 🔴 **No pasa por Claude ni sale de la máquina**, y por eso no usa
+      // `runErrand`: no hay encargo que mantener vivo. Lo que no se puede
+      // prometer es que sea instantáneo. Casi siempre lo es —la agenda ya está
+      // leída, hizo falta para poder avisar— pero si la lectura del día está en
+      // vuelo, `deHoy()` espera a que acabe, y esa sí es un `claude -p` con el
+      // conector de Calendar: 32 s medidos al arrancar la app. Que es
+      // exactamente cuando alguien pregunta qué reuniones tiene.
+      //
+      // De ahí las dos líneas de alrededor: el titular, porque treinta segundos
+      // sin nada en pantalla se leen como que no oyó; y `atender`, que sostiene
+      // la sesión mientras esto tarda.
       if (request.name == ClaudeErrand.agendaTool) {
+        controller.add(const VoiceToolStarted('La agenda de hoy'));
         final agenda = await _laAgendaDeHoy.deHoy();
+        controller.add(const VoiceToolFinished(ok: true));
         responder(
           callId: request.callId,
           name: request.name,
@@ -582,6 +634,29 @@ class HoldVoiceConversation {
         name: request.name,
         result: loQueCabe(answer, request.name),
       );
+    }
+
+    /// Atiende una herramienta **sosteniendo la sesión mientras dura**.
+    ///
+    /// 🔴 Envuelve a `runTool` en vez de contar dentro de él porque ahí hay seis
+    /// salidas —una por herramienta, y dos que vuelven sin contestar cuando el
+    /// encargo se canceló—. El `finally` de aquí es el único punto por el que
+    /// pasan todas. Es la misma razón por la que existe [responder]: un
+    /// invariante repartido en seis sitios se rompe en el séptimo.
+    Future<void> atender(VoiceToolRequested request) async {
+      herramientasEnVuelo++;
+      // El reloj venía corriendo desde el último evento del servicio, que fue
+      // esta misma petición: sin reiniciarlo, el plazo empieza ya gastado.
+      keepAlive();
+      try {
+        await runTool(request);
+      } finally {
+        herramientasEnVuelo--;
+        // Lo que queda por delante es la narración y le toca el plazo largo,
+        // que lo pone `responder`. Pero si la herramienta salió sin contestar
+        // —encargo cancelado— nadie ha tocado el reloj desde que empezó.
+        keepAlive();
+      }
     }
 
     /// Reengancha la conversación cuando el servicio corta la conexión.
@@ -653,7 +728,7 @@ class HoldVoiceConversation {
             case VoiceToolRequested():
               // Lo pasó a Claude: este turno cumplió la regla.
               asked.clear();
-              unawaited(runTool(event));
+              unawaited(atender(event));
             case VoiceUserTranscript(:final text):
               // El primer pedazo de una frase es el que estrena turno: los
               // siguientes son la misma frase llegando a trozos.
