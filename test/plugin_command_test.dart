@@ -51,6 +51,66 @@ void main() {
       expect(plugins.single.id, 'uno@x');
     });
 
+    // 🔴 La regresión que se arregló: un instalado llega **sin `name` y sin
+    // `pluginId`**, con el identificador en `id`, y la guarda de nombre vacío
+    // los tiraba todos. Medido contra el binario.
+    test('un instalado llega con `id` y `version`, y no se cae', () {
+      final plugins = PluginCommand.parseList('''
+{"installed":[{"id":"flash-flutter@flash-g66","version":"0.2.179",
+               "scope":"user","enabled":true}],
+ "available":[]}
+''');
+
+      expect(plugins.single.id, 'flash-flutter@flash-g66');
+      expect(plugins.single.version, '0.2.179');
+      expect(plugins.single.installed, isTrue);
+      // El nombre y el marketplace se derivan del identificador, que ya dice
+      // las dos cosas.
+      expect(plugins.single.name, 'flash-flutter');
+      expect(plugins.single.marketplace, 'flash-g66');
+    });
+
+    // El `available` de este CLI excluye lo ya puesto, así que el instalado es
+    // la única entrada que hay: si se descartaba, el plugin no salía en
+    // ninguna de las dos listas de la pantalla.
+    test('lo puesto se enseña aunque el catálogo no lo traiga', () {
+      final plugins = PluginCommand.parseList('''
+{"installed":[{"id":"flash-flutter@flash-g66","version":"0.2.179"}],
+ "available":[{"pluginId":"flashmemory@flash-g66","name":"flashmemory",
+               "marketplaceName":"flash-g66","installCount":3}]}
+''');
+
+      expect(plugins.where((plugin) => plugin.installed).map((p) => p.id), [
+        'flash-flutter@flash-g66',
+      ]);
+    });
+
+    // Las dos entradas del mismo plugin traen mitades distintas: la instalada
+    // la versión y el interruptor, la del catálogo la descripción.
+    test('el instalado se funde con el del catálogo, no lo borra', () {
+      final plugins = PluginCommand.parseList('''
+{"installed":[{"id":"a@x","version":"2.0.0","enabled":false}],
+ "available":[{"pluginId":"a@x","name":"a","description":"hace cosas",
+               "marketplaceName":"x","installCount":40}]}
+''');
+
+      expect(plugins.single.version, '2.0.0');
+      expect(plugins.single.enabled, isFalse);
+      expect(plugins.single.description, 'hace cosas');
+      expect(plugins.single.installs, 40);
+    });
+
+    // Los instalados empatan todos a cero instalaciones y `List.sort` no
+    // promete ser estable: sin desempate la lista se reordenaba sola.
+    test('el orden no depende de la suerte sin instalaciones', () {
+      final orden = PluginCommand.parseList('''
+{"installed":[{"id":"zeta@x"},{"id":"alfa@x"},{"id":"media@x"}],
+ "available":[]}
+''').map((plugin) => plugin.name);
+
+      expect(orden, ['alfa', 'media', 'zeta']);
+    });
+
     test('el objeto trae instalados y disponibles', () {
       final plugins = PluginCommand.parseList('''
 {"installed":[{"pluginId":"a@x","name":"a","enabled":false,"installCount":5}],
@@ -96,6 +156,7 @@ void main() {
         name: 'security-testing',
         description: 'Audita specs de OpenAPI',
         marketplace: 'x',
+        version: null,
         installs: 10,
         enabled: true,
         installed: false,
@@ -105,6 +166,7 @@ void main() {
         name: 'adobe',
         description: 'Edita imágenes',
         marketplace: 'x',
+        version: null,
         installs: 5,
         enabled: true,
         installed: false,

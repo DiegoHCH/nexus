@@ -62,6 +62,10 @@ abstract final class ProjectContextPrompt {
     String? language,
     String? constraintsNotice,
 
+    /// Bajo qué perfil de Claude Code corre esto y qué plugins tiene puestos.
+    /// Ver [ElPerfilDelEncargo.describir].
+    String? perfil,
+
     /// Cómo se llama quien contesta y cómo llamar a quien pregunta. Ver
     /// [LosNombres.paraElPrompt].
     String? nombres,
@@ -85,6 +89,15 @@ abstract final class ProjectContextPrompt {
     // ese aviso venía a evitar.
     if (constraintsNotice != null && constraintsNotice.isNotEmpty) {
       sections.add(constraintsNotice);
+    }
+
+    // **Con qué perfil corre y qué plugins tiene puestos.** Va pegado al aviso
+    // de arriba porque contesta la misma clase de pregunta —qué hay a mano
+    // aquí— y va **antes** de las reglas del repo por lo de siempre: lo de
+    // dentro de los bloques es material del repositorio, y esto es un hecho de
+    // la sesión que no debería quedar por debajo de él.
+    if (perfil != null && perfil.isNotEmpty) {
+      sections.add(perfil);
     }
 
     // El idioma **es una preferencia, no una orden**: si escribes en otro idioma, gana lo

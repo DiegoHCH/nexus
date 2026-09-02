@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/data/datasources/project_context_data_s
 import 'package:nexus/features/assistant/data/datasources/rules_watch_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
+import 'package:nexus/features/assistant/domain/usecases/el_perfil_del_encargo.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
@@ -117,6 +118,13 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         puedeEscribir: canEdit,
       );
 
+      // **Bajo qué perfil corre, dicho y no adivinado.** Se resuelve aquí, al
+      // lado de los permisos MCP, porque sale del mismo dato —`claudeProfile`—
+      // y se lee del mismo sitio de la misma forma: un archivo del perfil, en
+      // cada encargo y sin caché. Sin esto la sesión daba por hecho el
+      // directorio de fábrica y contestaba por una carpeta que no era la suya.
+      final perfil = await ElPerfilDelEncargo.describir(claudeProfile);
+
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
@@ -170,6 +178,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         ],
         appendSystemPrompt: ProjectContextPrompt.compose(
           nombres: nombres,
+          perfil: perfil,
           rules: context.rules,
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,
