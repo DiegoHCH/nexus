@@ -192,6 +192,11 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// es mirar en memoria. `null` si no hay nada que mirar: con los avisos
   /// apagados o sin carpeta no hay agenda, y entonces quien pregunta sigue por
   /// el camino largo en vez de recibir un «no tengo» que sería mentira.
+  ///
+  /// 🔴 **«Sin salir a preguntarlo otra vez» no es «al momento».** Pasa por
+  /// `_leerSiHaceFalta`, y si la lectura del día no está hecha o va en vuelo,
+  /// esto la espera: son los 32 s del `claude -p` del arranque. Ahí es donde se
+  /// quedó muda la voz preguntando la agenda a los 34 s de abrir la app.
   Future<String?> loDeHoy() async {
     if (!state.listos) return null;
     final ahora = DateTime.now();

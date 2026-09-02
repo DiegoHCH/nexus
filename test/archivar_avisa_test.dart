@@ -149,6 +149,19 @@ class _ArchivoRoto implements ConversationArchive {
   noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
+/// Uno que tarda **y luego falla**, que es el caso peor: se acaba en el camino
+/// del aviso, y el aviso necesita leer proveedores.
+class _ArchivoLentoYRoto implements ConversationArchive {
+  @override
+  Future<void> save(ConversationRecord record) async {
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    throw StateError('el vault se fue mientras se escribía');
+  }
+
+  @override
+  noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
 // Si archivar falla, **te enteras**.
 //
 // Los dos caminos —el historial de la app y el destino externo— solo hacían
@@ -250,6 +263,43 @@ void main() {
   test('y cuando todo va bien no se inventa un aviso', () async {
     final container = montar(store: _Store(), archivo: null);
     expect(await avisoTras(container), isNull);
+  });
+
+  /// 🔴 **Cerrar la conversación mientras se archiva no puede reventar.**
+  ///
+  /// El aviso necesita `ref` —el nombre del destino, los textos, el estado— y
+  /// llega después de dos `await`: el historial local y el destino externo, que
+  /// es el que sale de la máquina y por tanto el que tarda. Si la conversación
+  /// se cerró en ese hueco, el proveedor ya no existe y leerlo lanza «Cannot
+  /// use the Ref … after it has been disposed» **desde dentro de un
+  /// `unawaited`**, donde no lo atrapa nadie.
+  ///
+  /// Ya había un guardia igual veinte líneas más arriba, pero cubría solo la
+  /// escritura local y se quedó a medio camino. Se destapó en CI, que es donde
+  /// esta carrera se pierde: en una máquina rápida el archivado termina antes
+  /// de que nadie cierre nada, y la prueba pasa por el motivo equivocado.
+  test('cerrarla mientras se archiva no revienta', () async {
+    final container = montar(store: _Store(), archivo: _ArchivoLentoYRoto());
+    final controller = container.read(
+      assistantControllerProvider(conversationId).notifier,
+    );
+    await controller.toggleVoice();
+    await Future<void>.delayed(Duration.zero);
+
+    voz
+      ..emit(const VoiceUserTranscript('resume lo que hicimos'))
+      ..emit(const VoiceReplyTranscript('Hecho.'))
+      ..emit(const VoiceTurnCompleted());
+
+    // Se cierra **con el archivado en vuelo**: los 40 ms del destino no han
+    // pasado todavía.
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    container.dispose();
+
+    // Y se le da tiempo a acabar. Si el guardia no está, lo que llega aquí es
+    // un error asíncrono sin dueño y la prueba se cae **después de haber
+    // terminado** — con ese mismo mensaje, que es como se vio en CI.
+    await Future<void>.delayed(const Duration(milliseconds: 80));
   });
 }
 
