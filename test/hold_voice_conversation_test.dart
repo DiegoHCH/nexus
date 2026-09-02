@@ -944,6 +944,53 @@ void main() {
       });
     });
 
+    /// 🔴 **Y se anuncia como lo que es, no como un encargo.**
+    ///
+    /// Con la pareja de eventos de un encargo, quien escucha corre la cola de
+    /// después de uno: releer la rama, buscar el documento que salió, comprimir
+    /// el contexto, avisar de que ya está. Nada de eso aplica a una lectura de
+    /// memoria — y «buscar el documento que salió» colgó un resumen viejo de la
+    /// respuesta a «¿qué reuniones tengo hoy?», porque la marca de qué había
+    /// antes se toma sin esperarla y la agenda contesta antes de que esté.
+    ///
+    /// Aquí se fija la causa, y aquí es determinista: lo que se mide es **qué
+    /// evento sale**, no quién gana una carrera.
+    test('y se anuncia como una lectura, no como un encargo', () async {
+      final session = _Session();
+      final vistos = <VoiceEvent>[];
+      final conversation = _conversation(
+        session,
+        _Bridge(),
+        agenda: _Agenda('Hoy tienes cinco reuniones.'),
+      );
+
+      final sub = conversation().listen(vistos.add);
+      await Future<void>.delayed(Duration.zero);
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.agendaTool,
+          arguments: <String, Object?>{},
+        ),
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(
+        vistos.whereType<VoiceLookupStarted>().single.headline,
+        'La agenda de hoy',
+        reason: 'sin titular, treinta segundos de espera no se explican solos',
+      );
+      expect(
+        vistos.whereType<VoiceToolStarted>(),
+        isEmpty,
+        reason:
+            'anunciarlo como encargo arrastra toda la cola de después de '
+            'uno, y esto no toca el repositorio ni produce documentos',
+      );
+      expect(vistos.whereType<VoiceToolFinished>(), isEmpty);
+      await sub.cancel();
+    });
+
     test('preguntarla no manda ningún encargo a Claude', () async {
       final session = _Session();
       final bridge = _Bridge();
