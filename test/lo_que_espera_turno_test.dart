@@ -54,13 +54,21 @@ class _Claude implements AskClaude {
     pedidos.add(instruction);
     final suelta = Completer<void>();
     _turnos.add(suelta);
-    await suelta.future;
+    try {
+      await suelta.future;
+    } on Object catch (error) {
+      yield ClaudeFailed(error.toString());
+      return;
+    }
     yield const ClaudeTextDelta('ya está');
     yield const ClaudeTurnCompleted(result: 'ya está');
   }
 
   /// Deja terminar al encargo que está en vuelo.
   void termina() => _turnos.removeAt(0).complete();
+
+  /// Y lo deja **fallar**, que es el otro final de un encargo.
+  void falla() => _turnos.removeAt(0).completeError(StateError('se cayó'));
 
   @override
   dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
@@ -172,6 +180,109 @@ void main() {
     await vueltas();
 
     expect(claude.pedidos, ['ordena la casa', 'y saca la basura']);
+  });
+
+  /// 🔴 **Y con la cola vacía, el siguiente sale como cualquiera.**
+  ///
+  /// Se vio en pantalla: se pidió «flow init», contestó, y a partir de ahí
+  /// **nada**. Dos mensajes más escritos, ninguna respuesta, el orbe dormido, y
+  /// en el registro ni una línea de que se hubiera lanzado un encargo — porque
+  /// no se lanzó: se encolaron los dos, en una cola que nadie iba a vaciar.
+  ///
+  /// La guarda pregunta si hay una suscripción, y esa solo se soltaba **por el
+  /// camino de la cola**: al terminar un encargo con la cola vacía se quedaba
+  /// puesta para siempre. A partir de ahí la guarda decía «hay algo corriendo»
+  /// sobre un encargo que había terminado hacía rato, y quien vacía la cola es
+  /// justo el final de un encargo — que ya no iba a volver a ocurrir.
+  ///
+  /// Las pruebas de aquí encolaban **con el primero todavía en vuelo**, que es
+  /// el caso que sí funcionaba. Este es el de después.
+  test(
+    'terminado el primero y sin cola, el siguiente sale al momento',
+    () async {
+      final c = contenedor();
+      final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+      await controlador.submit('ordena la casa');
+      await vueltas();
+      claude.termina();
+      await vueltas();
+
+      // Nadie escribió nada mientras trabajaba: la cola está vacía.
+      await controlador.submit('y ahora saca la basura');
+      await vueltas();
+
+      expect(
+        claude.pedidos,
+        ['ordena la casa', 'y ahora saca la basura'],
+        reason:
+            'con la cola vacía nadie va a vaciarla, así que encolarlo aquí es '
+            'perderlo: se queda escrito en pantalla y no lo contesta nadie',
+      );
+    },
+  );
+
+  /// 🔴 **Fallar también es terminar**, y ese era el mismo callejón por otra
+  /// puerta: un encargo que falla dejaba la suscripción puesta, así que la
+  /// conversación se quedaba muda para siempre después de un fallo — que es
+  /// justo cuando más ganas tienes de escribir otra cosa.
+  test('después de un fallo la conversación sigue viva', () async {
+    final c = contenedor();
+    final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+    await controlador.submit('ordena la casa');
+    await vueltas();
+    claude.falla();
+    await vueltas();
+
+    await controlador.submit('bueno, saca la basura entonces');
+    await vueltas();
+
+    expect(claude.pedidos, [
+      'ordena la casa',
+      'bueno, saca la basura entonces',
+    ]);
+  });
+
+  /// Y lo que ya estaba esperando turno cuando el encargo falló **no se
+  /// pierde**: lo que quisiste después de lo que falló sigue valiendo.
+  test('y lo que esperaba turno sale, en vez de morir con el fallo', () async {
+    final c = contenedor();
+    final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+    await controlador.submit('ordena la casa');
+    await vueltas();
+    await controlador.submit('y saca la basura');
+    await vueltas();
+
+    claude.falla();
+    await vueltas();
+
+    expect(claude.pedidos, ['ordena la casa', 'y saca la basura']);
+  });
+
+  /// La tercera puerta: `/imagen` no pasa por Claude, pero **cancela** lo
+  /// anterior. Cancelar no es soltar, y la guarda mira si hay suscripción, no
+  /// si sigue viva: sin soltarla, el mensaje siguiente a una imagen se encolaba
+  /// para siempre igual que los otros dos casos.
+  test('después de un /imagen el siguiente mensaje sale', () async {
+    final c = contenedor();
+    final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+    await controlador.submit('ordena la casa');
+    await vueltas();
+    claude.termina();
+    await vueltas();
+
+    // Sin llave de imágenes falla enseguida, que es lo que hace falta: lo que
+    // se mide es el estado en el que deja la conversación, no el dibujo.
+    await controlador.submit('/imagen un gato');
+    await vueltas();
+
+    await controlador.submit('y ahora saca la basura');
+    await vueltas();
+
+    expect(claude.pedidos.last, 'y ahora saca la basura');
   });
 
   test('los dos se ven escritos desde el momento en que se mandan', () async {
