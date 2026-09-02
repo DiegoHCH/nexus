@@ -317,6 +317,19 @@ class _PluginRow extends StatelessWidget {
                       ),
                     ),
                   ),
+                  // La versión de lo que está puesto. Va aquí y no en la
+                  // descripción porque es lo primero que se pregunta de un
+                  // plugin propio —«¿tengo la última?»— y porque un instalado
+                  // llega sin `installCount`, así que este hueco está libre.
+                  if (plugin.version != null) ...[
+                    const SizedBox(width: NexusSpacing.s2),
+                    Text(
+                      'v${plugin.version}',
+                      style: NexusTypography.label.copyWith(
+                        color: colors.faint,
+                      ),
+                    ),
+                  ],
                   if (plugin.installs > 0) ...[
                     const SizedBox(width: NexusSpacing.s2),
                     Text(
