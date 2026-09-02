@@ -3,6 +3,7 @@ import 'package:nexus/features/workspace/presentation/pages/settings/settings_ch
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/domain/entities/el_acento.dart';
 import 'package:nexus/features/assistant/domain/entities/nexus_voice.dart';
 import 'package:nexus/features/assistant/presentation/providers/audio_output_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
@@ -28,45 +29,87 @@ class VoiceSection extends ConsumerWidget {
     final selected = ref.watch(voicePreferenceProvider);
     final controller = ref.read(voicePreferenceProvider.notifier);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          context.strings.nexusVoice,
-          style: NexusTypography.label.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s2),
-        Text(
-          context.strings.voiceExplainer,
-          style: NexusTypography.mono.copyWith(color: colors.faint),
-        ),
-        const SizedBox(height: NexusSpacing.s5),
-        SettingsChooser<NexusVoice>(
-          value: NexusVoice.all.firstWhere(
-            (voice) => voice.name == selected.name,
-            orElse: () => NexusVoice.all.first,
+    // 🔴 **Desplaza, como las demás secciones largas.**
+    //
+    // Terminaba en `Expanded(child: MicrophoneTester())`, que absorbía la
+    // holgura y hacía la sección de alto fijo: en cuanto se le añadió el acento
+    // desbordó por 20 px y lo cazó la prueba que abre todas las secciones. El
+    // probador tiene alto propio —48 px de onda y una fila— así que el
+    // `Expanded` no le hacía falta, solo impedía que esto creciera.
+    return SingleChildScrollView(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            context.strings.nexusVoice,
+            style: NexusTypography.label.copyWith(color: colors.faint),
           ),
-          options: NexusVoice.all,
-          label: (voice) => voice.name,
-          detail: (voice) => voice.character,
-          onSelected: controller.select,
-        ),
-        const SizedBox(height: NexusSpacing.s6),
-        // La llave. Aquí y no solo en el primer arranque, porque hasta ahora la
-        // pantalla de configuración prometía «puedes cambiar esto después en
-        // Ajustes» y **no había dónde**: una llave mal escrita solo se arreglaba
-        // tocando el llavero a mano. Y desde que la llave dejó de ser
-        // obligatoria para entrar, este es el sitio donde se enciende la voz.
-        const _GeminiKeyRow(),
-        const SizedBox(height: NexusSpacing.s6),
-        const _AudioOutputPicker(),
-        const SizedBox(height: NexusSpacing.s6),
-        // El micrófono se prueba aquí y no solo en el primer arranque: es donde
-        // se viene cuando algo no se oye, y hasta ahora esta sección solo
-        // dejaba cambiar la voz con la que Nexus habla, no comprobar la que
-        // escucha.
-        const Expanded(child: MicrophoneTester()),
-      ],
+          const SizedBox(height: NexusSpacing.s2),
+          Text(
+            context.strings.voiceExplainer,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+          const SizedBox(height: NexusSpacing.s5),
+          // 🔴 **Aquí hubo un botón para escuchar la voz, y se quitó midiendo.**
+          //
+          // Sintetizaba una frase con la voz elegida, y funcionaba. El problema
+          // es lo que costaba: el TTS del nivel gratuito da **diez peticiones
+          // al día** —medido en la consola de Google, `RPD 13 / 10`, ya
+          // pasado—, así que escuchar treinta voces no es lento, es imposible.
+          //
+          // Y peor: esas diez son las mismas que necesitan los avisos de
+          // agenda. Probar voces por la mañana te dejaba sin avisos hablados el
+          // resto del día, que es una función que sí hace falta.
+          //
+          // Para comparar voces está AI Studio, que es lo que recomienda la
+          // propia doc de Google y no gasta cuota. Un botón que consume un
+          // recurso escaso sin decirlo es una trampa, y uno que se lo quita a
+          // algo que importa más es peor que no tenerlo.
+          SettingsChooser<NexusVoice>(
+            value: NexusVoice.all.firstWhere(
+              (voice) => voice.name == selected.name,
+              orElse: () => NexusVoice.all.first,
+            ),
+            options: NexusVoice.all,
+            label: (voice) => voice.name,
+            detail: (voice) => voice.character,
+            onSelected: controller.select,
+          ),
+          const SizedBox(height: NexusSpacing.s6),
+          Text(
+            context.strings.elAcento,
+            style: NexusTypography.label.copyWith(color: colors.mute),
+          ),
+          const SizedBox(height: NexusSpacing.s2),
+          Text(
+            context.strings.elAcentoExplainer,
+            style: NexusTypography.mono.copyWith(color: colors.faint),
+          ),
+          const SizedBox(height: NexusSpacing.s3),
+          SettingsChooser<ElAcento>(
+            value: ref.watch(elAcentoProvider),
+            options: ElAcento.opciones,
+            label: (acento) =>
+                acento.variante ?? context.strings.elAcentoAutomatico,
+            onSelected: ref.read(elAcentoProvider.notifier).select,
+          ),
+          const SizedBox(height: NexusSpacing.s6),
+          // La llave. Aquí y no solo en el primer arranque, porque hasta ahora la
+          // pantalla de configuración prometía «puedes cambiar esto después en
+          // Ajustes» y **no había dónde**: una llave mal escrita solo se arreglaba
+          // tocando el llavero a mano. Y desde que la llave dejó de ser
+          // obligatoria para entrar, este es el sitio donde se enciende la voz.
+          const _GeminiKeyRow(),
+          const SizedBox(height: NexusSpacing.s6),
+          const _AudioOutputPicker(),
+          const SizedBox(height: NexusSpacing.s6),
+          // El micrófono se prueba aquí y no solo en el primer arranque: es donde
+          // se viene cuando algo no se oye, y hasta ahora esta sección solo
+          // dejaba cambiar la voz con la que Nexus habla, no comprobar la que
+          // escucha.
+          const MicrophoneTester(),
+        ],
+      ),
     );
   }
 }

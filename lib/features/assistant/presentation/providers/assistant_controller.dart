@@ -57,6 +57,21 @@ class AssistantController extends Notifier<AssistantHudState> {
   String? get _folder => ref.read(conversationFolderProvider(conversationId));
 
   StreamSubscription<ClaudeEvent>? _subscription;
+
+  /// Lo que se escribió mientras había un encargo corriendo.
+  ///
+  /// 🔴 **Enviar no interrumpe.** Antes cada mensaje nuevo cancelaba el encargo
+  /// en curso, así que escribir tres cosas seguidas dejaba dos sin respuesta —y
+  /// sin decir por qué: las tres se quedaban pintadas como si esperasen turno.
+  /// Se reportó como «se me trabó, escribí varias veces y cuando reaccionó
+  /// tenía los mensajes encolados»; no estaban encolados, estaban muertos.
+  ///
+  /// Se hace como el CLI, que es la referencia que la gente ya tiene en las
+  /// manos: escribir mientras trabaja **encola**, y para interrumpir está el
+  /// botón de Detener —el `esc to interrupt` de la terminal—. Son dos gestos
+  /// distintos porque son dos intenciones distintas, y unirlos hacía que la
+  /// intención más común, seguir hablando, ejecutara la más destructiva.
+  final _enCola = <_Encargo>[];
   StreamSubscription<VoiceEvent>? _voiceSubscription;
 
   /// Lo que va diciendo el usuario y lo que va respondiendo el modelo, por
@@ -359,6 +374,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool esElParte = false,
     String? loQueSeVe,
     bool reintento = false,
+    bool yaEstaDicho = false,
   }) async {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -465,7 +481,23 @@ class AssistantController extends Notifier<AssistantHudState> {
       label: ref.read(stringsProvider).attachedFilesLabel,
     );
 
-    await _subscription?.cancel();
+    // Hay algo corriendo: se encola y se sale. Un reintento no, que es
+    // precisamente volver a lanzar lo que acaba de fallar.
+    if (_subscription != null && !reintento && !yaEstaDicho) {
+      _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
+      _sealLast();
+      _enCola.add(
+        _Encargo(
+          instruction: instruction,
+          attachments: attachments,
+          allowWrites: allowWrites,
+          esElParte: esElParte,
+          loQueSeVe: loQueSeVe,
+        ),
+      );
+      return;
+    }
+
     _sealLast();
     _elParteEnCurso = esElParte;
     final buffer = StringBuffer();
@@ -492,7 +524,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // *eso*, no mandarlo de nuevo.
     if (reintento) {
       _quitaLaMarcaDeFallo();
-    } else {
+    } else if (!yaEstaDicho) {
       _say(ChatAuthor.user, loQueSeVe ?? trimmed, attachments: attachments);
       _sealLast();
     }
@@ -977,6 +1009,27 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
     _elParteEnCurso = false;
+    // Lo que se escribió mientras trabajaba, ahora. Uno cada vez y por orden:
+    // soltarlos todos de golpe volvería a ser el fallo de antes con otra cara,
+    // porque cada uno cancelaría al anterior.
+    //
+    // La suscripción se suelta antes de lanzar el siguiente, o la guarda de
+    // `submit` lo tomaría por «hay algo corriendo» y lo volvería a encolar
+    // para siempre.
+    if (_enCola.isNotEmpty) {
+      final siguiente = _enCola.removeAt(0);
+      _subscription = null;
+      unawaited(
+        submit(
+          siguiente.instruction,
+          attachments: siguiente.attachments,
+          allowWrites: siguiente.allowWrites,
+          esElParte: siguiente.esElParte,
+          loQueSeVe: siguiente.loQueSeVe,
+          yaEstaDicho: true,
+        ),
+      );
+    }
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
@@ -1474,13 +1527,33 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// «Detener ⌘.» del diseño: un encargo puede durar minutos y quedarse sin
   /// salida visible sería lo peor que puede pasarte.
   Future<void> stopWork() async {
-    if (state.voiceActive) {
-      await stopVoice();
-      return;
-    }
-    await _subscription?.cancel();
+    // **La voz y el encargo se paran los dos**, no uno u otro. Esto salía aquí
+    // con un `return` en cuanto había voz, así que con una sesión abierta
+    // —o con la marca colgada— el botón paraba el micrófono y dejaba a Claude
+    // trabajando. Detener es detener.
+    if (state.voiceActive) await stopVoice();
+
+    // Y se tira lo que esperaba turno. Detener es «para», no «pausa»: dejar la
+    // cola viva haría que al soltar el botón arrancara solo lo siguiente, que
+    // es lo contrario de lo que se acaba de pedir.
+    _enCola.clear();
+
+    // 🔴 **El estado primero, y la cancelación sin esperarla.**
+    //
+    // Esto era `await _subscription?.cancel()` con el `copyWith` detrás, y ahí
+    // estaba «el detener no hace acción»: cancelar una suscripción **espera a
+    // que el generador llegue a un punto donde pueda parar**, y uno detenido en
+    // un `await` que no vuelve no llega nunca. Con el `await` delante, la línea
+    // que apaga el orbe no se ejecutaba: el botón se pulsaba, no pasaba nada, y
+    // no había forma de distinguirlo de un botón muerto.
+    //
+    // Medido con una prueba: `stopWork` se quedaba colgada los 30 s del tope
+    // del test. Ahora el botón responde siempre y la cancelación —con su
+    // `finally`, que es quien mata el proceso— sigue su curso por detrás.
+    final enVuelo = _subscription;
     _subscription = null;
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
+    unawaited(enVuelo?.cancel() ?? Future<void>.value());
   }
 
   /// Las reglas del repositorio cambiaron desde el encargo anterior.
@@ -1569,6 +1642,18 @@ class AssistantController extends Notifier<AssistantHudState> {
   void _onToolStarted(String instruction) {
     _heard.clear();
     _reply.clear();
+    // 🔴 **La misma marca que toma `submit`, y aquí faltaba.**
+    //
+    // Este es el arranque de un encargo hablado, el gemelo de `submit`, y
+    // `_afterErrand` —que corre por los dos caminos— compara contra lo marcado
+    // aquí. Sin esta línea, hablando la lista de partida se quedaba vacía para
+    // siempre: `_mirarSiHayDocumento` restaba contra el conjunto vacío, así que
+    // **todos** los documentos de la carpeta contaban como recién salidos y
+    // cada turno se colgaba uno cualquiera. Se vio en pantalla con un resumen
+    // viejo pegado a dos respuestas que no tenían nada que ver, y de nuevo con
+    // el mismo patrón: se arregló la mitad de después para la voz y la de antes
+    // se quedó en el camino de escribir.
+    unawaited(_markRepo());
     state = state.copyWith(
       orbState: NexusOrbState.think,
       subtitle: instruction,
@@ -1644,3 +1729,25 @@ final assistantControllerProvider =
     NotifierProvider.family<AssistantController, AssistantHudState, String>(
       AssistantController.new,
     );
+
+/// Un encargo que espera turno.
+///
+/// Guarda **lo que hacía falta para lanzarlo**, no el texto suelto: los
+/// adjuntos, el tope de escritura y si era el parte cambian lo que se manda, y
+/// perderlos al encolar habría convertido «espera un momento» en «se envía otra
+/// cosa».
+class _Encargo {
+  const _Encargo({
+    required this.instruction,
+    required this.attachments,
+    required this.allowWrites,
+    required this.esElParte,
+    required this.loQueSeVe,
+  });
+
+  final String instruction;
+  final List<String> attachments;
+  final bool allowWrites;
+  final bool esElParte;
+  final String? loQueSeVe;
+}

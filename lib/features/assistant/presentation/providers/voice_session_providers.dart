@@ -16,6 +16,7 @@ import 'package:nexus/features/assistant/presentation/providers/voice_preference
 import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
   (ref) => const GeminiLiveDataSource(),
@@ -30,7 +31,14 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
     ref.watch(geminiLiveDataSourceProvider),
     keyStore.read,
     () => ref.read(voicePreferenceProvider).name,
-    () => ref.read(stringsProvider).languageName,
+    // El idioma **con su variante**. Se compone aquí, en el cableado, porque
+    // es donde se juntan las dos piezas: el idioma lo pone la app y el acento
+    // lo pone quien la usa.
+    () => ref
+        .read(elAcentoProvider)
+        .conElIdioma(ref.read(stringsProvider).languageName),
+    () => ref.read(losNombresProvider).paraElPrompt(),
+    () => ref.read(losNombresProvider).agente,
   );
 });
 
