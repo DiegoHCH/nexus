@@ -147,6 +147,16 @@ class ClaudeCliDataSource {
     // caudal.
     debugPrint(
       'claude · perfil ${configDir ?? 'el de siempre'} · '
+      // **Si hay alguien a quien preguntar, dicho en la misma línea.**
+      //
+      // Se anota por lo mismo que las herramientas de aquí al lado, y con un
+      // caso propio ya vivido: se probó un encargo esperando el diálogo, no
+      // salió, y desde fuera no había forma de distinguir «el canal no se
+      // armó» de «el CLI no preguntó nada». Resolverlo costó media hora y
+      // acabó siendo que el binario ni siquiera llevaba el cambio. Una línea
+      // por encargo lo contesta antes de empezar a buscar.
+      '${preguntando ? 'preguntando lo que no tenga concedido' : 'sin nadie a quien preguntar'} · '
+      'modo $permissionMode · '
       '${herramientasMcp.length} servidores MCP permitidos'
       '${disallowedTools.isEmpty ? '' : ' · ${disallowedTools.length} herramientas negadas'}'
       '${model == null ? '' : ' · $model'}'
