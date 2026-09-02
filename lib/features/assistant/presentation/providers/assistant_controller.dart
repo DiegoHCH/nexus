@@ -1098,7 +1098,6 @@ class AssistantController extends Notifier<AssistantHudState> {
     // ibas a buscar la nota, cuando ya no había forma de recuperarla. Y es la
     // peor clase de silencio, porque no se repite: la conversación ya terminó.
     var falloLocal = false;
-    String? destinoFallido;
 
     try {
       await ref.read(localConversationStoreProvider).save(record);
@@ -1115,6 +1114,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // escribir—, `_archive` lanzaba desde dentro de un `unawaited` y quedaba
     // como error sin atrapar. El historial local ya estaba guardado, así que
     // no se perdía nada; lo que se llevaba por delante era el silencio.
+    var falloElDestino = false;
     try {
       final archive = await ref.read(conversationArchiveProvider.future);
       if (archive != null) await archive.save(record);
@@ -1122,11 +1122,30 @@ class AssistantController extends Notifier<AssistantHudState> {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
       // haberse desconectado, o el vault puede no existir ya. Se dice y se
       // sigue — el historial de la app nunca depende del destino externo.
-      destinoFallido = _destinationName();
+      falloElDestino = true;
       debugPrint('archivo · no se pudo archivar: $error');
     }
 
-    _reportArchiveFailure(local: falloLocal, destination: destinoFallido);
+    // 🔴 **Un solo `if (!_vive)` y aquí abajo, que es donde faltaba.**
+    //
+    // Todo lo que queda necesita `ref` —el nombre del destino, los textos, el
+    // estado— y esto corre después de dos `await` que pueden tardar: si la
+    // conversación se cerró mientras se archivaba, el proveedor ya no existe y
+    // leerlo lanza «Cannot use the Ref … after it has been disposed». Y lanza
+    // desde dentro de un `unawaited`, así que no lo atrapa nadie.
+    //
+    // Arriba ya había un guardia igual, pero **cubría solo la escritura local**
+    // y se quedó a medio camino: el destino externo es justo el que más tarda,
+    // porque sale de la máquina. Salió en CI, donde la carrera se pierde.
+    //
+    // Sin aviso no se pierde nada: si el proveedor está muerto no hay pantalla
+    // donde ponerlo, y el historial local ya está escrito o ya se dijo por qué
+    // no.
+    if (!_vive) return;
+    _reportArchiveFailure(
+      local: falloLocal,
+      destination: falloElDestino ? _destinationName() : null,
+    );
   }
 
   /// El aviso, uno solo y con **dónde** se intentó guardar.

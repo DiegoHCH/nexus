@@ -20,6 +20,10 @@ import 'package:nexus/features/assistant/presentation/providers/claude_bridge_pr
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
@@ -57,6 +61,14 @@ void main() {
         workspaceControllerProvider.overrideWith(_Workspace.new),
         conMicrofono,
         holdVoiceConversationProvider(conversationId).overrideWithValue(voz),
+        // 🔴 **El archivo se corta aquí, y no por comodidad.** Terminar un
+        // turno lo guarda, y sin sustituirlo el guardado real sale a buscar
+        // `path_provider` —que en una prueba pura no existe— y se queda en
+        // vuelo después del `dispose` del contenedor. En esta máquina ganaba la
+        // carrera y en CI la perdía: dos pruebas rojas por un camino que no es
+        // el que afirman. Es el mismo arnés que `voz_se_guarda_test.dart`.
+        localConversationStoreProvider.overrideWithValue(const _SinDisco()),
+        conversationArchiveProvider.overrideWith((ref) async => null),
       ],
     );
     addTearDown(container.dispose);
@@ -225,6 +237,25 @@ class _SinAgenda implements LaAgendaDeHoy {
   const _SinAgenda();
   @override
   Future<String?> deHoy() async => null;
+}
+
+/// El historial, sin disco: aquí se mira la cabecera, no lo que se guarda.
+///
+/// Contesta también a la lectura de apertura, y vacía. Dejándola en
+/// `noSuchMethod` la prueba escupía «no se pudo leer lo dicho» en cada caso —un
+/// aviso de verdad, de un fallo de mentira, que es la clase de ruido que enseña
+/// a no leer la salida.
+class _SinDisco implements LocalConversationStore {
+  const _SinDisco();
+
+  @override
+  Future<void> save(ConversationRecord record) async {}
+
+  @override
+  Future<List<ConversationSummary>> list(String folderPath) async => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }
 
 class _NoMemory implements ConversationMemory {
