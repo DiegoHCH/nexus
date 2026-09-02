@@ -19,6 +19,7 @@ import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.d
 import 'package:nexus/features/assistant/domain/repositories/el_parte_del_dia.dart';
 import 'package:nexus/features/assistant/domain/usecases/claude_errand.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
+import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 
@@ -193,6 +194,7 @@ HoldVoiceConversation _conversation(
   _Lanzador? lanzador,
   _Parte? parte,
   _Agenda? agenda,
+  Duration? graciaDeLaRuta,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
@@ -202,6 +204,12 @@ HoldVoiceConversation _conversation(
   lanzador ?? _Lanzador(),
   parte ?? _Parte(),
   agenda ?? _Agenda(),
+  // 🔴 **Cero por defecto, y con motivo.** Cuando el modelo contesta de
+  // memoria, primero se le pide que lo pase él y solo al vencer este plazo se
+  // hace por él. Las pruebas de esta clase van de **qué llega a Claude**, no de
+  // los diez segundos; dejándolas esperar de verdad serían pruebas del reloj.
+  // Quien mide el plazo lo dice pasándolo.
+  graciaDeLaRuta: graciaDeLaRuta ?? Duration.zero,
 );
 
 /// El lanzador de pruebas, que apunta lo que se le pidió. Su gracia en estas
@@ -322,6 +330,7 @@ void main() {
         _Lanzador(),
         _Parte(),
         _Agenda(),
+        graciaDeLaRuta: Duration.zero,
       );
 
       final subscription = conversation().listen((_) {});
@@ -342,9 +351,13 @@ void main() {
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
       expect(bridge.asked, hasLength(1));
+      // Va dentro del encargo y no como el encargo entero: desde que la
+      // transcripción se manda **marcada como transcripción**, lo que viaja
+      // lleva delante de dónde salió. Lo que esta prueba mira sigue siendo lo
+      // mismo — que dentro esté la frase completa.
       expect(
         bridge.asked.single,
-        'mira el repositorio de nexus y dime cuántos tests hay',
+        contains('mira el repositorio de nexus y dime cuántos tests hay'),
         reason:
             'antes se guardaba solo el último trozo, así que a Claude le '
             'llegaba «cuántos tests hay» — la frase cortada a mitad',
@@ -368,6 +381,7 @@ void main() {
         _Lanzador(),
         _Parte(),
         _Agenda(),
+        graciaDeLaRuta: Duration.zero,
       );
 
       final subscription = conversation().listen((_) {});
@@ -381,11 +395,152 @@ void main() {
       session.emit(const VoiceTurnCompleted());
       await Future<void>.delayed(const Duration(milliseconds: 20));
 
-      expect(bridge.asked, ['corre los tests', 'y ahora mira el historial']);
+      expect(bridge.asked, hasLength(2));
+      expect(bridge.asked.first, contains('corre los tests'));
+      expect(
+        bridge.asked.last,
+        contains('y ahora mira el historial'),
+        reason: 'y sin arrastrar la anterior, que es lo que mira esta prueba',
+      );
+      expect(bridge.asked.last, isNot(contains('corre los tests')));
 
       await subscription.cancel();
     },
   );
+
+  // Cuando el modelo contesta de memoria, la instrucción para Claude **se le
+  // pide a él**, no se saca de la transcripción.
+  //
+  // 🔴 Nace de una sesión real: se preguntó «¿qué reuniones tengo para hoy?» y
+  // el servicio de voz lo transcribió como «Este akeroniano es tengo para hoy».
+  // El modelo había entendido bien —contestó las cinco reuniones correctas—: lo
+  // que llegaba roto era el texto, que es lo que se le mandaba a Claude como
+  // encargo. No se puede arreglar por configuración: en un modelo de audio
+  // nativo el idioma se autodetecta y fijar un código no está soportado.
+  group('lo que contestó de memoria se reencamina sin la transcripción', () {
+    test('primero se le pide a él, y a Claude no le llega nada', () {
+      fakeAsync((async) {
+        final session = _Session();
+        final bridge = _Bridge();
+        final conversation = _conversation(
+          session,
+          bridge,
+          graciaDeLaRuta: const Duration(seconds: 10),
+        );
+        conversation().listen((_) {});
+        async.flushMicrotasks();
+
+        session.emit(
+          const VoiceUserTranscript('Este akeroniano es tengo para hoy'),
+        );
+        session.emit(const VoiceTurnCompleted());
+        async
+          ..elapse(const Duration(seconds: 2))
+          ..flushMicrotasks();
+
+        expect(session.notes.single, VoiceRouting.pasaloTu);
+        expect(
+          bridge.asked,
+          isEmpty,
+          reason: 'mandar la transcripción es mandar una frase que nadie dijo',
+        );
+      });
+    });
+
+    test('si lo pasa, la transcripción no llega nunca', () {
+      fakeAsync((async) {
+        final session = _Session();
+        final bridge = _Bridge();
+        final registro = <String>[];
+        final conversation = _conversation(
+          session,
+          bridge,
+          log: registro.add,
+          graciaDeLaRuta: const Duration(seconds: 10),
+        );
+        conversation().listen((_) {});
+        async.flushMicrotasks();
+
+        session.emit(
+          const VoiceUserTranscript('Este akeroniano es tengo para hoy'),
+        );
+        session.emit(const VoiceTurnCompleted());
+        async
+          ..elapse(const Duration(seconds: 1))
+          ..flushMicrotasks();
+
+        // Hace caso: llama a la herramienta con **su** instrucción, la que
+        // redactó oyendo el audio.
+        session.emit(
+          const VoiceToolRequested(
+            callId: 'c1',
+            name: ClaudeErrand.askTool,
+            arguments: <String, Object?>{
+              'instruccion': 'dime qué reuniones tengo hoy',
+            },
+          ),
+        );
+        async
+          ..elapse(const Duration(seconds: 30))
+          ..flushMicrotasks();
+
+        expect(
+          bridge.asked.single,
+          contains('dime qué reuniones tengo hoy'),
+          reason: 'la instrucción es la que él redactó, no la del transcriptor',
+        );
+        expect(
+          bridge.asked.single,
+          isNot(contains('akeroniano')),
+          reason:
+              'y pasado el plazo tampoco va por detrás: hacer las dos cosas '
+              'sería preguntar dos veces y pagarlo dos veces',
+        );
+        expect(registro.where((l) => l.contains('lo pasó')), hasLength(1));
+      });
+    });
+
+    test('y si no lo pasa, va la transcripción pero marcada como tal', () {
+      fakeAsync((async) {
+        final session = _Session();
+        final bridge = _Bridge();
+        final registro = <String>[];
+        final conversation = _conversation(
+          session,
+          bridge,
+          log: registro.add,
+          graciaDeLaRuta: const Duration(seconds: 10),
+        );
+        conversation().listen((_) {});
+        async.flushMicrotasks();
+
+        session.emit(
+          const VoiceUserTranscript('Este akeroniano es tengo para hoy'),
+        );
+        session.emit(const VoiceTurnCompleted());
+        async
+          ..elapse(const Duration(seconds: 11))
+          ..flushMicrotasks();
+
+        expect(
+          bridge.asked.single,
+          contains('transcripción automática'),
+          reason:
+              'sin decirle de dónde salió, «akeroniano» es una pregunta '
+              'absurda; con la marca es una frase mal oída que se interpreta',
+        );
+        expect(
+          bridge.asked.single,
+          contains('Este akeroniano es tengo para hoy'),
+        );
+        expect(
+          registro.where((l) => l.contains('no lo pasó ni pidiéndoselo')),
+          hasLength(1),
+          reason: 'y se cuenta, para saber si pedírselo sirve de algo',
+        );
+      });
+    });
+  });
 
   test(
     'una corrección que llega tarde no interrumpe: ya hablabas de otra cosa',
@@ -411,12 +566,20 @@ void main() {
       session.emit(const VoiceUserTranscript('enséñame cómo es un flujo'));
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
+      // 🔴 Se filtran las notas: ahora la primera cosa que se le manda es
+      // «pásalo tú», y esa **sí** tiene que estar. Lo que no puede llegar es la
+      // corrección con la respuesta de Claude, que es la que interrumpe.
       expect(
-        session.notes,
+        session.notes.where((nota) => nota.contains('Esto lo ha respondido')),
         isEmpty,
         reason:
             'la respuesta del turno 1 llegó cuando ya se hablaba del 2: '
             'entregarla hace que el modelo abandone lo que está diciendo',
+      );
+      expect(
+        session.notes.where((nota) => nota == VoiceRouting.pasaloTu),
+        hasLength(1),
+        reason: 'y antes de nada se le pidió a él, que es quien te oyó',
       );
       expect(
         registro.where((l) => l.contains('descartada por vieja')),
@@ -443,8 +606,11 @@ void main() {
       // Nadie habla encima: el turno sigue siendo el mismo cuando Claude vuelve.
       await Future<void>.delayed(const Duration(milliseconds: 200));
 
-      expect(session.notes, hasLength(1));
-      expect(session.notes.single, contains('dame un resumen de gitflow'));
+      // Dos notas y en este orden: primero se le pide que lo pase él, y solo
+      // al no hacerlo llega la corrección con lo que dijo Claude.
+      expect(session.notes.first, VoiceRouting.pasaloTu);
+      expect(session.notes.last, contains('dame un resumen de gitflow'));
+      expect(session.notes, hasLength(2));
 
       await subscription.cancel();
     },
@@ -464,6 +630,7 @@ void main() {
         _Lanzador(),
         _Parte(),
         _Agenda(),
+        graciaDeLaRuta: Duration.zero,
       );
 
       final subscription = conversation().listen((_) {});
@@ -538,6 +705,7 @@ void main() {
       _Lanzador(),
       _Parte(),
       _Agenda(),
+      graciaDeLaRuta: Duration.zero,
     );
 
     final vistos = <VoiceEvent>[];

@@ -35,6 +35,13 @@ abstract final class VoiceRouting {
   static const _maxSmallTalkWords = 4;
 
   /// `true` si esto tenía que haber pasado por Claude.
+  ///
+  /// **Sigue juzgando la transcripción a propósito**, aunque llegue mal. Es un
+  /// filtro barato para no montar una ronda entera por un «gracias», y el
+  /// destrozo del servicio de voz no lo rompe en la dirección peligrosa: una
+  /// frase mal oída sigue siendo larga y sigue sin parecer cortesía, así que
+  /// sigue enrutando. Lo que no aguantaba el texto roto era **el contenido** del
+  /// encargo, y de eso ya no se encarga (ver [pasaloTu]).
   static bool needsClaude(String utterance) {
     final clean = utterance
         .trim()
@@ -46,6 +53,45 @@ abstract final class VoiceRouting {
     if (clean.split(' ').length > _maxSmallTalkWords) return true;
     return !_smallTalk.hasMatch(clean);
   }
+
+  /// Lo primero que se le dice cuando contestó de memoria: **que lo pase él**.
+  ///
+  /// 🔴 **Se le pide a él porque él sí te oyó.** La corrección se construía con
+  /// la transcripción de lo que dijiste, y esa la escribe el servicio de voz
+  /// aparte — y llega mal: «¿qué reuniones tengo para hoy?» se transcribió como
+  /// «Este akeroniano es tengo para hoy». El modelo, en cambio, había entendido
+  /// perfectamente: contestó las cinco reuniones correctas. Lo que fallaba era
+  /// el texto, no la comprensión, y mandarle a Claude ese texto como encargo es
+  /// mandarle una frase que nadie dijo.
+  ///
+  /// No se puede arreglar por configuración: en un modelo de audio nativo el
+  /// idioma se autodetecta y `inputAudioTranscription` no acepta parámetros —la
+  /// doc de la Live API dice literalmente que fijar un código de idioma no está
+  /// soportado ahí—. Así que se deja de depender del texto para lo que importa:
+  /// **la instrucción la redacta quien oyó el audio**.
+  ///
+  /// Es una petición y no una garantía: la API de voz no admite obligar a
+  /// llamar a una herramienta —está probado y anotado arriba—, así que si no
+  /// hace caso queda el camino de antes. Por eso existe [deLaTranscripcion].
+  static const pasaloTu =
+      'No contestes de memoria: en este Mac todo lo contesta Claude. Vuelve a '
+      'atender lo último que te pedí llamando a pedir_a_claude, redactando la '
+      'instrucción con lo que me oíste decir. No te disculpes ni lo comentes: '
+      'llama a la herramienta y luego cuenta lo que devuelva.';
+
+  /// El encargo de última hora, cuando el modelo no pasó nada ni pidiéndoselo.
+  ///
+  /// 🔴 **Va marcado como transcripción, y eso es medio arreglo.** Aquí ya no
+  /// queda más que el texto del servicio de voz, que puede estar roto; decirle
+  /// a Claude de dónde salió es lo que le permite leer la intención en vez de
+  /// tomárselo al pie de la letra. Sin la marca, «Este akeroniano es tengo para
+  /// hoy» es una pregunta absurda; con ella, es una frase mal oída que se deja
+  /// interpretar.
+  static String deLaTranscripcion(String utterance) =>
+      'Esto es la transcripción automática de algo que se dijo en voz alta, y '
+      'puede tener palabras mal oídas: «$utterance».\n\n'
+      'Interpreta qué se estaba pidiendo y respóndelo. Si de verdad no se '
+      'entiende qué se pedía, dilo en una frase en vez de adivinar.';
 
   /// Lo que se le entrega al modelo cuando contestó de memoria algo que no le
   /// tocaba. No se le regaña: se le da el dato bueno y que lo cuente él, que es
