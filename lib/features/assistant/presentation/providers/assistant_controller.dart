@@ -599,6 +599,11 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool reintento = false,
   }) async {
     await _subscription?.cancel();
+    // Y se suelta, no solo se cancela: la guarda de `submit` mira **si hay
+    // suscripción**, no si sigue viva. Dejándola puesta, el mensaje siguiente a
+    // un `/imagen` se encolaba para siempre — la misma puerta al mismo
+    // callejón, por otro camino.
+    _subscription = null;
     // Cancelar **espera a que el generador llegue a un punto donde pueda
     // parar**, y uno detenido en un `await` que no vuelve tarda lo que tarde:
     // está medido y escrito en `stopWork`. Ese es el hueco.
@@ -1070,30 +1075,47 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_readChanges());
     unawaited(_mirarSiHayDocumento());
     _elParteEnCurso = false;
-    // Lo que se escribió mientras trabajaba, ahora. Uno cada vez y por orden:
-    // soltarlos todos de golpe volvería a ser el fallo de antes con otra cara,
-    // porque cada uno cancelaría al anterior.
-    //
-    // La suscripción se suelta antes de lanzar el siguiente, o la guarda de
-    // `submit` lo tomaría por «hay algo corriendo» y lo volvería a encolar
-    // para siempre.
-    if (_enCola.isNotEmpty) {
-      final siguiente = _enCola.removeAt(0);
-      _subscription = null;
-      unawaited(
-        submit(
-          siguiente.instruction,
-          attachments: siguiente.attachments,
-          allowWrites: siguiente.allowWrites,
-          esElParte: siguiente.esElParte,
-          loQueSeVe: siguiente.loQueSeVe,
-          yaEstaDicho: true,
-        ),
-      );
-    }
+    _elEncargoTermino();
     unawaited(_archive());
     unawaited(_compactIfNeeded());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// El encargo terminó: se suelta la suscripción y sale el siguiente de la
+  /// cola, si lo hay.
+  ///
+  /// 🔴 **Soltar la suscripción vivía dentro del `if` de la cola, y ahí estaba
+  /// el callejón.** La guarda de `submit` pregunta si hay una suscripción para
+  /// saber si hay algo corriendo; terminar un encargo **con la cola vacía** la
+  /// dejaba puesta para siempre. A partir de ese momento la guarda contestaba
+  /// «hay algo corriendo» sobre un encargo terminado hacía rato, y todo lo que
+  /// escribieras se encolaba — en una cola que solo vacía el final de un
+  /// encargo, que ya no iba a volver a ocurrir.
+  ///
+  /// Se vio así: se pidió «flow init», contestó, y a partir de ahí ni una
+  /// respuesta más. Dos mensajes escritos, el orbe dormido, y en el registro ni
+  /// una línea de que se hubiera lanzado nada — porque no se lanzó.
+  ///
+  /// Existe como función y no como una línea suelta porque hay **tres** finales
+  /// de encargo y solo uno la tenía: el turno que termina bien, el que falla, y
+  /// el dibujo que cancela lo anterior. Los tres dejaban el mismo callejón.
+  ///
+  /// Uno cada vez y por orden: soltarlos todos de golpe volvería a ser el fallo
+  /// de antes con otra cara, porque cada uno cancelaría al anterior.
+  void _elEncargoTermino() {
+    _subscription = null;
+    if (_enCola.isEmpty) return;
+    final siguiente = _enCola.removeAt(0);
+    unawaited(
+      submit(
+        siguiente.instruction,
+        attachments: siguiente.attachments,
+        allowWrites: siguiente.allowWrites,
+        esElParte: siguiente.esElParte,
+        loQueSeVe: siguiente.loQueSeVe,
+        yaEstaDicho: true,
+      ),
+    );
   }
 
   /// El aviso de que ya está, con **el nombre de la carpeta y nada más**.
@@ -1406,6 +1428,15 @@ class AssistantController extends Notifier<AssistantHudState> {
     // También cuando falla, y sobre todo cuando falla: si te fuiste a otra cosa,
     // enterarte tarde de que no se hizo es peor que enterarte tarde de que sí.
     unawaited(_avisar(ref.read(stringsProvider).errandFailed));
+    // 🔴 **Fallar también es terminar.** Sin esto, un encargo que falla dejaba
+    // la conversación muda para siempre por el mismo callejón: la suscripción
+    // puesta, la guarda diciendo «hay algo corriendo», y lo que escribieras
+    // encolado sin nadie que lo sacara. Y lo que ya estuviera esperando turno
+    // sale ahora: lo que quisiste después de lo que falló sigue valiendo.
+    //
+    // No pasa por `_afterErrand` a propósito: eso archiva, comprime y avisa de
+    // que ya está, y aquí no ha terminado nada bien.
+    _elEncargoTermino();
   }
 
   /// Entra en la cuenta de esta carpeta, abriendo el navegador.
