@@ -347,12 +347,93 @@ final claudeAuthProvider = Provider<ClaudeAuthDataSource>(
   (ref) => const ClaudeAuthDataSource(),
 );
 
-/// El repositorio y la rama de una carpeta. Se relee al terminar cada turno,
-/// porque la rama cambia también por fuera de la app —un `checkout` en la
-/// terminal, o el propio Claude—.
-final gitInfoProvider = FutureProvider.family<GitInfo?, String>(
-  (ref, folderPath) => const GitDataSource().read(folderPath),
-);
+/// Avisa cuando el `HEAD` de ese repositorio cambia por fuera de la app.
+///
+/// 🔴 **Existe porque «se relee al terminar cada turno» no alcanzaba.** Eso
+/// cubre el checkout que hace Claude, y ni siquiera del todo: si cambias de
+/// rama en el editor y no le pides nada, no termina ningún turno y el chip se
+/// queda con la rama vieja **para siempre**. Se vio así — el editor en otra
+/// rama, la app diciendo `main`, y solo cerrando Nexus y volviendo a abrirlo se
+/// enteró. Una app que hay que reiniciar para que diga la verdad sobre dónde va
+/// a escribir Claude es peor que una que no lo dijera.
+///
+/// Se vigila el archivo y no se pregunta cada pocos segundos: un checkout
+/// reescribe `HEAD` siempre, así que el aviso llega exacto y sin gastar un
+/// `git` por sondeo. Y no emite nada hasta que algo cambia: en una carpeta que
+/// no es un repositorio no hay vigía ni coste.
+final _elHeadDelRepo = StreamProvider.family<void, String>((
+  ref,
+  folderPath,
+) async* {
+  final head = await const GitDataSource().dondeViveElHead(folderPath);
+  if (head == null) return;
+
+  // 🔴 Se vigila **la carpeta y no el archivo**. Git no edita `HEAD` en su
+  // sitio: escribe uno nuevo al lado y lo renombra encima, así que un vigía
+  // puesto sobre el archivo se queda mirando un inodo que ya no es el de
+  // nadie y no vuelve a avisar de nada. Vigilando la carpeta, el renombrado
+  // se ve llegar.
+  //
+  // Sin recursión y filtrando por nombre: en `.git` cambian muchas cosas en
+  // cada operación —`index` en cada `add`— y solo `HEAD` dice de qué rama es
+  // esto.
+  final carpeta = head.parent;
+  if (!carpeta.existsSync()) return;
+
+  final cambios = carpeta.watch().where(_tocaElHead);
+
+  await for (final _ in cambios) {
+    // 🔴 **Se deja pasar la ráfaga antes de avisar, y sale gratis.** Un
+    // checkout toca `HEAD` más de una vez —lo escribe y lo renombra encima— y
+    // el sistema puede repetir el aviso; sin esto, un cambio de rama se
+    // convierte en tres `git rev-parse` para dar tres veces la misma respuesta.
+    //
+    // No hace falta un `debounce` de biblioteca: `watch()` devuelve un stream
+    // de difusión y `await for` deja la suscripción en pausa mientras se
+    // espera, así que lo que llegue en esos milisegundos se descarta solo. Y
+    // esperar **antes** de avisar es lo correcto además de lo barato: la rama
+    // se lee cuando la ráfaga terminó, así que lo que se lee es el estado
+    // final y no uno intermedio.
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    yield null;
+  }
+});
+
+/// Si este aviso del sistema de archivos habla del `HEAD`.
+///
+/// 🔴 **Mira también el destino, y eso lo enseñó CI.** Filtrando solo por
+/// `evento.path` la prueba pasaba en macOS y fallaba en Linux con la rama vieja,
+/// porque los dos sistemas cuentan un renombrado de forma distinta: git escribe
+/// `HEAD.lock` y lo renombra encima de `HEAD`, y donde macOS avisa del archivo
+/// tocado, inotify manda un evento de movimiento cuyo `path` es **el nombre
+/// viejo** —`HEAD.lock`— y deja `HEAD` en `destination`. El filtro se quedaba
+/// mirando el lado que no era.
+///
+/// Se acepta también `HEAD.lock` a propósito: es el baile del renombrado y
+/// llega antes: releer ahí no cuesta nada —se espera la ráfaga y se lee el
+/// estado final— y ahorra depender de qué mitad del movimiento reporta cada
+/// sistema. `ORIG_HEAD` y `FETCH_HEAD` no entran: no empiezan por `HEAD`.
+bool _tocaElHead(FileSystemEvent evento) {
+  bool esElHead(String? ruta) =>
+      ruta != null && ruta.split('/').last.startsWith('HEAD');
+  return esElHead(evento.path) ||
+      (evento is FileSystemMoveEvent && esElHead(evento.destination));
+}
+
+/// El repositorio y la rama de una carpeta.
+///
+/// Se relee al terminar cada turno —porque la rama la puede cambiar el propio
+/// Claude— **y en cuanto `HEAD` cambia por fuera**, que es el caso que faltaba:
+/// ver [_elHeadDelRepo].
+final gitInfoProvider = FutureProvider.family<GitInfo?, String>((
+  ref,
+  folderPath,
+) {
+  // Se escucha el vigía: cada aviso reconstruye esto, que es exactamente
+  // «vuelve a preguntar la rama».
+  ref.watch(_elHeadDelRepo(folderPath));
+  return const GitDataSource().read(folderPath);
+});
 
 /// Los repos que hay dentro de una carpeta emparejada. Vacío cuando la carpeta
 /// **es** el repo, que es el caso normal y no necesita elegir nada.

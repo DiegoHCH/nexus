@@ -103,6 +103,26 @@ class GitDataSource {
     );
   }
 
+  /// Dónde vive el `HEAD` de ese repositorio, para poder vigilarlo.
+  ///
+  /// 🔴 **Se le pregunta a git en vez de componer `<carpeta>/.git/HEAD`.** Esa
+  /// ruta solo acierta en el caso fácil: en un *worktree* y en un submódulo
+  /// `.git` es un **archivo** que apunta a otro sitio, y el `HEAD` que cambia
+  /// al hacer checkout es el de allí. Componer la ruta a mano deja esos dos
+  /// casos vigilando un archivo que no existe — o peor, uno que existe y nunca
+  /// cambia.
+  ///
+  /// Se pide `--absolute-git-dir` y no `--git-dir`, que dentro de la raíz
+  /// contesta `.git` a secas, relativo a un directorio de trabajo que aquí no
+  /// se conserva.
+  ///
+  /// `null` si eso no es un repositorio, y entonces no hay nada que vigilar.
+  Future<File?> dondeViveElHead(String folderPath) async {
+    final gitDir = await _run(folderPath, ['rev-parse', '--absolute-git-dir']);
+    if (gitDir == null || gitDir.isEmpty) return null;
+    return File('$gitDir/HEAD');
+  }
+
   /// Los repositorios que hay **dentro** de una carpeta, un nivel abajo.
   ///
   /// Es el caso del workspace: una carpeta raíz con varios repos dentro. Sin
