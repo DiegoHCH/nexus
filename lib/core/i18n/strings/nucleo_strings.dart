@@ -25,6 +25,14 @@ mixin NucleoStrings {
   String get canEdit;
   String get canEditExplainer;
   String get readOnlyExplainer;
+  // El permiso que se pregunta
+  String get permisoTitulo;
+  String permisoPregunta(String herramienta);
+  String get permisoEscribe;
+  String get permisoConceder;
+  String get permisoDenegar;
+  String get permisoDenegadoMotivo;
+  String get permisoCanceladoMotivo;
   String contextUsed(int percent);
   String get attachFile;
   String get orbLabel;
@@ -179,9 +187,24 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get canEdit => 'PUEDE EDITAR';
   @override
-  String get canEditExplainer => 'Modifica archivos sin preguntar';
+  String get canEditExplainer => 'Modifica archivos, preguntando antes';
   @override
   String get readOnlyExplainer => 'Lee y ejecuta, pero no escribe';
+  @override
+  String get permisoTitulo => 'Claude pide permiso';
+  @override
+  String permisoPregunta(String herramienta) => '¿Le dejas usar $herramienta?';
+  @override
+  String get permisoEscribe => 'Esto modifica archivos.';
+  @override
+  String get permisoConceder => 'Permitir';
+  @override
+  String get permisoDenegar => 'No';
+  @override
+  String get permisoDenegadoMotivo => 'No lo autoricé desde Nexus.';
+  @override
+  String get permisoCanceladoMotivo =>
+      'El encargo se detuvo antes de que nadie contestara.';
   @override
   String contextUsed(int percent) =>
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
@@ -475,9 +498,24 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get canEdit => 'CAN EDIT';
   @override
-  String get canEditExplainer => 'Changes files without asking';
+  String get canEditExplainer => 'Changes files, asking first';
   @override
   String get readOnlyExplainer => 'Reads and runs, but never writes';
+  @override
+  String get permisoTitulo => 'Claude is asking';
+  @override
+  String permisoPregunta(String herramienta) => 'Let it use $herramienta?';
+  @override
+  String get permisoEscribe => 'This changes files.';
+  @override
+  String get permisoConceder => 'Allow';
+  @override
+  String get permisoDenegar => 'No';
+  @override
+  String get permisoDenegadoMotivo => "I didn't allow it from Nexus.";
+  @override
+  String get permisoCanceladoMotivo =>
+      'The errand stopped before anyone answered.';
   @override
   String contextUsed(int percent) =>
       'Context used: $percent%. At 85% the conversation compacts itself.';

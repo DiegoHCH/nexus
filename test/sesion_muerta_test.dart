@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// Una sesión guardada que ya no existe donde se busca.
 ///
@@ -35,6 +36,7 @@ class _SesionMuerta extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     resumeRecibidos.add(resumeSessionId);
 
@@ -145,6 +147,7 @@ class _FalloDeVerdad extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     intentos++;
     throw const ClaudeProcessException(1, 'el disco está lleno');

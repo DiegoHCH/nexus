@@ -12,6 +12,7 @@ import 'package:nexus/features/artifacts/presentation/providers/artifacts_provid
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_permiso_pendiente.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -89,7 +90,15 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   @override
   AssistantHudState build() {
+    // Se toma aquí y no dentro del `onDispose`: Riverpod prohíbe tocar otro
+    // provider desde un ciclo de vida —`Cannot use Ref [...] inside
+    // life-cycles`— y hacerlo ahí reventaba el cierre de la conversación
+    // entera, no solo el permiso.
+    final permisos = ref.read(elPermisoPendienteProvider.notifier);
     ref.onDispose(() {
+      // Lo mismo que en `stopWork` y por lo mismo: un permiso sin contestar
+      // deja la cancelación esperando a un generador que no vuelve.
+      permisos.descartarTodo();
       _subscription?.cancel();
       _voiceSubscription?.cancel();
     });
@@ -558,19 +567,33 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
-    _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
-      (event) => switch (event) {
-        ClaudeQueued() => _onQueued(),
-        ClaudeRulesChanged() => _onRulesChanged(event.paths),
-        ClaudeSessionStarted() => _onSessionStarted(event.model),
-        ClaudeTextDelta() => _onTextDelta(buffer, event),
-        ClaudeToolUsed() => _onClaudeToolUsed(event),
-        ClaudeToolFinished() => _onClaudeToolFinished(event.id, event.output),
-        ClaudeTurnCompleted() => _onTurnCompleted(event),
-        ClaudeFailed() => _onFailed(event.message),
-      },
-      onError: (Object error) => _onFailed(error.toString()),
-    );
+    _subscription =
+        ask(
+          paraClaude,
+          allowWrites: allowWrites,
+          // **Aquí sí hay alguien mirando**, y es lo único que distingue este
+          // encargo de los que lanza la agenda: quien escribió en la caja está
+          // delante de la pantalla, así que lo que Claude no tenga concedido se le
+          // puede preguntar en vez de concederlo o negarlo por él.
+          alPedirPermiso: ref
+              .read(elPermisoPendienteProvider.notifier)
+              .preguntar,
+        ).listen(
+          (event) => switch (event) {
+            ClaudeQueued() => _onQueued(),
+            ClaudeRulesChanged() => _onRulesChanged(event.paths),
+            ClaudeSessionStarted() => _onSessionStarted(event.model),
+            ClaudeTextDelta() => _onTextDelta(buffer, event),
+            ClaudeToolUsed() => _onClaudeToolUsed(event),
+            ClaudeToolFinished() => _onClaudeToolFinished(
+              event.id,
+              event.output,
+            ),
+            ClaudeTurnCompleted() => _onTurnCompleted(event),
+            ClaudeFailed() => _onFailed(event.message),
+          },
+          onError: (Object error) => _onFailed(error.toString()),
+        );
   }
 
   /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
@@ -1684,6 +1707,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     // `finally`, que es quien mata el proceso— sigue su curso por detrás.
     final enVuelo = _subscription;
     _subscription = null;
+    // Antes de cancelar, y no después: cancelar espera al generador, y lo que
+    // puede estar deteniéndolo es justamente un permiso sin contestar. Negarlo
+    // primero es lo que suelta ese `await`.
+    ref.read(elPermisoPendienteProvider.notifier).descartarTodo();
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
     unawaited(enVuelo?.cancel() ?? Future<void>.value());
   }

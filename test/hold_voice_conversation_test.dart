@@ -22,6 +22,7 @@ import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// El micrófono, callado: esta prueba va de lo que llega del servicio.
 class _Mic implements VoiceInput {
@@ -155,6 +156,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     _raw.add(instruction);
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
@@ -303,6 +305,7 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     // El orden es el de verdad: primero el `init` con el modelo, y el fin de
     // turno con las cifras al final.

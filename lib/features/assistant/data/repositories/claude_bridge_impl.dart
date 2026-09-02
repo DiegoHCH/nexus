@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.
 import 'package:nexus/features/assistant/domain/usecases/el_perfil_del_encargo.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
@@ -29,10 +30,23 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   final RulesWatchDataSource _rulesWatch;
 
   /// `manual` deniega la escritura —también la que intente colarse por Bash,
-  /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
-  /// es lo único viable sin nadie delante para aprobar.
-  static String _permissionMode({required bool canEdit}) =>
-      canEdit ? 'acceptEdits' : 'manual';
+  /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar.
+  ///
+  /// **`acceptEdits` era «lo único viable» y ya no lo es.** Lo era porque no
+  /// había forma de preguntar; con alguien al otro lado del canal de permisos
+  /// sí la hay, y entonces `default` es lo correcto: concede lo de siempre y
+  /// pregunta lo que no.
+  ///
+  /// Una carpeta de solo lectura **no pregunta**, y no es un descuido. Ese modo
+  /// promete que no se toca el disco; convertirlo en «te lo pregunto» sería
+  /// cambiar la promesa por un botón, y el botón se pulsa sin leer.
+  static String _permissionMode({
+    required bool canEdit,
+    required bool hayQuienConteste,
+  }) {
+    if (!canEdit) return 'manual';
+    return hayQuienConteste ? 'default' : 'acceptEdits';
+  }
 
   @override
   Stream<ClaudeEvent> ask(
@@ -54,6 +68,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// Cómo se llama quien contesta y cómo llamarte a ti, ya compuesto
     /// para el prompt. Ver [LosNombres.paraElPrompt].
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
     /// duplicaría trabajo ya hecho.
@@ -128,7 +144,11 @@ class ClaudeBridgeImpl implements ClaudeBridge {
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
-        permissionMode: _permissionMode(canEdit: canEdit),
+        permissionMode: _permissionMode(
+          canEdit: canEdit,
+          hayQuienConteste: alPedirPermiso != null,
+        ),
+        alPedirPermiso: alPedirPermiso,
         // La carpeta de documentos viaja como carpeta alcanzable, y no es
         // opcional: **medido contra el binario**, sin `--add-dir` la escritura
         // fuera del directorio de trabajo se deniega —aparece en
