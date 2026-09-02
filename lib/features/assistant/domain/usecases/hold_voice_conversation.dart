@@ -34,8 +34,18 @@ class HoldVoiceConversation {
     this._log,
     this._correrUnaPrueba,
     this._elParteDelDia,
-    this._laAgendaDeHoy,
-  );
+    this._laAgendaDeHoy, {
+    this.graciaDeLaRuta = _graciaDeLaRuta,
+  });
+
+  /// Cuánto se le da al modelo para pasar por Claude lo que contestó de
+  /// memoria, antes de hacerlo por él. Ver [_graciaDeLaRuta].
+  ///
+  /// Inyectable por lo mismo que el tope del registro: hay pruebas que van del
+  /// **contenido** que llega a Claude, no de los plazos, y obligarlas a mover
+  /// un reloj falso para llegar a lo que afirman las convierte en pruebas de
+  /// otra cosa.
+  final Duration graciaDeLaRuta;
 
   static const _sinAgenda =
       'Los avisos de agenda están apagados o no tienen carpeta, así que no hay '
@@ -75,6 +85,14 @@ class HoldVoiceConversation {
   /// siendo un plazo y no una espera infinita: si abres la voz sin querer, el
   /// micrófono se cierra solo — que es la regla que sostiene todo esto.
   static const _openingGrace = Duration(seconds: 20);
+
+  /// Lo que se le da al modelo para pasar por Claude lo que contestó de
+  /// memoria, **antes de hacerlo por él**.
+  ///
+  /// Diez segundos porque lo que se le pide es un turno entero: entender la
+  /// nota y llamar a la herramienta. Cumpliendo tarda uno o dos; el plazo está
+  /// puesto para el caso en que no piensa cumplir, no para el normal.
+  static const _graciaDeLaRuta = Duration(seconds: 10);
 
   /// Reenganches seguidos sin que llegue nada en medio antes de rendirse.
   /// Reintentar en bucle contra un servicio caído solo esconde el problema.
@@ -144,6 +162,23 @@ class HoldVoiceConversation {
     /// segunda dejó a la primera a medias.
     var turn = 0;
     var stale = 0;
+
+    /// El turno cuya ruta se le pidió al modelo y todavía no ha atendido, y el
+    /// reloj que decide cuándo se deja de esperar.
+    ///
+    /// 🔴 Existe porque pedirle que lo pase **no es garantía**: la API de voz no
+    /// admite obligar a llamar a una herramienta. Si hace caso, la instrucción
+    /// la redacta él —que es quien oyó el audio— y no llega ni una palabra de
+    /// la transcripción a Claude. Si no, vence el plazo y va el camino de
+    /// antes, que sigue existiendo por eso.
+    int? rutaPedidaEn;
+    Timer? relojDeLaRuta;
+
+    /// Cuántas veces hizo caso y cuántas hubo que hacerlo por él. Se cuenta por
+    /// lo de siempre en este archivo: para saber si la petición sirve de algo
+    /// antes de decidir si hace falta algo más.
+    var loPaso = 0;
+    var noLoPaso = 0;
 
     var micFrames = 0;
     var sentFrames = 0;
@@ -217,6 +252,8 @@ class HoldVoiceConversation {
       abortErrand = null;
       idleTimer?.cancel();
       idleTimer = null;
+      relojDeLaRuta?.cancel();
+      relojDeLaRuta = null;
       await micSubscription?.cancel();
       await pausaSubscription?.cancel();
       await sessionSubscription?.cancel();
@@ -516,7 +553,14 @@ class HoldVoiceConversation {
     /// respuesta buena.
     Future<void> enforceClaude(String utterance, int askedAt) async {
       unawaited(_output.discard());
-      final answer = await runErrand(utterance, utterance);
+      // Lo que viaja va **marcado como transcripción**, no como una frase que
+      // alguien dijo: es lo que le permite a Claude leer la intención en vez de
+      // contestar literalmente a una palabra mal oída. El titular sigue siendo
+      // el texto crudo, que es lo que de verdad se va a interpretar.
+      final answer = await runErrand(
+        VoiceRouting.deLaTranscripcion(utterance),
+        utterance,
+      );
       if (answer == null || closing) return;
 
       // **Solo si sigue siendo de este turno.** Si mientras Claude trabajaba
@@ -536,6 +580,41 @@ class HoldVoiceConversation {
       session?.sendSystemNote(
         VoiceRouting.correction(loQueCabe(answer, 'la corrección')),
       );
+    }
+
+    /// Le pide al modelo que pase por Claude lo que acaba de contestar de
+    /// memoria, y **solo lo hace por él si no atiende**.
+    ///
+    /// 🔴 Este es el orden nuevo, y el motivo está en [VoiceRouting.pasaloTu]:
+    /// la transcripción de lo que dijiste la escribe el servicio de voz aparte
+    /// y llega mal —«¿qué reuniones tengo para hoy?» salió como «Este
+    /// akeroniano es tengo para hoy»— mientras que el modelo había entendido
+    /// bien. Pedirle que redacte él la instrucción usa la pieza que funcionó en
+    /// vez de la que falló.
+    void pidelaRuta(String utterance, int askedAt) {
+      // El audio de memoria se tira igual que antes: es una respuesta que no
+      // le tocaba dar, y dejarla sonar mientras se arregla es peor.
+      unawaited(_output.discard());
+      session?.sendSystemNote(VoiceRouting.pasaloTu);
+      // Le toca generar un turno entero, así que manda el plazo largo del
+      // reloj de inactividad, igual que después de un resultado.
+      esperandoRespuesta = true;
+      keepAlive();
+
+      rutaPedidaEn = askedAt;
+      relojDeLaRuta?.cancel();
+      relojDeLaRuta = Timer(graciaDeLaRuta, () {
+        // Lo pasó él, o ya se habla de otra cosa: no hay nada que rescatar.
+        if (rutaPedidaEn != askedAt || turn != askedAt || closing) return;
+        rutaPedidaEn = null;
+        noLoPaso++;
+        _log(
+          'b6 · no lo pasó ni pidiéndoselo ($noLoPaso de '
+          '${loPaso + noLoPaso} en esta sesión): va la transcripción, y '
+          'marcada como tal — «$utterance»',
+        );
+        unawaited(enforceClaude(utterance, askedAt));
+      });
     }
 
     Future<void> runTool(VoiceToolRequested request) async {
@@ -573,9 +652,12 @@ class HoldVoiceConversation {
       // sin nada en pantalla se leen como que no oyó; y `atender`, que sostiene
       // la sesión mientras esto tarda.
       if (request.name == ClaudeErrand.agendaTool) {
-        controller.add(const VoiceToolStarted('La agenda de hoy'));
+        // 🔴 `VoiceLookupStarted` y **no** la pareja de un encargo: esto no
+        // toca el repositorio, no produce documentos y no gasta contexto.
+        // Anunciarlo como encargo hacía que al terminar corriera la cola de
+        // después de uno, y eso colgó un documento viejo de la respuesta.
+        controller.add(const VoiceLookupStarted('La agenda de hoy'));
         final agenda = await _laAgendaDeHoy.deHoy();
-        controller.add(const VoiceToolFinished(ok: true));
         responder(
           callId: request.callId,
           name: request.name,
@@ -728,6 +810,20 @@ class HoldVoiceConversation {
             case VoiceToolRequested():
               // Lo pasó a Claude: este turno cumplió la regla.
               asked.clear();
+              // Y si se le había pedido, hizo caso: se cancela el plazo para
+              // que no vaya además la transcripción por detrás. La instrucción
+              // que va a Claude es la que redactó él, sin una palabra del texto
+              // del servicio de voz — que es el arreglo entero.
+              if (rutaPedidaEn != null) {
+                rutaPedidaEn = null;
+                relojDeLaRuta?.cancel();
+                loPaso++;
+                _log(
+                  'b6 · se le pidió que lo pasara y lo pasó ($loPaso de '
+                  '${loPaso + noLoPaso} en esta sesión), con su propia '
+                  'instrucción y sin la transcripción',
+                );
+              }
               unawaited(atender(event));
             case VoiceUserTranscript(:final text):
               // El primer pedazo de una frase es el que estrena turno: los
@@ -751,7 +847,7 @@ class HoldVoiceConversation {
                     'b6 · contestó sin pasar por Claude ($answeredAlone en esta '
                     'sesión) y se corrige: «$utterance»',
                   );
-                  unawaited(enforceClaude(utterance, turn));
+                  pidelaRuta(utterance, turn);
                   break;
                 }
               }

@@ -73,6 +73,31 @@ final class VoiceToolStarted extends VoiceEvent {
   final String instruction;
 }
 
+/// Se está mirando algo **aquí, sin encargo**: la agenda que ya está leída, y
+/// nada más por ahora.
+///
+/// 🔴 **Existe porque reusar [VoiceToolStarted] para esto estuvo mal, y se vio
+/// en pantalla.** Aquel significa «empezó un encargo», y quien lo escucha actúa
+/// en consecuencia: toma la marca del repositorio, apunta la instrucción en «lo
+/// que has pedido» y, al terminar, corre la cola de después de un encargo
+/// —releer la rama, buscar el documento que salió, comprimir el contexto,
+/// avisar de que ya está—.
+///
+/// Una lectura de memoria no es nada de eso. Anunciarla como encargo colgó un
+/// documento viejo de la respuesta a «¿qué reuniones tengo hoy?»: la marca se
+/// toma sin esperarla y la agenda contesta al instante, así que la comparación
+/// corría antes de que hubiera con qué comparar y **toda** la carpeta contaba
+/// como recién salida.
+///
+/// No lleva pareja de «terminó» a propósito. Lo que se espera después es que el
+/// modelo hable, y de eso ya se encarga el primer trozo de su respuesta.
+final class VoiceLookupStarted extends VoiceEvent {
+  const VoiceLookupStarted(this.headline);
+
+  /// Lo que se enseña mientras dura. Corto: es un titular, no una frase.
+  final String headline;
+}
+
 /// Una acción concreta de Claude dentro del encargo: qué archivo lee, qué
 /// comando corre.
 ///
