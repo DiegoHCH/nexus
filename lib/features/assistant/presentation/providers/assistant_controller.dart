@@ -72,6 +72,14 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// distintos porque son dos intenciones distintas, y unirlos hacía que la
   /// intención más común, seguir hablando, ejecutara la más destructiva.
   final _enCola = <_Encargo>[];
+
+  /// La pregunta que contesta el encargo en curso, si esperó turno.
+  ///
+  /// Solo se llena para lo que salió de la cola. En un intercambio normal la
+  /// respuesta va pegada a su pregunta y citarla sería ruido; al encolar, entre
+  /// las dos hay otros mensajes y el orden deja de decir a cuál contesta cada
+  /// una. La cita devuelve lo que la cola se llevó.
+  String? _respondiendoA;
   StreamSubscription<VoiceEvent>? _voiceSubscription;
 
   /// Lo que va diciendo el usuario y lo que va respondiendo el modelo, por
@@ -226,6 +234,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     String text, {
     bool spoken = false,
     List<String> attachments = const [],
+    String? respondeA,
   }) {
     state = state.copyWith(
       messages: [
@@ -236,6 +245,7 @@ class AssistantController extends Notifier<AssistantHudState> {
           spoken: spoken,
           streaming: true,
           attachments: attachments,
+          respondeA: respondeA,
           // Solo la respuesta, no lo que se pidió: el botón de enviar va bajo
           // el parte, y lo que se pidió es la instrucción que lo generó.
           esElParte: author == ChatAuthor.nexus && _elParteEnCurso,
@@ -248,7 +258,12 @@ class AssistantController extends Notifier<AssistantHudState> {
   ///
   /// El texto entra a trozos —deltas de Claude, transcripción de Gemini— y
   /// crear un mensaje por trozo llenaría la ventana de fragmentos sueltos.
-  void _appendTo(ChatAuthor author, String text, {bool spoken = false}) {
+  void _appendTo(
+    ChatAuthor author,
+    String text, {
+    bool spoken = false,
+    String? respondeA,
+  }) {
     final messages = [...state.messages];
     final last = messages.lastOrNull;
     if (last != null && last.author == author && last.streaming) {
@@ -256,7 +271,7 @@ class AssistantController extends Notifier<AssistantHudState> {
       state = state.copyWith(messages: messages);
       return;
     }
-    _say(author, text, spoken: spoken);
+    _say(author, text, spoken: spoken, respondeA: respondeA);
   }
 
   /// Cierra el turno en curso: se le quita el cursor.
@@ -499,6 +514,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
 
     _sealLast();
+    _respondiendoA = yaEstaDicho ? (loQueSeVe ?? trimmed) : null;
     _elParteEnCurso = esElParte;
     final buffer = StringBuffer();
     state = state.copyWith(
@@ -776,7 +792,10 @@ class AssistantController extends Notifier<AssistantHudState> {
 
   void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
     buffer.write(event.text);
-    _appendTo(ChatAuthor.nexus, event.text);
+    // La cita solo cuaja al **crear** el mensaje: `_appendTo` la ignora cuando
+    // está alargando el que ya hay, así que las porciones siguientes no la
+    // repiten ni la borran.
+    _appendTo(ChatAuthor.nexus, event.text, respondeA: _respondiendoA);
     state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
   }
 

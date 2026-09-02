@@ -215,6 +215,41 @@ void main() {
     expect(cuantas, 1);
   });
 
+  /// **La respuesta a lo que esperó turno dice a qué contesta.**
+  ///
+  /// Es el precio de encolar: escribes tres cosas y las tres respuestas llegan
+  /// después, así que el orden deja de decir a cuál contesta cada una. La cita
+  /// —barra al canto y la pregunta atenuada encima, como en cualquier chat—
+  /// devuelve lo que la cola se llevó.
+  test('la respuesta a lo encolado cita su pregunta', () async {
+    final c = contenedor();
+    final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+    await controlador.submit('ordena la casa');
+    await vueltas();
+    await controlador.submit('y saca la basura');
+    await vueltas();
+
+    // El primero contesta: su respuesta no cita nada, porque va pegada a su
+    // pregunta y el orden ya lo dice.
+    claude.termina();
+    await vueltas();
+    final primera = c
+        .read(assistantControllerProvider(_id))
+        .messages
+        .lastWhere((m) => m.author == ChatAuthor.nexus);
+    expect(primera.respondeA, isNull);
+
+    // El encolado sí: entre su pregunta y su respuesta hay otros mensajes.
+    claude.termina();
+    await vueltas();
+    final segunda = c
+        .read(assistantControllerProvider(_id))
+        .messages
+        .lastWhere((m) => m.author == ChatAuthor.nexus);
+    expect(segunda.respondeA, 'y saca la basura');
+  });
+
   /// Detener es «para», no «pausa». Dejar la cola viva haría que al soltar el
   /// botón arrancara solo lo siguiente, que es lo contrario de lo pedido.
   test('detener se lleva por delante lo que esperaba turno', () async {

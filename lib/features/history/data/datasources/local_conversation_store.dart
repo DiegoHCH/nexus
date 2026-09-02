@@ -80,6 +80,10 @@ class LocalConversationStore {
               // deja el parte sin su botón de enviar — el mismo fallo que ya
               // tuvieron los cambios.
               if (message.esElParte) 'parte': true,
+              // La cita se guarda con el mensaje: al releer la conversación
+              // desde el disco, una respuesta que esperó turno sigue estando
+              // lejos de su pregunta, así que sigue haciendo falta.
+              'responde_a': ?message.respondeA,
               // Y los pasos que dio. Mismo motivo que los cambios, un grado
               // peor: la lista de la pantalla se vacía al empezar el encargo
               // siguiente, así que sin guardarla «qué hizo» ya no tenía
@@ -312,6 +316,7 @@ class LocalConversationStore {
                 // pulsa el día que sí lleva.
                 documento: _documentoDe(message['documento']),
                 esElParte: message['parte'] == true,
+                respondeA: message['responde_a'] as String?,
                 actividad: _pasosDe(message['pasos']),
                 fallo: message['fallo'] == true,
               ),
