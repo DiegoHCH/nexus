@@ -388,14 +388,30 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> _mandarA(
     String conversacion,
     String tarea,
-    String loQueSeVe,
-  ) async {
+    String loQueSeVe, {
+    required bool allowWrites,
+    required List<String> attachments,
+  }) async {
     await ref.read(conversationsProvider.notifier).focus(conversacion);
     if (!_vive) return;
     if (tarea.trim().isEmpty) return;
     await ref
         .read(assistantControllerProvider(conversacion).notifier)
-        .submit(tarea, loQueSeVe: loQueSeVe);
+        .submit(
+          tarea,
+          loQueSeVe: loQueSeVe,
+          // 🔴 **El tope viaja con el encargo, y no viajaba.** `allowWrites`
+          // baja lo que la carpeta concede y nunca lo sube; al no reenviarlo,
+          // el encargo llegaba con el valor por defecto —`true`— y el tope
+          // desaparecía. O sea que **un teléfono en solo lectura conseguía
+          // escritura nombrando otra carpeta**, que es exactamente lo que la
+          // frase de escritura existe para impedir.
+          allowWrites: allowWrites,
+          // Y los adjuntos igual: se soltaban tres capturas, se nombraba otra
+          // carpeta, y el encargo llegaba allí sin ellas — con la frase
+          // pidiendo que se miren.
+          attachments: attachments,
+        );
   }
 
   /// Las preguntas de permiso vivas de **esta** conversación.
@@ -537,7 +553,13 @@ class AssistantController extends Notifier<AssistantHudState> {
         case AtenderloAqui(:final tarea):
           trimmed = tarea;
         case LlevarloA(:final conversacion, :final tarea):
-          await _mandarA(conversacion, tarea, loQueSeVe ?? instruction);
+          await _mandarA(
+            conversacion,
+            tarea,
+            loQueSeVe ?? instruction,
+            allowWrites: allowWrites,
+            attachments: attachments,
+          );
           return;
         case AbrirUnaPara(:final carpeta, :final tarea):
           final abierta = await ref
@@ -548,7 +570,13 @@ class AssistantController extends Notifier<AssistantHudState> {
             _decir(strings.noCabeOtraConversacion(carpeta.name));
             return;
           }
-          await _mandarA(abierta, tarea, loQueSeVe ?? instruction);
+          await _mandarA(
+            abierta,
+            tarea,
+            loQueSeVe ?? instruction,
+            allowWrites: allowWrites,
+            attachments: attachments,
+          );
           return;
         case NoCabeOtraConversacion(:final carpeta):
           _decir(strings.noCabeOtraConversacion(carpeta.name));

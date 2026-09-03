@@ -32,10 +32,13 @@ const _aqui = '/w/nexus';
 const _alla = '/w/front-mobile-b2c';
 
 class _Claude implements AskClaude {
-  _Claude(this.dondeCayo, this.conversacion);
+  _Claude(this.dondeCayo, this.conversacion, this.conPermiso);
 
   final Map<String, List<String>> dondeCayo;
   final String conversacion;
+
+  /// Con qué tope llegó cada encargo. Es lo que dice si el enrutado lo respetó.
+  final Map<String, List<bool>> conPermiso;
 
   @override
   Stream<ClaudeEvent> call(
@@ -46,6 +49,7 @@ class _Claude implements AskClaude {
     alPedirPermiso,
   }) async* {
     (dondeCayo[conversacion] ??= []).add(instruction);
+    (conPermiso[conversacion] ??= []).add(allowWrites);
     yield const ClaudeTurnCompleted(result: 'ya está');
   }
 
@@ -113,10 +117,12 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   late Map<String, List<String>> dondeCayo;
+  late Map<String, List<bool>> conPermiso;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     dondeCayo = {};
+    conPermiso = {};
   });
 
   ProviderContainer montar(List<Conversation> abiertas) {
@@ -129,7 +135,9 @@ void main() {
         conversationsProvider.overrideWith(() => _Abiertas(abiertas)),
         for (final c in abiertas) ...[
           conversationFolderProvider(c.id).overrideWithValue(c.folderPath),
-          askClaudeProvider(c.id).overrideWithValue(_Claude(dondeCayo, c.id)),
+          askClaudeProvider(
+            c.id,
+          ).overrideWithValue(_Claude(dondeCayo, c.id, conPermiso)),
         ],
       ],
     );
@@ -248,6 +256,56 @@ void main() {
       ['en el front mobile b2c, arregla el login'],
       reason:
           'un reintento ya se enrutó en su día: volver a hacerlo lo movería',
+    );
+  });
+
+  // 🔴 **El tope viaja con el encargo.** `allowWrites` baja lo que la carpeta
+  // concede y nunca lo sube, y el teléfono manda `false` mientras no tenga
+  // abierta la frase de escritura. Sin reenviarlo, **un teléfono en solo lectura
+  // conseguía escritura nombrando otra carpeta** — justo lo que esa frase existe
+  // para impedir.
+  test('el enrutado no sube el permiso de escritura', () async {
+    final container = montar(dosAbiertas);
+
+    await container
+        .read(assistantControllerProvider('aqui').notifier)
+        .submit('en el front mobile b2c, arregla el login', allowWrites: false);
+    await asentar();
+
+    expect(conPermiso['alla'], [false]);
+  });
+
+  test('y el de aquí tampoco, cuando no se mueve', () async {
+    final container = montar(dosAbiertas);
+
+    await container
+        .read(assistantControllerProvider('aqui').notifier)
+        .submit('en nexus, arregla el login', allowWrites: false);
+    await asentar();
+
+    expect(conPermiso['aqui'], [false]);
+  });
+
+  // Se sueltan tres capturas, se nombra otra carpeta, y el encargo llegaba allí
+  // sin ellas — con la frase pidiendo que se miren.
+  test('los adjuntos viajan con el encargo', () async {
+    final container = montar(dosAbiertas);
+
+    await container
+        .read(assistantControllerProvider('aqui').notifier)
+        .submit(
+          'en el front mobile b2c, mira estas capturas',
+          attachments: const ['/tmp/una.png'],
+        );
+    await asentar();
+
+    expect(
+      container
+          .read(assistantControllerProvider('alla'))
+          .messages
+          .first
+          .attachments,
+      ['/tmp/una.png'],
     );
   });
 }
