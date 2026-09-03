@@ -19,6 +19,7 @@ import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// **Escribir mientras trabaja encola; no interrumpe.**
 ///
@@ -50,6 +51,7 @@ class _Claude implements AskClaude {
     String instruction, {
     bool remember = true,
     bool allowWrites = true,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     pedidos.add(instruction);
     final suelta = Completer<void>();

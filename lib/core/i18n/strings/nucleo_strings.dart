@@ -25,6 +25,19 @@ mixin NucleoStrings {
   String get canEdit;
   String get canEditExplainer;
   String get readOnlyExplainer;
+  // El permiso que se pregunta
+  String permisoPregunta(String herramienta);
+  String get permisoEscribe;
+  String get permisoConceder;
+  String get permisoConcederTodo;
+  String get permisoDenegar;
+  String get permisoDenegadoMotivo;
+  String get permisoCanceladoMotivo;
+  String get permisoEnEspera;
+  String get permisoDichoConcedido;
+  String get permisoDichoConcedidoTodo;
+  String get permisoDichoDenegado;
+  String get permisoDichoCancelado;
   String contextUsed(int percent);
   String get attachFile;
   String get orbLabel;
@@ -179,9 +192,35 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get canEdit => 'PUEDE EDITAR';
   @override
-  String get canEditExplainer => 'Modifica archivos sin preguntar';
+  String get canEditExplainer => 'Modifica archivos, preguntando antes';
   @override
   String get readOnlyExplainer => 'Lee y ejecuta, pero no escribe';
+  @override
+  String permisoPregunta(String herramienta) => '¿Le dejas usar $herramienta?';
+  @override
+  String get permisoEscribe => 'Esto modifica archivos.';
+  @override
+  String get permisoConceder => 'Permitir';
+  @override
+  String get permisoConcederTodo => 'Permitir todo';
+  @override
+  String get permisoDenegar => 'No';
+  @override
+  String get permisoDenegadoMotivo => 'No lo autoricé desde Nexus.';
+  @override
+  String get permisoCanceladoMotivo =>
+      'El encargo se detuvo antes de que nadie contestara.';
+  @override
+  String get permisoEnEspera => 'Esperando tu permiso';
+  @override
+  String get permisoDichoConcedido => 'Lo permitiste';
+  @override
+  String get permisoDichoConcedidoTodo =>
+      'Lo permitiste, y el resto de la sesión';
+  @override
+  String get permisoDichoDenegado => 'No lo permitiste';
+  @override
+  String get permisoDichoCancelado => 'Se detuvo antes de que contestaras';
   @override
   String contextUsed(int percent) =>
       'Contexto ocupado: $percent %. Al 85 % la conversación se comprime sola.';
@@ -475,9 +514,35 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get canEdit => 'CAN EDIT';
   @override
-  String get canEditExplainer => 'Changes files without asking';
+  String get canEditExplainer => 'Changes files, asking first';
   @override
   String get readOnlyExplainer => 'Reads and runs, but never writes';
+  @override
+  String permisoPregunta(String herramienta) => 'Let it use $herramienta?';
+  @override
+  String get permisoEscribe => 'This changes files.';
+  @override
+  String get permisoConceder => 'Allow';
+  @override
+  String get permisoConcederTodo => 'Allow all';
+  @override
+  String get permisoDenegar => 'No';
+  @override
+  String get permisoDenegadoMotivo => "I didn't allow it from Nexus.";
+  @override
+  String get permisoCanceladoMotivo =>
+      'The errand stopped before anyone answered.';
+  @override
+  String get permisoEnEspera => 'Waiting for your answer';
+  @override
+  String get permisoDichoConcedido => 'You allowed it';
+  @override
+  String get permisoDichoConcedidoTodo =>
+      'You allowed it, and the rest of the session';
+  @override
+  String get permisoDichoDenegado => "You didn't allow it";
+  @override
+  String get permisoDichoCancelado => 'It stopped before you answered';
   @override
   String contextUsed(int percent) =>
       'Context used: $percent%. At 85% the conversation compacts itself.';

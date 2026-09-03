@@ -266,6 +266,7 @@ class _HomePageState extends ConsumerState<HomePage> {
                                         .watch(losNombresProvider)
                                         .etiqueta(context.strings.nexus),
                                     onRetry: controller.reintentar,
+                                    onPermiso: controller.responderPermiso,
                                   ),
                                 ),
                                 // 🔴 Aquí había un segundo botón de «ver los

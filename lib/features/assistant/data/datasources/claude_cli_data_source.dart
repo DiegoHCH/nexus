@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
 /// decodificada. No sabe nada de dominio: eso lo traduce el repositorio.
@@ -54,12 +55,37 @@ class ClaudeCliDataSource {
     /// Los servidores MCP que este encargo puede usar, ya con el prefijo `mcp__`.
     /// Vacío significa **ninguno**, que es lo que había antes sin querer.
     List<String> herramientasMcp = const [],
+
+    /// A quién preguntarle cuando Claude quiera usar una herramienta que no
+    /// tiene concedida. `null` —lo de siempre— deja el encargo headless puro:
+    /// no hay canal de vuelta y el modo de permisos decide solo.
+    ///
+    /// **No es un adorno opcional: cambia cómo se lanza el proceso.** Con esto
+    /// puesto la instrucción deja de ir en la línea de comandos y entra por
+    /// stdin como `stream-json`, porque el canal de las preguntas es el mismo
+    /// que el de la entrada y solo existe si esa entrada está abierta.
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
   }) async* {
+    // Con alguien a quien preguntar, el CLI habla por un canal distinto: manda
+    // `control_request` por stdout y espera el `control_response` por stdin.
+    // Lo enciende `--permission-prompt-tool stdio` —el valor es literal, lo
+    // dice el binario: «permission prompts reach the host over stdio»— y sin
+    // `--input-format stream-json` no hay por dónde contestarle.
+    final preguntando = alPedirPermiso != null;
     final process = await Process.start(
       await HerramientaExterna.rutaDeClaude(),
       [
         '-p',
-        instruction,
+        // Preguntando, la instrucción viaja por stdin: pasarla además aquí la
+        // mandaría dos veces.
+        if (!preguntando) instruction,
+        if (preguntando) ...[
+          '--input-format',
+          'stream-json',
+          '--permission-prompt-tool',
+          'stdio',
+        ],
         '--output-format',
         'stream-json',
         '--include-partial-messages',
@@ -121,15 +147,43 @@ class ClaudeCliDataSource {
     // caudal.
     debugPrint(
       'claude · perfil ${configDir ?? 'el de siempre'} · '
+      // **Si hay alguien a quien preguntar, dicho en la misma línea.**
+      //
+      // Se anota por lo mismo que las herramientas de aquí al lado, y con un
+      // caso propio ya vivido: se probó un encargo esperando el diálogo, no
+      // salió, y desde fuera no había forma de distinguir «el canal no se
+      // armó» de «el CLI no preguntó nada». Resolverlo costó media hora y
+      // acabó siendo que el binario ni siquiera llevaba el cambio. Una línea
+      // por encargo lo contesta antes de empezar a buscar.
+      '${preguntando ? 'preguntando lo que no tenga concedido' : 'sin nadie a quien preguntar'} · '
+      'modo $permissionMode · '
       '${herramientasMcp.length} servidores MCP permitidos'
       '${disallowedTools.isEmpty ? '' : ' · ${disallowedTools.length} herramientas negadas'}'
       '${model == null ? '' : ' · $model'}'
       '${effort == null ? '' : ' · esfuerzo $effort'}',
     );
 
-    // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
-    // arrancar — nadie le va a escribir nada, así que se lo avisamos ya.
-    unawaited(process.stdin.close());
+    if (preguntando) {
+      // La instrucción, ahora como mensaje del protocolo. **Y el stdin se queda
+      // abierto**, al revés que en el camino de siempre: por ahí van las
+      // respuestas a los permisos, y cerrarlo deja al CLI preguntando a una
+      // puerta tapiada. Lo mismo hace `CorridaViva` con `flutter run --machine`.
+      process.stdin.writeln(
+        jsonEncode({
+          'type': 'user',
+          'message': {
+            'role': 'user',
+            'content': [
+              {'type': 'text', 'text': instruction},
+            ],
+          },
+        }),
+      );
+    } else {
+      // Sin esto, claude espera ~3s por si le llega algo por stdin antes de
+      // arrancar — nadie le va a escribir nada, así que se lo avisamos ya.
+      unawaited(process.stdin.close());
+    }
 
     final stderrBuffer = StringBuffer();
     final stderrDone = process.stderr
@@ -156,6 +210,19 @@ class ClaudeCliDataSource {
           stderrBuffer.writeln(line);
           continue;
         }
+        // Las preguntas de permiso no son eventos del encargo: no las ve el
+        // dominio, se contestan aquí y el turno sigue como si nada.
+        if (alPedirPermiso != null) {
+          if (peticionDe(decoded) case final peticion?) {
+            // **Sin `await`, y esto es lo importante.** Esperar aquí la
+            // respuesta pararía de leer stdout mientras la persona mira el
+            // diálogo, y por ahí siguen llegando los deltas del texto. La
+            // pregunta se lanza y el bucle sigue; quien conteste escribe por
+            // stdin cuando toque.
+            unawaited(_contestar(process, peticion, alPedirPermiso));
+            continue;
+          }
+        }
         yield decoded;
       }
 
@@ -171,7 +238,104 @@ class ClaudeCliDataSource {
       // contexto y tiempo para una respuesta que nadie va a leer. Este
       // `finally` también corre al cancelar la suscripción, que es justo el
       // caso que importa. Si el proceso ya salió, `kill` no hace nada.
+      //
+      // Y el stdin que dejamos abierto se cierra aquí: es nuestro, y un
+      // descriptor suelto por encargo se acumula.
+      if (preguntando) unawaited(process.stdin.close().catchError((_) {}));
       process.kill();
+    }
+  }
+
+  /// La petición de permiso que trae esta línea, o `null` si no es una.
+  ///
+  /// El CLI manda por el mismo canal otros `control_request` que no son
+  /// preguntas para nadie —`request_user_dialog`, por ejemplo—, así que no
+  /// vale con mirar el tipo: hay que mirar el `subtype`.
+  ///
+  /// Pública por el mismo motivo que [comoJson]: **para poder probarla sin
+  /// lanzar un proceso**. Es la única forma de fijar contra qué JSON se
+  /// programó, y aquí eso pesa más que de costumbre — el protocolo de control
+  /// no está documentado, así que lo que hay es lo medido contra el binario y
+  /// conviene que quede escrito en algún sitio que se ejecute.
+  static PeticionDePermiso? peticionDe(Map<String, dynamic> json) {
+    if (json['type'] != 'control_request') return null;
+    final request = json['request'];
+    if (request is! Map<String, dynamic>) return null;
+    if (request['subtype'] != 'can_use_tool') return null;
+
+    final id = json['request_id'];
+    final herramienta = request['tool_name'];
+    if (id is! String || herramienta is! String) return null;
+
+    final entrada = request['input'];
+    final nombreVisible = request['display_name'];
+    final descripcion = request['description'];
+    final toolUseId = request['tool_use_id'];
+    final sugerencias = request['permission_suggestions'];
+    return PeticionDePermiso(
+      id: id,
+      herramienta: herramienta,
+      nombreVisible: nombreVisible is String && nombreVisible.isNotEmpty
+          ? nombreVisible
+          : herramienta,
+      entrada: entrada is Map<String, dynamic> ? entrada : const {},
+      descripcion: descripcion is String ? descripcion : null,
+      toolUseId: toolUseId is String ? toolUseId : null,
+      sugerencias: sugerencias is List
+          ? [
+              for (final una in sugerencias)
+                if (una is Map<String, dynamic>) una,
+            ]
+          : const [],
+    );
+  }
+
+  /// Pregunta y escribe la respuesta por stdin.
+  ///
+  /// **Un fallo aquí se convierte en una negación, nunca en silencio.** Si el
+  /// diálogo revienta o quien tenía que contestar ya no está, el CLI se queda
+  /// esperando para siempre una respuesta que no va a llegar y el turno cuelga
+  /// sin decir por qué. Denegar al menos deja al modelo seguir y contarlo.
+  static Future<void> _contestar(
+    Process process,
+    PeticionDePermiso peticion,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso) preguntar,
+  ) async {
+    RespuestaDePermiso respuesta;
+    try {
+      respuesta = await preguntar(peticion);
+    } on Object catch (error) {
+      debugPrint(
+        'claude · el permiso de ${peticion.herramienta} falló: $error',
+      );
+      respuesta = const PermisoDenegado('Nexus no pudo preguntar.');
+    }
+
+    final cuerpo = switch (respuesta) {
+      PermisoConcedido(:final entrada, :final permisosNuevos) => {
+        'behavior': 'allow',
+        'updatedInput': entrada,
+        // Solo cuando hay algo que cambiar: mandar la lista vacía sería pedirle
+        // al CLI que toque los permisos para no tocar ninguno.
+        if (permisosNuevos.isNotEmpty) 'updatedPermissions': permisosNuevos,
+      },
+      PermisoDenegado(:final motivo) => {'behavior': 'deny', 'message': motivo},
+    };
+    try {
+      process.stdin.writeln(
+        jsonEncode({
+          'type': 'control_response',
+          'response': {
+            'subtype': 'success',
+            'request_id': peticion.id,
+            'response': cuerpo,
+          },
+        }),
+      );
+    } on Object catch (error) {
+      // El proceso ya no está: el encargo se canceló mientras el diálogo
+      // estaba abierto. No hay nada que arreglar y nadie a quien avisar.
+      debugPrint('claude · no se pudo contestar el permiso: $error');
     }
   }
 

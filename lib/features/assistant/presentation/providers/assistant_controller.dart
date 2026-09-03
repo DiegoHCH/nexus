@@ -12,6 +12,7 @@ import 'package:nexus/features/artifacts/presentation/providers/artifacts_provid
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -90,6 +91,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   @override
   AssistantHudState build() {
     ref.onDispose(() {
+      // Lo mismo que en `stopWork` y por lo mismo: un permiso sin contestar
+      // deja la cancelación esperando a un generador que no vuelve. Aquí no se
+      // toca el estado —Riverpod lo prohíbe en un ciclo de vida— y tampoco
+      // haría falta: la conversación se está cerrando.
+      _soltarPermisos();
       _subscription?.cancel();
       _voiceSubscription?.cancel();
     });
@@ -370,6 +376,112 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_archive());
   }
 
+  /// Las preguntas de permiso vivas de **esta** conversación, por `request_id`.
+  ///
+  /// Viven aquí y no en un provider aparte porque una pregunta pertenece al
+  /// encargo que la hizo, y un encargo pertenece a una conversación: con un
+  /// buzón global, dos conversaciones trabajando a la vez se disputaban un
+  /// único hueco y la pregunta podía salir en la pestaña que no era.
+  /// El motivo de la cancelación viaja **con** el completer, resuelto desde que
+  /// se encola. No es eficiencia: sale de `stringsProvider`, y soltar puede
+  /// ocurrir dentro de un `onDispose`, donde Riverpod prohíbe leer otro
+  /// provider. Es la tercera vez que esa regla muerde en esta funcionalidad;
+  /// tomándolo aquí, contestar no depende de poder leer nada.
+  final _permisos =
+      <String, ({Completer<RespuestaDePermiso> completer, String cancelado})>{};
+
+  /// Claude quiere usar algo que no tiene concedido: se pregunta **en la
+  /// conversación**, como un turno más.
+  Future<RespuestaDePermiso> _pedirPermiso(PeticionDePermiso peticion) {
+    final strings = ref.read(stringsProvider);
+    // El texto en curso se cierra antes: la pregunta es su propio turno, y sin
+    // esto el trozo siguiente de la respuesta se pegaría debajo de los botones.
+    _sealLast();
+    final completer = Completer<RespuestaDePermiso>();
+    _permisos[peticion.id] = (
+      completer: completer,
+      cancelado: strings.permisoCanceladoMotivo,
+    );
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          author: ChatAuthor.nexus,
+          text: strings.permisoPregunta(peticion.nombreVisible),
+          permiso: peticion,
+        ),
+      ],
+      // Un turno se puede ignorar sin querer —basta con haber subido a releer
+      // algo—, y desde fuera «detenido esperándote» y «colgado» se ven igual.
+      // Es lo que la modal daba gratis y aquí hay que decir a mano.
+      notice: strings.permisoEnEspera,
+    );
+    return completer.future;
+  }
+
+  /// Lo que la persona eligió en el turno de la pregunta.
+  void responderPermiso(String id, DecisionDePermiso decision) {
+    final espera = _permisos.remove(id);
+    if (espera == null || espera.completer.isCompleted) return;
+
+    final mensajes = [...state.messages];
+    final donde = mensajes.indexWhere((m) => m.permiso?.id == id);
+    // La petición sale del mensaje: es la misma que la del mapa, y así lo que
+    // se contesta se compone con lo que se estaba enseñando de verdad.
+    final peticion = donde == -1 ? null : mensajes[donde].permiso;
+    if (donde != -1) {
+      mensajes[donde] = mensajes[donde].copyWith(decision: decision);
+    }
+
+    final strings = ref.read(stringsProvider);
+    espera.completer.complete(switch (decision) {
+      DecisionDePermiso.concedido => PermisoConcedido(peticion?.entrada ?? {}),
+      DecisionDePermiso.concedidoTodo => PermisoConcedido(
+        peticion?.entrada ?? {},
+        permisosNuevos: peticion?.sugerencias ?? const [],
+      ),
+      DecisionDePermiso.denegado => PermisoDenegado(
+        strings.permisoDenegadoMotivo,
+      ),
+      DecisionDePermiso.cancelado => PermisoDenegado(
+        strings.permisoCanceladoMotivo,
+      ),
+    });
+
+    state = state.copyWith(
+      messages: mensajes,
+      // El aviso solo se va cuando no queda ninguna: contestar la primera de
+      // dos no es haber terminado.
+      notice: _permisos.isEmpty ? null : state.notice,
+    );
+  }
+
+  /// Suelta a quien espere, sin tocar el estado. Para el `onDispose`.
+  void _soltarPermisos() {
+    if (_permisos.isEmpty) return;
+    for (final espera in _permisos.values) {
+      if (!espera.completer.isCompleted) {
+        espera.completer.complete(PermisoDenegado(espera.cancelado));
+      }
+    }
+    _permisos.clear();
+  }
+
+  /// Lo mismo, y además deja dicho en la conversación que nadie contestó.
+  void _cancelarPermisos() {
+    if (_permisos.isEmpty) return;
+    _soltarPermisos();
+    state = state.copyWith(
+      messages: [
+        for (final mensaje in state.messages)
+          mensaje.esperaPermiso
+              ? mensaje.copyWith(decision: DecisionDePermiso.cancelado)
+              : mensaje,
+      ],
+      notice: null,
+    );
+  }
+
   void _sealLast() {
     final messages = [...state.messages];
     final last = messages.lastOrNull;
@@ -558,19 +670,31 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
-    _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
-      (event) => switch (event) {
-        ClaudeQueued() => _onQueued(),
-        ClaudeRulesChanged() => _onRulesChanged(event.paths),
-        ClaudeSessionStarted() => _onSessionStarted(event.model),
-        ClaudeTextDelta() => _onTextDelta(buffer, event),
-        ClaudeToolUsed() => _onClaudeToolUsed(event),
-        ClaudeToolFinished() => _onClaudeToolFinished(event.id, event.output),
-        ClaudeTurnCompleted() => _onTurnCompleted(event),
-        ClaudeFailed() => _onFailed(event.message),
-      },
-      onError: (Object error) => _onFailed(error.toString()),
-    );
+    _subscription =
+        ask(
+          paraClaude,
+          allowWrites: allowWrites,
+          // **Aquí sí hay alguien mirando**, y es lo único que distingue este
+          // encargo de los que lanza la agenda: quien escribió en la caja está
+          // delante de la pantalla, así que lo que Claude no tenga concedido se le
+          // puede preguntar en vez de concederlo o negarlo por él.
+          alPedirPermiso: _pedirPermiso,
+        ).listen(
+          (event) => switch (event) {
+            ClaudeQueued() => _onQueued(),
+            ClaudeRulesChanged() => _onRulesChanged(event.paths),
+            ClaudeSessionStarted() => _onSessionStarted(event.model),
+            ClaudeTextDelta() => _onTextDelta(buffer, event),
+            ClaudeToolUsed() => _onClaudeToolUsed(event),
+            ClaudeToolFinished() => _onClaudeToolFinished(
+              event.id,
+              event.output,
+            ),
+            ClaudeTurnCompleted() => _onTurnCompleted(event),
+            ClaudeFailed() => _onFailed(event.message),
+          },
+          onError: (Object error) => _onFailed(error.toString()),
+        );
   }
 
   /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
@@ -947,6 +1071,9 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    // Con el medidor ya actualizado: es de aquí de donde sale el número que le
+    // faltaba al aviso de la compresión anterior.
+    _completarLaCompresion();
     _afterErrand();
   }
 
@@ -1072,13 +1199,47 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (_workingDirectory case final donde?) {
       ref.invalidate(gitInfoProvider(donde));
     }
-    unawaited(_readChanges());
-    unawaited(_mirarSiHayDocumento());
     _elParteEnCurso = false;
     _elEncargoTermino();
-    unawaited(_archive());
-    unawaited(_compactIfNeeded());
+    unawaited(_sellarYGuardar());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// Cuelga del mensaje lo que aún falta y **entonces** lo escribe.
+  ///
+  /// 🔴 **Los cambios y el documento iban sueltos con `unawaited` junto al
+  /// archivado, y eso era una carrera que el archivado ganaba.** Los dos
+  /// cuelgan algo del último mensaje después de un `await`, así que
+  /// `_archive()` serializaba `state.messages` cuando ese algo todavía no
+  /// estaba. En pantalla el chip sí aparecía —el estado se actualiza igual—,
+  /// pero el registro se guardaba sin él y al reabrir la app el enlace no
+  /// volvía.
+  ///
+  /// Medido en un registro real de `directory_ipuc`: el mensaje tenía
+  /// `pasos: 84` y `documento: null`. Los pasos estaban porque su sellado es
+  /// **síncrono** —el comentario de arriba lo pide por este mismo motivo— y
+  /// estos dos no lo son. El documento seguía en el disco: lo que se perdió
+  /// fue el enlace, que es la peor forma de perderlo, porque parece que el
+  /// archivo tampoco está.
+  Future<void> _sellarYGuardar() async {
+    await _readChanges();
+    await _mirarSiHayDocumento();
+    if (!_vive) return;
+    await _archive();
+
+    // **Comprimir va después de archivar, no antes.** `/compact` es un turno
+    // entero de Claude —un minuto largo— y dejar el registro esperándolo
+    // arriesga perder la conversación completa si la app se cierra en medio.
+    // Perder el aviso es molesto; perder lo hablado, inaceptable.
+    await _compactIfNeeded();
+    if (!_vive) return;
+
+    // Y por eso se reescribe: el aviso de la compresión nace **después** del
+    // archivado, así que sin esta segunda pasada nunca llegaba al registro —el
+    // otro síntoma del mismo informe—. Solo el historial local, que es
+    // idempotente y barato: el destino externo sale de la máquina y no se
+    // escribe dos veces por el mismo turno.
+    await _archive(soloLocal: true);
   }
 
   /// El encargo terminó: se suelta la suscripción y sale el siguiente de la
@@ -1138,7 +1299,12 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// ocurrir nunca —se cierra la app, se va la luz— y entonces lo hablado se
   /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
   /// resultado, que es justo lo que se quiere de un archivo idempotente.
-  Future<void> _archive() async {
+  /// Con [soloLocal] se reescribe **nada más que el historial de la app**.
+  ///
+  /// Para las segundas pasadas del mismo turno: el historial local es
+  /// idempotente —reescribirlo deja el mismo archivo— y el destino externo no,
+  /// porque sale de la máquina y cuesta red cada vez.
+  Future<void> _archive({bool soloLocal = false}) async {
     final folder = _folder;
     if (folder == null) return;
     final record = ConversationRecord(
@@ -1180,7 +1346,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     // no se perdía nada; lo que se llevaba por delante era el silencio.
     var falloElDestino = false;
     try {
-      final archive = await ref.read(conversationArchiveProvider.future);
+      // La segunda pasada de un turno no vuelve a salir de la máquina.
+      final archive = soloLocal
+          ? null
+          : await ref.read(conversationArchiveProvider.future);
       if (archive != null) await archive.save(record);
     } catch (error) {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
@@ -1399,6 +1568,14 @@ class AssistantController extends Notifier<AssistantHudState> {
       } else {
         _say(ChatAuthor.nexus, strings.compactedUnknown);
         _sealLast();
+        // **Queda apuntado, porque ese mensaje promete una medida.** Decía «se
+        // actualiza en el siguiente turno» y no se actualizaba nada: el turno
+        // siguiente sí traía el contexto nuevo, pero al medidor de arriba, no
+        // al mensaje. Quien lo leía se quedaba sin saber en cuánto quedó.
+        _compresionSinMedida = (
+          antes: before,
+          indice: state.messages.length - 1,
+        );
       }
     } catch (error) {
       // Que falle la compresión no puede tumbar la conversación: se sigue con
@@ -1415,6 +1592,44 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   static const _compactItemId = 'comprimiendo';
+
+  /// Una compresión ya anunciada a la que le falta la medida final.
+  ///
+  /// Guarda el porcentaje de antes y **dónde** quedó el mensaje, para poder
+  /// completarlo en cuanto haya una medida nueva.
+  ({int antes, int indice})? _compresionSinMedida;
+
+  /// Le pone el número al aviso de compresión que salió sin él.
+  ///
+  /// `/compact` no siempre reporta el contexto resultante —de ahí el mensaje
+  /// sin medida—, pero el turno siguiente sí lo trae. Aquí es donde eso deja de
+  /// ser una promesa: el mismo mensaje se reescribe con el texto completo, «el
+  /// contexto baja del X % al Y %», que es el que ya se usaba cuando la medida
+  /// llegaba a tiempo. No se añade una línea nueva: dos avisos para una sola
+  /// compresión se leerían como dos compresiones.
+  void _completarLaCompresion() {
+    final pendiente = _compresionSinMedida;
+    if (pendiente == null) return;
+    final ahora = state.meter.contextPercent;
+    if (ahora == null) return;
+
+    _compresionSinMedida = null;
+    final strings = ref.read(stringsProvider);
+    // **Se comprueba que el mensaje siga siendo ese y no solo que el índice
+    // quepa.** Entre la compresión y esta medida cabe cualquier cosa que
+    // rehaga la lista —reabrir un registro, cambiar de conversación—, y
+    // reescribir por índice a ciegas pisaría el mensaje de otro.
+    if (pendiente.indice >= state.messages.length) return;
+    if (state.messages[pendiente.indice].text != strings.compactedUnknown) {
+      return;
+    }
+
+    final mensajes = [...state.messages];
+    mensajes[pendiente.indice] = mensajes[pendiente.indice].copyWith(
+      text: strings.compacted(pendiente.antes, ahora),
+    );
+    state = state.copyWith(messages: mensajes);
+  }
 
   void _onFailed(String message) {
     _sealLast();
@@ -1684,6 +1899,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     // `finally`, que es quien mata el proceso— sigue su curso por detrás.
     final enVuelo = _subscription;
     _subscription = null;
+    // Antes de cancelar, y no después: cancelar espera al generador, y lo que
+    // puede estar deteniéndolo es justamente un permiso sin contestar. Negarlo
+    // primero es lo que suelta ese `await`.
+    _cancelarPermisos();
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
     unawaited(enVuelo?.cancel() ?? Future<void>.value());
   }

@@ -5,6 +5,7 @@ import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// SEC-01, de punta a punta.
 ///
@@ -31,6 +32,7 @@ class _Espia extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     promptDeSistema = appendSystemPrompt;
   }

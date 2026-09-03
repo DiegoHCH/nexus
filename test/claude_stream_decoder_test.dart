@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// El CLI, sustituido por las líneas que se le quieran dar.
 class _Cli extends ClaudeCliDataSource {
@@ -26,6 +27,7 @@ class _Cli extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     if (failFirst && resumeSessionId != null) {
       throw const ClaudeProcessException(1, 'no such session');

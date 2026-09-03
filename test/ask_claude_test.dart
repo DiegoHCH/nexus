@@ -5,6 +5,7 @@ import 'package:nexus/features/assistant/domain/repositories/conversation_memory
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 class _Bridge implements ClaudeBridge {
   final asked = <String>[];
@@ -28,6 +29,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     asked.add(instruction);
     resumed.add(resumeSessionId);

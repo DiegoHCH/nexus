@@ -1,4 +1,5 @@
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// El puente hacia `claude -p` headless. Cada llamada a [ask] es un turno
 /// independiente: no mantiene una sesión abierta entre instrucciones (eso es
@@ -56,5 +57,13 @@ abstract class ClaudeBridge {
     /// Cómo se llama quien contesta y cómo llamar a quien pregunta, ya compuesto
     /// para el prompt del sistema. Ver `LosNombres.paraElPrompt`.
     String? nombres,
+
+    /// A quién preguntarle cuando Claude quiera hacer algo que no tiene
+    /// concedido. `null` es el encargo desatendido de siempre, y **tiene que
+    /// seguir siendo el valor por defecto**: la agenda y la cola de la carpeta
+    /// corren sin nadie delante, y una pregunta que nadie contesta no es una
+    /// pausa, es un cuelgue.
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
   });
 }

@@ -7,6 +7,7 @@ import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.
 import 'package:nexus/features/assistant/domain/usecases/el_perfil_del_encargo.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
@@ -29,10 +30,23 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   final RulesWatchDataSource _rulesWatch;
 
   /// `manual` deniega la escritura —también la que intente colarse por Bash,
-  /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar, que
-  /// es lo único viable sin nadie delante para aprobar.
-  static String _permissionMode({required bool canEdit}) =>
-      canEdit ? 'acceptEdits' : 'manual';
+  /// medido contra el CLI real— y `acceptEdits` la concede sin preguntar.
+  ///
+  /// **`acceptEdits` era «lo único viable» y ya no lo es.** Lo era porque no
+  /// había forma de preguntar; con alguien al otro lado del canal de permisos
+  /// sí la hay, y entonces `default` es lo correcto: concede lo de siempre y
+  /// pregunta lo que no.
+  ///
+  /// Una carpeta de solo lectura **no pregunta**, y no es un descuido. Ese modo
+  /// promete que no se toca el disco; convertirlo en «te lo pregunto» sería
+  /// cambiar la promesa por un botón, y el botón se pulsa sin leer.
+  static String _permissionMode({
+    required bool canEdit,
+    required bool hayQuienConteste,
+  }) {
+    if (!canEdit) return 'manual';
+    return hayQuienConteste ? 'default' : 'acceptEdits';
+  }
 
   @override
   Stream<ClaudeEvent> ask(
@@ -54,6 +68,8 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// Cómo se llama quien contesta y cómo llamarte a ti, ya compuesto
     /// para el prompt. Ver [LosNombres.paraElPrompt].
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
   }) async* {
     /// Algo que **no** era un fallo: la respuesta ya empezó y reintentar
     /// duplicaría trabajo ya hecho.
@@ -80,6 +96,20 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// largos eso pasaba del 100 % de la ventana — se vio un «132 %», que es lo
     /// que destapó esto.
     int? contextoVivo;
+
+    /// Si el turno ya dijo **por qué** falló, con palabras del CLI.
+    ///
+    /// Hace falta porque un solo fallo llega por dos caminos y en este orden:
+    /// primero una línea `{"type":"result","is_error":true}` con el motivo
+    /// —cupo agotado, un hook que se cayó—, y **después** el proceso saliendo
+    /// con 1. El segundo camino no trae motivo: si el CLI ya lo contó por
+    /// stdout, su stderr está vacío.
+    ///
+    /// Sin esto se emitían dos `ClaudeFailed` para un mismo fallo, y quien los
+    /// pinta sobreescribe: `errorMessage` acababa siendo el segundo, así que en
+    /// pantalla quedaba «claude terminó con código 1:» y nada detrás. El motivo
+    /// de verdad había estado ahí un instante y lo tapaba su propia secuela.
+    var motivoDicho = false;
 
     try {
       final context = await _projectContext.read(workingDirectory);
@@ -128,7 +158,11 @@ class ClaudeBridgeImpl implements ClaudeBridge {
       await for (final json in _dataSource.run(
         instruction,
         workingDirectory: workingDirectory,
-        permissionMode: _permissionMode(canEdit: canEdit),
+        permissionMode: _permissionMode(
+          canEdit: canEdit,
+          hayQuienConteste: alPedirPermiso != null,
+        ),
+        alPedirPermiso: alPedirPermiso,
         // La carpeta de documentos viaja como carpeta alcanzable, y no es
         // opcional: **medido contra el binario**, sin `--add-dir` la escritura
         // fuera del directorio de trabajo se deniega —aparece en
@@ -206,6 +240,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
             continue;
           }
           emitted = true;
+          if (event is ClaudeFailed) motivoDicho = true;
           // El fin de turno sale con el contexto de la última petición, no con
           // el acumulado que trae el `result`.
           yield switch (event) {
@@ -251,6 +286,16 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           comandosPermitidos: comandosPermitidos,
           constraintsNotice: constraintsNotice,
         );
+        return;
+      }
+      // **Un fallo se cuenta una vez.** Si el motivo ya salió por stdout, el
+      // código de salida no añade nada: su stderr está vacío, y emitirlo
+      // sobreescribe el motivo con «terminó con código 1:» y nada detrás.
+      //
+      // Se mira que el stderr esté vacío y no solo que ya se dijera algo: un
+      // proceso que además escribe en stderr sí trae información nueva —dos
+      // fallos distintos en el mismo turno— y esa no se tira.
+      if (motivoDicho && e is ClaudeProcessException && e.stderr.isEmpty) {
         return;
       }
       yield ClaudeFailed(e.toString());

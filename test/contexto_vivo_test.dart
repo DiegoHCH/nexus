@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// Cuánto contexto lleva ocupado la sesión, que **no** es lo que suma el turno.
 ///
@@ -30,6 +31,7 @@ class _TurnoConHerramientas extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     yield {
       'type': 'system',
@@ -120,6 +122,7 @@ class _TurnoDirecto extends ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     yield {
       'type': 'result',

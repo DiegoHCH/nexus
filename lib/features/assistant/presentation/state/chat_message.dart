@@ -1,9 +1,24 @@
 import 'package:flutter/foundation.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 
 /// Quién habla en una línea de la conversación.
 enum ChatAuthor { user, nexus }
+
+/// Qué se contestó a una petición de permiso.
+///
+/// `null` en el mensaje significa que **sigue esperando**, y esa es la
+/// diferencia que pinta los botones o los quita.
+enum DecisionDePermiso {
+  concedido,
+  concedidoTodo,
+  denegado,
+
+  /// Nadie contestó: el encargo se detuvo o la conversación se cerró con la
+  /// pregunta en pie. Se distingue de [denegado] porque no fue una decisión.
+  cancelado,
+}
 
 /// Un turno de la conversación, venga de la voz o del teclado.
 ///
@@ -24,6 +39,8 @@ class ChatMessage {
     this.esElParte = false,
     this.actividad = const [],
     this.fallo = false,
+    this.permiso,
+    this.decision,
   });
 
   final ChatAuthor author;
@@ -64,6 +81,25 @@ class ChatMessage {
   /// Solo lo lleva el tuyo. Un fallo no produce respuesta que marcar, y lo que
   /// se reintenta es la petición.
   final bool fallo;
+
+  /// Lo que Claude pide permiso para hacer en este punto de la conversación.
+  ///
+  /// **La pregunta es un turno y no una ventana**, que es lo que se pidió: se
+  /// lee donde se está leyendo todo lo demás, se puede subir a mirar qué se
+  /// autorizó y no tapa la pantalla. El precio es que se puede ignorar —una
+  /// modal no—, y por eso mientras haya una sin contestar la franja lo dice:
+  /// un encargo detenido esperando y uno colgado se ven igual.
+  ///
+  /// Solo lo llevan los mensajes vivos. Al releer una conversación del disco
+  /// esto viene `null` y queda el texto, que es lo correcto: la pregunta ya no
+  /// se puede contestar y ofrecer botones sería mentir.
+  final PeticionDePermiso? permiso;
+
+  /// Qué se contestó, o `null` si sigue esperando.
+  final DecisionDePermiso? decision;
+
+  /// Hay una pregunta en pie en este mensaje.
+  bool get esperaPermiso => permiso != null && decision == null;
 
   /// Llegó por voz. Se marca porque un texto transcrito no es lo mismo que uno
   /// escrito: si la transcripción se equivocó, saber que venía del micrófono
@@ -106,6 +142,7 @@ class ChatMessage {
     bool? esElParte,
     List<ActivityItem>? actividad,
     bool? fallo,
+    DecisionDePermiso? decision,
   }) => ChatMessage(
     author: author,
     text: text ?? this.text,
@@ -118,10 +155,15 @@ class ChatMessage {
     actividad: actividad ?? this.actividad,
     fallo: fallo ?? this.fallo,
     respondeA: respondeA,
+    permiso: permiso,
+    decision: decision ?? this.decision,
   );
 
   /// Un mensaje que solo trae adjuntos **no está vacío**: soltar un archivo y
   /// dar a enviar es un gesto legítimo, y borrarlo de la vista por no tener
   /// texto dejaría la conversación sin la mitad de lo que pasó.
-  bool get isEmpty => text.trim().isEmpty && attachments.isEmpty;
+  /// Y uno que trae una pregunta de permiso tampoco: lo que hay que mirar son
+  /// los botones, no el texto.
+  bool get isEmpty =>
+      text.trim().isEmpty && attachments.isEmpty && permiso == null;
 }

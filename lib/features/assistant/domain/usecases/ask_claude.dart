@@ -1,4 +1,5 @@
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
@@ -75,10 +76,16 @@ class AskClaude {
   /// Viaja con el encargo y no en un ajuste global porque si no, capar al teléfono
   /// caparía también los encargos que se lanzan desde el escritorio — y entonces
   /// tener el móvil conectado te quitaría permisos a ti.
+  /// [alPedirPermiso] es **quién está mirando**. Con alguien delante, lo que
+  /// Claude no tenga concedido se pregunta en vez de concederse o negarse solo.
+  /// Sin nadie —la agenda, el canal del teléfono, la cola de la carpeta— va
+  /// `null` y el encargo se comporta como siempre.
   Stream<ClaudeEvent> call(
     String instruction, {
     bool remember = true,
     bool allowWrites = true,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
   }) async* {
     final context = await _readContext(instruction);
     // Sin carpeta emparejada no hay dónde trabajar, y lo honesto es decirlo:
@@ -147,6 +154,13 @@ class AskClaude {
           language: context.language,
           artifactsFolder: context.artifactsFolder,
           carpetaDePruebas: context.carpetaDePruebas,
+          // **Solo si el encargo ya podía escribir.** Preguntar es dar la
+          // oportunidad de conceder, así que ofrecérselo a un encargo que llegó
+          // con la escritura capada —el teléfono sin la frase— le devolvería
+          // por el diálogo justo lo que el tope le quitó.
+          alPedirPermiso: context.canEdit && allowWrites
+              ? alPedirPermiso
+              : null,
         )) {
           // El identificador se guarda en cuanto arranca, no al terminar: si el
           // encargo se cancela a media ejecución —cerrar la conversación mata el

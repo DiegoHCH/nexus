@@ -7,6 +7,7 @@ import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/assistant/data/datasources/claude_cli_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/claude_bridge_impl.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 void main() {
   group('qué entra en la lista', () {
@@ -239,6 +240,7 @@ class _SpyCli implements ClaudeCliDataSource {
     String? effort,
     List<String> disallowedTools = const [],
     List<String> herramientasMcp = const [],
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) {
     lastDirs = extraDirectories;
     return const Stream.empty();
