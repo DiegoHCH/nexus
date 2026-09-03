@@ -208,108 +208,118 @@ class GeminiVoiceGateway implements VoiceGateway {
       ],
     },
     'tools': [
-      {
-        'functionDeclarations': [
-          {
-            'name': toolName,
-            'description':
-                'Le pasa a Claude Code cualquier encargo: responder una pregunta, '
-                'leer o editar archivos, mirar el estado de git, ejecutar comandos. '
-                'Es la vía por defecto para todo lo que te pidan, no solo para '
-                'tareas de programación. Todavía no hay carpeta emparejada, así que '
-                'trabaja sobre el directorio donde corre la app y no sobre un '
-                'proyecto concreto.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'instruccion': {
-                  'type': 'STRING',
-                  'description':
-                      'La tarea, en español, tal como se le diría a un programador.',
-                },
-              },
-              'required': ['instruccion'],
-            },
-          },
-          {
-            'name': skillToolName,
-            'description':
-                'Crea una skill nueva para Claude Code: una carpeta con su '
-                'SKILL.md dentro del proyecto, que queda disponible para '
-                'siempre. Úsala cuando detectes que falta conocimiento que se '
-                'va a volver a necesitar —un procedimiento del proyecto, una '
-                'convención, una tarea repetitiva— en vez de repetir la '
-                'explicación cada vez. Requiere que el interruptor de permisos '
-                'esté en «puede editar»: si está en solo lectura, dilo en vez '
-                'de intentarlo.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'nombre': {
-                  'type': 'STRING',
-                  'description':
-                      'Identificador corto en minúsculas y con guiones, como nombre de carpeta.',
-                },
-                'para_que': {
-                  'type': 'STRING',
-                  'description':
-                      'Qué debe saber hacer la skill y cuándo hay que usarla, con detalle.',
-                },
-              },
-              'required': ['nombre', 'para_que'],
-            },
-          },
-          {
-            'name': testToolName,
-            'description':
-                'Lanza una prueba de Maestro del proyecto y la enseña en '
-                'pantalla, paso a paso. Úsala **siempre** que te pidan correr, '
-                'lanzar o ejecutar una prueba, un flow o el suite, en vez de '
-                'pedírselo a Claude: la lanza Nexus directamente, así que '
-                'funciona con el permiso en solo lectura y sin depender de nada '
-                'más. Si lo que dijeron encaja en varias pruebas te lo diré, y '
-                'entonces pregunta cuál en vez de elegir tú.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'prueba': {
-                  'type': 'STRING',
-                  'description':
-                      'El nombre de la prueba tal como lo dijeron, sin '
-                      'inventarse la extensión ni la ruta.',
-                },
-              },
-              'required': ['prueba'],
-            },
-          },
-          {
-            'name': parteToolName,
-            'description':
-                'Redacta el parte del día: lo que se hizo el último día con '
-                'trabajo, y lo deja en pantalla con un botón para mandarlo a '
-                'Slack. Úsala cuando pidan «el daily», «el parte», «el '
-                'standup», «qué hice ayer» o «cuéntame lo de ayer», en vez de '
-                'pasárselo a Claude como un encargo suelto: por aquí sale con '
-                'el material del día ya reunido, y es el mismo parte que sale '
-                'por el menú. No lleva parámetros: el día lo elige la app, que '
-                'es la que sabe cuál fue el último con trabajo.',
-            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
-          },
-          {
-            'name': agendaToolName,
-            'description':
-                'Dice qué reuniones hay hoy. Úsala cuando pregunten «qué '
-                'reuniones tengo», «qué tengo hoy», «cómo está mi agenda» o '
-                'parecido, en vez de pasárselo a Claude: la app ya leyó el '
-                'calendario para poder avisar, así que por aquí contesta al '
-                'momento y sin gastar un encargo. No lleva parámetros: siempre '
-                'es hoy.',
-            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
-          },
-        ],
-      },
+      {'functionDeclarations': lasHerramientas},
     ],
   };
+
+  /// Lo que el modelo lee para decidir a quién llamar y con qué.
+  ///
+  /// 🔴 **Aparte del setup, y estático, para poder fijarlo en una prueba.**
+  /// Aquí vivió durante semanas una frase que decía «todavía no hay carpeta
+  /// emparejada, así que trabaja sobre el directorio donde corre la app» —
+  /// incondicional, y falsa desde que emparejar carpetas es el eje del
+  /// producto. No la pilló nadie porque esto es **interfaz hacia un modelo**:
+  /// no tiene tipos que fallen ni pantalla donde se vea mal. Se rompe en
+  /// silencio y se paga en cómo enruta cada encargo.
+  static final List<Map<String, dynamic>> lasHerramientas = [
+    {
+      'name': toolName,
+      'description':
+          'Le pasa a Claude Code cualquier encargo: responder una pregunta, '
+          'leer o editar archivos, mirar el estado de git, ejecutar comandos. '
+          'Es la vía por defecto para todo lo que te pidan, no solo para '
+          'tareas de programación. El encargo corre en la carpeta de esta '
+          'conversación, con su cuenta, su modelo y sus permisos: no tienes '
+          'que decir la ruta ni buscarla, y si no hubiera ninguna emparejada '
+          'te lo dirá la respuesta.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'instruccion': {
+            'type': 'STRING',
+            'description':
+                'La tarea, en español, tal como se le diría a un programador.',
+          },
+        },
+        'required': ['instruccion'],
+      },
+    },
+    {
+      'name': skillToolName,
+      'description':
+          'Crea una skill nueva para Claude Code: una carpeta con su '
+          'SKILL.md dentro del proyecto, que queda disponible para '
+          'siempre. Úsala cuando detectes que falta conocimiento que se '
+          'va a volver a necesitar —un procedimiento del proyecto, una '
+          'convención, una tarea repetitiva— en vez de repetir la '
+          'explicación cada vez. Requiere que el interruptor de permisos '
+          'esté en «puede editar»: si está en solo lectura, dilo en vez '
+          'de intentarlo.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'nombre': {
+            'type': 'STRING',
+            'description':
+                'Identificador corto en minúsculas y con guiones, como nombre de carpeta.',
+          },
+          'para_que': {
+            'type': 'STRING',
+            'description':
+                'Qué debe saber hacer la skill y cuándo hay que usarla, con detalle.',
+          },
+        },
+        'required': ['nombre', 'para_que'],
+      },
+    },
+    {
+      'name': testToolName,
+      'description':
+          'Lanza una prueba de Maestro del proyecto y la enseña en '
+          'pantalla, paso a paso. Úsala **siempre** que te pidan correr, '
+          'lanzar o ejecutar una prueba, un flow o el suite, en vez de '
+          'pedírselo a Claude: la lanza Nexus directamente, así que '
+          'funciona con el permiso en solo lectura y sin depender de nada '
+          'más. Si lo que dijeron encaja en varias pruebas te lo diré, y '
+          'entonces pregunta cuál en vez de elegir tú.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'prueba': {
+            'type': 'STRING',
+            'description':
+                'El nombre de la prueba tal como lo dijeron, sin '
+                'inventarse la extensión ni la ruta.',
+          },
+        },
+        'required': ['prueba'],
+      },
+    },
+    {
+      'name': parteToolName,
+      'description':
+          'Redacta el parte del día: lo que se hizo el último día con '
+          'trabajo, y lo deja en pantalla con un botón para mandarlo a '
+          'Slack. Úsala cuando pidan «el daily», «el parte», «el '
+          'standup», «qué hice ayer» o «cuéntame lo de ayer», en vez de '
+          'pasárselo a Claude como un encargo suelto: por aquí sale con '
+          'el material del día ya reunido, y es el mismo parte que sale '
+          'por el menú. No lleva parámetros: el día lo elige la app, que '
+          'es la que sabe cuál fue el último con trabajo.',
+      'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+    },
+    {
+      'name': agendaToolName,
+      'description':
+          'Dice qué reuniones hay hoy. Úsala cuando pregunten «qué '
+          'reuniones tengo», «qué tengo hoy», «cómo está mi agenda» o '
+          'parecido, en vez de pasárselo a Claude: la app ya leyó el '
+          'calendario para poder avisar, así que por aquí contesta al '
+          'momento y sin gastar un encargo. No lleva parámetros: siempre '
+          'es hoy.',
+      'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+    },
+  ];
 
   /// Los nombres viven aquí y no sueltos en el JSON porque el caso de uso
   /// tiene que reconocerlos cuando el modelo los llama.
@@ -481,7 +491,6 @@ class _GeminiVoiceSession implements VoiceSession {
     }
   }
 
-  @override
   @override
   void sendSystemNote(String text) {
     // `clientContent` con el turno cerrado: es lo mismo que enviaría un
