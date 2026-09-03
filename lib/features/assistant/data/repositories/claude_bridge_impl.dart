@@ -97,6 +97,20 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// que destapó esto.
     int? contextoVivo;
 
+    /// Si el turno ya dijo **por qué** falló, con palabras del CLI.
+    ///
+    /// Hace falta porque un solo fallo llega por dos caminos y en este orden:
+    /// primero una línea `{"type":"result","is_error":true}` con el motivo
+    /// —cupo agotado, un hook que se cayó—, y **después** el proceso saliendo
+    /// con 1. El segundo camino no trae motivo: si el CLI ya lo contó por
+    /// stdout, su stderr está vacío.
+    ///
+    /// Sin esto se emitían dos `ClaudeFailed` para un mismo fallo, y quien los
+    /// pinta sobreescribe: `errorMessage` acababa siendo el segundo, así que en
+    /// pantalla quedaba «claude terminó con código 1:» y nada detrás. El motivo
+    /// de verdad había estado ahí un instante y lo tapaba su propia secuela.
+    var motivoDicho = false;
+
     try {
       final context = await _projectContext.read(workingDirectory);
       // **Qué sabe Claude antes de empezar, dicho una vez por encargo.**
@@ -226,6 +240,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
             continue;
           }
           emitted = true;
+          if (event is ClaudeFailed) motivoDicho = true;
           // El fin de turno sale con el contexto de la última petición, no con
           // el acumulado que trae el `result`.
           yield switch (event) {
@@ -271,6 +286,16 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           comandosPermitidos: comandosPermitidos,
           constraintsNotice: constraintsNotice,
         );
+        return;
+      }
+      // **Un fallo se cuenta una vez.** Si el motivo ya salió por stdout, el
+      // código de salida no añade nada: su stderr está vacío, y emitirlo
+      // sobreescribe el motivo con «terminó con código 1:» y nada detrás.
+      //
+      // Se mira que el stderr esté vacío y no solo que ya se dijera algo: un
+      // proceso que además escribe en stderr sí trae información nueva —dos
+      // fallos distintos en el mismo turno— y esa no se tira.
+      if (motivoDicho && e is ClaudeProcessException && e.stderr.isEmpty) {
         return;
       }
       yield ClaudeFailed(e.toString());
