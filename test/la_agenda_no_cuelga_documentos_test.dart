@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/despacho.dart';
 import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
 import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
@@ -191,6 +193,8 @@ class _Guionizada extends HoldVoiceConversation {
         const _SinPruebas(),
         const _SinParte(),
         const _SinAgenda(),
+        const SinEnrutar(),
+        () => null,
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();

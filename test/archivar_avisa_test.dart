@@ -3,6 +3,8 @@ import 'dart:async';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'support/despacho.dart';
 import 'package:nexus/features/assistant/domain/repositories/correr_una_prueba.dart';
 import 'package:nexus/features/assistant/domain/repositories/el_parte_del_dia.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
@@ -75,6 +77,8 @@ class _Guionizada extends HoldVoiceConversation {
         const _SinPruebas(),
         const _SinParte(),
         _Agenda(),
+        const SinEnrutar(),
+        () => null,
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();
