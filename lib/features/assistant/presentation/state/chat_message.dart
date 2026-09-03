@@ -20,6 +20,21 @@ enum DecisionDePermiso {
   cancelado,
 }
 
+extension DecisionDePermisoJson on DecisionDePermiso {
+  /// La decisión guardada, o `null` si no hay ninguna que leer.
+  ///
+  /// Tolerante a propósito, como [ActivityItem.fromJson]: un nombre que no
+  /// conocemos —porque lo escribió una versión con una salida más— vale menos
+  /// que el turno donde está, así que se descarta él y no la conversación.
+  static DecisionDePermiso? deJson(Object? crudo) {
+    if (crudo is! String) return null;
+    for (final decision in DecisionDePermiso.values) {
+      if (decision.name == crudo) return decision;
+    }
+    return null;
+  }
+}
+
 /// Un turno de la conversación, venga de la voz o del teclado.
 ///
 /// Los dos caminos producen lo mismo a propósito: para quien mira, hablar y
