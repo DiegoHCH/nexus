@@ -6,13 +6,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
-import 'package:nexus/features/agenda/domain/usecases/lo_que_se_pregunta_de_la_agenda.dart';
 import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
-import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
@@ -30,7 +29,6 @@ import 'package:nexus/features/history/domain/entities/conversation_record.dart'
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
-import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
@@ -493,37 +491,28 @@ class AssistantController extends Notifier<AssistantHudState> {
     final trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
 
-    // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
-    // Claude: él no tiene delante lo de ayer, así que contestaba algo con cara
-    // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
-    // no en el compositor porque por escrito también se pide desde el móvil, y
-    // el atajo tiene que valer por los dos sitios.
-    // `/imagen una cosa` no es un encargo para Claude: **no pasa por él**.
-    // Va derecho a Gemini, que es quien dibuja, y el resultado cae en la
-    // carpeta de documentos como cualquier otra cosa que produce Nexus.
-    //
-    // Se desvía aquí y no en el compositor por lo mismo que el parte: por
-    // escrito también se pide desde el móvil, y el atajo tiene que valer por
-    // los dos sitios.
-    // **Con adjuntos vale igual**, y por eso no se exige que no los haya: lo
-    // que se suelta en la caja son las imágenes de referencia —«este estilo»,
-    // «cámbiale esto»—, así que aquí son material y no un motivo para no
-    // reconocer el atajo.
-    // `!git status` no es un encargo: **no pasa por Claude**. Va derecho a git y
-    // la salida se enseña literal, que es lo que uno quiere de git — no un
-    // resumen de la salida de git.
-    //
-    // Va antes que los demás atajos porque es el único que no puede colisionar
-    // con nada: `!` no empieza ninguna frase que alguien escriba en serio.
-    if (!esElParte) {
-      if (ElComandoDirecto.deLaFrase(trimmed) case final directo?) {
-        await _correrloYo(directo, loQueSeVe: loQueSeVe ?? trimmed);
+    // A dónde va esto, decidido en un solo sitio. El orden y las condiciones
+    // —qué atajo se mira antes que cuál, y cuáles admiten adjuntos— viven en
+    // `ADondeVaLoQueSeEscribe`: es una precedencia, y equivocarla secuestra
+    // trabajo de verdad. Aquí solo queda llevarlo a cada sitio.
+    switch (ADondeVaLoQueSeEscribe.de(
+      trimmed,
+      esElParte: esElParte,
+      hayAdjuntos: attachments.isNotEmpty,
+    )) {
+      // `!git status` no es un encargo: va derecho a git y la salida se enseña
+      // literal, que es lo que uno quiere de git — no un resumen de la salida
+      // de git.
+      case AlGit(:final comando):
+        await _correrloYo(comando, loQueSeVe: loQueSeVe ?? trimmed);
         return;
-      }
-    }
 
-    if (!esElParte) {
-      if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
+      // `/imagen una cosa` no pasa por Claude: va derecho a Gemini, que es
+      // quien dibuja, y el resultado cae en la carpeta de documentos como
+      // cualquier otra cosa que produce Nexus. Se desvía aquí y no en el
+      // compositor porque por escrito también se pide desde el móvil, y el
+      // atajo tiene que valer por los dos sitios.
+      case ADibujar(:final descripcion):
         await _dibujar(
           descripcion,
           loQueSeVe: loQueSeVe ?? trimmed,
@@ -531,8 +520,8 @@ class AssistantController extends Notifier<AssistantHudState> {
           reintento: reintento,
         );
         return;
-      }
-      if (LoQueSePideDibujar.loQueSeCambia(trimmed) case final cambio?) {
+
+      case AEditarLaImagen(:final cambio):
         // Sin nada anterior no hay qué editar, y decirlo es mejor que dibujar
         // desde cero algo que no era lo que se pidió — y cobrarlo.
         if (_laUltimaImagen == null) {
@@ -550,44 +539,43 @@ class AssistantController extends Notifier<AssistantHudState> {
           reintento: reintento,
         );
         return;
-      }
-    }
 
-    // «¿Qué reuniones tengo hoy?» **no vuelve a Claude**: la app ya leyó el
-    // calendario para poder avisar, así que la respuesta está en memoria.
-    // Mandar un encargo para releer lo mismo cuesta un minuto de espera y
-    // tokens de la suscripción, y devuelve exactamente lo que ya se tiene.
-    //
-    // Si no hay agenda que mirar —avisos apagados, sin carpeta— devuelve `null`
-    // y esto sigue de largo hacia Claude, que sí puede salir a preguntarlo.
-    if (!esElParte &&
-        attachments.isEmpty &&
-        LoQueSePreguntaDeLaAgenda.loEstanPidiendo(trimmed)) {
-      // 🔴 La misma espera que hablando: si la lectura del día va en vuelo,
-      // esto son los 32 s del `claude -p` con el conector. Escribiendo no mata
-      // ninguna sesión, pero sí puede volver a una conversación ya cerrada.
-      final agendaDeHoy = await ref.read(laAgendaDeHoyProvider).deHoy();
-      if (!_vive) return;
-      if (agendaDeHoy case final agenda?) {
-        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+      // «¿Qué reuniones tengo hoy?» no vuelve a Claude: la app ya leyó el
+      // calendario para poder avisar, así que la respuesta está en memoria.
+      // Mandar un encargo para releer lo mismo cuesta un minuto de espera y
+      // tokens de la suscripción, y devuelve lo que ya se tiene.
+      case ALaAgenda():
+        // 🔴 La misma espera que hablando: si la lectura del día va en vuelo,
+        // esto son los 32 s del `claude -p` con el conector. Escribiendo no
+        // mata ninguna sesión, pero sí puede volver a una ya cerrada.
+        final agendaDeHoy = await ref.read(laAgendaDeHoyProvider).deHoy();
+        if (!_vive) return;
+        if (agendaDeHoy case final agenda?) {
+          _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+          _sealLast();
+          _say(ChatAuthor.nexus, agenda);
+          _sealLast();
+          return;
+        }
+      // Sin agenda que mirar se sigue de largo: Claude sí puede salir a
+      // preguntarlo.
+
+      // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
+      // Claude: él no tiene delante lo de ayer, así que contestaba algo con
+      // cara de parte que no lo era —y sin el botón para mandarlo—.
+      case AlParte():
+        if (await pedirElParte(loQueSeVe: trimmed)) return;
+        // Sin día que contar se dice, y no se le pide a Claude que se lo
+        // invente: un parte de la nada se lee igual de convincente que uno de
+        // verdad.
+        _say(ChatAuthor.user, trimmed);
         _sealLast();
-        _say(ChatAuthor.nexus, agenda);
+        _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
         _sealLast();
         return;
-      }
-    }
 
-    if (!esElParte &&
-        attachments.isEmpty &&
-        ElParteDeAyer.loEstanPidiendo(trimmed)) {
-      if (await pedirElParte(loQueSeVe: trimmed)) return;
-      // Sin día que contar se dice y no se le pide a Claude que se lo invente:
-      // un parte de la nada se lee igual de convincente que uno de verdad.
-      _say(ChatAuthor.user, trimmed);
-      _sealLast();
-      _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
-      _sealLast();
-      return;
+      case AClaude():
+        break;
     }
 
     // Lo que se le manda a Claude lleva las rutas detrás —las necesita para
