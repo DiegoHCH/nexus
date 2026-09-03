@@ -861,14 +861,36 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Esperando turno: la otra conversación sobre esta misma carpeta sigue
   /// trabajando. Se pinta como un paso más porque lo es —el encargo ya está
   /// aceptado— y porque esperar sin decirlo se ve igual que un cuelgue.
+  /// 🔴 **Quien tiene el turno puede ser esta misma conversación.** El aviso
+  /// decía «esperando a la otra conversación» siempre, y con una sola abierta
+  /// eso no se lee como una espera: se lee como un cuelgue. Se reportó como
+  /// tal, dos veces.
+  ///
+  /// Pasa porque comprimir es **un turno entero de Claude sobre esta carpeta**,
+  /// así que la compresión toma el turno de la cola como cualquier encargo. Lo
+  /// que se midió en la máquina: `flow init` contestó, el contexto pasó del
+  /// 85 %, salió la compresión, y el mensaje siguiente del usuario se puso a
+  /// esperar detrás de ella — con tres procesos vivos en la carpeta, uno de
+  /// ellos el `/compact`.
+  ///
+  /// La espera es correcta y no se toca: dos turnos a la vez sobre la misma
+  /// sesión pierden uno, que es justo por lo que existe la cola. Lo que estaba
+  /// mal era a quién se culpaba.
+  ///
+  /// `_compacting` es la condición exacta y ya estaba aquí: es de **esta**
+  /// conversación. Si el turno lo tiene otra —trabajando o comprimiéndose—, el
+  /// mensaje de siempre sigue siendo verdad.
   void _onQueued() {
+    final strings = ref.read(stringsProvider);
     state = state.copyWith(
       orbState: NexusOrbState.think,
       activity: [
         ...state.activity,
         ActivityItem(
           id: _queueItemId,
-          description: ref.read(stringsProvider).waitingForOtherConversation,
+          description: _compacting
+              ? strings.waitingForOwnCompaction
+              : strings.waitingForOtherConversation,
           writes: false,
         ),
       ],

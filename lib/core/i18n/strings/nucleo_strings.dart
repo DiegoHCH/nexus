@@ -68,6 +68,11 @@ mixin NucleoStrings {
   String stepsProgress(int done, int total);
   String stepsTaken(int steps);
   String get waitingForOtherConversation;
+
+  /// La espera cuando quien tiene el turno es **esta misma conversación**,
+  /// comprimiéndose. Culparla de «la otra conversación» con una sola abierta se
+  /// lee como un cuelgue, y se reportó como tal.
+  String get waitingForOwnCompaction;
   String get waitingByVoice;
   String get noFolderForConversation;
   String textOnlyFolder(String folder);
@@ -281,6 +286,9 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get waitingForOtherConversation =>
       'Esperando a la otra conversación sobre esta carpeta';
+  @override
+  String get waitingForOwnCompaction =>
+      'Comprimiendo esta conversación: tu encargo entra en cuanto termine';
   @override
   String get waitingByVoice =>
       'Espero turno: hay otra conversación trabajando en esa carpeta.';
@@ -602,6 +610,9 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get waitingForOtherConversation =>
       'Waiting for the other conversation on this folder';
+  @override
+  String get waitingForOwnCompaction =>
+      'Compacting this conversation: your errand starts as soon as it ends';
   @override
   String get waitingByVoice =>
       'I am waiting my turn: another conversation is working on that folder.';
