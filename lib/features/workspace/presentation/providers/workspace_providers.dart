@@ -361,7 +361,18 @@ final claudeAuthProvider = Provider<ClaudeAuthDataSource>(
 /// reescribe `HEAD` siempre, así que el aviso llega exacto y sin gastar un
 /// `git` por sondeo. Y no emite nada hasta que algo cambia: en una carpeta que
 /// no es un repositorio no hay vigía ni coste.
-final _elHeadDelRepo = StreamProvider.family<void, String>((
+/// 🔴 **Emite un número que crece, y no `void`.** Aquí estaba el fallo que se
+/// escapó al arreglo original: con `void`, cada aviso dejaba el proveedor en el
+/// mismo `AsyncData(null)` de antes. Riverpod compara el estado nuevo con el
+/// viejo y **son iguales**, así que no notifica a nadie — el primer cambio se
+/// veía porque venía de `AsyncLoading`, y del segundo en adelante el vigía
+/// gritaba y nadie lo oía.
+///
+/// Se reportó como «cambio de rama en Android Studio y el chip no se mueve, y
+/// solo al preguntarle a Claude en qué rama estoy aparece la nueva». Eso último
+/// no era casualidad: preguntar termina un turno, y al terminar un turno la rama
+/// se relee por el otro camino.
+final _elHeadDelRepo = StreamProvider.family<int, String>((
   ref,
   folderPath,
 ) async* {
@@ -381,6 +392,7 @@ final _elHeadDelRepo = StreamProvider.family<void, String>((
   if (!carpeta.existsSync()) return;
 
   final cambios = carpeta.watch().where(_tocaElHead);
+  var avisos = 0;
 
   await for (final _ in cambios) {
     // 🔴 **Se deja pasar la ráfaga antes de avisar, y sale gratis.** Un
@@ -395,7 +407,7 @@ final _elHeadDelRepo = StreamProvider.family<void, String>((
     // se lee cuando la ráfaga terminó, así que lo que se lee es el estado
     // final y no uno intermedio.
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    yield null;
+    yield ++avisos;
   }
 });
 
