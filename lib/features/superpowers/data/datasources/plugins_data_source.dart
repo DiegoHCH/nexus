@@ -11,7 +11,15 @@ import 'package:nexus/features/superpowers/domain/usecases/plugin_command.dart';
 /// contra los marketplaces, que se clonan y se actualizan solos. Leer el estado
 /// del disco sería reimplementar eso.
 class PluginsDataSource {
-  const PluginsDataSource();
+  const PluginsDataSource({this.claude = HerramientaExterna.rutaDeClaude});
+
+  /// De dónde sale el binario de `claude`.
+  ///
+  /// Inyectable por lo mismo que en [GitDataSource]: lo que hay que probar aquí
+  /// es **cómo se lee lo que contesta** —código cero, error por `stderr`, error
+  /// por `stdout`, o el binario que no está—, y con la ruta resuelta a pelo eso
+  /// solo se puede comprobar teniendo delante la instalación que lo provoca.
+  final Future<String> Function() claude;
 
   Future<List<ClaudePlugin>> list(String configDir) async {
     // `--available` además de `--json`: sin él, el CLI devuelve solo los
@@ -70,7 +78,7 @@ class PluginsDataSource {
     if (args == null) return 'Datos inválidos';
     try {
       final result = await Process.run(
-        await HerramientaExterna.rutaDeClaude(),
+        await claude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
@@ -86,7 +94,7 @@ class PluginsDataSource {
   Future<String?> _run(String configDir, List<String> args) async {
     try {
       final result = await Process.run(
-        await HerramientaExterna.rutaDeClaude(),
+        await claude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
