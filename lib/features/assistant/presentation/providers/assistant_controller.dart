@@ -342,27 +342,18 @@ class AssistantController extends Notifier<AssistantHudState> {
       donde?.branch ?? '—',
     );
 
-    // **Lo de git dentro del bloque, lo de Nexus fuera.** La salida va literal
-    // y monoespaciada porque es lo que se vino a ver —`git log --oneline` es una
-    // tabla y se lee alineada o no se lee—, y las frases de Nexus van en prosa
-    // porque no son salida de nada: son la cabecera que dice dónde se corrió y,
-    // si hizo falta, el aviso de que git terminó con error. Un código distinto
-    // de cero con la salida en blanco es un fallo mudo, y eso se lee como que
-    // la app no hizo nada.
+    // Cómo se compone el parte —qué va en bloque, qué en prosa, y qué se dice
+    // cuando no hay salida— vive en `ElComandoDirecto.comoSeCuenta`: son reglas
+    // y tienen prueba ahí.
     _say(
       ChatAuthor.nexus,
-      [
-        '**$cabecera**',
-        if (hecho.tardoDemasiado)
-          s.tardoDemasiado
-        else ...[
-          if (hecho.codigo != 0) s.gitFallo(hecho.codigo),
-          if (hecho.salida.isEmpty)
-            if (hecho.codigo == 0) s.sinNadaQueDecir else ''
-          else
-            ElComandoDirecto.enBloque(hecho.salida),
-        ],
-      ].where((linea) => linea.isNotEmpty).join('\n\n'),
+      ElComandoDirecto.comoSeCuenta(
+        hecho,
+        cabecera: cabecera,
+        tardoDemasiado: s.tardoDemasiado,
+        fallo: s.gitFallo,
+        sinNadaQueDecir: s.sinNadaQueDecir,
+      ),
     );
     _sealLast();
 

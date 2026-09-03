@@ -155,4 +155,72 @@ void main() {
       expect(ElComandoDirecto.enPiezas('log\n--oneline'), ['log', '--oneline']);
     });
   });
+
+  // El parte de una corrida, que vivía dentro del controlador.
+  group('cómo se cuenta lo que hizo', () {
+    String parte({int codigo = 0, String salida = '', bool tardo = false}) =>
+        ElComandoDirecto.comoSeCuenta(
+          (codigo: codigo, salida: salida, tardoDemasiado: tardo),
+          cabecera: 'en nexus · develop',
+          tardoDemasiado: 'tardó demasiado, lánzalo en la terminal',
+          fallo: (c) => 'git terminó con $c',
+          sinNadaQueDecir: 'sin nada que decir',
+        );
+
+    // Costó un incidente: la primera vez que esto se usó contestó sobre un repo
+    // que no era, y lo único que lo delató fue el nombre de una rama.
+    test('la cabecera va siempre, y va primero', () {
+      for (final p in [
+        parte(),
+        parte(salida: 'algo'),
+        parte(codigo: 1),
+        parte(tardo: true),
+      ]) {
+        expect(p, startsWith('**en nexus · develop**'), reason: p);
+      }
+    });
+
+    test('la salida de git va en bloque, para que se lea alineada', () {
+      final p = parte(salida: 'a1b2c3 primero\nd4e5f6 segundo');
+
+      expect(p, contains('```\na1b2c3 primero\nd4e5f6 segundo\n```'));
+    });
+
+    test('un cero sin salida no es un fallo: es que no había nada', () {
+      final p = parte();
+
+      expect(p, contains('sin nada que decir'));
+      expect(p, isNot(contains('git terminó')));
+    });
+
+    // 🔴 Un código distinto de cero con la salida en blanco es un fallo mudo, y
+    // eso se lee como que la app no hizo nada.
+    test('un fallo sin salida se dice igual, y no como «nada que decir»', () {
+      final p = parte(codigo: 128);
+
+      expect(p, contains('git terminó con 128'));
+      expect(p, isNot(contains('sin nada que decir')));
+    });
+
+    test('un fallo con salida dice las dos cosas', () {
+      final p = parte(codigo: 1, salida: 'fatal: not a git repository');
+
+      expect(p, contains('git terminó con 1'));
+      expect(p, contains('fatal: not a git repository'));
+    });
+
+    // Un plantón se arregla de otra manera que un código 1 —lanzarlo en la
+    // terminal— así que no se cuenta como un fallo más.
+    test('un plantón lo dice y se calla lo demás', () {
+      final p = parte(tardo: true, codigo: -1, salida: 'a medias');
+
+      expect(p, contains('tardó demasiado'));
+      expect(p, isNot(contains('git terminó')));
+      expect(p, isNot(contains('a medias')));
+    });
+
+    test('una salida de solo espacios cuenta como vacía', () {
+      expect(parte(salida: '   \n  '), contains('sin nada que decir'));
+    });
+  });
 }
