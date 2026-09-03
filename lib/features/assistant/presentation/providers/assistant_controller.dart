@@ -1071,6 +1071,9 @@ class AssistantController extends Notifier<AssistantHudState> {
         contextTokens: event.contextTokens,
       ),
     );
+    // Con el medidor ya actualizado: es de aquí de donde sale el número que le
+    // faltaba al aviso de la compresión anterior.
+    _completarLaCompresion();
     _afterErrand();
   }
 
@@ -1196,13 +1199,47 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (_workingDirectory case final donde?) {
       ref.invalidate(gitInfoProvider(donde));
     }
-    unawaited(_readChanges());
-    unawaited(_mirarSiHayDocumento());
     _elParteEnCurso = false;
     _elEncargoTermino();
-    unawaited(_archive());
-    unawaited(_compactIfNeeded());
+    unawaited(_sellarYGuardar());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// Cuelga del mensaje lo que aún falta y **entonces** lo escribe.
+  ///
+  /// 🔴 **Los cambios y el documento iban sueltos con `unawaited` junto al
+  /// archivado, y eso era una carrera que el archivado ganaba.** Los dos
+  /// cuelgan algo del último mensaje después de un `await`, así que
+  /// `_archive()` serializaba `state.messages` cuando ese algo todavía no
+  /// estaba. En pantalla el chip sí aparecía —el estado se actualiza igual—,
+  /// pero el registro se guardaba sin él y al reabrir la app el enlace no
+  /// volvía.
+  ///
+  /// Medido en un registro real de `directory_ipuc`: el mensaje tenía
+  /// `pasos: 84` y `documento: null`. Los pasos estaban porque su sellado es
+  /// **síncrono** —el comentario de arriba lo pide por este mismo motivo— y
+  /// estos dos no lo son. El documento seguía en el disco: lo que se perdió
+  /// fue el enlace, que es la peor forma de perderlo, porque parece que el
+  /// archivo tampoco está.
+  Future<void> _sellarYGuardar() async {
+    await _readChanges();
+    await _mirarSiHayDocumento();
+    if (!_vive) return;
+    await _archive();
+
+    // **Comprimir va después de archivar, no antes.** `/compact` es un turno
+    // entero de Claude —un minuto largo— y dejar el registro esperándolo
+    // arriesga perder la conversación completa si la app se cierra en medio.
+    // Perder el aviso es molesto; perder lo hablado, inaceptable.
+    await _compactIfNeeded();
+    if (!_vive) return;
+
+    // Y por eso se reescribe: el aviso de la compresión nace **después** del
+    // archivado, así que sin esta segunda pasada nunca llegaba al registro —el
+    // otro síntoma del mismo informe—. Solo el historial local, que es
+    // idempotente y barato: el destino externo sale de la máquina y no se
+    // escribe dos veces por el mismo turno.
+    await _archive(soloLocal: true);
   }
 
   /// El encargo terminó: se suelta la suscripción y sale el siguiente de la
@@ -1262,7 +1299,12 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// ocurrir nunca —se cierra la app, se va la luz— y entonces lo hablado se
   /// perdería entero. Reescribir el archivo cada vez es barato y deja el mismo
   /// resultado, que es justo lo que se quiere de un archivo idempotente.
-  Future<void> _archive() async {
+  /// Con [soloLocal] se reescribe **nada más que el historial de la app**.
+  ///
+  /// Para las segundas pasadas del mismo turno: el historial local es
+  /// idempotente —reescribirlo deja el mismo archivo— y el destino externo no,
+  /// porque sale de la máquina y cuesta red cada vez.
+  Future<void> _archive({bool soloLocal = false}) async {
     final folder = _folder;
     if (folder == null) return;
     final record = ConversationRecord(
@@ -1304,7 +1346,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     // no se perdía nada; lo que se llevaba por delante era el silencio.
     var falloElDestino = false;
     try {
-      final archive = await ref.read(conversationArchiveProvider.future);
+      // La segunda pasada de un turno no vuelve a salir de la máquina.
+      final archive = soloLocal
+          ? null
+          : await ref.read(conversationArchiveProvider.future);
       if (archive != null) await archive.save(record);
     } catch (error) {
       // Que falle guardar no puede tumbar la conversación: la carpeta puede
@@ -1523,6 +1568,14 @@ class AssistantController extends Notifier<AssistantHudState> {
       } else {
         _say(ChatAuthor.nexus, strings.compactedUnknown);
         _sealLast();
+        // **Queda apuntado, porque ese mensaje promete una medida.** Decía «se
+        // actualiza en el siguiente turno» y no se actualizaba nada: el turno
+        // siguiente sí traía el contexto nuevo, pero al medidor de arriba, no
+        // al mensaje. Quien lo leía se quedaba sin saber en cuánto quedó.
+        _compresionSinMedida = (
+          antes: before,
+          indice: state.messages.length - 1,
+        );
       }
     } catch (error) {
       // Que falle la compresión no puede tumbar la conversación: se sigue con
@@ -1539,6 +1592,44 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   static const _compactItemId = 'comprimiendo';
+
+  /// Una compresión ya anunciada a la que le falta la medida final.
+  ///
+  /// Guarda el porcentaje de antes y **dónde** quedó el mensaje, para poder
+  /// completarlo en cuanto haya una medida nueva.
+  ({int antes, int indice})? _compresionSinMedida;
+
+  /// Le pone el número al aviso de compresión que salió sin él.
+  ///
+  /// `/compact` no siempre reporta el contexto resultante —de ahí el mensaje
+  /// sin medida—, pero el turno siguiente sí lo trae. Aquí es donde eso deja de
+  /// ser una promesa: el mismo mensaje se reescribe con el texto completo, «el
+  /// contexto baja del X % al Y %», que es el que ya se usaba cuando la medida
+  /// llegaba a tiempo. No se añade una línea nueva: dos avisos para una sola
+  /// compresión se leerían como dos compresiones.
+  void _completarLaCompresion() {
+    final pendiente = _compresionSinMedida;
+    if (pendiente == null) return;
+    final ahora = state.meter.contextPercent;
+    if (ahora == null) return;
+
+    _compresionSinMedida = null;
+    final strings = ref.read(stringsProvider);
+    // **Se comprueba que el mensaje siga siendo ese y no solo que el índice
+    // quepa.** Entre la compresión y esta medida cabe cualquier cosa que
+    // rehaga la lista —reabrir un registro, cambiar de conversación—, y
+    // reescribir por índice a ciegas pisaría el mensaje de otro.
+    if (pendiente.indice >= state.messages.length) return;
+    if (state.messages[pendiente.indice].text != strings.compactedUnknown) {
+      return;
+    }
+
+    final mensajes = [...state.messages];
+    mensajes[pendiente.indice] = mensajes[pendiente.indice].copyWith(
+      text: strings.compacted(pendiente.antes, ahora),
+    );
+    state = state.copyWith(messages: mensajes);
+  }
 
   void _onFailed(String message) {
     _sealLast();

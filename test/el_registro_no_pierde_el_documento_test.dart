@@ -1,0 +1,328 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
+import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
+import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
+import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
+import 'package:nexus/features/history/domain/entities/conversation_record.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+/// Lo que el registro de una conversación perdía al cerrar la app.
+///
+/// 🔴 **Salió usándolo.** Un encargo generó un diagrama, el chat enseñó su
+/// enlace y un aviso de compresión; se cerró la app y al volver no estaba
+/// ninguna de las dos cosas. El archivo seguía en el disco: lo que se perdió
+/// fue el enlace, que es la peor forma de perderlo, porque parece que el
+/// documento tampoco está.
+///
+/// Comprobado en el registro real de esa conversación —
+/// `Application Support/…/conversaciones/…json`— el mensaje traía `pasos: 84`
+/// y `documento: null`. Esa diferencia es el diagnóstico entero: los pasos se
+/// sellan **síncronos** y el documento y los cambios no, así que `_archive()`
+/// serializaba los mensajes mientras el documento aún se estaba buscando y
+/// ganaba la carrera el archivado. El aviso de compresión se perdía por lo
+/// otro: nacía después de archivar.
+const _id = 'c1';
+const _carpeta = '/Users/alguien/General';
+
+/// La ventana por defecto son 200k, así que 180k es el 90 % y dispara la
+/// compresión —el umbral está en 85—, y 60k es el 30 % de después.
+const _contextoLleno = 180000;
+const _contextoComprimido = 60000;
+
+/// Un Claude de guion, que además **escribe un documento mientras trabaja**.
+///
+/// Lo de escribirlo desde aquí no es adorno: el documento se detecta comparando
+/// la carpeta antes y después del encargo, así que para medir la carrera tiene
+/// que aparecer justo en medio, como aparece de verdad.
+class _Claude implements AskClaude {
+  _Claude({required this.contextos, this.documento});
+
+  /// Un contexto por llamada, en orden. `null` = el turno no reporta medida,
+  /// que es lo que hace `/compact` a menudo y el motivo del mensaje sin número.
+  final List<int?> contextos;
+
+  /// Dónde dejar el documento durante el primer encargo, si hay que dejarlo.
+  final File? documento;
+
+  final pedidos = <String>[];
+
+  @override
+  Stream<ClaudeEvent> call(
+    String instruction, {
+    bool remember = true,
+    bool allowWrites = true,
+    // Aquí no se pregunta nada: estas pruebas van del registro.
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
+  }) async* {
+    final vuelta = pedidos.length;
+    pedidos.add(instruction);
+
+    if (vuelta == 0 && documento != null) {
+      // **Con espera de reloj y no de microtask.** La foto de «antes» la toma
+      // `_markRepo()`, que va suelto al arrancar el encargo y hace dos
+      // llamadas a git por medio. Escribiendo el documento antes de esa foto,
+      // el archivo saldría en las dos listas y no contaría como nuevo — la
+      // prueba fallaría por una carrera suya, no por la que mide.
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+      documento!.writeAsStringSync('<html>un diagrama</html>');
+    }
+
+    // Un `await` de por medio: sin él todo pasaría en el mismo microtask y la
+    // carrera que esto mide no existiría ni con el código viejo.
+    await Future<void>.delayed(Duration.zero);
+    yield const ClaudeTextDelta('ya está');
+    yield ClaudeTurnCompleted(
+      result: 'ya está',
+      contextTokens: vuelta < contextos.length ? contextos[vuelta] : null,
+    );
+  }
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// Apunta lo que se le manda guardar, en orden.
+class _AlmacenQueApunta implements LocalConversationStore {
+  final guardados = <ConversationRecord>[];
+
+  @override
+  Future<void> save(ConversationRecord record) async => guardados.add(record);
+
+  @override
+  Future<List<ConversationSummary>> list(String folderPath) async => const [];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+/// El destino externo, solo para contar cuántas veces se sale de la máquina.
+class _DestinoQueCuenta implements ConversationArchive {
+  var veces = 0;
+
+  @override
+  Future<void> save(ConversationRecord record) async => veces++;
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
+}
+
+class _SinLlaveDeImagenes implements GeminiImageKeyStore {
+  const _SinLlaveDeImagenes();
+  @override
+  Future<String?> read(String? perfil) async => null;
+  @override
+  Future<void> save(String? perfil, String key) async {}
+  @override
+  Future<void> clear(String? perfil) async {}
+}
+
+class _SinMemoria implements ConversationMemory {
+  const _SinMemoria();
+  @override
+  Future<FolderMemory> read(String folderPath, {String? claudeProfile}) async =>
+      const FolderMemory();
+  @override
+  Future<void> rememberSession(
+    String folderPath,
+    String sessionId, {
+    String? claudeProfile,
+  }) async {}
+  @override
+  Future<void> rememberPrompt(String folderPath, String prompt) async {}
+  @override
+  Future<void> forget(String folderPath) async {}
+}
+
+class _Espacio extends WorkspaceController {
+  @override
+  Workspace build() => Workspace(
+    folders: [PairedFolder(path: _carpeta, modality: FolderModality.voice)],
+    activePath: _carpeta,
+  );
+}
+
+void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
+  late Directory cajon;
+
+  setUp(() {
+    cajon = Directory.systemTemp.createTempSync('nexus-documentos');
+    SharedPreferences.setMockInitialValues({'artifacts.folder': cajon.path});
+  });
+  tearDown(() => cajon.deleteSync(recursive: true));
+
+  /// Lo que tarda un turno en asentarse: la compresión es un turno entero de
+  /// Claude, así que hay varios `await` en cadena detrás de cada encargo.
+  Future<void> asentar() async {
+    for (var i = 0; i < 12; i++) {
+      await Future<void>.delayed(const Duration(milliseconds: 40));
+    }
+  }
+
+  ({
+    ProviderContainer container,
+    _AlmacenQueApunta almacen,
+    _DestinoQueCuenta destino,
+    _Claude claude,
+  })
+  montar({required List<int?> contextos, File? documento}) {
+    final almacen = _AlmacenQueApunta();
+    final destino = _DestinoQueCuenta();
+    final claude = _Claude(contextos: contextos, documento: documento);
+    final container = ProviderContainer(
+      overrides: [
+        conversationFolderProvider(_id).overrideWithValue(_carpeta),
+        conversationMemoryProvider.overrideWithValue(const _SinMemoria()),
+        workspaceControllerProvider.overrideWith(_Espacio.new),
+        localConversationStoreProvider.overrideWithValue(almacen),
+        conversationArchiveProvider.overrideWith((ref) async => destino),
+        askClaudeProvider(_id).overrideWithValue(claude),
+        geminiImageKeyStoreProvider.overrideWithValue(
+          const _SinLlaveDeImagenes(),
+        ),
+      ],
+    );
+    addTearDown(container.dispose);
+    return (
+      container: container,
+      almacen: almacen,
+      destino: destino,
+      claude: claude,
+    );
+  }
+
+  test('el documento que dejó el encargo entra en el registro', () async {
+    final todo = montar(
+      contextos: const [1000],
+      documento: File('${cajon.path}/diagrama.html'),
+    );
+    final controlador = todo.container.read(
+      assistantControllerProvider(_id).notifier,
+    );
+    // La carpeta se lee del disco al construir el proveedor, y hasta que
+    // termine vale `null` — con `null` no se mira ningún cajón y el documento
+    // no existiría para esta prueba por un motivo que no es el que mide.
+    await todo.container.read(artifactsFolderProvider.notifier).cargada;
+
+    await controlador.submit('dibuja la arquitectura');
+    await asentar();
+
+    expect(
+      todo.almacen.guardados,
+      isNotEmpty,
+      reason: 'algo se tiene que guardar',
+    );
+    final ultimo = todo.almacen.guardados.last.messages.last;
+    expect(
+      ultimo.documento,
+      '${cajon.path}/diagrama.html',
+      reason:
+          'antes se archivaba mientras el documento aún se buscaba, y el '
+          'registro quedaba con documento: null — el enlace no volvía al '
+          'reabrir la app aunque el archivo siguiera en el disco',
+    );
+  });
+
+  test('el aviso de la compresión también, aunque nazca después', () async {
+    // Primer turno lleno → comprime; el `/compact` no reporta medida.
+    final todo = montar(contextos: const [_contextoLleno, null]);
+    final controlador = todo.container.read(
+      assistantControllerProvider(_id).notifier,
+    );
+
+    await controlador.submit('resume lo que hicimos');
+    await asentar();
+
+    expect(todo.claude.pedidos, contains('/compact'));
+    final textos = todo.almacen.guardados.last.messages.map((m) => m.text);
+    final strings = todo.container.read(stringsProvider);
+    expect(
+      textos,
+      contains(strings.compactedUnknown),
+      reason:
+          'el aviso nace después de archivar, así que sin la segunda pasada '
+          'del historial local no llegaba nunca al registro',
+    );
+  });
+
+  test('y salir de la máquina sigue siendo una vez por turno', () async {
+    final todo = montar(contextos: const [_contextoLleno, null]);
+    final controlador = todo.container.read(
+      assistantControllerProvider(_id).notifier,
+    );
+
+    await controlador.submit('resume lo que hicimos');
+    await asentar();
+
+    expect(
+      todo.destino.veces,
+      1,
+      reason:
+          'el historial local es idempotente y se reescribe barato; el destino '
+          'externo cuesta red, y dos escrituras por turno serían el precio de '
+          'arreglar el aviso',
+    );
+  });
+
+  test(
+    'el aviso sin medida se completa con el contexto del turno siguiente',
+    () async {
+      // Lleno → comprime → `/compact` sin medida → el turno siguiente sí mide.
+      final todo = montar(
+        contextos: const [_contextoLleno, null, _contextoComprimido],
+      );
+      final controlador = todo.container.read(
+        assistantControllerProvider(_id).notifier,
+      );
+
+      await controlador.submit('resume lo que hicimos');
+      await asentar();
+
+      final strings = todo.container.read(stringsProvider);
+      var estado = todo.container.read(assistantControllerProvider(_id));
+      expect(
+        estado.messages.map((m) => m.text),
+        contains(strings.compactedUnknown),
+        reason: 'de momento solo se puede prometer la medida',
+      );
+
+      await controlador.submit('y ahora sigue');
+      await asentar();
+
+      estado = todo.container.read(assistantControllerProvider(_id));
+      expect(
+        estado.messages.map((m) => m.text),
+        contains(strings.compacted(90, 30)),
+        reason:
+            'el turno siguiente trae el contexto nuevo: 180k y 60k de una '
+            'ventana de 200k son el 90 % y el 30 %',
+      );
+      expect(
+        estado.messages.map((m) => m.text),
+        isNot(contains(strings.compactedUnknown)),
+        reason:
+            'se reescribe el mismo mensaje, no se añade otro: dos avisos para '
+            'una compresión se leerían como dos compresiones',
+      );
+    },
+  );
+}
