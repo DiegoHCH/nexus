@@ -247,7 +247,7 @@ class ChannelServer {
   /// El saludo: se espera un [Hello] **antes que nada**.
   ///
   /// Y con plazo. Una conexión que se autentica y luego calla ocupa un socket para
-  /// siempre; con tres conversaciones vivas y un móvil que entra y sale por
+  /// siempre; con seis conversaciones vivas y un móvil que entra y sale por
   /// cobertura, eso se acumula.
   Future<void> _saludar(ChannelClient cliente) async {
     Timer? plazo;
@@ -327,7 +327,7 @@ class ChannelServer {
   /// «Mándame desde el 412».
   ///
   /// Es el camino normal de reconectar, y el snapshot es la excepción — decisión 4.4.
-  /// Con tres conversaciones vivas la diferencia entre reenviar veinte eventos y
+  /// Con seis conversaciones vivas la diferencia entre reenviar veinte eventos y
   /// mandar el estado entero es lo que hace que reconectar en 4G sea barato.
   void _reanudar(ChannelClient cliente, Resume peticion) {
     final pendientes = log.desde(peticion.lastSeq);

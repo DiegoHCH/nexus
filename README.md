@@ -36,7 +36,7 @@ malla sobre el vacío: un HUD, no una ventana de mensajería.
 
 - **Hablar o escribir.** `⌥Espacio` abre la voz sin traer la ventana al frente; lo que no quieras dictar lo escribes, con archivos adjuntos si hacen falta.
 - **Trabajo real en tu carpeta.** Lee repos, edita archivos, corre comandos — con el permiso que le des a cada carpeta.
-- **Hasta tres conversaciones a la vez**, una por carpeta, trabajando en paralelo.
+- **Hasta seis conversaciones a la vez**, una por carpeta, trabajando en paralelo.
 - **Ver qué está haciendo**, paso a paso, en su propia ventana movible — y pararlo con `⌘.`.
 - **Generar imágenes** con Gemini: `/imagen un zorro leyendo` y `/edita ponle fondo azul`, encadenando cambios.
 - **Correr tu app y tus dispositivos**: entorno, simuladores de iOS y emuladores de Android, sin terminal.
@@ -100,7 +100,7 @@ de escritura. A partir de ahí, Nexus es el sitio desde el que:
 | | Qué puedes hacer |
 |---|---|
 | **Hablar o escribir** | ⌥Espacio abre la sesión de voz sin traer la ventana al frente. Lo que no quieras dictar, lo escribes en el compositor, con archivos adjuntos si hacen falta. |
-| **Llevar varias cosas a la vez** | Hasta tres conversaciones abiertas, una por carpeta. La voz va con la que tenga el foco; las demás siguen trabajando. |
+| **Llevar varias cosas a la vez** | Hasta seis conversaciones abiertas, una por carpeta. La voz va con la que tenga el foco; las demás siguen trabajando. |
 | **Ver qué está haciendo** | Una columna de actividad paso a paso mientras hay trabajo, y ⌘. para pararlo. |
 | **Leer lo que produce** | Los documentos que Claude escribe quedan en Documentos, con su lista (⌘J) y un visor propio que se recarga solo cuando el archivo cambia. |
 | **Correr tu app** | Elegir entorno y dispositivo y lanzarla desde el compositor, con su salida en vivo — y que se recargue sola cuando un encargo termina de tocar el código. |
