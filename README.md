@@ -268,7 +268,7 @@ instaladas se niegan a ver.
 
 ## Decisiones cerradas
 
-Dos cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
+Tres cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
 que no se vuelvan a proponer sin argumentos nuevos:
 
 - **Voz propia, sin Gemini.** Se construyó la fase 1 —reconocimiento y síntesis
@@ -276,6 +276,20 @@ que no se vuelvan a proponer sin argumentos nuevos:
   pero **solo en los idiomas que trae Apple**, y ninguna voz local aguanta la
   comparación con Gemini, que no es un lector de texto sino un modelo
   conversacional. Código borrado, veredicto escrito.
+- **Un worktree por conversación.** La idea era romper la cola de
+  `FolderErrandQueue` —que serializa dos conversaciones sobre la misma carpeta—
+  dándole a cada una su propio árbol de trabajo. Medido en este repo: crear el
+  worktree cuesta **1,9 s y 10 MB**, y ahí acaban las buenas noticias. Lo que
+  **no** viaja es `.dart_tool` (2,7 GB) y `build` (5,9 GB), así que cada
+  conversación en paralelo paga su `flutter pub get` y una compilación en frío.
+  Encima el `pre-push` no corre dentro de un worktree —git exporta un `GIT_DIR`
+  absoluto que el gestor de versiones hereda y no sobrevive—, y un worktree
+  huérfano es basura en el disco de alguien: al medir esto había uno vivo de una
+  sesión de hace semanas. Y la premisa se cayó sola por otro lado: **caben seis
+  conversaciones en paralelo, una por carpeta**, así que lo que esto compraba
+  —paralelo *dentro* de una misma carpeta— vale mucho menos de lo que costaba.
+  Para reabrirlo haría falta que `.dart_tool` y `build` se pudieran compartir
+  entre árboles, que es de donde sale todo el precio.
 - **Una superficie que un líder mire del squad.** Nexus es una **herramienta de
   equipo, de uso individual** —como un IDE—, así que no hay tablero que
   construir. El estándar viaja en el `.nexus/` del repositorio y el valor lo
