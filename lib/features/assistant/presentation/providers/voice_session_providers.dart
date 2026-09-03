@@ -12,6 +12,8 @@ import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart'
 import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
@@ -79,5 +81,7 @@ final holdVoiceConversationProvider =
         ref.watch(correrUnaPruebaProvider),
         ref.watch(elParteDelDiaProvider(conversationId)),
         ref.watch(laAgendaDeHoyProvider),
+        ref.watch(elDespachoDeCarpetaProvider),
+        () => ref.read(conversationFolderProvider(conversationId)),
       ),
     );

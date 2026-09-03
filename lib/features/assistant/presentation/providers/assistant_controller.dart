@@ -12,9 +12,8 @@ import 'package:nexus/features/artifacts/presentation/providers/generar_una_imag
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/artifacts/domain/entities/lo_que_salio_del_dibujo.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
-import 'package:nexus/features/assistant/domain/usecases/a_que_carpeta_va.dart';
-import 'package:nexus/features/assistant/domain/usecases/que_hacer_con_el_encargo.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
@@ -23,6 +22,7 @@ import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
@@ -378,42 +378,6 @@ class AssistantController extends Notifier<AssistantHudState> {
     _sealLast();
   }
 
-  /// Lleva el encargo a otra conversación, y **se va con él**.
-  ///
-  /// El foco cambia porque es la única señal de que pasó algo: sin eso, se
-  /// escribe en una pestaña y el trabajo aparece en otra que no se está mirando.
-  ///
-  /// La tarea puede venir vacía —«vete al front mobile»—: entonces solo se
-  /// cambia de sitio, que es exactamente lo que se pidió.
-  Future<void> _mandarA(
-    String conversacion,
-    String tarea,
-    String loQueSeVe, {
-    required bool allowWrites,
-    required List<String> attachments,
-  }) async {
-    await ref.read(conversationsProvider.notifier).focus(conversacion);
-    if (!_vive) return;
-    if (tarea.trim().isEmpty) return;
-    await ref
-        .read(assistantControllerProvider(conversacion).notifier)
-        .submit(
-          tarea,
-          loQueSeVe: loQueSeVe,
-          // 🔴 **El tope viaja con el encargo, y no viajaba.** `allowWrites`
-          // baja lo que la carpeta concede y nunca lo sube; al no reenviarlo,
-          // el encargo llegaba con el valor por defecto —`true`— y el tope
-          // desaparecía. O sea que **un teléfono en solo lectura conseguía
-          // escritura nombrando otra carpeta**, que es exactamente lo que la
-          // frase de escritura existe para impedir.
-          allowWrites: allowWrites,
-          // Y los adjuntos igual: se soltaban tres capturas, se nombraba otra
-          // carpeta, y el encargo llegaba allí sin ellas — con la frase
-          // pidiendo que se miren.
-          attachments: attachments,
-        );
-  }
-
   /// Las preguntas de permiso vivas de **esta** conversación.
   ///
   /// Suyas y no de un buzón global porque una pregunta pertenece al encargo que
@@ -529,66 +493,38 @@ class AssistantController extends Notifier<AssistantHudState> {
     var trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
 
-    // 🔴 **Primero dónde, y solo después qué.** Nombrar la carpeta hablando
-    // —«en el front mobile, arregla el login»— ya dice dónde hay que trabajar, y
-    // obligar a elegirla antes en el muelle es hacer repetir lo que ya se dijo.
-    // Va delante del enrutado de atajos porque son dos ejes: uno decide **en
-    // qué conversación** cae esto y el otro **qué clase de cosa** es.
+    // 🔴 **Primero dónde, y solo después qué.** Nombrar la carpeta —«en el
+    // front mobile, arregla el login»— ya dice dónde hay que trabajar. Va
+    // delante del enrutado de atajos porque son dos ejes: uno decide **en qué
+    // conversación** cae esto y el otro **qué clase de cosa** es.
+    //
+    // Quien lo decide y lo lleva es `ElDespachoDeCarpeta`, y vive fuera **por la
+    // voz**: la conversación hablada no pasa por aquí, llama al puente de Claude
+    // directamente. Con esto metido en `submit`, enrutar funcionaba escribiendo
+    // y no hablando, que es de donde salió la idea.
     //
     // Solo para lo que acaba de escribir una persona: un reintento ya se enrutó
     // en su día, uno encolado también, y el parte se redacta donde se pidió.
     if (!esElParte && !reintento && !yaEstaDicho) {
-      final donde = QueHacerConLoQueSeDijo.de(
-        ACarpetaVaLoQueDices.de(
-          trimmed,
-          ref.read(workspaceControllerProvider).folders,
-        ),
-        frase: trimmed,
-        carpetaDeAqui: _folder,
-        abiertas: ref.read(conversationsProvider),
-      );
-      final strings = ref.read(stringsProvider);
-
-      switch (donde) {
-        case AtenderloAqui(:final tarea):
+      switch (await ref
+          .read(elDespachoDeCarpetaProvider)
+          .despachar(
+            trimmed,
+            carpetaDeAqui: _folder,
+            loQueSeVe: loQueSeVe ?? instruction,
+            allowWrites: allowWrites,
+            attachments: attachments,
+          )) {
+        case AtiendeloTu(:final tarea):
           trimmed = tarea;
-        case LlevarloA(:final conversacion, :final tarea):
-          await _mandarA(
-            conversacion,
-            tarea,
-            loQueSeVe ?? instruction,
-            allowWrites: allowWrites,
-            attachments: attachments,
-          );
+        case YaSeFue():
           return;
-        case AbrirUnaPara(:final carpeta, :final tarea):
-          final abierta = await ref
-              .read(conversationsProvider.notifier)
-              .open(carpeta.path);
+        case HayQueDecir(:final texto):
           if (!_vive) return;
-          if (abierta == null) {
-            _decir(strings.noCabeOtraConversacion(carpeta.name));
-            return;
-          }
-          await _mandarA(
-            abierta,
-            tarea,
-            loQueSeVe ?? instruction,
-            allowWrites: allowWrites,
-            attachments: attachments,
-          );
-          return;
-        case NoCabeOtraConversacion(:final carpeta):
-          _decir(strings.noCabeOtraConversacion(carpeta.name));
-          return;
-        case PreguntarPorCual(:final carpetas):
-          _decir(
-            strings.variasCarpetasNombradas(
-              carpetas.map((c) => c.name).join(', '),
-            ),
-          );
+          _decir(texto);
           return;
       }
+      if (!_vive) return;
     }
 
     // A dónde va esto, decidido en un solo sitio. El orden y las condiciones

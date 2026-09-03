@@ -4,6 +4,11 @@ import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
+
+import 'support/despacho.dart';
+
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
@@ -23,6 +28,22 @@ import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+
+/// Un despacho que siempre se lleva el encargo a otra parte.
+class _SeLoLleva implements ElDespachoDeCarpeta {
+  const _SeLoLleva(this.carpeta);
+
+  final String carpeta;
+
+  @override
+  Future<LoQueQuedaPorHacer> despachar(
+    String frase, {
+    required String? carpetaDeAqui,
+    required String loQueSeVe,
+    required bool allowWrites,
+    required List<String> attachments,
+  }) async => YaSeFue(carpeta);
+}
 
 /// El micrófono, callado: esta prueba va de lo que llega del servicio.
 class _Mic implements VoiceInput {
@@ -197,6 +218,8 @@ HoldVoiceConversation _conversation(
   _Parte? parte,
   _Agenda? agenda,
   Duration? graciaDeLaRuta,
+  ElDespachoDeCarpeta? despacho,
+  String? carpeta,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
@@ -206,6 +229,8 @@ HoldVoiceConversation _conversation(
   lanzador ?? _Lanzador(),
   parte ?? _Parte(),
   agenda ?? _Agenda(),
+  despacho ?? const SinEnrutar(),
+  () => carpeta,
   // 🔴 **Cero por defecto, y con motivo.** Cuando el modelo contesta de
   // memoria, primero se le pide que lo pase él y solo al vencer este plazo se
   // hace por él. Las pruebas de esta clase van de **qué llega a Claude**, no de
@@ -334,6 +359,8 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -385,6 +412,8 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -634,6 +663,8 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -709,6 +740,8 @@ void main() {
       _Parte(),
       _Agenda(),
       graciaDeLaRuta: Duration.zero,
+      const SinEnrutar(),
+      () => null,
     );
 
     final vistos = <VoiceEvent>[];
@@ -962,6 +995,8 @@ void main() {
       _Lanzador(),
       _Parte(),
       _Agenda(),
+      const SinEnrutar(),
+      () => null,
     );
 
     final sub = conversation().listen((_) {});
@@ -1216,6 +1251,66 @@ void main() {
         await sub.cancel();
       },
     );
+  });
+  // 🔴 **El enrutado por voz, que es de donde salió la idea.**
+  //
+  // Se cableó primero dentro de `submit`, y hablando **no se pasa por
+  // `submit`**: esta clase llama al puente de Claude directamente. Resultado:
+  // «en el front mobile, arregla el login» funcionaba escribiendo y no
+  // hablando. Ahora el despacho entra por el constructor.
+  group('a qué carpeta va lo que se dice', () {
+    test('lo que no nombra carpeta se atiende aquí, tal cual', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(session, bridge);
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.askTool,
+          arguments: <String, Object?>{'instruccion': 'arregla el login'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bridge.asked.single, contains('arregla el login'));
+    });
+
+    test('nombrar otra carpeta se lo lleva, y no se trabaja aquí', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(
+        session,
+        bridge,
+        despacho: const _SeLoLleva('front-mobile-b2c'),
+      );
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.askTool,
+          arguments: <String, Object?>{
+            'instruccion': 'en el front mobile b2c, arregla el login',
+          },
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        bridge.asked,
+        isEmpty,
+        reason: 'el trabajo es de la otra conversación, no de esta',
+      );
+      // Y se le dice al modelo, que si no la voz se queda callada y parece que
+      // no pasó nada.
+      expect(session.toolResults.single, contains('front-mobile-b2c'));
+    });
   });
 }
 

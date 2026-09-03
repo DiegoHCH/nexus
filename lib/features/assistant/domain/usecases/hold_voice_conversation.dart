@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
@@ -34,9 +35,31 @@ class HoldVoiceConversation {
     this._log,
     this._correrUnaPrueba,
     this._elParteDelDia,
-    this._laAgendaDeHoy, {
+    this._laAgendaDeHoy,
+    this._despacho,
+    this._carpetaDeAqui, {
     this.graciaDeLaRuta = _graciaDeLaRuta,
   });
+
+  /// A qué carpeta va lo que se dice, y quien lo lleva.
+  ///
+  /// 🔴 **Entra por aquí porque hablando no se pasa por `submit`.** El enrutado
+  /// vivía dentro del controlador, y el compositor y el teléfono entran por ahí;
+  /// esta conversación llama al puente de Claude directamente. Resultado: «en el
+  /// front mobile, arregla el login» funcionaba escribiendo y no hablando, que
+  /// es de donde salió la idea.
+  ///
+  /// Es un puerto y no una función suelta porque **mover un encargo es mover la
+  /// pantalla** —enfocar otra conversación, o abrirla— y eso no lo puede hacer
+  /// el dominio.
+  final ElDespachoDeCarpeta _despacho;
+
+  /// La carpeta de esta conversación, leída en el momento.
+  ///
+  /// Una función y no un valor por lo mismo que el idioma y los nombres: se
+  /// puede cambiar mientras la sesión está abierta, y un valor fijo se
+  /// congelaría al conectar.
+  final String? Function() _carpetaDeAqui;
 
   /// Cuánto se le da al modelo para pasar por Claude lo que contestó de
   /// memoria, antes de hacerlo por él. Ver [_graciaDeLaRuta].
@@ -695,7 +718,7 @@ class HoldVoiceConversation {
         return;
       }
 
-      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
+      var instruction = ClaudeErrand.forTool(request.name, request.arguments);
       // Herramienta desconocida o argumentos incompletos: se contesta igual.
       // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
       // y la conversación muda para siempre.
@@ -707,6 +730,41 @@ class HoldVoiceConversation {
               'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
         );
         return;
+      }
+
+      // A qué carpeta va, antes de trabajar. Solo para el encargo general: las
+      // demás herramientas —la prueba, el parte, la agenda— ya saben dónde van.
+      if (request.name == ClaudeErrand.askTool) {
+        final donde = await _despacho.despachar(
+          instruction,
+          carpetaDeAqui: _carpetaDeAqui(),
+          loQueSeVe: instruction,
+          allowWrites: true,
+          attachments: const [],
+        );
+        switch (donde) {
+          case AtiendeloTu(:final tarea):
+            instruction = tarea;
+          // Se fue a otra conversación: allí se ve el trabajo. Aquí solo queda
+          // decirlo, y **decirlo importa** — sin eso la voz se queda callada y
+          // parece que no pasó nada.
+          case YaSeFue(:final carpeta):
+            responder(
+              callId: request.callId,
+              name: request.name,
+              result:
+                  'El encargo se mandó a «$carpeta», que es la carpeta que se '
+                  'nombró. El trabajo sale por ahí. Dilo en una frase.',
+            );
+            return;
+          case HayQueDecir(:final texto):
+            responder(
+              callId: request.callId,
+              name: request.name,
+              result: texto,
+            );
+            return;
+        }
       }
 
       final answer = await runErrand(instruction, _headline(request));
