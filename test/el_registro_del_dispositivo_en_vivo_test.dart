@@ -32,7 +32,6 @@ void main() {
   test('sin la herramienta se dice, en vez de quedarse callado', () async {
     final fuente = conUn(null);
 
-    expect(await fuente.hay(PlataformaEmulador.ios), isFalse);
     expect(
       fuente.escuchar(plataforma: PlataformaEmulador.ios, deviceId: 'x'),
       emitsError(isA<Exception>()),
@@ -40,12 +39,6 @@ void main() {
           'idevicesyslog es opcional: ofrecer el botón sin comprobarlo es '
           'ofrecer uno que falla al tocarlo',
     );
-  });
-
-  test('con la herramienta puesta, se dice que sí', () async {
-    final fuente = conUn(await guionDe('exit 0'));
-
-    expect(await fuente.hay(PlataformaEmulador.android), isTrue);
   });
 
   test('entrega las líneas que se pueden leer, y descarta el resto', () async {

@@ -119,10 +119,17 @@ class ElRegistroDelSistema
     await escucha?.cancel();
   }
 
-  /// Lo escuchado se **conserva** al dejar de escuchar: si algo se cayó, ahí
-  /// está el motivo, y borrarlo al apagar es tirar justo lo que se vino a ver.
-  /// Es el mismo criterio que el registro de la corrida.
-  void limpia(String deviceId) => state = {...state}..remove(deviceId);
+  /// 🔴 **Lo escuchado se conserva al apagar, y no hay forma de borrarlo.**
+  ///
+  /// Lo primero es deliberado: si algo se cayó, el motivo está ahí, y tirarlo al
+  /// apagar es tirar justo lo que se vino a ver. Es el criterio que ya sigue el
+  /// registro de la corrida.
+  ///
+  /// Lo segundo también, y aquí hubo un `limpia()` escrito y sin llamante. No
+  /// hace falta: la lista está **capada en [tope]**, lo nuevo entra por abajo y
+  /// el filtro de nivel y el de texto ya dejan ver solo lo que importa. Un botón
+  /// de borrar sería una tercera cosa en una fila que ya tiene dos, para
+  /// resolver algo que la tapa resuelve sola.
 
   void _anota(String deviceId, LineaDeRegistro linea) {
     if (!ref.mounted) return;
