@@ -148,7 +148,11 @@ mixin NucleoStrings {
   String get noImageToEdit;
   String get imageNeedsFolder;
   String imageDone(String nombre);
-  String imageFailed(String motivo);
+
+  /// 🔴 **El motivo puede faltar**, y decidir cómo se dice eso es de aquí.
+  /// Antes el tipo era `String` y el fallo sin motivo caía por la rama del
+  /// éxito: reventaba en un `!` sobre la ruta que no existía.
+  String imageFailed(String? motivo);
   String get imagesExplainer;
   String get imageKeyLabel;
   String get imagesNotWiredYet;
@@ -441,7 +445,9 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String imageDone(String nombre) => 'Listo: $nombre';
   @override
-  String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
+  String imageFailed(String? motivo) => motivo == null || motivo.isEmpty
+      ? 'No se pudo generar la imagen.'
+      : 'No se pudo generar la imagen: $motivo';
   @override
   String get imagesExplainer =>
       'La llave con la que se generan las imágenes. Va aparte de la de voz '
@@ -763,7 +769,9 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String imageDone(String nombre) => 'Done: $nombre';
   @override
-  String imageFailed(String motivo) => 'Could not generate the image: $motivo';
+  String imageFailed(String? motivo) => motivo == null || motivo.isEmpty
+      ? 'Could not generate the image.'
+      : 'Could not generate the image: $motivo';
   @override
   String get imagesExplainer =>
       'The key images are generated with. It is separate from the voice one '

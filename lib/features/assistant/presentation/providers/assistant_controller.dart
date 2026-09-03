@@ -10,6 +10,7 @@ import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/artifacts/domain/entities/lo_que_salio_del_dibujo.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
@@ -753,13 +754,16 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     // Se apunta antes de pintar nada: es lo que hace que el siguiente `/edita`
     // siga de ésta. Solo si salió — encadenar sobre una que falló no existe.
-    if (salio.id case final id?) _laUltimaImagen = id;
+    if (salio case LaImagenSalio(:final id?)) _laUltimaImagen = id;
 
-    final texto = switch (salio.problema) {
-      null => strings.imageDone(salio.ruta!.split('/').last),
-      'sin-llave' => strings.imageNeedsKey,
-      'sin-carpeta' => strings.imageNeedsFolder,
-      final motivo => strings.imageFailed(motivo),
+    // Los tres motivos que no son un fallo del modelo se arreglan de maneras
+    // distintas —poner la llave, elegir carpeta, reintentar—, así que se dicen
+    // por separado.
+    final texto = switch (salio) {
+      LaImagenSalio(:final ruta) => strings.imageDone(ruta.split('/').last),
+      FaltaLaLlaveDeImagenes() => strings.imageNeedsKey,
+      FaltaLaCarpetaDeDocumentos() => strings.imageNeedsFolder,
+      NoSePudoDibujar(:final motivo) => strings.imageFailed(motivo),
     };
 
     state = state.copyWith(
@@ -772,7 +776,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
     _say(ChatAuthor.nexus, texto);
     _sealLast();
-    if (salio.ruta case final ruta?) {
+    if (salio case LaImagenSalio(:final ruta)) {
       _sellarEnElMensaje(documento: ruta);
     } else {
       _marcaElFallo();
