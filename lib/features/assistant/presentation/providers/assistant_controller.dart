@@ -13,10 +13,10 @@ import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
-import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
@@ -1742,80 +1742,69 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
 
-    // El guardia de i5, y va aquí —donde se abre la sesión— y no en un botón
-    // deshabilitado: si viviera en la interfaz, cualquier otro camino que
-    // abriera sesión (el atajo global, sin ir más lejos) se lo saltaría.
+    // Los guardias, en un solo sitio. El orden y los motivos viven en
+    // `SiSePuedeAbrirLaVoz`: es la promesa del producto —«una carpeta en solo
+    // texto no abre sesión de voz»— y ahí tiene prueba.
+    //
+    // Van aquí —donde se abre la sesión— y no en un botón deshabilitado: si
+    // vivieran en la interfaz, cualquier otro camino que abra sesión (el atajo
+    // global, sin ir más lejos) se los saltaría.
+    //
     // Sobre **la carpeta de esta conversación**, no sobre una «activa» global:
     // con varias abiertas, esa noción ya no existe, y consultarla haría que el
     // permiso de una decidiera por otra.
     final folder = _folder;
-    final paired = ref
-        .read(workspaceControllerProvider)
-        .folders
-        .where((item) => item.path == folder)
-        .firstOrNull;
-    if (paired == null) {
-      state = state.copyWith(
-        errorMessage: ref.read(stringsProvider).noFolderForConversation,
-      );
-      return;
-    }
-    if (!paired.modality.allowsVoice) {
-      state = state.copyWith(
-        errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
-      );
-      return;
-    }
+    final workspace = ref.read(workspaceControllerProvider);
+    final strings = ref.read(stringsProvider);
 
-    // El micrófono, antes de montar nada.
-    //
-    // Nadie lo comprobaba: con el permiso revocado en Ajustes del sistema —algo
-    // que pasa meses después de concederlo— el orbe respondía al clic, la sesión
-    // intentaba abrirse y lo que salía era el error del motor de audio, que no
-    // dice a dónde ir. Y en «sin decidir» hay que **preguntar**, no rendirse:
-    // ahí sí toca el diálogo del sistema, que es lo que hace `hasPermission`.
-    // 🔴 **Los dos guardias son porque aquí se espera a una persona.** Esto se
-    // llama desde el `onTap` del orbe, sin que nadie lo espere, y en «sin
-    // decidir» lo que hay en medio es el diálogo del sistema: tarda lo que
-    // tarde quien lo lea, y puede cerrar la conversación antes de contestarlo.
-    final permiso = await ref.read(microphoneAccessProvider).status();
-    if (!_vive) return;
-    switch (permiso) {
-      case MicrophoneStatus.denied:
+    // Primero lo que se decide sin preguntar nada.
+    switch (SiSePuedeAbrirLaVoz.loQueEstorba(
+      carpeta: workspace.folders
+          .where((item) => item.path == folder)
+          .firstOrNull,
+      duenoDelCajon: workspace.textOnlyOwnerOf(
+        ref.read(artifactsFolderProvider),
+      ),
+    )) {
+      case SinCarpeta():
+        state = state.copyWith(errorMessage: strings.noFolderForConversation);
+        return;
+      case LaCarpetaEsDeSoloTexto(:final carpeta):
         state = state.copyWith(
-          errorMessage: ref.read(stringsProvider).microphoneBlocked,
+          errorMessage: strings.textOnlyFolder(carpeta.name),
         );
         return;
-      case MicrophoneStatus.notAsked:
-        final concedido = await ref.read(voiceInputProvider).hasPermission();
-        if (!_vive) return;
-        if (!concedido) {
-          state = state.copyWith(
-            errorMessage: ref.read(stringsProvider).microphoneBlocked,
-          );
-          return;
-        }
-      case MicrophoneStatus.granted:
+      case ElCajonCaeEnUnaDeSoloTexto(:final carpeta):
+        state = state.copyWith(
+          errorMessage: strings.textOnlyArtifactsFolder(carpeta.name),
+        );
+        return;
+      case _:
         break;
     }
 
-    // Y la carpeta de artefactos, que es el único hueco que le quedaba a i5.
+    // Y solo entonces el micrófono, que cuesta tocar el canal nativo.
     //
-    // Es la única excepción a «ninguna otra carpeta»: viaja como `--add-dir` en
-    // todos los encargos, así que si cae dentro de una emparejada en solo texto,
-    // esta conversación podría leer de ahí y Gemini narrarlo. La sesión no se
-    // abre, que es más estricto que avisar al elegir el cajón — el aviso se
-    // ignora y la puerta se queda abierta.
-    final cajon = ref
-        .read(workspaceControllerProvider)
-        .textOnlyOwnerOf(ref.read(artifactsFolderProvider));
-    if (cajon != null) {
-      state = state.copyWith(
-        errorMessage: ref
-            .read(stringsProvider)
-            .textOnlyArtifactsFolder(cajon.name),
-      );
-      return;
+    // 🔴 **Los dos guardias de `_vive` son porque aquí se espera a una
+    // persona.** Esto se llama desde el `onTap` del orbe, sin que nadie lo
+    // espere, y en «sin decidir» lo que hay en medio es el diálogo del sistema:
+    // tarda lo que tarde quien lo lea, y puede cerrar la conversación antes de
+    // contestarlo.
+    final microfono = await ref.read(microphoneAccessProvider).status();
+    if (!_vive) return;
+    switch (SiSePuedeAbrirLaVoz.porElMicrofono(microfono)) {
+      case ElMicrofonoEstaBloqueado():
+        state = state.copyWith(errorMessage: strings.microphoneBlocked);
+        return;
+      case HayQuePedirElMicrofono():
+        final concedido = await ref.read(voiceInputProvider).hasPermission();
+        if (!_vive) return;
+        if (!concedido) {
+          state = state.copyWith(errorMessage: strings.microphoneBlocked);
+          return;
+        }
+      case _:
+        break;
     }
 
     // Hablar es del foco: si esta conversación no lo tiene, se lo lleva.
