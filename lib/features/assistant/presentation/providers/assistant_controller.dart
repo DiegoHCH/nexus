@@ -12,6 +12,7 @@ import 'package:nexus/features/artifacts/presentation/providers/artifacts_provid
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -90,6 +91,11 @@ class AssistantController extends Notifier<AssistantHudState> {
   @override
   AssistantHudState build() {
     ref.onDispose(() {
+      // Lo mismo que en `stopWork` y por lo mismo: un permiso sin contestar
+      // deja la cancelación esperando a un generador que no vuelve. Aquí no se
+      // toca el estado —Riverpod lo prohíbe en un ciclo de vida— y tampoco
+      // haría falta: la conversación se está cerrando.
+      _soltarPermisos();
       _subscription?.cancel();
       _voiceSubscription?.cancel();
     });
@@ -370,6 +376,112 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_archive());
   }
 
+  /// Las preguntas de permiso vivas de **esta** conversación, por `request_id`.
+  ///
+  /// Viven aquí y no en un provider aparte porque una pregunta pertenece al
+  /// encargo que la hizo, y un encargo pertenece a una conversación: con un
+  /// buzón global, dos conversaciones trabajando a la vez se disputaban un
+  /// único hueco y la pregunta podía salir en la pestaña que no era.
+  /// El motivo de la cancelación viaja **con** el completer, resuelto desde que
+  /// se encola. No es eficiencia: sale de `stringsProvider`, y soltar puede
+  /// ocurrir dentro de un `onDispose`, donde Riverpod prohíbe leer otro
+  /// provider. Es la tercera vez que esa regla muerde en esta funcionalidad;
+  /// tomándolo aquí, contestar no depende de poder leer nada.
+  final _permisos =
+      <String, ({Completer<RespuestaDePermiso> completer, String cancelado})>{};
+
+  /// Claude quiere usar algo que no tiene concedido: se pregunta **en la
+  /// conversación**, como un turno más.
+  Future<RespuestaDePermiso> _pedirPermiso(PeticionDePermiso peticion) {
+    final strings = ref.read(stringsProvider);
+    // El texto en curso se cierra antes: la pregunta es su propio turno, y sin
+    // esto el trozo siguiente de la respuesta se pegaría debajo de los botones.
+    _sealLast();
+    final completer = Completer<RespuestaDePermiso>();
+    _permisos[peticion.id] = (
+      completer: completer,
+      cancelado: strings.permisoCanceladoMotivo,
+    );
+    state = state.copyWith(
+      messages: [
+        ...state.messages,
+        ChatMessage(
+          author: ChatAuthor.nexus,
+          text: strings.permisoPregunta(peticion.nombreVisible),
+          permiso: peticion,
+        ),
+      ],
+      // Un turno se puede ignorar sin querer —basta con haber subido a releer
+      // algo—, y desde fuera «detenido esperándote» y «colgado» se ven igual.
+      // Es lo que la modal daba gratis y aquí hay que decir a mano.
+      notice: strings.permisoEnEspera,
+    );
+    return completer.future;
+  }
+
+  /// Lo que la persona eligió en el turno de la pregunta.
+  void responderPermiso(String id, DecisionDePermiso decision) {
+    final espera = _permisos.remove(id);
+    if (espera == null || espera.completer.isCompleted) return;
+
+    final mensajes = [...state.messages];
+    final donde = mensajes.indexWhere((m) => m.permiso?.id == id);
+    // La petición sale del mensaje: es la misma que la del mapa, y así lo que
+    // se contesta se compone con lo que se estaba enseñando de verdad.
+    final peticion = donde == -1 ? null : mensajes[donde].permiso;
+    if (donde != -1) {
+      mensajes[donde] = mensajes[donde].copyWith(decision: decision);
+    }
+
+    final strings = ref.read(stringsProvider);
+    espera.completer.complete(switch (decision) {
+      DecisionDePermiso.concedido => PermisoConcedido(peticion?.entrada ?? {}),
+      DecisionDePermiso.concedidoTodo => PermisoConcedido(
+        peticion?.entrada ?? {},
+        permisosNuevos: peticion?.sugerencias ?? const [],
+      ),
+      DecisionDePermiso.denegado => PermisoDenegado(
+        strings.permisoDenegadoMotivo,
+      ),
+      DecisionDePermiso.cancelado => PermisoDenegado(
+        strings.permisoCanceladoMotivo,
+      ),
+    });
+
+    state = state.copyWith(
+      messages: mensajes,
+      // El aviso solo se va cuando no queda ninguna: contestar la primera de
+      // dos no es haber terminado.
+      notice: _permisos.isEmpty ? null : state.notice,
+    );
+  }
+
+  /// Suelta a quien espere, sin tocar el estado. Para el `onDispose`.
+  void _soltarPermisos() {
+    if (_permisos.isEmpty) return;
+    for (final espera in _permisos.values) {
+      if (!espera.completer.isCompleted) {
+        espera.completer.complete(PermisoDenegado(espera.cancelado));
+      }
+    }
+    _permisos.clear();
+  }
+
+  /// Lo mismo, y además deja dicho en la conversación que nadie contestó.
+  void _cancelarPermisos() {
+    if (_permisos.isEmpty) return;
+    _soltarPermisos();
+    state = state.copyWith(
+      messages: [
+        for (final mensaje in state.messages)
+          mensaje.esperaPermiso
+              ? mensaje.copyWith(decision: DecisionDePermiso.cancelado)
+              : mensaje,
+      ],
+      notice: null,
+    );
+  }
+
   void _sealLast() {
     final messages = [...state.messages];
     final last = messages.lastOrNull;
@@ -558,19 +670,31 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_markRepo());
 
     final ask = ref.read(askClaudeProvider(conversationId));
-    _subscription = ask(paraClaude, allowWrites: allowWrites).listen(
-      (event) => switch (event) {
-        ClaudeQueued() => _onQueued(),
-        ClaudeRulesChanged() => _onRulesChanged(event.paths),
-        ClaudeSessionStarted() => _onSessionStarted(event.model),
-        ClaudeTextDelta() => _onTextDelta(buffer, event),
-        ClaudeToolUsed() => _onClaudeToolUsed(event),
-        ClaudeToolFinished() => _onClaudeToolFinished(event.id, event.output),
-        ClaudeTurnCompleted() => _onTurnCompleted(event),
-        ClaudeFailed() => _onFailed(event.message),
-      },
-      onError: (Object error) => _onFailed(error.toString()),
-    );
+    _subscription =
+        ask(
+          paraClaude,
+          allowWrites: allowWrites,
+          // **Aquí sí hay alguien mirando**, y es lo único que distingue este
+          // encargo de los que lanza la agenda: quien escribió en la caja está
+          // delante de la pantalla, así que lo que Claude no tenga concedido se le
+          // puede preguntar en vez de concederlo o negarlo por él.
+          alPedirPermiso: _pedirPermiso,
+        ).listen(
+          (event) => switch (event) {
+            ClaudeQueued() => _onQueued(),
+            ClaudeRulesChanged() => _onRulesChanged(event.paths),
+            ClaudeSessionStarted() => _onSessionStarted(event.model),
+            ClaudeTextDelta() => _onTextDelta(buffer, event),
+            ClaudeToolUsed() => _onClaudeToolUsed(event),
+            ClaudeToolFinished() => _onClaudeToolFinished(
+              event.id,
+              event.output,
+            ),
+            ClaudeTurnCompleted() => _onTurnCompleted(event),
+            ClaudeFailed() => _onFailed(event.message),
+          },
+          onError: (Object error) => _onFailed(error.toString()),
+        );
   }
 
   /// El paso que se enseña mientras se dibuja. Uno solo: no hay herramientas
@@ -1684,6 +1808,10 @@ class AssistantController extends Notifier<AssistantHudState> {
     // `finally`, que es quien mata el proceso— sigue su curso por detrás.
     final enVuelo = _subscription;
     _subscription = null;
+    // Antes de cancelar, y no después: cancelar espera al generador, y lo que
+    // puede estar deteniéndolo es justamente un permiso sin contestar. Negarlo
+    // primero es lo que suelta ese `await`.
+    _cancelarPermisos();
     state = state.copyWith(orbState: NexusOrbState.sleep, isStreaming: false);
     unawaited(enVuelo?.cancel() ?? Future<void>.value());
   }

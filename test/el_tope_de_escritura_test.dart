@@ -5,6 +5,7 @@ import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 // El tope de escritura: **baja lo que la carpeta concede, y nunca lo sube**.
 //
@@ -35,6 +36,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     // Lo único que esta prueba mira: con qué permiso llegó al puente, que es lo
     // último antes de `claude -p`.
