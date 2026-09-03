@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 import 'dart:io';
 
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
@@ -93,6 +94,24 @@ class LocalConversationStore {
               // Y que se quedó sin hacer. Al reabrir mañana el encargo sigue
               // sin hacerse: el botón de reintentar tiene que seguir ahí.
               if (message.fallo) 'fallo': true,
+              // Lo que se adjuntó al pedirlo. Sin esto, un encargo que se hizo
+              // sobre tres capturas vuelve mañana como una frase suelta que no
+              // se entiende sola.
+              if (message.attachments.isNotEmpty)
+                'adjuntos': message.attachments,
+              // 🔴 **El permiso, con lo que se contestó.** Es la cuarta vez que
+              // un campo de `ChatMessage` nace viviendo solo en memoria —van
+              // los cambios, los pasos y los adjuntos— y esta se notaba más:
+              // la conversación releída enseñaba a Nexus preguntando «¿le dejo
+              // hacer esto?» y nada debajo. Y las cuatro salidas no son la
+              // misma: «concedido todo» además dejó permisos puestos.
+              //
+              // Lo que impide la quinta es `chat_message_completo_test.dart`,
+              // que compara los campos declarados con los que se escriben aquí.
+              if (message.permiso case final peticion?)
+                'permiso': peticion.toJson(),
+              if (message.decision case final decision?)
+                'decision': decision.name,
             },
         ],
       }),
@@ -303,28 +322,55 @@ class LocalConversationStore {
         messages: [
           for (final message
               in decoded['mensajes'] as List<dynamic>? ?? const [])
-            if (message is Map<String, dynamic>)
-              ChatMessage(
-                author: message['autor'] == 'user'
-                    ? ChatAuthor.user
-                    : ChatAuthor.nexus,
-                text: message['texto'] as String? ?? '',
-                spoken: message['hablado'] as bool? ?? false,
-                cambios: _cambiosDe(message['cambios']),
-                // El documento **solo si sigue estando**. Un botón que no lleva
-                // a ningún sitio enseña a no pulsarlo, y entonces tampoco se
-                // pulsa el día que sí lleva.
-                documento: _documentoDe(message['documento']),
-                esElParte: message['parte'] == true,
-                respondeA: message['responde_a'] as String?,
-                actividad: _pasosDe(message['pasos']),
-                fallo: message['fallo'] == true,
-              ),
+            if (message is Map<String, dynamic>) _mensajeDe(message),
         ],
       );
     } on FormatException {
       return null;
     }
+  }
+
+  /// Un turno tal como se guardó.
+  ///
+  /// Aparte del bucle porque el permiso hay que leerlo **antes** de construir
+  /// el mensaje: de si hay pregunta depende cómo se lee la decisión.
+  static ChatMessage _mensajeDe(Map<String, dynamic> message) {
+    final peticion = PeticionDePermiso.fromJson(message['permiso']);
+    final decision = DecisionDePermisoJson.deJson(message['decision']);
+    return ChatMessage(
+      author: message['autor'] == 'user' ? ChatAuthor.user : ChatAuthor.nexus,
+      text: message['texto'] as String? ?? '',
+      spoken: message['hablado'] as bool? ?? false,
+      cambios: _cambiosDe(message['cambios']),
+      // El documento **solo si sigue estando**. Un botón que no lleva
+      // a ningún sitio enseña a no pulsarlo, y entonces tampoco se
+      // pulsa el día que sí lleva.
+      documento: _documentoDe(message['documento']),
+      esElParte: message['parte'] == true,
+      respondeA: message['responde_a'] as String?,
+      actividad: _pasosDe(message['pasos']),
+      fallo: message['fallo'] == true,
+      attachments: _adjuntosDe(message['adjuntos']),
+      permiso: peticion,
+      // 🔴 **Una pregunta releída nunca sigue esperando.** Si se guardó sin
+      // decisión —la app se cerró de golpe, con la pregunta en pie— vuelve
+      // como cancelada, que es la verdad: quien la iba a contestar era un
+      // `claude -p` que murió con la sesión. Sin esto, `esperaPermiso` daría
+      // cierto y la pantalla pintaría dos botones que no llegan a nadie.
+      decision: peticion == null
+          ? decision
+          : decision ?? DecisionDePermiso.cancelado,
+    );
+  }
+
+  /// Los adjuntos guardados, quedándose solo con las cadenas. Mismo criterio
+  /// que los pasos: una entrada rara se salta, no tumba el turno.
+  static List<String> _adjuntosDe(Object? crudo) {
+    if (crudo is! List<dynamic>) return const [];
+    return [
+      for (final ruta in crudo)
+        if (ruta is String) ruta,
+    ];
   }
 
   static GitChanges? _cambiosDe(Object? crudo) =>

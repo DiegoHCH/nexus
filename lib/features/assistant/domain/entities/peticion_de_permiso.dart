@@ -94,6 +94,42 @@ class PeticionDePermiso {
     }
     return entrada.keys.join(', ');
   }
+
+  /// Lo que hace falta para volver a enseñar la pregunta mañana.
+  ///
+  /// **No se guarda entero, y la diferencia importa.** [sugerencias] y
+  /// [toolUseId] existen para *contestar* —una devuelve permisos nuevos al CLI,
+  /// la otra casa la pregunta con el paso de la columna de actividad— y una
+  /// conversación releída del disco ya no puede contestar nada: el proceso que
+  /// preguntaba murió con la sesión. Guardarlas sería guardar la promesa de un
+  /// botón que no existe.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'herramienta': herramienta,
+    'nombre': nombreVisible,
+    'entrada': entrada,
+    if (descripcion != null) 'descripcion': descripcion,
+  };
+
+  /// Nulo si no se puede leer, como los pasos: un registro escrito por una
+  /// versión anterior no trae esta clave, y perder la pregunta vale menos que
+  /// perder el turno entero.
+  static PeticionDePermiso? fromJson(Object? crudo) {
+    if (crudo is! Map<String, dynamic>) return null;
+    final id = crudo['id'];
+    final herramienta = crudo['herramienta'];
+    if (id is! String || herramienta is! String) return null;
+    return PeticionDePermiso(
+      id: id,
+      herramienta: herramienta,
+      // El nombre visible cae al interno si falta: son iguales salvo en las
+      // herramientas MCP, así que enseñar `Write` es peor que nada solo en el
+      // caso en que ya no tenemos con qué mejorarlo.
+      nombreVisible: crudo['nombre'] as String? ?? herramienta,
+      entrada: crudo['entrada'] as Map<String, dynamic>? ?? const {},
+      descripcion: crudo['descripcion'] as String?,
+    );
+  }
 }
 
 /// Lo que la persona contestó.
