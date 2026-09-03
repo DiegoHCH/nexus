@@ -77,7 +77,15 @@ class GitChanges {
 /// —`HEAD` suelta, un worktree, un submódulo— lo resuelve git y no un parser
 /// nuestro.
 class GitDataSource {
-  const GitDataSource();
+  const GitDataSource({this.git = HerramientaExterna.rutaDeGit});
+
+  /// De dónde sale el binario de git.
+  ///
+  /// Inyectable **para poder probar lo que pasa cuando git se porta mal**: que
+  /// escupa cien mil caracteres por `stderr`, o que no termine nunca. Con la
+  /// ruta resuelta a pelo, las dos cosas solo se podían comprobar teniendo
+  /// delante el repositorio que las provocaba.
+  final Future<String> Function() git;
 
   /// `null` si esa carpeta no está en un repositorio.
   ///
@@ -305,7 +313,7 @@ class GitDataSource {
     if (sinSeguir.isNotEmpty) {
       // Todos de una vez: un proceso por archivo en un repo con `build/` sin ignorar
       // costaría segundos en cada pulsación.
-      final hashes = await _conEntrada(folderPath, [
+      final hashes = await conEntrada(folderPath, [
         'hash-object',
         '--stdin-paths',
       ], '${sinSeguir.join('\n')}\n');
@@ -337,7 +345,7 @@ class GitDataSource {
   }) async {
     try {
       final proceso = await Process.start(
-        await HerramientaExterna.rutaDeGit(),
+        await git(),
         [
           '-C',
           folderPath,
@@ -396,24 +404,61 @@ class GitDataSource {
   }
 
   /// Un `git` al que hay que darle algo por la entrada.
-  Future<String?> _conEntrada(
+  @visibleForTesting
+  Future<String?> conEntrada(
     String folderPath,
     List<String> arguments,
-    String entrada,
-  ) async {
+    String entrada, {
+    Duration limite = const Duration(seconds: 30),
+  }) async {
     try {
       final proceso = await Process.start(
-        await HerramientaExterna.rutaDeGit(),
+        await git(),
         ['-C', folderPath, ...arguments],
         environment: ClaudeEnvironment.forTools(),
+        includeParentEnvironment: false,
       );
       proceso.stdin.write(entrada);
       await proceso.stdin.close();
-      final salida = await proceso.stdout.transform(utf8.decoder).join();
-      // La salida se consume antes del código: al revés, un `git` que escriba más de lo
-      // que cabe en el búfer se queda esperando y esto no vuelve nunca.
-      final codigo = await proceso.exitCode;
-      return codigo == 0 ? salida.trim() : null;
+
+      // 🔴 **Las dos salidas, y las dos a la vez.** Aquí solo se leía `stdout`, y
+      // el comentario que había al lado ya explicaba el peligro para esa mitad
+      // —«un git que escriba más de lo que cabe en el búfer se queda esperando y
+      // esto no vuelve nunca»— sin ver que `stderr` corría el mismo riesgo por su
+      // tubería, que no vaciaba nadie.
+      //
+      // Y no es teórico en el único sitio que llama aquí: `hash-object
+      // --stdin-paths` recibe **todos los archivos sin seguir de golpe** —en un
+      // repo con `build/` sin ignorar, miles— y git escribe una línea de error por
+      // cada ruta que no puede leer. Con unas dos mil se llenan los 64 KB de la
+      // tubería, git se bloquea escribiendo, y el cálculo de «qué cambió» se
+      // cuelga con él.
+      final salida = StringBuffer();
+      final leyendo = Future.wait([
+        proceso.stdout.transform(utf8.decoder).forEach(salida.write),
+        proceso.stderr.drain<void>(),
+      ]);
+
+      // Y un plazo, que `correr()` ya tenía y esto no: drenar las tuberías
+      // arregla el bloqueo por búfer lleno, no un git que se quede pensando.
+      final codigo = await proceso.exitCode.timeout(
+        limite,
+        onTimeout: () {
+          proceso.kill();
+          return -1;
+        },
+      );
+      // 🔴 **Y el drenaje también con plazo.** Esperar a que las dos tuberías
+      // cierren parece lo correcto y se cuelga en el caso que acabamos de
+      // arreglar: tras el `kill`, un **nieto** del proceso puede heredarlas y
+      // mantenerlas abiertas —lo pescó la prueba del plantón, con un `sleep`
+      // dentro de un `sh`—. En el camino bueno esto cierra al instante, porque
+      // las tuberías se cierran al salir el proceso.
+      await leyendo.timeout(
+        const Duration(seconds: 2),
+        onTimeout: () => const <void>[],
+      );
+      return codigo == 0 ? salida.toString().trim() : null;
     } on ProcessException {
       return null;
     }
@@ -422,7 +467,7 @@ class GitDataSource {
   Future<String?> _run(String folderPath, List<String> arguments) async {
     try {
       final result = await Process.run(
-        await HerramientaExterna.rutaDeGit(),
+        await git(),
         ['-C', folderPath, ...arguments],
         runInShell: false,
         environment: ClaudeEnvironment.forTools(),
