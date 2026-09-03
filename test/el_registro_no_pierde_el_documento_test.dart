@@ -170,13 +170,38 @@ void main() {
   });
   tearDown(() => cajon.deleteSync(recursive: true));
 
-  /// Lo que tarda un turno en asentarse: la compresión es un turno entero de
-  /// Claude, así que hay varios `await` en cadena detrás de cada encargo.
-  Future<void> asentar() async {
-    for (var i = 0; i < 12; i++) {
-      await Future<void>.delayed(const Duration(milliseconds: 40));
+  /// Espera a que **pase lo que se está esperando**, no un rato.
+  ///
+  /// 🔴 Esto eran `12 × 40 ms` a ojo, y con la máquina ocupada no llegaba: la
+  /// cadena de `await` detrás de un encargo incluye un `git` de verdad, así que
+  /// medio segundo alcanza en una máquina libre y no en una cargada. La prueba
+  /// se ponía roja **sin que nadie hubiera tocado nada**, y esta es de las de
+  /// regresión: una que falla a veces se acaba tratando como ruido, y el día que
+  /// el fallo vuelva de verdad nadie la va a creer.
+  ///
+  /// El plazo es largo a propósito. No es lo que tarda: es lo que se tolera
+  /// antes de decir que no va a pasar. En una máquina libre esto sale en
+  /// milisegundos.
+  Future<void> hastaQue(
+    bool Function() pasa, {
+    required String esperando,
+    Duration limite = const Duration(seconds: 15),
+  }) async {
+    final hasta = DateTime.now().add(limite);
+    while (!pasa()) {
+      if (DateTime.now().isAfter(hasta)) {
+        fail('no llegó a pasar en ${limite.inSeconds} s: $esperando');
+      }
+      await Future<void>.delayed(const Duration(milliseconds: 10));
     }
   }
+
+  /// Y para lo que hay que comprobar que **no** vuelve a pasar: se espera a que
+  /// ocurra la primera vez y después se deja un rato de reposo. Aquí el tiempo
+  /// fijo sí vale, porque una máquina lenta hace que pasen **menos** cosas, no
+  /// más: no puede convertir un verde en un falso verde.
+  Future<void> yQueNoHayaMas() =>
+      Future<void>.delayed(const Duration(milliseconds: 300));
 
   ({
     ProviderContainer container,
@@ -224,7 +249,12 @@ void main() {
     await todo.container.read(artifactsFolderProvider.notifier).cargada;
 
     await controlador.submit('dibuja la arquitectura');
-    await asentar();
+    await hastaQue(
+      () =>
+          todo.almacen.guardados.isNotEmpty &&
+          todo.almacen.guardados.last.messages.last.documento != null,
+      esperando: 'que el registro guardado traiga el documento',
+    );
 
     expect(
       todo.almacen.guardados,
@@ -250,11 +280,24 @@ void main() {
     );
 
     await controlador.submit('resume lo que hicimos');
-    await asentar();
+    final strings = todo.container.read(stringsProvider);
+    // 🔴 **Se espera al segundo guardado, no al primero.** Es lo que dice el
+    // motivo de abajo: el aviso nace *después* de archivar, así que el primer
+    // registro no lo lleva. Esperar a `guardados.isNotEmpty` resolvía con ese
+    // primero y comparaba contra un registro que todavía no podía traerlo — el
+    // mismo error de esperar la señal equivocada que esta prueba vino a dejar
+    // de cometer.
+    await hastaQue(
+      () =>
+          todo.claude.pedidos.contains('/compact') &&
+          todo.almacen.guardados.any(
+            (r) => r.messages.any((m) => m.text == strings.compactedUnknown),
+          ),
+      esperando: 'que el aviso de la compresión llegue al registro guardado',
+    );
 
     expect(todo.claude.pedidos, contains('/compact'));
     final textos = todo.almacen.guardados.last.messages.map((m) => m.text);
-    final strings = todo.container.read(stringsProvider);
     expect(
       textos,
       contains(strings.compactedUnknown),
@@ -271,7 +314,11 @@ void main() {
     );
 
     await controlador.submit('resume lo que hicimos');
-    await asentar();
+    await hastaQue(
+      () => todo.destino.veces >= 1,
+      esperando: 'que se escriba en el destino externo',
+    );
+    await yQueNoHayaMas();
 
     expect(
       todo.destino.veces,
@@ -295,9 +342,15 @@ void main() {
       );
 
       await controlador.submit('resume lo que hicimos');
-      await asentar();
-
       final strings = todo.container.read(stringsProvider);
+      await hastaQue(
+        () => todo.container
+            .read(assistantControllerProvider(_id))
+            .messages
+            .any((m) => m.text == strings.compactedUnknown),
+        esperando: 'el aviso de la compresión sin medida',
+      );
+
       var estado = todo.container.read(assistantControllerProvider(_id));
       expect(
         estado.messages.map((m) => m.text),
@@ -306,7 +359,13 @@ void main() {
       );
 
       await controlador.submit('y ahora sigue');
-      await asentar();
+      await hastaQue(
+        () => todo.container
+            .read(assistantControllerProvider(_id))
+            .messages
+            .any((m) => m.text == strings.compacted(90, 30)),
+        esperando: 'el aviso completado con la medida del turno siguiente',
+      );
 
       estado = todo.container.read(assistantControllerProvider(_id));
       expect(
