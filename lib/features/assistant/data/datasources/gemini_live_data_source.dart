@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
+
 /// El socket contra la Live API de Gemini, y nada más: manda y recibe mapas
 /// JSON. No sabe qué significan — eso lo traduce el repositorio.
 ///
@@ -46,15 +48,48 @@ class GeminiLiveConnection {
   GeminiLiveConnection._(this._socket) {
     _subscription = _socket.listen(
       (dynamic frame) {
-        // La API manda texto, pero un socket puede entregar binario: decodificar
-        // los dos casos sale más barato que descubrirlo en producción.
-        final raw = frame is String ? frame : utf8.decode(frame as List<int>);
-        final decoded = jsonDecode(raw);
-        if (decoded is Map<String, dynamic>) _messages.add(decoded);
+        final decoded = comoJson(frame);
+        if (decoded != null) _messages.add(decoded);
       },
       onError: _messages.addError,
       onDone: _messages.close,
     );
+  }
+
+  /// Un marco del socket ya decodificado, o `null` si no se puede leer.
+  ///
+  /// 🔴 **Esto era un `jsonDecode` a pelo dentro del `onData`, y ahí no hay
+  /// red.** Una excepción lanzada dentro del manejador de un `listen` **no
+  /// llega al `onError`** de esa misma suscripción: sale a la zona, o sea a
+  /// nadie. Un marco cortado se llevaba por delante la entrega y no se
+  /// enteraba ni el log.
+  ///
+  /// Es el mismo fallo que ya tuvo el otro flujo del proyecto y que arregló
+  /// [ClaudeCliDataSource.comoJson] —«una línea de texto plano se llevaba por
+  /// delante el encargo entero»—; se resuelve igual, y público por el mismo
+  /// motivo: la tolerancia se prueba sin abrir un socket.
+  ///
+  /// **Se descarta en vez de empujar el error al stream**, y es una decisión.
+  /// Un `addError` aquí mata la sesión de voz por un marco corrupto, que es
+  /// peor que perderlo: la conversación tiene sus propios plazos de
+  /// inactividad y se recupera sola. Lo que sí se pierde de verdad es un
+  /// `setupComplete` o un `toolCall` roto — por eso se deja dicho en el log y
+  /// no en silencio.
+  static Map<String, dynamic>? comoJson(dynamic frame) {
+    try {
+      // La API manda texto, pero un socket puede entregar binario: decodificar
+      // los dos casos sale más barato que descubrirlo en producción. Y
+      // `utf8.decode` revienta con bytes inválidos, así que entra en el `try`
+      // igual que el `jsonDecode`.
+      final raw = frame is String ? frame : utf8.decode(frame as List<int>);
+      final decoded = jsonDecode(raw);
+      if (decoded is Map<String, dynamic>) return decoded;
+      debugPrint('voz · marco descartado: no es un objeto JSON');
+      return null;
+    } on Object catch (error) {
+      debugPrint('voz · marco ilegible, se descarta: $error');
+      return null;
+    }
   }
 
   final WebSocket _socket;
