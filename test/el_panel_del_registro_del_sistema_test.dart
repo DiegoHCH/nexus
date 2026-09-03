@@ -185,6 +185,7 @@ void main() {
     }
     await tester.pumpAndSettle();
 
+    expect(find.textContaining('PerfilFragment.kt:'), findsWidgets);
     expect(tester.takeException(), isNull);
   });
 }
