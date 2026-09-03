@@ -17,7 +17,39 @@ import os
 /// De paso resuelve lo que ese paquete costó dos veces: aquí sí se escucha
 /// `AVAudioEngineConfigurationChange`, que es lo que para el motor en seco al
 /// cambiar de dispositivo de audio.
+/// Para qué se pide el motor.
+///
+/// 🔴 **Existe porque montar el grafo entero para decir una frase enciende el
+/// micrófono.** `acquire()` no preguntaba a qué venía, así que un aviso de
+/// agenda —que solo habla— abría la captura, el cancelador de eco y el
+/// dispositivo agregado, y macOS pintaba el indicador naranja durante toda la
+/// frase sin que nada lo justificara.
+enum PropositoDelMotor: String {
+  /// Solo salida: el reproductor y nada más. No se toca `inputNode`, que es lo
+  /// que enciende el micrófono en cuanto se le mira.
+  case hablar
+  /// Escuchar y hablar a la vez, con cancelación de eco. El grafo de siempre.
+  case conversar
+}
+
 final class NexusAudioEngine: NSObject, FlutterStreamHandler {
+
+  /// Si un motor ya montado sirve para lo que se le pide ahora.
+  ///
+  /// La decisión entera del propósito, y **pura para poder probarla**: lo demás
+  /// de aquí necesita hardware, y esto es justo lo que se rompe en silencio —un
+  /// `hablar` reutilizado para conversar deja la conversación sorda, sin error
+  /// ninguno, porque el grafo está montado y en marcha—.
+  static func sirve(montado: PropositoDelMotor?, para pedido: PropositoDelMotor) -> Bool {
+    switch (montado, pedido) {
+    case (nil, _): return false
+    // Conversar ya trae el reproductor puesto, así que hablar sale gratis.
+    case (.conversar, _): return true
+    case (.hablar, .hablar): return true
+    // Y al revés no: hablar no tiene captura, y no se puede añadir en caliente.
+    case (.hablar, .conversar): return false
+    }
+  }
   /// Formato de captura hacia el servicio de voz: PCM 16 bits, 16 kHz, mono.
   private static let captureSampleRate = 16000.0
 
@@ -62,7 +94,18 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// El motor sigue montado, pero la conversación terminó: **no se entrega ni
   /// un bloque de audio a nadie**. Es la diferencia entre tener el micrófono
   /// abierto en local y estar escuchando.
+  /// El tap está entregando bloques. Solo con [PropositoDelMotor.conversar].
   private var listening = false
+
+  /// Hay una sesión abierta —de la clase que sea—, así que se puede reproducir.
+  ///
+  /// Separado de [listening] porque no son lo mismo, y confundirlos deja el
+  /// modo solo salida mudo: `enqueue` se guardaba con `listening`, que con el
+  /// micrófono apagado es siempre falso.
+  private var sesionAbierta = false
+
+  /// Para qué está montado el grafo ahora mismo, o `nil` si no hay ninguno.
+  private var montadoPara: PropositoDelMotor?
 
   /// Lo que desmonta el motor cuando se cumple el minuto de espera. Se guarda
   /// para poder cancelarlo si vuelves a hablarle antes.
@@ -141,8 +184,10 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     case "permissionStatus":
       result(permissionStatus())
     case "start":
+      let pedido = ((call.arguments as? [String: Any])?["para"] as? String)
+        .flatMap(PropositoDelMotor.init(rawValue:)) ?? .conversar
       do {
-        try start()
+        try start(para: pedido)
         result(true)
       } catch {
         result(FlutterError(code: "start_failed", message: "\(error)", details: nil))
@@ -348,19 +393,31 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
 
   // MARK: - Motor
 
-  private func start() throws {
+  private func start(para proposito: PropositoDelMotor = .conversar) throws {
     // Vuelve a hablar antes de que se cumpla el minuto: el motor ya está
     // montado y solo hay que volver a escuchar. Es el atajo entero — sin esto,
     // aquí empezaría otra vez el 1,3 s del dispositivo agregado.
     teardownWork?.cancel()
     teardownWork = nil
-    if running {
-      listening = true
+    if running, Self.sirve(montado: montadoPara, para: proposito) {
+      sesionAbierta = true
+      listening = proposito == .conversar
       startedAt = Date()
       Self.log.info("motor caliente reutilizado · sin montar el agregado")
       return
     }
+    // Montado solo para hablar y ahora hace falta conversar: la captura no se
+    // añade en caliente, así que se desmonta y se vuelve a montar entero.
+    if running {
+      Self.log.info("el motor de solo salida no sirve para conversar: se rehace")
+      teardown()
+    }
     let begin = Date()
+
+    if proposito == .hablar {
+      try montarSoloSalida(desde: begin)
+      return
+    }
 
     // El cancelador solo se enciende si la respuesta va a salir por los
     // altavoces del Mac, porque solo entonces hay eco físico que cancelar. Con
@@ -462,8 +519,62 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     player.play()
     running = true
     listening = true
+    sesionAbierta = true
+    montadoPara = .conversar
     startedAt = Date()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor en marcha")
+  }
+
+  /// El grafo mínimo para decir una frase: reproductor, mezclador y salida.
+  ///
+  /// 🔴 **Lo que define este camino es lo que NO toca.** `engine.inputNode`
+  /// enciende el micrófono con solo mirarlo —basta con leerle el formato—, así
+  /// que aquí no aparece ni una vez: ni `setVoiceProcessingEnabled`, ni el tap,
+  /// ni los conversores de captura. Sin micrófono no hay eco que cancelar, que
+  /// es lo que hace que sobre todo lo demás.
+  ///
+  /// El ritmo sale del nodo de salida y no de la entrada, por el mismo motivo.
+  private func montarSoloSalida(desde begin: Date) throws {
+    if let preferred = preferredOutput {
+      do {
+        try engine.outputNode.auAudioUnit.setDeviceID(preferred)
+      } catch {
+        Self.log.error(
+          "no se pudo usar el aparato elegido: \(error.localizedDescription, privacy: .public)"
+        )
+      }
+    }
+
+    let salida = engine.outputNode.outputFormat(forBus: 0)
+    let voiceFormat = AVAudioFormat(
+      commonFormat: .pcmFormatFloat32,
+      sampleRate: salida.sampleRate > 0 ? salida.sampleRate : Self.playbackSampleRate,
+      channels: 1,
+      interleaved: false
+    )!
+
+    engine.attach(player)
+    engine.connect(player, to: engine.mainMixerNode, format: voiceFormat)
+    engine.connect(engine.mainMixerNode, to: engine.outputNode, format: voiceFormat)
+    speakerFormat = voiceFormat
+    playbackConverter = AVAudioConverter(from: replyFormat, to: voiceFormat)
+
+    NotificationCenter.default.addObserver(
+      self,
+      selector: #selector(configurationChanged),
+      name: .AVAudioEngineConfigurationChange,
+      object: engine
+    )
+
+    engine.prepare()
+    try engine.start()
+    player.play()
+    running = true
+    listening = false
+    sesionAbierta = true
+    montadoPara = .hablar
+    startedAt = Date()
+    Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor solo salida en marcha, sin micrófono")
   }
 
   /// Colgar: se deja de escuchar **ya**, y el motor se desmonta al cabo de un
@@ -475,7 +586,8 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// indicador de micrófono encendido: es honesto que se vea, porque el
   /// micrófono está efectivamente abierto.
   private func stop() {
-    guard running, listening else { return }
+    guard running, sesionAbierta else { return }
+    sesionAbierta = false
     listening = false
     player.stop()
 
@@ -510,8 +622,11 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
 
   private func teardown() {
     guard running else { return }
+    let era = montadoPara
     running = false
     listening = false
+    sesionAbierta = false
+    montadoPara = nil
     teardownWork = nil
     Self.log.info("motor desmontado tras \(Int(Self.warmSeconds), privacy: .public) s sin uso")
 
@@ -521,7 +636,13 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       object: engine
     )
     player.stop()
-    engine.inputNode.removeTap(onBus: 0)
+    // 🔴 **La entrada solo se toca si se llegó a montar.** `inputNode` inicializa
+    // el micrófono con solo nombrarlo, así que desmontar un grafo de solo salida
+    // pasando por aquí lo encendería **justo al apagarlo** — y el indicador de
+    // macOS aparecería un instante sin que nada lo justifique.
+    if era == .conversar {
+      engine.inputNode.removeTap(onBus: 0)
+    }
     engine.stop()
     engine.detach(player)
     captureConverter = nil
@@ -538,7 +659,12 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // ganancia sin motivo. También hace que el siguiente arranque vuelva a
     // decidir si hace falta, que es lo que permite cambiar de auriculares a
     // altavoces sin reiniciar la app.
-    try? engine.inputNode.setVoiceProcessingEnabled(false)
+    //
+    // Y por lo mismo que el tap: si nunca se montó la entrada, no se enciende
+    // ahora para apagarla.
+    if era == .conversar {
+      try? engine.inputNode.setVoiceProcessingEnabled(false)
+    }
   }
 
   /// El motor se para solo cuando cambia la configuración del IO unit —unos
@@ -567,11 +693,14 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // Se desmonta de verdad, no se deja caliente: cambió el aparato, así que
     // el grafo entero —formatos, canal de voz, cancelador— hay que rehacerlo.
     // Reutilizarlo sería quedarse hablándole al dispositivo que ya no está.
-    let wasListening = listening
+    // Se vuelve a montar **con el mismo propósito**: reabrir una sesión de solo
+    // salida como conversación encendería el micrófono por un cambio de
+    // altavoces, que es lo contrario de lo que se pidió.
+    let reabrirComo = sesionAbierta ? montadoPara : nil
     teardown()
-    guard wasListening else { return }
+    guard let proposito = reabrirComo else { return }
     do {
-      try start()
+      try start(para: proposito)
     } catch {
       frameSink?(FlutterError(
         code: "engine_restart_failed",
@@ -691,7 +820,7 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   private func enqueue(_ pcm: Data) {
     // Colgado no se reproduce nada, aunque el motor siga montado: una frase
     // que llegara tarde sonaría después de haber cerrado la conversación.
-    guard running, listening, pcm.count >= 2,
+    guard running, sesionAbierta, pcm.count >= 2,
           let converter = playbackConverter,
           let speaker = speakerFormat else { return }
 

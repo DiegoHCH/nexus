@@ -14,10 +14,10 @@ class _FakeAudio extends NativeAudioDataSource {
   int released = 0;
 
   @override
-  Future<void> acquire() async => acquired++;
+  Future<void> acquire({ParaQue para = ParaQue.conversar}) async => acquired++;
 
   @override
-  Future<void> release() async => released++;
+  Future<void> release({ParaQue para = ParaQue.conversar}) async => released++;
 
   @override
   Stream<Uint8List> get frames => _chunks;

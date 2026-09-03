@@ -11,6 +11,7 @@ import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/agenda/domain/usecases/la_lectura_que_toca.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_se_contesta_de_la_agenda.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
+import 'package:nexus/features/assistant/data/datasources/native_audio_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
@@ -366,7 +367,13 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       // más de un segundo; el motor despierta durante ese tiempo y el coste
       // añadido es cero. La demora que se siente no cambia — lo que cambia es
       // que ya no se traga el principio.
-      final delMac = AudioOutputImpl(ref.read(nativeAudioDataSourceProvider));
+      // 🔴 **Solo salida.** Un aviso habla y no escucha, y pedir el motor entero
+      // encendía el micrófono para decir una frase — con el indicador naranja de
+      // macOS puesto todo el rato, sin nada que lo justificara.
+      final delMac = AudioOutputImpl(
+        ref.read(nativeAudioDataSourceProvider),
+        para: ParaQue.hablar,
+      );
       final delMovil = ref.read(remoteAudioSinkProvider);
       await delMac.start();
       await delMovil.start();

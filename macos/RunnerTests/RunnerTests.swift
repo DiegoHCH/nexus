@@ -893,3 +893,51 @@ final class MiniaturasTests: XCTestCase {
     _ = try pedirMiniatura(de: carpeta.appendingPathComponent("no-existe.zip"))
   }
 }
+
+// MARK: - Para qué se pide el motor de audio
+
+/// La única decisión del propósito, y la que se rompe en silencio.
+///
+/// 🔴 Reutilizar un motor montado **solo para hablar** cuando lo que se pide es
+/// conversar deja la conversación **sorda sin dar ningún error**: el grafo está
+/// montado y en marcha, `engine.start()` no se queja, y simplemente no hay tap
+/// ni conversores de captura. No hay excepción que atrapar ni log que mirar —
+/// solo un micrófono que no entrega nada.
+///
+/// Lo demás del motor pide hardware. Esto no, y es justo lo que hay que sujetar.
+final class PropositoDelMotorTests: XCTestCase {
+  func testSinMotorMontadoNoSirveNada() {
+    XCTAssertFalse(NexusAudioEngine.sirve(montado: nil, para: .hablar))
+    XCTAssertFalse(NexusAudioEngine.sirve(montado: nil, para: .conversar))
+  }
+
+  func testConversarYaTraeElReproductor() {
+    XCTAssertTrue(
+      NexusAudioEngine.sirve(montado: .conversar, para: .hablar),
+      "un aviso que solo habla no tiene por qué rehacer el grafo entero"
+    )
+    XCTAssertTrue(NexusAudioEngine.sirve(montado: .conversar, para: .conversar))
+  }
+
+  func testHablarSirveParaHablar() {
+    XCTAssertTrue(NexusAudioEngine.sirve(montado: .hablar, para: .hablar))
+  }
+
+  func testHablarNoSirveParaConversar() {
+    XCTAssertFalse(
+      NexusAudioEngine.sirve(montado: .hablar, para: .conversar),
+      "solo salida no tiene captura, y no se le puede añadir en caliente: "
+        + "reutilizarlo deja la conversación sorda y sin un solo error"
+    )
+  }
+
+  /// El propósito viaja por el canal como cadena, así que un cambio de nombre
+  /// aquí es un `nil` en el otro lado —y `nil` cae en `.conversar`, o sea el
+  /// micrófono encendido para decir una frase, que es el fallo que se vino a
+  /// arreglar.
+  func testLosNombresQueViajanPorElCanal() {
+    XCTAssertEqual(PropositoDelMotor(rawValue: "hablar"), .hablar)
+    XCTAssertEqual(PropositoDelMotor(rawValue: "conversar"), .conversar)
+    XCTAssertNil(PropositoDelMotor(rawValue: "solo_salida"))
+  }
+}
