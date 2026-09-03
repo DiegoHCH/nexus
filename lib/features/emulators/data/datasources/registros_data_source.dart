@@ -40,15 +40,6 @@ class RegistrosDataSource {
   })
   lanzar;
 
-  /// Si esta máquina puede leer el registro de esa plataforma.
-  ///
-  /// 🔴 **No es lo mismo en las dos, y por eso se pregunta.** `adb` lo tiene
-  /// cualquiera que compile Android; `idevicesyslog` viene de
-  /// `libimobiledevice` y **es opcional** — ofrecer el botón sin comprobarlo es
-  /// ofrecer uno que falla al tocarlo.
-  Future<bool> hay(PlataformaEmulador plataforma) async =>
-      await _ruta(plataforma) != null;
-
   Future<String?> _ruta(PlataformaEmulador plataforma) => switch (plataforma) {
     PlataformaEmulador.android => donde(
       LosRegistrosDelDispositivo.binarioAndroid,
@@ -81,6 +72,20 @@ class RegistrosDataSource {
     Future<void> arrancar() async {
       final ruta = await _ruta(plataforma);
       if (ruta == null) {
+        // 🔴 **La falta de la herramienta se cuenta al pulsar, no antes.**
+        //
+        // Aquí hubo un `hay()` para poder esconder el botón cuando el binario
+        // no estaba, y se escribió con el argumento de que «ofrecer uno que
+        // falla al tocarlo» es malo. Al construirlo salió lo contrario, y es
+        // mejor: `idevicesyslog` es opcional, así que **esconder el botón deja
+        // a alguien preguntándose por qué en iOS no hay registro del sistema**,
+        // mientras que pulsarlo y leer «no se encontró idevicesyslog» dice qué
+        // instalar. El error entra como una línea más, en el sitio donde ya se
+        // estaba mirando.
+        //
+        // Se quitó el `hay()` en vez de dejarlo sin llamante: un método público
+        // que nadie usa y un comentario que defiende otro diseño se leen como
+        // que falta cablearlo.
         control.addError(
           _NoEstaLaHerramienta(
             LosRegistrosDelDispositivo.binarioPara(plataforma),
