@@ -13,6 +13,8 @@ import 'package:nexus/features/artifacts/presentation/providers/generar_una_imag
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -376,19 +378,13 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_archive());
   }
 
-  /// Las preguntas de permiso vivas de **esta** conversación, por `request_id`.
+  /// Las preguntas de permiso vivas de **esta** conversación.
   ///
-  /// Viven aquí y no en un provider aparte porque una pregunta pertenece al
-  /// encargo que la hizo, y un encargo pertenece a una conversación: con un
-  /// buzón global, dos conversaciones trabajando a la vez se disputaban un
-  /// único hueco y la pregunta podía salir en la pestaña que no era.
-  /// El motivo de la cancelación viaja **con** el completer, resuelto desde que
-  /// se encola. No es eficiencia: sale de `stringsProvider`, y soltar puede
-  /// ocurrir dentro de un `onDispose`, donde Riverpod prohíbe leer otro
-  /// provider. Es la tercera vez que esa regla muerde en esta funcionalidad;
-  /// tomándolo aquí, contestar no depende de poder leer nada.
-  final _permisos =
-      <String, ({Completer<RespuestaDePermiso> completer, String cancelado})>{};
+  /// Suyas y no de un buzón global porque una pregunta pertenece al encargo que
+  /// la hizo, y un encargo a una conversación: con uno compartido, dos
+  /// conversaciones a la vez se disputaban un único hueco y la pregunta salía en
+  /// la pestaña que no era.
+  final _permisos = LasPreguntasEnPie();
 
   /// Claude quiere usar algo que no tiene concedido: se pregunta **en la
   /// conversación**, como un turno más.
@@ -397,9 +393,8 @@ class AssistantController extends Notifier<AssistantHudState> {
     // El texto en curso se cierra antes: la pregunta es su propio turno, y sin
     // esto el trozo siguiente de la respuesta se pegaría debajo de los botones.
     _sealLast();
-    final completer = Completer<RespuestaDePermiso>();
-    _permisos[peticion.id] = (
-      completer: completer,
+    final espera = _permisos.abrir(
+      peticion,
       cancelado: strings.permisoCanceladoMotivo,
     );
     state = state.copyWith(
@@ -416,61 +411,49 @@ class AssistantController extends Notifier<AssistantHudState> {
       // Es lo que la modal daba gratis y aquí hay que decir a mano.
       notice: strings.permisoEnEspera,
     );
-    return completer.future;
+    return espera;
   }
 
   /// Lo que la persona eligió en el turno de la pregunta.
   void responderPermiso(String id, DecisionDePermiso decision) {
-    final espera = _permisos.remove(id);
-    if (espera == null || espera.completer.isCompleted) return;
-
     final mensajes = [...state.messages];
     final donde = mensajes.indexWhere((m) => m.permiso?.id == id);
-    // La petición sale del mensaje: es la misma que la del mapa, y así lo que
+    // La petición sale del mensaje: es la misma que la del buzón, y así lo que
     // se contesta se compone con lo que se estaba enseñando de verdad.
     final peticion = donde == -1 ? null : mensajes[donde].permiso;
+
+    final strings = ref.read(stringsProvider);
+    final contestada = _permisos.contestar(
+      id,
+      LoQueSeContestaAlPermiso.de(
+        decision,
+        peticion,
+        motivoDenegado: strings.permisoDenegadoMotivo,
+        motivoCancelado: strings.permisoCanceladoMotivo,
+      ),
+    );
+    // Ya no estaba: contestada, cancelada, o de otra conversación. No se toca la
+    // pantalla, que es lo que evita marcar como decidido lo que no lo fue.
+    if (!contestada) return;
+
     if (donde != -1) {
       mensajes[donde] = mensajes[donde].copyWith(decision: decision);
     }
-
-    final strings = ref.read(stringsProvider);
-    espera.completer.complete(switch (decision) {
-      DecisionDePermiso.concedido => PermisoConcedido(peticion?.entrada ?? {}),
-      DecisionDePermiso.concedidoTodo => PermisoConcedido(
-        peticion?.entrada ?? {},
-        permisosNuevos: peticion?.sugerencias ?? const [],
-      ),
-      DecisionDePermiso.denegado => PermisoDenegado(
-        strings.permisoDenegadoMotivo,
-      ),
-      DecisionDePermiso.cancelado => PermisoDenegado(
-        strings.permisoCanceladoMotivo,
-      ),
-    });
-
     state = state.copyWith(
       messages: mensajes,
       // El aviso solo se va cuando no queda ninguna: contestar la primera de
       // dos no es haber terminado.
-      notice: _permisos.isEmpty ? null : state.notice,
+      notice: _permisos.hayAlguna ? state.notice : null,
     );
   }
 
   /// Suelta a quien espere, sin tocar el estado. Para el `onDispose`.
-  void _soltarPermisos() {
-    if (_permisos.isEmpty) return;
-    for (final espera in _permisos.values) {
-      if (!espera.completer.isCompleted) {
-        espera.completer.complete(PermisoDenegado(espera.cancelado));
-      }
-    }
-    _permisos.clear();
-  }
+  void _soltarPermisos() => _permisos.soltarTodas();
 
   /// Lo mismo, y además deja dicho en la conversación que nadie contestó.
   void _cancelarPermisos() {
-    if (_permisos.isEmpty) return;
-    _soltarPermisos();
+    if (!_permisos.hayAlguna) return;
+    _permisos.soltarTodas();
     state = state.copyWith(
       messages: [
         for (final mensaje in state.messages)

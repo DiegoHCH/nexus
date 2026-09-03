@@ -1,3 +1,32 @@
+/// Qué se contestó a una petición de permiso.
+///
+/// `null` en el mensaje significa que **sigue esperando**, y esa es la
+/// diferencia que pinta los botones o los quita.
+enum DecisionDePermiso {
+  concedido,
+  concedidoTodo,
+  denegado,
+
+  /// Nadie contestó: el encargo se detuvo o la conversación se cerró con la
+  /// pregunta en pie. Se distingue de [denegado] porque no fue una decisión.
+  cancelado,
+}
+
+extension DecisionDePermisoJson on DecisionDePermiso {
+  /// La decisión guardada, o `null` si no hay ninguna que leer.
+  ///
+  /// Tolerante a propósito, como [ActivityItem.fromJson]: un nombre que no
+  /// conocemos —porque lo escribió una versión con una salida más— vale menos
+  /// que el turno donde está, así que se descarta él y no la conversación.
+  static DecisionDePermiso? deJson(Object? crudo) {
+    if (crudo is! String) return null;
+    for (final decision in DecisionDePermiso.values) {
+      if (decision.name == crudo) return decision;
+    }
+    return null;
+  }
+}
+
 /// Claude quiere usar una herramienta y pide permiso para hacerlo.
 ///
 /// **Esto solo existe porque hay alguien delante.** Un encargo desatendido —la
