@@ -489,6 +489,13 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? loQueSeVe,
     bool reintento = false,
     bool yaEstaDicho = false,
+
+    /// Si quien lo pide **está mirando esta pantalla**.
+    ///
+    /// Lo pone en `false` el canal del teléfono: el móvil navega a una
+    /// conversación concreta y no sigue al foco, así que moverlo haría saltar
+    /// la pantalla de quien esté delante del Mac sin haberlo pedido.
+    bool elFocoSigue = true,
   }) async {
     var trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
@@ -514,10 +521,21 @@ class AssistantController extends Notifier<AssistantHudState> {
             loQueSeVe: loQueSeVe ?? instruction,
             allowWrites: allowWrites,
             attachments: attachments,
+            elFocoSigue: elFocoSigue,
           )) {
         case AtiendeloTu(:final tarea):
           trimmed = tarea;
-        case YaSeFue():
+        // 🔴 **Si el foco no se movió, hay que decir a dónde fue.** Desde el
+        // Mac el salto de pestaña es la señal y basta; desde el teléfono no hay
+        // ninguna, y callarse deja a quien lo pidió mirando una conversación
+        // donde no va a pasar nada.
+        case YaSeFue(:final carpeta):
+          if (!elFocoSigue) {
+            if (!_vive) return;
+            _say(ChatAuthor.user, loQueSeVe ?? instruction);
+            _sealLast();
+            _decir(ref.read(stringsProvider).seMandoA(carpeta));
+          }
           return;
         case HayQueDecir(:final texto):
           if (!_vive) return;
