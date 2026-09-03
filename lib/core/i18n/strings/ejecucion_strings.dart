@@ -29,6 +29,20 @@ mixin EjecucionStrings {
   String get runStopping;
   String get runNoProject;
   String get runLogs;
+
+  /// El registro del **sistema** del dispositivo, que no es el de la corrida:
+  /// aquél es lo que imprime la app y este es lo que dice el teléfono.
+  String get runSystemLog;
+  String get runSystemLogWaiting;
+  String get runSystemLogOff;
+
+  /// Los cuatro niveles del filtro, uno por texto y no uno con parámetro: la
+  /// forma con parámetro devolvía frases fijas y el argumento no aparecía en
+  /// ninguna — lo pescó `diccionario_test`, y con razón.
+  String get nivelTodo;
+  String get nivelDesdeAvisos;
+  String get nivelSoloErrores;
+  String get nivelSoloFatales;
   String get runAuto;
 }
 
@@ -78,6 +92,21 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   String get runNoProject => 'Sin proyecto no hay nada que correr';
   @override
   String get runLogs => 'Registro';
+  @override
+  String get runSystemLog => 'Registro del sistema';
+  @override
+  String get runSystemLogWaiting => 'Escuchando al dispositivo…';
+  @override
+  String get runSystemLogOff =>
+      'Enciéndelo para ver lo que dice el teléfono: los fallos nativos no pasan por la app.';
+  @override
+  String get nivelTodo => 'todo';
+  @override
+  String get nivelDesdeAvisos => 'desde avisos';
+  @override
+  String get nivelSoloErrores => 'solo errores';
+  @override
+  String get nivelSoloFatales => 'solo fatales';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
 }
@@ -129,6 +158,21 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String get runNoProject => 'No project, nothing to run';
   @override
   String get runLogs => 'Log';
+  @override
+  String get runSystemLog => 'System log';
+  @override
+  String get runSystemLogWaiting => 'Listening to the device…';
+  @override
+  String get runSystemLogOff =>
+      'Turn it on to see what the phone says: native crashes do not go through the app.';
+  @override
+  String get nivelTodo => 'everything';
+  @override
+  String get nivelDesdeAvisos => 'warnings up';
+  @override
+  String get nivelSoloErrores => 'errors only';
+  @override
+  String get nivelSoloFatales => 'fatal only';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
 }
