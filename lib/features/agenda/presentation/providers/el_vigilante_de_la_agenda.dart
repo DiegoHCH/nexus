@@ -8,7 +8,8 @@ import 'package:nexus/features/agenda/data/datasources/agenda_data_source.dart';
 import 'package:nexus/features/agenda/data/datasources/avisos_preferencias_data_source.dart';
 import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.dart';
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
-import 'package:nexus/features/agenda/domain/usecases/la_jornada.dart';
+import 'package:nexus/features/agenda/domain/usecases/la_lectura_que_toca.dart';
+import 'package:nexus/features/agenda/domain/usecases/lo_que_se_contesta_de_la_agenda.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_toca_avisar.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
@@ -98,6 +99,14 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   final _yaAvisadas = <String>{};
   var _hablando = false;
 
+  /// La hora, por el proveedor y no por `DateTime.now()` directo.
+  ///
+  /// 🔴 **Sin esto las pruebas de este archivo solo pasarían entre semana y
+  /// antes de las seis.** Media decisión de aquí cuelga de la jornada —fuera de
+  /// ella la agenda se borra— así que una suite anclada al reloj de la máquina
+  /// se pondría roja sola cada sábado, y en CI, que corre a cualquier hora.
+  DateTime _ahora() => ref.read(relojProvider)();
+
   /// Cada cuánto se mira el reloj. Treinta segundos: con la ventana de cinco
   /// minutos, es imposible que una reunión entre y salga sin que se vea.
   static const _cadencia = Duration(seconds: 30);
@@ -114,7 +123,7 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   }
 
   Future<void> _cargar() async {
-    final guardado = await const AvisosPreferenciasDataSource().leer();
+    final guardado = await ref.read(avisosPreferenciasProvider).leer();
     if (!ref.mounted) return;
     state = Avisos(
       encendidos: guardado.encendidos,
@@ -135,11 +144,13 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       minutos: minutos,
       carpeta: carpeta ?? Avisos._nada,
     );
-    await const AvisosPreferenciasDataSource().escribir(
-      encendidos: state.encendidos,
-      minutos: state.minutos,
-      carpeta: state.carpeta,
-    );
+    await ref
+        .read(avisosPreferenciasProvider)
+        .escribir(
+          encendidos: state.encendidos,
+          minutos: state.minutos,
+          carpeta: state.carpeta,
+        );
     // La agenda de la cuenta anterior ya no vale.
     if (carpeta != null) {
       _olvidarLaAgenda();
@@ -156,7 +167,7 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
 
   Future<void> _mirar() async {
     if (!state.listos || _hablando) return;
-    final ahora = DateTime.now();
+    final ahora = _ahora();
     await _leerSiHaceFalta(ahora);
     if (!ref.mounted) return;
 
@@ -183,7 +194,7 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// casi trescientas consultas diarias para releer lo mismo.
   Future<void> releer() async {
     _olvidarLaAgenda();
-    await _leerSiHaceFalta(DateTime.now());
+    await _leerSiHaceFalta(_ahora());
   }
 
   /// Lo que hay hoy, sin salir a preguntarlo otra vez.
@@ -199,31 +210,19 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// quedó muda la voz preguntando la agenda a los 34 s de abrir la app.
   Future<String?> loDeHoy() async {
     if (!state.listos) return null;
-    final ahora = DateTime.now();
+    final ahora = _ahora();
     await _leerSiHaceFalta(ahora);
     if (!ref.mounted) return null;
 
     final s = ref.read(stringsProvider);
-    // Fuera de jornada la agenda está borrada, y decir «no tienes reuniones»
-    // sería mentir sobre un día que sí las tuvo. Se dice lo que pasa, y queda
-    // el botón de actualizar para quien la quiera igual.
-    if (!LaJornada.dentro(ahora)) return s.agendaFueraDeJornada;
-    final reuniones = [
-      for (final reunion in _agenda)
-        if (reunion.esUnaReunion) reunion,
-    ]..sort((a, b) => a.comienza.compareTo(b.comienza));
-    if (reuniones.isEmpty) return s.agendaVacia;
-
-    return [
-      s.agendaDeHoy(reuniones.length),
-      for (final reunion in reuniones)
-        '- ${_laHora(reunion.comienza)} · ${reunion.titulo}',
-    ].join('\n');
+    return LoQueSeContestaDeLaAgenda.respuesta(
+      _agenda,
+      cuando: ahora,
+      fueraDeJornada: s.agendaFueraDeJornada,
+      vacia: s.agendaVacia,
+      cabecera: s.agendaDeHoy,
+    );
   }
-
-  static String _laHora(DateTime cuando) =>
-      '${cuando.hour.toString().padLeft(2, '0')}:'
-      '${cuando.minute.toString().padLeft(2, '0')}';
 
   /// Suelta un aviso de mentira, ahora mismo.
   ///
@@ -238,7 +237,7 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// mismos dos altavoces y la misma espera si estás hablando. Lo único que se
   /// salta es el calendario.
   Future<void> probar() {
-    final ahora = DateTime.now();
+    final ahora = _ahora();
     return _avisar(
       Reunion(
         id: 'prueba-${ahora.microsecondsSinceEpoch}',
@@ -278,42 +277,50 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   Future<void>? _enVuelo;
 
   Future<void> _leerAhora(DateTime ahora) async {
-    final ancla = LaJornada.anclaPara(ahora);
-    // Fuera de jornada no se lee y **no se conserva**: lo que quedara en
-    // memoria sería la lista de un día que terminó, y sirve para contestar mal.
-    if (ancla == null) {
-      if (_agenda.isNotEmpty) _olvidarLaAgenda();
-      return;
-    }
-    if (_leidoDesde == ancla) return;
     final carpeta = state.carpeta;
-    if (carpeta == null) return;
-
-    // 🔴 **La carpeta emparejada, o no se lee todavía.** El workspace se carga
-    // solo y en paralelo, y el vigilante le gana la carrera al arrancar: la
-    // lista de carpetas está vacía, la cuenta llega `null` y la agenda se leería
-    // con la cuenta por defecto en vez de con la de la carpeta. Que es otra
-    // cuenta, con otro calendario o con ninguno.
-    //
-    // Se espera al siguiente tic en vez de arrastrar la cuenta equivocada, y no
-    // se marca `_leidoDesde`: son treinta segundos y no cuesta una consulta,
-    // porque aquí todavía no se ha llamado a nadie.
-    final emparejada = _laCarpeta(carpeta);
-    if (emparejada == null) return;
-
-    final leida = await const AgendaDataSource().delDia(
-      DateTime(ahora.year, ahora.month, ahora.day),
+    final emparejada = carpeta == null ? null : _laCarpeta(carpeta);
+    final toca = LaLecturaQueToca.para(
+      ahora: ahora,
+      leidoDesde: _leidoDesde,
       carpeta: carpeta,
-      configDir: emparejada.claudeProfile,
+      carpetaEmparejada: emparejada != null,
     );
+
+    switch (toca.que) {
+      // Fuera de jornada no se lee y **no se conserva**: lo que quedara en
+      // memoria sería la lista de un día que terminó.
+      case QueHacerConLaAgenda.olvidarla:
+        if (_agenda.isNotEmpty) _olvidarLaAgenda();
+        return;
+      case QueHacerConLaAgenda.dejarlaComoEsta:
+      // El workspace se carga solo y en paralelo, y el vigilante le gana la
+      // carrera al arrancar. Leer ahí sacaría la agenda de la cuenta por
+      // defecto en vez de la de la carpeta — que es otra cuenta, con otro
+      // calendario o con ninguno. Se espera al siguiente tic.
+      case QueHacerConLaAgenda.esperarALaCarpeta:
+        return;
+      case QueHacerConLaAgenda.leerla:
+        break;
+    }
+
+    final leida = await ref
+        .read(agendaDataSourceProvider)
+        .delDia(
+          DateTime(ahora.year, ahora.month, ahora.day),
+          carpeta: carpeta!,
+          configDir: emparejada!.claudeProfile,
+        );
     if (!ref.mounted) return;
     _agenda = leida;
-    _leidoDesde = ancla;
-    state = state.copyWith(ultimaLectura: DateTime.now());
-    // Un día nuevo empieza sin memoria de lo avisado: los identificadores son
-    // del calendario y no se repiten, pero dejar crecer el conjunto para
-    // siempre es una fuga lenta que nadie va a mirar.
-    _yaAvisadas.removeWhere((id) => !leida.any((r) => r.id == id));
+    _leidoDesde = toca.ancla;
+    state = state.copyWith(ultimaLectura: _ahora());
+    // El local **antes** del `clear`: en un cascade el argumento se evalúa
+    // después, así que `..clear()..addAll(loQueSigueVivo(_yaAvisadas, …))`
+    // vaciaría el conjunto y volvería a avisar de todo.
+    final siguenVivos = LoQueTocaAvisar.loQueSigueVivo(_yaAvisadas, leida);
+    _yaAvisadas
+      ..clear()
+      ..addAll(siguenVivos);
   }
 
   Future<void> _avisar(Reunion reunion, DateTime ahora) async {
@@ -372,11 +379,13 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       // que lo normal son ~3,9 s, o sea que un tope agotado no es «faltó un
       // poco»: es el servicio en problemas.
       final empezo = DateTime.now();
-      final dicho = await const GeminiTtsDataSource().decir(
-        llave: llave,
-        frase: frase,
-        voz: ref.read(voicePreferenceProvider).name,
-      );
+      final dicho = await ref
+          .read(geminiTtsProvider)
+          .decir(
+            llave: llave,
+            frase: frase,
+            voz: ref.read(voicePreferenceProvider).name,
+          );
       debugPrint(
         'agenda · el TTS tardó '
         '${DateTime.now().difference(empezo).inMilliseconds} ms',
@@ -471,9 +480,9 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
   /// Espera a que ninguna conversación tenga la voz abierta. `false` si se
   /// agota el plazo.
   Future<bool> _esperarSilencio() async {
-    final hasta = DateTime.now().add(esperaMaxima);
+    final hasta = _ahora().add(esperaMaxima);
     while (_hayVozAbierta()) {
-      if (DateTime.now().isAfter(hasta)) return false;
+      if (_ahora().isAfter(hasta)) return false;
       await Future<void>.delayed(const Duration(seconds: 2));
       if (!ref.mounted) return false;
     }
@@ -507,6 +516,32 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       .where((f) => f.path == carpeta)
       .firstOrNull;
 }
+
+/// El reloj. Se sustituye en las pruebas; en la app es el de la máquina.
+final relojProvider = Provider<DateTime Function()>((ref) => DateTime.now);
+
+/// Las tres fuentes del vigilante, cada una en su proveedor.
+///
+/// 🔴 **Estaban construidas a mano dentro del notificador** —`const
+/// AgendaDataSource()`, `const GeminiTtsDataSource()`—, o sea presentation
+/// alcanzando `data` sin pasar por ningún sitio. El resto del repositorio no
+/// hace eso, y aquí costaba lo de siempre: sin una costura por donde entrar,
+/// las 160 líneas de este archivo no se podían probar sin llamar de verdad al
+/// calendario y al servicio de voz.
+///
+/// Son `Provider` y no parámetros del constructor porque un `Notifier` de
+/// Riverpod no los tiene: la costura del framework es sobrescribir el proveedor.
+final avisosPreferenciasProvider = Provider<AvisosPreferenciasDataSource>(
+  (ref) => const AvisosPreferenciasDataSource(),
+);
+
+final agendaDataSourceProvider = Provider<AgendaDataSource>(
+  (ref) => const AgendaDataSource(),
+);
+
+final geminiTtsProvider = Provider<GeminiTtsDataSource>(
+  (ref) => const GeminiTtsDataSource(),
+);
 
 final elVigilanteDeLaAgendaProvider =
     NotifierProvider<ElVigilanteDeLaAgenda, Avisos>(ElVigilanteDeLaAgenda.new);
