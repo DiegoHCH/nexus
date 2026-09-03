@@ -373,15 +373,27 @@ final class VisorDeArtefactosTests: XCTestCase {
     XCTAssertGreaterThan(medida.height, 600, "y a lo alto igual")
   }
 
-  /// Pregunta al DOM cada 100 ms hasta que la imagen exista y tenga tamaño.
+  /// Pregunta al DOM cada 100 ms hasta que la imagen tenga un tamaño **estable**.
+  ///
   /// No vale un `didFinish` seco: la carga del archivo y la maquetación son dos
   /// momentos distintos, y medir en el primero da cero.
+  ///
+  /// 🔴 **Y tampoco vale la primera medida no nula, que es lo que hacía.**
+  /// «Tiene tamaño» no es «tiene su tamaño final»: con la máquina ocupada, la
+  /// primera lectura pillaba una maquetación intermedia —la imagen a sus 40 px,
+  /// antes de que el CSS la escale— y la prueba fallaba en 1,4 s, muy por debajo
+  /// del plazo. O sea que no expiraba: medía pronto y comparaba mal.
+  ///
+  /// El criterio es la estabilidad y no un umbral, a propósito: un umbral aquí
+  /// metería la aserción dentro de la espera, y entonces la prueba se estaría
+  /// esperando a sí misma.
   private func esperarMedidaDeLaImagen(
     en web: WKWebView, timeout: TimeInterval = 15
   ) throws -> CGSize {
     var medida = CGSize.zero
+    var anterior = CGSize.zero
     var resuelto = false
-    let pintada = expectation(description: "la imagen, ya maquetada")
+    let pintada = expectation(description: "la imagen, ya maquetada y quieta")
 
     func mirar() {
       web.evaluateJavaScript(
@@ -394,13 +406,18 @@ final class VisorDeArtefactosTests: XCTestCase {
         })()
         """
       ) { valor, _ in
-        if let par = valor as? [Double], par[0] > 0, !resuelto {
-          medida = CGSize(width: par[0], height: par[1])
-          resuelto = true
-          pintada.fulfill()
-          return
-        }
         guard !resuelto else { return }
+        if let par = valor as? [Double], par[0] > 0 {
+          let ahora = CGSize(width: par[0], height: par[1])
+          // Dos lecturas seguidas iguales: la maquetación dejó de moverse.
+          if ahora == anterior {
+            medida = ahora
+            resuelto = true
+            pintada.fulfill()
+            return
+          }
+          anterior = ahora
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: mirar)
       }
     }
