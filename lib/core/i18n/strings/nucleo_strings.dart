@@ -75,6 +75,12 @@ mixin NucleoStrings {
   String get waitingForOwnCompaction;
   String get waitingByVoice;
   String get noFolderForConversation;
+
+  /// Se nombró más de una carpeta: se pregunta en vez de elegir.
+  String variasCarpetasNombradas(String cuales);
+
+  /// Habría que abrir una conversación y no caben más.
+  String noCabeOtraConversacion(String carpeta);
   String textOnlyFolder(String folder);
   String textOnlyArtifactsFolder(String folder);
   String compacting(int percent);
@@ -299,6 +305,14 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get noFolderForConversation =>
       'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.';
+  @override
+  String variasCarpetasNombradas(String cuales) =>
+      'Nombraste varias carpetas —$cuales— y no elijo por ti: '
+      'de la carpeta salen la cuenta y los permisos. Di solo una.';
+  @override
+  String noCabeOtraConversacion(String carpeta) =>
+      'Para trabajar en «$carpeta» hace falta otra conversación y no caben más. '
+      'Cierra una y lo repito.';
   @override
   String textOnlyFolder(String folder) =>
       'La carpeta $folder está en modo solo texto, así que no se abre el '
@@ -625,6 +639,14 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get noFolderForConversation =>
       'This conversation has no folder paired: there is nowhere to work.';
+  @override
+  String variasCarpetasNombradas(String cuales) =>
+      'You named several folders — $cuales — and I will not pick for you: '
+      'the account and the permissions come from the folder. Name just one.';
+  @override
+  String noCabeOtraConversacion(String carpeta) =>
+      'Working in "$carpeta" needs another conversation and there is no room. '
+      'Close one and I will repeat it.';
   @override
   String textOnlyFolder(String folder) =>
       'The folder $folder is in text-only mode, so the microphone stays shut. '

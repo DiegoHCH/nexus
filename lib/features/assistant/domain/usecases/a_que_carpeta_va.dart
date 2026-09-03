@@ -22,11 +22,14 @@ final class AEstaCarpeta extends AQueCarpetaVa {
   /// front mobile» es pedir el cambio de carpeta y nada más. Quien llama decide
   /// si eso es enfocar y esperar o preguntar qué hacer.
   ///
-  /// 🔴 **Lo que se quita es el puntero, no el verbo.** «Vete al front mobile»
-  /// deja `vete`, y eso es deliberado: adivinar qué verbos son de ir y cuáles
-  /// son la tarea es justo la clase de listeza que acaba tragándose un encargo
-  /// de verdad. Quien llame decide qué hacer con un resto así — es él quien
-  /// sabe si venía de la voz o del teclado.
+  /// 🔴 **Lo que se quita es el puntero, no el verbo** — salvo cuando el verbo
+  /// es lo único que queda. «Vete al front mobile» viene vacía; «vete al front
+  /// mobile y arregla el login» conserva el «vete y arregla el login» entero.
+  ///
+  /// La diferencia importa: adivinar qué verbos son de ir **dentro de una frase
+  /// con tarea** es la clase de listeza que acaba tragándose un encargo de
+  /// verdad. Aplicarlo solo cuando no queda nada más no puede comerse nada,
+  /// porque no hay nada que comerse.
   final String tarea;
 }
 
@@ -78,13 +81,38 @@ abstract final class ACarpetaVaLoQueDices {
     }
 
     final hallazgo = hallazgos.single;
-    return AEstaCarpeta(
-      hallazgo.carpeta,
-      _sinLaMencion(frase, hallazgo.desde, hallazgo.hasta),
-    );
+    final resto = _sinLaMencion(frase, hallazgo.desde, hallazgo.hasta);
+    return AEstaCarpeta(hallazgo.carpeta, _esSoloIrAlli(resto) ? '' : resto);
   }
 
   static final _separadores = RegExp(r'[\s_\-.]+');
+
+  /// Formas de decir «vete allí» y nada más.
+  ///
+  /// Lista cerrada y **solo se mira contra el resto entero**: si sobra algo
+  /// además del verbo, es que había tarea y no se toca nada.
+  static const _irAlli = {
+    'vete',
+    've',
+    'ir',
+    'vamos',
+    'pasate',
+    'pasa',
+    'cambia',
+    'cambiate',
+    'abre',
+    'muevete',
+    'go',
+    'go to',
+    'switch',
+    'switch to',
+    'open',
+  };
+
+  static bool _esSoloIrAlli(String resto) {
+    final limpio = _aplanar(resto).replaceAll(RegExp(r'[^a-z0-9 ]'), '').trim();
+    return limpio.isEmpty || _irAlli.contains(limpio);
+  }
 
   /// Las palabras que solo estaban ahí para introducir la carpeta.
   ///
