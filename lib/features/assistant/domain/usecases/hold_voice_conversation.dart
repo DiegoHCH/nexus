@@ -419,6 +419,24 @@ class HoldVoiceConversation {
     ///
     /// Lo usan los dos caminos: cuando el modelo pide la herramienta, y cuando
     /// **no** la pidió debiendo hacerlo y hay que corregirlo.
+    /// 🔴 **El idioma de lo que sale de aquí es una decisión, no un olvido.**
+    ///
+    /// Lo que devuelve `runErrand` —«La tarea falló: …», «La tarea terminó sin
+    /// devolver nada.»— está en español a pelo, fuera de `NexusStrings`, y eso
+    /// se ha señalado dos veces como una fuga de i18n. No lo es, y conviene
+    /// dejarlo escrito para no volver a levantarlo cada revisión.
+    ///
+    /// **Estos textos no van a la pantalla: son el resultado de la herramienta
+    /// que se le devuelve al modelo.** Gemini los lee y los narra en el idioma
+    /// que tenga configurado, así que alguien con la app en inglés no oye
+    /// español — oye a Gemini contando en inglés lo que leyó en español. Son
+    /// material para un modelo, igual que la instrucción de sistema y las
+    /// descripciones de las herramientas, y el idioma de esos ya se decidió
+    /// aparte.
+    ///
+    /// Lo que **sí** iría a `NexusStrings` es cualquier cosa que se pinte o se
+    /// hable directamente. Si algún día uno de estos se enseña tal cual, deja de
+    /// valer este argumento y hay que moverlo.
     Future<String?> runErrand(String instruction, String headline) async {
       controller.add(VoiceToolStarted(headline));
       final answer = StringBuffer();
