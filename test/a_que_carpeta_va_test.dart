@@ -87,14 +87,25 @@ void main() {
       }
     });
 
-    // 🔴 Se quita el puntero, no el verbo. Adivinar qué verbos son de ir y
-    // cuáles son la tarea es la clase de listeza que acaba tragándose un
-    // encargo de verdad.
-    test('un verbo delante se queda, y quien llama decide', () {
-      final r = va('vete al front mobile b2c') as AEstaCarpeta;
+    // Un verbo de ir que se queda **solo** no es una tarea.
+    test('«vete al …» a secas tampoco deja tarea', () {
+      for (final frase in [
+        'vete al front mobile b2c',
+        'cambia al front-mobile-b2c',
+        'abre el front mobile b2c',
+      ]) {
+        expect((va(frase) as AEstaCarpeta).tarea, isEmpty, reason: frase);
+      }
+    });
 
-      expect(r.carpeta.path, frontMobile.path);
-      expect(r.tarea, 'vete');
+    // 🔴 Y esta es la que protege lo anterior: en cuanto hay tarea, **no se
+    // toca el verbo**. Adivinar cuáles son de ir dentro de una frase con
+    // trabajo es la clase de listeza que acaba tragándose un encargo de verdad.
+    test('con tarea detrás, el verbo se queda entero', () {
+      final r =
+          va('vete al front mobile b2c y arregla el login') as AEstaCarpeta;
+
+      expect(r.tarea, 'vete y arregla el login');
     });
   });
 
