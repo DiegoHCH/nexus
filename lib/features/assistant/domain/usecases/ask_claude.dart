@@ -176,10 +176,35 @@ class AskClaude {
             );
           }
           yield event;
+
+          // 🔴 **El turno se suelta cuando acaba el turno, no cuando muere el
+          // proceso.** Eran lo mismo hasta que se midió que no: un `claude -p`
+          // no sale hasta que mueren sus servidores MCP, y con un MCP en JVM o
+          // en `uvx` eso son minutos después de haber contestado.
+          //
+          // Medido en la máquina: encargo arrancado a las 23:15:00, turno
+          // archivado a las 23:15:09, y el proceso todavía vivo a las 23:18:25
+          // con cinco hijos —dos `context7`, `engram`, la JVM de Maestro y el
+          // proxy de AWS—. Soltando en el `finally`, la carpeta se quedaba
+          // tomada esos tres minutos por un encargo que ya había terminado, y
+          // lo siguiente que escribías contestaba «esperando a la otra
+          // conversación sobre esta carpeta»: sin otra conversación, y sin
+          // nadie trabajando. Se ve igual que un cuelgue porque lo es.
+          //
+          // Soltar aquí es correcto y no un atajo: la cola existe para que dos
+          // `--resume` simultáneos no se pierdan un turno de la sesión, y con
+          // el `result` ya emitido este proceso no va a escribir más en ella.
+          // Lo que queda por hacer es apagar hijos, que no toca la sesión.
+          if (event is ClaudeTurnCompleted || event is ClaudeFailed) release();
         }
       } finally {
-        // También al cancelar: cerrar la conversación a media ejecución pasa por
-        // aquí, y no soltar el turno dejaría la carpeta bloqueada para siempre.
+        // Y aquí también, que es el otro final: un encargo cancelado —cerrar la
+        // conversación a media ejecución— no llega a emitir final ninguno, y no
+        // soltar el turno dejaría la carpeta bloqueada para siempre.
+        //
+        // Llamarlo dos veces es gratis y está previsto: `release` se guarda con
+        // su propio `released` justo para poder ponerlo en los dos sitios sin
+        // pensar en cuál llegó primero.
         release();
       }
     } finally {
