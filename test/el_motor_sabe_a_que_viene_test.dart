@@ -105,4 +105,56 @@ void main() {
 
     expect(llamadas.map((l) => l.method), isNot(contains('stop')));
   });
+
+  // 🔴 **Lo que de verdad importa de todo esto: el aviso tiene que sonar.**
+  //
+  // El cambio a «solo salida» tocó el camino del aviso de agenda, y el motor
+  // nativo guardaba `enqueue` con `listening` —que sin micrófono es siempre
+  // falso—. Si eso no se hubiera separado de «hay sesión abierta», la agenda
+  // habría dejado de hablar en silencio: el motor arranca, el TTS contesta, y
+  // no sale nada por el altavoz.
+  group('el aviso de agenda suena, y sin micrófono', () {
+    test('pidiendo solo salida se puede reproducir', () async {
+      final altavoz = AudioOutputImpl(audio, para: ParaQue.hablar);
+      await altavoz.start();
+
+      altavoz.enqueue(Uint8List.fromList([1, 2, 3, 4]));
+
+      expect(arranques(), ['hablar']);
+      expect(
+        llamadas.where((l) => l.method == 'play'),
+        hasLength(1),
+        reason:
+            'si esto no llega, la agenda deja de hablar sin decir nada: el '
+            'motor arranca, el TTS contesta y no sale nada por el altavoz',
+      );
+    });
+
+    test(
+      'y se sabe cuánto queda por sonar, que es lo que espera el aviso',
+      () async {
+        final altavoz = AudioOutputImpl(audio, para: ParaQue.hablar);
+        await altavoz.start();
+
+        await altavoz.pending();
+
+        expect(
+          llamadas.map((l) => l.method),
+          contains('pendingPlaybackMs'),
+          reason:
+              'el aviso espera a que termine la frase antes de soltar el '
+              'altavoz; sin esta medida lo soltaría a media palabra',
+        );
+      },
+    );
+
+    test('antes de arrancar no se reproduce nada', () {
+      AudioOutputImpl(
+        audio,
+        para: ParaQue.hablar,
+      ).enqueue(Uint8List.fromList([1]));
+
+      expect(llamadas, isEmpty);
+    });
+  });
 }
