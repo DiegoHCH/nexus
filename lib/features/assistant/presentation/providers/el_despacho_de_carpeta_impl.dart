@@ -52,9 +52,17 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
         );
 
       case AbrirUnaPara(:final carpeta, :final tarea):
+        // 🔴 **`open()` enfoca por dentro**, así que con el foco quieto hay que
+        // devolverlo. Sin esto, un encargo del teléfono que estrenaba
+        // conversación hacía saltar la pantalla del Mac igual — la mitad del
+        // arreglo anterior se colaba por aquí.
+        final antes = _ref.read(conversationsProvider).focusedId;
         final abierta = await _ref
             .read(conversationsProvider.notifier)
             .open(carpeta.path);
+        if (!elFocoSigue && antes != null) {
+          await _ref.read(conversationsProvider.notifier).focus(antes);
+        }
         if (abierta == null) {
           // La lista se llenó entre la decisión y el hueco. Se dice, en vez de
           // atenderlo aquí: hacer el trabajo en la carpeta equivocada es lo que
