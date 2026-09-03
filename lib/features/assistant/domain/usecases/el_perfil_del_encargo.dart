@@ -43,6 +43,10 @@ abstract final class ElPerfilDelEncargo {
   /// Y se lee **en cada encargo, sin caché**: poner un plugin con la app
   /// abierta tiene que valer para el siguiente encargo y no pedir un reinicio
   /// que nadie adivina.
+  /// El texto va en español y a pelo **a propósito**: esto no se pinta, se
+  /// concatena en el `appendSystemPrompt` de cada encargo. Es una instrucción
+  /// para un modelo, no interfaz, y el idioma de los prompts es una decisión
+  /// aparte — la misma que ya se tomó para la instrucción de sistema de la voz.
   static Future<String?> describir(String? configDir) async {
     final dir = carpeta(configDir);
     if (dir == null) return null;
