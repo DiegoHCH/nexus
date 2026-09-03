@@ -308,4 +308,58 @@ void main() {
       ['/tmp/una.png'],
     );
   });
+
+  // 🔴 **De quién es el foco.** Desde el Mac, que la pestaña salte es la única
+  // señal de que el trabajo se fue a otra parte. Desde el teléfono no: el móvil
+  // navega a una conversación concreta y no sigue al foco, así que moverlo haría
+  // saltar la pantalla de quien esté delante **sin haberlo pedido** — y al móvil
+  // no le serviría de nada.
+  group('de quién es el foco', () {
+    test('desde el Mac, el foco se va con el encargo', () async {
+      final container = montar(dosAbiertas);
+
+      await container
+          .read(assistantControllerProvider('aqui').notifier)
+          .submit('en el front mobile b2c, arregla el login');
+      await asentar();
+
+      expect(container.read(conversationsProvider).focusedId, 'alla');
+    });
+
+    test('desde el teléfono, el foco no se mueve', () async {
+      final container = montar(dosAbiertas);
+
+      await container
+          .read(assistantControllerProvider('aqui').notifier)
+          .submit(
+            'en el front mobile b2c, arregla el login',
+            elFocoSigue: false,
+          );
+      await asentar();
+
+      expect(container.read(conversationsProvider).focusedId, 'aqui');
+      expect(dondeCayo['alla'], [
+        'arregla el login',
+      ], reason: 'el trabajo sí se va: lo que no se mueve es la pantalla');
+    });
+
+    // Y callarse dejaría a quien lo pidió mirando una conversación donde no va
+    // a pasar nada.
+    test('y se dice a dónde fue, que si no es silencio', () async {
+      final container = montar(dosAbiertas);
+
+      await container
+          .read(assistantControllerProvider('aqui').notifier)
+          .submit(
+            'en el front mobile b2c, arregla el login',
+            elFocoSigue: false,
+          );
+      await asentar();
+
+      expect(
+        container.read(assistantControllerProvider('aqui')).messages.last.text,
+        contains('front-mobile-b2c'),
+      );
+    });
+  });
 }

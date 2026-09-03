@@ -24,6 +24,7 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
     required String loQueSeVe,
     required bool allowWrites,
     required List<String> attachments,
+    bool elFocoSigue = true,
   }) async {
     final strings = _ref.read(stringsProvider);
     final destino = QueHacerConLoQueSeDijo.de(
@@ -47,6 +48,7 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
           loQueSeVe: loQueSeVe,
           allowWrites: allowWrites,
           attachments: attachments,
+          elFocoSigue: elFocoSigue,
         );
 
       case AbrirUnaPara(:final carpeta, :final tarea):
@@ -65,6 +67,7 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
           loQueSeVe: loQueSeVe,
           allowWrites: allowWrites,
           attachments: attachments,
+          elFocoSigue: elFocoSigue,
         );
 
       case NoCabeOtraConversacion(:final carpeta):
@@ -89,9 +92,16 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
     required String loQueSeVe,
     required bool allowWrites,
     required List<String> attachments,
+    required bool elFocoSigue,
   }) async {
-    final conversaciones = _ref.read(conversationsProvider.notifier);
-    await conversaciones.focus(conversacion);
+    // 🔴 **El foco solo se mueve para quien está mirando.** Desde el Mac es la
+    // única señal de que el trabajo se fue a otra parte; desde el teléfono
+    // sería hacer saltar la pantalla de alguien que no pidió nada — y no le
+    // serviría de nada al móvil, que navega a una conversación concreta y no
+    // sigue al foco.
+    if (elFocoSigue) {
+      await _ref.read(conversationsProvider.notifier).focus(conversacion);
+    }
 
     final carpeta =
         _ref.read(conversationsProvider).byId(conversacion)?.folderPath ?? '';

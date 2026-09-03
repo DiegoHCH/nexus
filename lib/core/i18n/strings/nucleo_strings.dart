@@ -79,6 +79,9 @@ mixin NucleoStrings {
   /// Se nombró más de una carpeta: se pregunta en vez de elegir.
   String variasCarpetasNombradas(String cuales);
 
+  /// A dónde se fue el encargo, cuando quien lo pidió no va a verlo llegar.
+  String seMandoA(String carpeta);
+
   /// Habría que abrir una conversación y no caben más.
   String noCabeOtraConversacion(String carpeta);
   String textOnlyFolder(String folder);
@@ -309,6 +312,9 @@ mixin NucleoStringsEs implements NucleoStrings {
   String variasCarpetasNombradas(String cuales) =>
       'Nombraste varias carpetas —$cuales— y no elijo por ti: '
       'de la carpeta salen la cuenta y los permisos. Di solo una.';
+  @override
+  String seMandoA(String carpeta) =>
+      'Lo mandé a «$carpeta», que es la carpeta que nombraste. El trabajo sale por ahí.';
   @override
   String noCabeOtraConversacion(String carpeta) =>
       'Para trabajar en «$carpeta» hace falta otra conversación y no caben más. '
@@ -643,6 +649,9 @@ mixin NucleoStringsEn implements NucleoStrings {
   String variasCarpetasNombradas(String cuales) =>
       'You named several folders — $cuales — and I will not pick for you: '
       'the account and the permissions come from the folder. Name just one.';
+  @override
+  String seMandoA(String carpeta) =>
+      'Sent it to "$carpeta", the folder you named. The work happens there.';
   @override
   String noCabeOtraConversacion(String carpeta) =>
       'Working in "$carpeta" needs another conversation and there is no room. '

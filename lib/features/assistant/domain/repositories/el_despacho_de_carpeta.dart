@@ -40,11 +40,21 @@ final class HayQueDecir extends LoQueQuedaPorHacer {
 abstract interface class ElDespachoDeCarpeta {
   /// Mira si la frase nombra una carpeta y, si hace falta, lleva el encargo
   /// allí. [carpetaDeAqui] es la de quien pregunta.
+  /// [elFocoSigue] dice si quien pidió esto **está mirando esta pantalla**.
+  ///
+  /// 🔴 **Lo pone quien manda el encargo, y no es un detalle.** Desde el Mac el
+  /// foco moviéndose es la señal de que el trabajo se fue a otra parte. Desde el
+  /// teléfono no: el móvil navega a una conversación concreta y no sigue al
+  /// foco, así que moverlo **haría saltar la pantalla de quien esté delante del
+  /// Mac sin haberlo pedido**, y encima dejaría al teléfono mirando una pestaña
+  /// donde no pasa nada. Con `false` el foco se queda quieto y quien lo pidió
+  /// recibe una frase diciendo a dónde fue.
   Future<LoQueQuedaPorHacer> despachar(
     String frase, {
     required String? carpetaDeAqui,
     required String loQueSeVe,
     required bool allowWrites,
     required List<String> attachments,
+    bool elFocoSigue = true,
   });
 }

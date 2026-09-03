@@ -115,7 +115,14 @@ class AssistantSurface implements RemoteSurface {
     final id = _existente(conversationId);
     await _ref
         .read(assistantControllerProvider(id).notifier)
-        .submit(text, allowWrites: allowWrites);
+        .submit(
+          text,
+          allowWrites: allowWrites,
+          // El móvil no sigue al foco del Mac: navega a la conversación que
+          // eligió. Moverlo desde aquí sería hacer saltar la pantalla de quien
+          // esté delante, y a él no le serviría de nada.
+          elFocoSigue: false,
+        );
   }
 
   @override

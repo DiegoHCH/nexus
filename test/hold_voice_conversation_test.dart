@@ -42,6 +42,7 @@ class _SeLoLleva implements ElDespachoDeCarpeta {
     required String loQueSeVe,
     required bool allowWrites,
     required List<String> attachments,
+    bool elFocoSigue = true,
   }) async => YaSeFue(carpeta);
 }
 
