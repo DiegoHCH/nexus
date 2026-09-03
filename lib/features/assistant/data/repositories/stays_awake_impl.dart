@@ -4,7 +4,7 @@ import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
 /// Cuenta cuántos lo necesitan y se lo dice al sistema una sola vez.
 ///
 /// El recuento vive aquí y no en el lado nativo porque es aquí donde se sabe
-/// cuántos encargos hay en marcha: tres conversaciones sobre carpetas distintas
+/// cuántos encargos hay en marcha: seis conversaciones sobre carpetas distintas
 /// corren a la vez, y la primera en terminar no puede dejar que el Mac se
 /// duerma con las otras dos trabajando. Sin recuento eso pasaría, y pasaría
 /// **solo a veces** —cuando la corta acabara antes—, que es la peor forma de

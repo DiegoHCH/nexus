@@ -14,8 +14,39 @@ import 'package:nexus/features/emulators/domain/usecases/comando_de_emuladores.d
 /// y sabe arrancarlos, pero **no dice cuál está arriba**. Eso lo sabe `adb` en
 /// Android y `simctl` en iOS, y no hay identificador común entre un emulador y el
 /// dispositivo que resulta de arrancarlo — así que hay que cruzarlo a mano.
+/// Cómo se lanza algo que Nexus abre y no vuelve a mirar.
+///
+/// Un tipo propio para poder sustituirlo en las pruebas: lo único que hay que
+/// comprobar de un espejo es **con qué modo se arrancó**, y eso sin costura
+/// pide abrir scrcpy de verdad.
+typedef AbrirSuelto =
+    Future<void> Function(
+      String ejecutable,
+      List<String> argumentos, {
+      required ProcessStartMode modo,
+      Map<String, String>? entorno,
+    });
+
+Future<void> _abrirDeVerdad(
+  String ejecutable,
+  List<String> argumentos, {
+  required ProcessStartMode modo,
+  Map<String, String>? entorno,
+}) async {
+  await Process.start(
+    ejecutable,
+    argumentos,
+    mode: modo,
+    environment: entorno,
+    includeParentEnvironment: false,
+  );
+}
+
 class EmuladoresDataSource {
-  const EmuladoresDataSource();
+  const EmuladoresDataSource({this.abrirSuelto = _abrirDeVerdad});
+
+  /// Con qué se abren el espejo del móvil y el visor del iPhone.
+  final AbrirSuelto abrirSuelto;
 
   /// El catálogo de emuladores con su estado.
   ///
@@ -95,7 +126,16 @@ class EmuladoresDataSource {
     if (scrcpy == null) return 'No se encontró scrcpy';
 
     try {
-      await Process.start(
+      // 🔴 **Suelto, y por eso `detached`.** Con el modo por defecto Dart abre
+      // las tres tuberías y aquí no se guardaba el proceso ni se leía ninguna:
+      // scrcpy vive horas espejando un teléfono y escribe avisos por el camino,
+      // así que al llenarse el búfer se quedaba bloqueado escribiendo — un
+      // espejo congelado sin nada que lo explique.
+      //
+      // `detached` no crea tuberías, que es justo lo que se quiere de algo que
+      // la app abre y no vuelve a mirar. Lo que se cede es poder matarlo, y no
+      // se cede nada: el `Process` no se guardaba tampoco.
+      await abrirSuelto(
         scrcpy,
         ElEspejoDelMovil.argumentos(
           deviceId: deviceId,
@@ -103,8 +143,8 @@ class EmuladoresDataSource {
           conControl: conControl,
           encima: encima,
         ),
-        environment: ClaudeEnvironment.forTools(),
-        includeParentEnvironment: false,
+        modo: ProcessStartMode.detached,
+        entorno: ClaudeEnvironment.forTools(),
       );
       return null;
     } on ProcessException catch (e) {
@@ -122,11 +162,13 @@ class EmuladoresDataSource {
   /// que se le diga cuál desde fuera, así que pedirlo aquí sería prometerlo.
   Future<String?> verElIphone(ComoVerElIphone como) async {
     try {
-      await Process.start(
+      // `open` sale enseguida, así que aquí no había nada roto — pero es el
+      // mismo patrón, y dos formas de abrir lo mismo es una que se olvida.
+      await abrirSuelto(
         ElEspejoDelIphone.binario,
         ElEspejoDelIphone.argumentos(como),
-        environment: ClaudeEnvironment.forTools(),
-        includeParentEnvironment: false,
+        modo: ProcessStartMode.detached,
+        entorno: ClaudeEnvironment.forTools(),
       );
       return null;
     } on ProcessException catch (e) {

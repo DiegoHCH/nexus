@@ -36,7 +36,7 @@ malla sobre el vacío: un HUD, no una ventana de mensajería.
 
 - **Hablar o escribir.** `⌥Espacio` abre la voz sin traer la ventana al frente; lo que no quieras dictar lo escribes, con archivos adjuntos si hacen falta.
 - **Trabajo real en tu carpeta.** Lee repos, edita archivos, corre comandos — con el permiso que le des a cada carpeta.
-- **Hasta tres conversaciones a la vez**, una por carpeta, trabajando en paralelo.
+- **Hasta seis conversaciones a la vez**, una por carpeta, trabajando en paralelo.
 - **Ver qué está haciendo**, paso a paso, en su propia ventana movible — y pararlo con `⌘.`.
 - **Generar imágenes** con Gemini: `/imagen un zorro leyendo` y `/edita ponle fondo azul`, encadenando cambios.
 - **Correr tu app y tus dispositivos**: entorno, simuladores de iOS y emuladores de Android, sin terminal.
@@ -100,7 +100,7 @@ de escritura. A partir de ahí, Nexus es el sitio desde el que:
 | | Qué puedes hacer |
 |---|---|
 | **Hablar o escribir** | ⌥Espacio abre la sesión de voz sin traer la ventana al frente. Lo que no quieras dictar, lo escribes en el compositor, con archivos adjuntos si hacen falta. |
-| **Llevar varias cosas a la vez** | Hasta tres conversaciones abiertas, una por carpeta. La voz va con la que tenga el foco; las demás siguen trabajando. |
+| **Llevar varias cosas a la vez** | Hasta seis conversaciones abiertas, una por carpeta. La voz va con la que tenga el foco; las demás siguen trabajando. |
 | **Ver qué está haciendo** | Una columna de actividad paso a paso mientras hay trabajo, y ⌘. para pararlo. |
 | **Leer lo que produce** | Los documentos que Claude escribe quedan en Documentos, con su lista (⌘J) y un visor propio que se recarga solo cuando el archivo cambia. |
 | **Correr tu app** | Elegir entorno y dispositivo y lanzarla desde el compositor, con su salida en vivo — y que se recargue sola cuando un encargo termina de tocar el código. |
@@ -268,7 +268,7 @@ instaladas se niegan a ver.
 
 ## Decisiones cerradas
 
-Dos cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
+Tres cosas que se estudiaron a fondo y **se decidió no hacer**. Están aquí para
 que no se vuelvan a proponer sin argumentos nuevos:
 
 - **Voz propia, sin Gemini.** Se construyó la fase 1 —reconocimiento y síntesis
@@ -276,6 +276,20 @@ que no se vuelvan a proponer sin argumentos nuevos:
   pero **solo en los idiomas que trae Apple**, y ninguna voz local aguanta la
   comparación con Gemini, que no es un lector de texto sino un modelo
   conversacional. Código borrado, veredicto escrito.
+- **Un worktree por conversación.** La idea era romper la cola de
+  `FolderErrandQueue` —que serializa dos conversaciones sobre la misma carpeta—
+  dándole a cada una su propio árbol de trabajo. Medido en este repo: crear el
+  worktree cuesta **1,9 s y 10 MB**, y ahí acaban las buenas noticias. Lo que
+  **no** viaja es `.dart_tool` (2,7 GB) y `build` (5,9 GB), así que cada
+  conversación en paralelo paga su `flutter pub get` y una compilación en frío.
+  Encima el `pre-push` no corre dentro de un worktree —git exporta un `GIT_DIR`
+  absoluto que el gestor de versiones hereda y no sobrevive—, y un worktree
+  huérfano es basura en el disco de alguien: al medir esto había uno vivo de una
+  sesión de hace semanas. Y la premisa se cayó sola por otro lado: **caben seis
+  conversaciones en paralelo, una por carpeta**, así que lo que esto compraba
+  —paralelo *dentro* de una misma carpeta— vale mucho menos de lo que costaba.
+  Para reabrirlo haría falta que `.dart_tool` y `build` se pudieran compartir
+  entre árboles, que es de donde sale todo el precio.
 - **Una superficie que un líder mire del squad.** Nexus es una **herramienta de
   equipo, de uso individual** —como un IDE—, así que no hay tablero que
   construir. El estándar viaja en el `.nexus/` del repositorio y el valor lo

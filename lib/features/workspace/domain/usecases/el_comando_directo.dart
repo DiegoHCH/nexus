@@ -57,6 +57,44 @@ abstract final class ElComandoDirecto {
   /// lleva— así que un cercado de tres se rompería con el primer `git log` que
   /// las tuviera: el bloque se cerraría a media salida y el resto se pintaría
   /// como prosa suelta. Se cuenta la racha más larga y se pone una más.
+  /// El parte de una corrida: qué se enseña, en qué orden, y qué se calla.
+  ///
+  /// 🔴 **Vivía dentro del controlador y decide más de lo que parece.** Lo de
+  /// git va en un bloque monoespaciado porque es lo que se vino a ver —`git log
+  /// --oneline` es una tabla y se lee alineada o no se lee— y lo de Nexus va en
+  /// prosa alrededor, porque no es salida de nada.
+  ///
+  /// Las dos reglas que se rompen sin avisar:
+  ///
+  /// - **Un código distinto de cero con la salida en blanco es un fallo mudo**,
+  ///   y eso se lee como que la app no hizo nada. Por eso el aviso del código
+  ///   va aunque no haya nada más que enseñar.
+  /// - **Y un cero con la salida en blanco no es un fallo**: es que no había
+  ///   nada que decir, y decirlo es mejor que dejar la cabecera sola.
+  ///
+  /// La cabecera va siempre, y ese «siempre» costó un incidente: la primera vez
+  /// que esto se usó de verdad contestó sobre un repo que no era el esperado, y
+  /// lo único que lo delató fue que el nombre de una rama sonaba a otro
+  /// proyecto. Con `!git log` no habría habido ni esa pista.
+  static String comoSeCuenta(
+    ({int codigo, String salida, bool tardoDemasiado}) hecho, {
+    required String cabecera,
+    required String tardoDemasiado,
+    required String Function(int codigo) fallo,
+    required String sinNadaQueDecir,
+  }) => [
+    '**$cabecera**',
+    if (hecho.tardoDemasiado)
+      tardoDemasiado
+    else ...[
+      if (hecho.codigo != 0) fallo(hecho.codigo),
+      if (hecho.salida.trim().isEmpty)
+        if (hecho.codigo == 0) sinNadaQueDecir else ''
+      else
+        enBloque(hecho.salida),
+    ],
+  ].where((linea) => linea.isNotEmpty).join('\n\n');
+
   static String enBloque(String salida) {
     final cercado = '`' * _laRachaMasLarga(salida);
     // El salto antes del cierre es obligatorio: sin él, una salida sin salto

@@ -373,15 +373,27 @@ final class VisorDeArtefactosTests: XCTestCase {
     XCTAssertGreaterThan(medida.height, 600, "y a lo alto igual")
   }
 
-  /// Pregunta al DOM cada 100 ms hasta que la imagen exista y tenga tamaño.
+  /// Pregunta al DOM cada 100 ms hasta que la imagen tenga un tamaño **estable**.
+  ///
   /// No vale un `didFinish` seco: la carga del archivo y la maquetación son dos
   /// momentos distintos, y medir en el primero da cero.
+  ///
+  /// 🔴 **Y tampoco vale la primera medida no nula, que es lo que hacía.**
+  /// «Tiene tamaño» no es «tiene su tamaño final»: con la máquina ocupada, la
+  /// primera lectura pillaba una maquetación intermedia —la imagen a sus 40 px,
+  /// antes de que el CSS la escale— y la prueba fallaba en 1,4 s, muy por debajo
+  /// del plazo. O sea que no expiraba: medía pronto y comparaba mal.
+  ///
+  /// El criterio es la estabilidad y no un umbral, a propósito: un umbral aquí
+  /// metería la aserción dentro de la espera, y entonces la prueba se estaría
+  /// esperando a sí misma.
   private func esperarMedidaDeLaImagen(
     en web: WKWebView, timeout: TimeInterval = 15
   ) throws -> CGSize {
     var medida = CGSize.zero
+    var anterior = CGSize.zero
     var resuelto = false
-    let pintada = expectation(description: "la imagen, ya maquetada")
+    let pintada = expectation(description: "la imagen, ya maquetada y quieta")
 
     func mirar() {
       web.evaluateJavaScript(
@@ -394,13 +406,18 @@ final class VisorDeArtefactosTests: XCTestCase {
         })()
         """
       ) { valor, _ in
-        if let par = valor as? [Double], par[0] > 0, !resuelto {
-          medida = CGSize(width: par[0], height: par[1])
-          resuelto = true
-          pintada.fulfill()
-          return
-        }
         guard !resuelto else { return }
+        if let par = valor as? [Double], par[0] > 0 {
+          let ahora = CGSize(width: par[0], height: par[1])
+          // Dos lecturas seguidas iguales: la maquetación dejó de moverse.
+          if ahora == anterior {
+            medida = ahora
+            resuelto = true
+            pintada.fulfill()
+            return
+          }
+          anterior = ahora
+        }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: mirar)
       }
     }
@@ -891,5 +908,53 @@ final class MiniaturasTests: XCTestCase {
     // Sin miniatura ni icono, el resultado puede ser nulo — lo que no puede es
     // no llegar: quien pidió se quedaría esperando para siempre.
     _ = try pedirMiniatura(de: carpeta.appendingPathComponent("no-existe.zip"))
+  }
+}
+
+// MARK: - Para qué se pide el motor de audio
+
+/// La única decisión del propósito, y la que se rompe en silencio.
+///
+/// 🔴 Reutilizar un motor montado **solo para hablar** cuando lo que se pide es
+/// conversar deja la conversación **sorda sin dar ningún error**: el grafo está
+/// montado y en marcha, `engine.start()` no se queja, y simplemente no hay tap
+/// ni conversores de captura. No hay excepción que atrapar ni log que mirar —
+/// solo un micrófono que no entrega nada.
+///
+/// Lo demás del motor pide hardware. Esto no, y es justo lo que hay que sujetar.
+final class PropositoDelMotorTests: XCTestCase {
+  func testSinMotorMontadoNoSirveNada() {
+    XCTAssertFalse(NexusAudioEngine.sirve(montado: nil, para: .hablar))
+    XCTAssertFalse(NexusAudioEngine.sirve(montado: nil, para: .conversar))
+  }
+
+  func testConversarYaTraeElReproductor() {
+    XCTAssertTrue(
+      NexusAudioEngine.sirve(montado: .conversar, para: .hablar),
+      "un aviso que solo habla no tiene por qué rehacer el grafo entero"
+    )
+    XCTAssertTrue(NexusAudioEngine.sirve(montado: .conversar, para: .conversar))
+  }
+
+  func testHablarSirveParaHablar() {
+    XCTAssertTrue(NexusAudioEngine.sirve(montado: .hablar, para: .hablar))
+  }
+
+  func testHablarNoSirveParaConversar() {
+    XCTAssertFalse(
+      NexusAudioEngine.sirve(montado: .hablar, para: .conversar),
+      "solo salida no tiene captura, y no se le puede añadir en caliente: "
+        + "reutilizarlo deja la conversación sorda y sin un solo error"
+    )
+  }
+
+  /// El propósito viaja por el canal como cadena, así que un cambio de nombre
+  /// aquí es un `nil` en el otro lado —y `nil` cae en `.conversar`, o sea el
+  /// micrófono encendido para decir una frase, que es el fallo que se vino a
+  /// arreglar.
+  func testLosNombresQueViajanPorElCanal() {
+    XCTAssertEqual(PropositoDelMotor(rawValue: "hablar"), .hablar)
+    XCTAssertEqual(PropositoDelMotor(rawValue: "conversar"), .conversar)
+    XCTAssertNil(PropositoDelMotor(rawValue: "solo_salida"))
   }
 }

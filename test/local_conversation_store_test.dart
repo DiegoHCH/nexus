@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
@@ -321,5 +322,119 @@ void main() {
 
       expect(leida.messages.last.actividad, isEmpty);
     });
+  });
+
+  // «Los mensajes que piden permiso no quedan en el chat si se cierra y se abre
+  // nuevamente.» La pregunta sí quedaba —es texto—; lo que se perdía era la
+  // respuesta, y las cuatro salidas no son la misma cosa.
+  group('el permiso que se preguntó', () {
+    ChatMessage preguntando({DecisionDePermiso? decision}) => ChatMessage(
+      author: ChatAuthor.nexus,
+      text: '¿Le dejo usar Write?',
+      permiso: const PeticionDePermiso(
+        id: 'req-1',
+        herramienta: 'Write',
+        nombreVisible: 'Write',
+        entrada: {'file_path': 'notas.md', 'content': 'hola'},
+        descripcion: 'Escribir notas.md',
+      ),
+      decision: decision,
+    );
+
+    Future<ChatMessage> guardarYLeer(ChatMessage mensaje) async {
+      await store.save(
+        record(
+          messages: [
+            const ChatMessage(author: ChatAuthor.user, text: 'escribe eso'),
+            mensaje,
+          ],
+        ),
+      );
+      final ficha = (await store.list('/Users/alguien/workspace')).single;
+      return (await store.read(ficha))!.messages.last;
+    }
+
+    test('vuelve con la pregunta entera', () async {
+      final leido = await guardarYLeer(
+        preguntando(decision: DecisionDePermiso.concedido),
+      );
+
+      expect(leido.permiso, isNotNull);
+      expect(leido.permiso!.herramienta, 'Write');
+      expect(leido.permiso!.nombreVisible, 'Write');
+      expect(leido.permiso!.resumen, 'Escribir notas.md');
+      expect(
+        leido.permiso!.entrada['file_path'],
+        'notas.md',
+        reason: 'sin los argumentos la pregunta no se puede releer entera',
+      );
+    });
+
+    // Las cuatro por separado: «concedido todo» además dejó permisos puestos
+    // para el resto de la sesión, así que leerlo como un «concedido» a secas
+    // contaría otra historia de la que pasó.
+    for (final decision in DecisionDePermiso.values) {
+      test('lo que se contestó vuelve: ${decision.name}', () async {
+        final leido = await guardarYLeer(preguntando(decision: decision));
+
+        expect(leido.decision, decision);
+        expect(
+          leido.esperaPermiso,
+          isFalse,
+          reason: 'ya se contestó: no puede volver con botones',
+        );
+      });
+    }
+
+    // El cierre de golpe: la app muere con la pregunta en pie y nadie llegó a
+    // estampar la decisión, porque `_soltarPermisos` suelta sin tocar el estado.
+    test(
+      'una que se guardó sin contestar vuelve cancelada, no esperando',
+      () async {
+        final leido = await guardarYLeer(preguntando());
+
+        expect(
+          leido.esperaPermiso,
+          isFalse,
+          reason:
+              'quien la iba a contestar era un claude -p que murió con la sesión',
+        );
+        expect(leido.decision, DecisionDePermiso.cancelado);
+      },
+    );
+
+    test('un registro sin la clave se lee sin romperse', () async {
+      await store.save(record());
+
+      final ficha = (await store.list('/Users/alguien/workspace')).single;
+      final leida = (await store.read(ficha))!;
+
+      expect(leida.messages.last.permiso, isNull);
+      expect(leida.messages.last.decision, isNull);
+    });
+  });
+
+  // Los adjuntos salieron de la prueba de abajo, no de un informe: se
+  // guardaban tan poco como el permiso.
+  test('los archivos que se adjuntaron vuelven al releer', () async {
+    await store.save(
+      record(
+        messages: [
+          const ChatMessage(
+            author: ChatAuthor.user,
+            text: 'mira estas capturas',
+            attachments: ['/tmp/una.png', '/tmp/otra.png'],
+          ),
+        ],
+      ),
+    );
+
+    final ficha = (await store.list('/Users/alguien/workspace')).single;
+    final leida = (await store.read(ficha))!;
+
+    expect(leida.messages.single.attachments, [
+      '/tmp/una.png',
+      '/tmp/otra.png',
+    ]);
   });
 }

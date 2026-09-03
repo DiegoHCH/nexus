@@ -3,22 +3,15 @@ import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dar
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/workspace/data/datasources/git_data_source.dart';
 
+// 🔴 `DecisionDePermiso` **es de dominio y vivía aquí**, en presentation. Eso
+// impedía que un caso de uso la nombrara sin romper la regla de dependencia, que
+// es lo que tenía la lógica del permiso atrapada dentro del controlador. Se
+// reexporta para no tocar los veinte sitios que la importan desde aquí.
+export 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart'
+    show DecisionDePermiso, DecisionDePermisoJson;
+
 /// Quién habla en una línea de la conversación.
 enum ChatAuthor { user, nexus }
-
-/// Qué se contestó a una petición de permiso.
-///
-/// `null` en el mensaje significa que **sigue esperando**, y esa es la
-/// diferencia que pinta los botones o los quita.
-enum DecisionDePermiso {
-  concedido,
-  concedidoTodo,
-  denegado,
-
-  /// Nadie contestó: el encargo se detuvo o la conversación se cerró con la
-  /// pregunta en pie. Se distingue de [denegado] porque no fue una decisión.
-  cancelado,
-}
 
 /// Un turno de la conversación, venga de la voz o del teclado.
 ///

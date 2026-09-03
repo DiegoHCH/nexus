@@ -1,3 +1,32 @@
+/// Qué se contestó a una petición de permiso.
+///
+/// `null` en el mensaje significa que **sigue esperando**, y esa es la
+/// diferencia que pinta los botones o los quita.
+enum DecisionDePermiso {
+  concedido,
+  concedidoTodo,
+  denegado,
+
+  /// Nadie contestó: el encargo se detuvo o la conversación se cerró con la
+  /// pregunta en pie. Se distingue de [denegado] porque no fue una decisión.
+  cancelado,
+}
+
+extension DecisionDePermisoJson on DecisionDePermiso {
+  /// La decisión guardada, o `null` si no hay ninguna que leer.
+  ///
+  /// Tolerante a propósito, como [ActivityItem.fromJson]: un nombre que no
+  /// conocemos —porque lo escribió una versión con una salida más— vale menos
+  /// que el turno donde está, así que se descarta él y no la conversación.
+  static DecisionDePermiso? deJson(Object? crudo) {
+    if (crudo is! String) return null;
+    for (final decision in DecisionDePermiso.values) {
+      if (decision.name == crudo) return decision;
+    }
+    return null;
+  }
+}
+
 /// Claude quiere usar una herramienta y pide permiso para hacerlo.
 ///
 /// **Esto solo existe porque hay alguien delante.** Un encargo desatendido —la
@@ -93,6 +122,42 @@ class PeticionDePermiso {
       if (valor is String && valor.trim().isNotEmpty) return valor.trim();
     }
     return entrada.keys.join(', ');
+  }
+
+  /// Lo que hace falta para volver a enseñar la pregunta mañana.
+  ///
+  /// **No se guarda entero, y la diferencia importa.** [sugerencias] y
+  /// [toolUseId] existen para *contestar* —una devuelve permisos nuevos al CLI,
+  /// la otra casa la pregunta con el paso de la columna de actividad— y una
+  /// conversación releída del disco ya no puede contestar nada: el proceso que
+  /// preguntaba murió con la sesión. Guardarlas sería guardar la promesa de un
+  /// botón que no existe.
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'herramienta': herramienta,
+    'nombre': nombreVisible,
+    'entrada': entrada,
+    if (descripcion != null) 'descripcion': descripcion,
+  };
+
+  /// Nulo si no se puede leer, como los pasos: un registro escrito por una
+  /// versión anterior no trae esta clave, y perder la pregunta vale menos que
+  /// perder el turno entero.
+  static PeticionDePermiso? fromJson(Object? crudo) {
+    if (crudo is! Map<String, dynamic>) return null;
+    final id = crudo['id'];
+    final herramienta = crudo['herramienta'];
+    if (id is! String || herramienta is! String) return null;
+    return PeticionDePermiso(
+      id: id,
+      herramienta: herramienta,
+      // El nombre visible cae al interno si falta: son iguales salvo en las
+      // herramientas MCP, así que enseñar `Write` es peor que nada solo en el
+      // caso en que ya no tenemos con qué mejorarlo.
+      nombreVisible: crudo['nombre'] as String? ?? herramienta,
+      entrada: crudo['entrada'] as Map<String, dynamic>? ?? const {},
+      descripcion: crudo['descripcion'] as String?,
+    );
   }
 }
 

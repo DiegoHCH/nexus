@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_input.dart';
@@ -34,9 +35,45 @@ class HoldVoiceConversation {
     this._log,
     this._correrUnaPrueba,
     this._elParteDelDia,
-    this._laAgendaDeHoy, {
+    this._laAgendaDeHoy,
+    this._despacho,
+    this._carpetaDeAqui,
+    this._puedeEscribir, {
     this.graciaDeLaRuta = _graciaDeLaRuta,
   });
+
+  /// A qué carpeta va lo que se dice, y quien lo lleva.
+  ///
+  /// 🔴 **Entra por aquí porque hablando no se pasa por `submit`.** El enrutado
+  /// vivía dentro del controlador, y el compositor y el teléfono entran por ahí;
+  /// esta conversación llama al puente de Claude directamente. Resultado: «en el
+  /// front mobile, arregla el login» funcionaba escribiendo y no hablando, que
+  /// es de donde salió la idea.
+  ///
+  /// Es un puerto y no una función suelta porque **mover un encargo es mover la
+  /// pantalla** —enfocar otra conversación, o abrirla— y eso no lo puede hacer
+  /// el dominio.
+  final ElDespachoDeCarpeta _despacho;
+
+  /// El tope de escritura de esta sesión, leído en el momento.
+  ///
+  /// 🔴 **Faltaba, y con él se saltaba la frase de escritura hablando.** El
+  /// canal aplica su mitad del permiso en `sendErrand` —`allowWrites:
+  /// unlock.puedeEscribir`— pero el teléfono también puede **abrir la voz del
+  /// Mac** con `startVoice`, y por ahí el encargo llegaba a `AskClaude` sin
+  /// tope: con el valor por defecto, `true`. O sea que un teléfono en solo
+  /// lectura conseguía que Claude escribiera **hablando en vez de escribiendo**.
+  ///
+  /// Una función y no un valor porque la frase caduca a los treinta minutos: un
+  /// valor leído al conectar seguiría abriendo la puerta después.
+  final bool Function() _puedeEscribir;
+
+  /// La carpeta de esta conversación, leída en el momento.
+  ///
+  /// Una función y no un valor por lo mismo que el idioma y los nombres: se
+  /// puede cambiar mientras la sesión está abierta, y un valor fijo se
+  /// congelaría al conectar.
+  final String? Function() _carpetaDeAqui;
 
   /// Cuánto se le da al modelo para pasar por Claude lo que contestó de
   /// memoria, antes de hacerlo por él. Ver [_graciaDeLaRuta].
@@ -396,6 +433,24 @@ class HoldVoiceConversation {
     ///
     /// Lo usan los dos caminos: cuando el modelo pide la herramienta, y cuando
     /// **no** la pidió debiendo hacerlo y hay que corregirlo.
+    /// 🔴 **El idioma de lo que sale de aquí es una decisión, no un olvido.**
+    ///
+    /// Lo que devuelve `runErrand` —«La tarea falló: …», «La tarea terminó sin
+    /// devolver nada.»— está en español a pelo, fuera de `NexusStrings`, y eso
+    /// se ha señalado dos veces como una fuga de i18n. No lo es, y conviene
+    /// dejarlo escrito para no volver a levantarlo cada revisión.
+    ///
+    /// **Estos textos no van a la pantalla: son el resultado de la herramienta
+    /// que se le devuelve al modelo.** Gemini los lee y los narra en el idioma
+    /// que tenga configurado, así que alguien con la app en inglés no oye
+    /// español — oye a Gemini contando en inglés lo que leyó en español. Son
+    /// material para un modelo, igual que la instrucción de sistema y las
+    /// descripciones de las herramientas, y el idioma de esos ya se decidió
+    /// aparte.
+    ///
+    /// Lo que **sí** iría a `NexusStrings` es cualquier cosa que se pinte o se
+    /// hable directamente. Si algún día uno de estos se enseña tal cual, deja de
+    /// valer este argumento y hay que moverlo.
     Future<String?> runErrand(String instruction, String headline) async {
       controller.add(VoiceToolStarted(headline));
       final answer = StringBuffer();
@@ -409,7 +464,7 @@ class HoldVoiceConversation {
         if (!ended.isCompleted) ended.complete();
       }
 
-      final errand = _askClaude(instruction).listen(
+      final errand = _askClaude(instruction, allowWrites: _puedeEscribir()).listen(
         (event) {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por
@@ -695,7 +750,7 @@ class HoldVoiceConversation {
         return;
       }
 
-      final instruction = ClaudeErrand.forTool(request.name, request.arguments);
+      var instruction = ClaudeErrand.forTool(request.name, request.arguments);
       // Herramienta desconocida o argumentos incompletos: se contesta igual.
       // Callarse dejaría al modelo esperando una respuesta que no va a llegar,
       // y la conversación muda para siempre.
@@ -707,6 +762,41 @@ class HoldVoiceConversation {
               'No se pudo ejecutar «${request.name}»: faltan datos o esa herramienta no existe.',
         );
         return;
+      }
+
+      // A qué carpeta va, antes de trabajar. Solo para el encargo general: las
+      // demás herramientas —la prueba, el parte, la agenda— ya saben dónde van.
+      if (request.name == ClaudeErrand.askTool) {
+        final donde = await _despacho.despachar(
+          instruction,
+          carpetaDeAqui: _carpetaDeAqui(),
+          loQueSeVe: instruction,
+          allowWrites: _puedeEscribir(),
+          attachments: const [],
+        );
+        switch (donde) {
+          case AtiendeloTu(:final tarea):
+            instruction = tarea;
+          // Se fue a otra conversación: allí se ve el trabajo. Aquí solo queda
+          // decirlo, y **decirlo importa** — sin eso la voz se queda callada y
+          // parece que no pasó nada.
+          case YaSeFue(:final carpeta):
+            responder(
+              callId: request.callId,
+              name: request.name,
+              result:
+                  'El encargo se mandó a «$carpeta», que es la carpeta que se '
+                  'nombró. El trabajo sale por ahí. Dilo en una frase.',
+            );
+            return;
+          case HayQueDecir(:final texto):
+            responder(
+              callId: request.callId,
+              name: request.name,
+              result: texto,
+            );
+            return;
+        }
       }
 
       final answer = await runErrand(instruction, _headline(request));

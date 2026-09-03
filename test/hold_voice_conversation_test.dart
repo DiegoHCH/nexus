@@ -4,6 +4,11 @@ import 'dart:typed_data';
 
 import 'package:fake_async/fake_async.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
+
+import 'support/despacho.dart';
+
 import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
@@ -23,6 +28,23 @@ import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_sale_hacia_la_voz.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+
+/// Un despacho que siempre se lleva el encargo a otra parte.
+class _SeLoLleva implements ElDespachoDeCarpeta {
+  const _SeLoLleva(this.carpeta);
+
+  final String carpeta;
+
+  @override
+  Future<LoQueQuedaPorHacer> despachar(
+    String frase, {
+    required String? carpetaDeAqui,
+    required String loQueSeVe,
+    required bool allowWrites,
+    required List<String> attachments,
+    bool elFocoSigue = true,
+  }) async => YaSeFue(carpeta);
+}
 
 /// El micrófono, callado: esta prueba va de lo que llega del servicio.
 class _Mic implements VoiceInput {
@@ -135,6 +157,10 @@ class _Bridge implements ClaudeBridge {
 
   final _raw = <String>[];
 
+  /// Con qué `canEdit` llegó cada encargo. Es lo que dice si el tope de
+  /// escritura se aplicó.
+  final conEdicion = <bool>[];
+
   List<String> get asked => [
     for (final instruction in _raw) instruction.split('\n\n').first,
   ];
@@ -159,6 +185,7 @@ class _Bridge implements ClaudeBridge {
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     _raw.add(instruction);
+    conEdicion.add(canEdit);
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
     yield ClaudeTurnCompleted(
       result: respuesta ?? 'lo de «${instruction.split('\n\n').first}»',
@@ -197,15 +224,22 @@ HoldVoiceConversation _conversation(
   _Parte? parte,
   _Agenda? agenda,
   Duration? graciaDeLaRuta,
+  ElDespachoDeCarpeta? despacho,
+  String? carpeta,
+  bool puedeEscribir = true,
+  bool laCarpetaDeja = false,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
   _Speaker(),
-  _askClaude(bridge),
+  _askClaude(bridge, canEdit: laCarpetaDeja),
   log ?? (_) {},
   lanzador ?? _Lanzador(),
   parte ?? _Parte(),
   agenda ?? _Agenda(),
+  despacho ?? const SinEnrutar(),
+  () => carpeta,
+  () => puedeEscribir,
   // 🔴 **Cero por defecto, y con motivo.** Cuando el modelo contesta de
   // memoria, primero se le pide que lo pase él y solo al vencer este plazo se
   // hace por él. Las pruebas de esta clase van de **qué llega a Claude**, no de
@@ -254,13 +288,14 @@ class _Parte implements ElParteDelDia {
 
 AskClaude _askClaude2(ClaudeBridge bridge) => _armar(bridge);
 
-AskClaude _askClaude(_Bridge bridge) => _armar(bridge);
+AskClaude _askClaude(_Bridge bridge, {bool canEdit = false}) =>
+    _armar(bridge, canEdit: canEdit);
 
-AskClaude _armar(ClaudeBridge bridge) => AskClaude(
+AskClaude _armar(ClaudeBridge bridge, {bool canEdit = false}) => AskClaude(
   bridge,
   (_) async => (
     workingDirectory: '/repo',
-    canEdit: false,
+    canEdit: canEdit,
     extraDirectories: const <String>[],
     language: 'español',
     claudeProfile: null,
@@ -334,6 +369,9 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
+        () => true,
       );
 
       final subscription = conversation().listen((_) {});
@@ -385,6 +423,9 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
+        () => true,
       );
 
       final subscription = conversation().listen((_) {});
@@ -634,6 +675,9 @@ void main() {
         _Parte(),
         _Agenda(),
         graciaDeLaRuta: Duration.zero,
+        const SinEnrutar(),
+        () => null,
+        () => true,
       );
 
       final subscription = conversation().listen((_) {});
@@ -709,6 +753,9 @@ void main() {
       _Parte(),
       _Agenda(),
       graciaDeLaRuta: Duration.zero,
+      const SinEnrutar(),
+      () => null,
+      () => true,
     );
 
     final vistos = <VoiceEvent>[];
@@ -962,6 +1009,9 @@ void main() {
       _Lanzador(),
       _Parte(),
       _Agenda(),
+      const SinEnrutar(),
+      () => null,
+      () => true,
     );
 
     final sub = conversation().listen((_) {});
@@ -1216,6 +1266,127 @@ void main() {
         await sub.cancel();
       },
     );
+  });
+  // 🔴 **El enrutado por voz, que es de donde salió la idea.**
+  //
+  // Se cableó primero dentro de `submit`, y hablando **no se pasa por
+  // `submit`**: esta clase llama al puente de Claude directamente. Resultado:
+  // «en el front mobile, arregla el login» funcionaba escribiendo y no
+  // hablando. Ahora el despacho entra por el constructor.
+  group('a qué carpeta va lo que se dice', () {
+    test('lo que no nombra carpeta se atiende aquí, tal cual', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(session, bridge);
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.askTool,
+          arguments: <String, Object?>{'instruccion': 'arregla el login'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(bridge.asked.single, contains('arregla el login'));
+    });
+
+    test('nombrar otra carpeta se lo lleva, y no se trabaja aquí', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(
+        session,
+        bridge,
+        despacho: const _SeLoLleva('front-mobile-b2c'),
+      );
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.askTool,
+          arguments: <String, Object?>{
+            'instruccion': 'en el front mobile b2c, arregla el login',
+          },
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+
+      expect(
+        bridge.asked,
+        isEmpty,
+        reason: 'el trabajo es de la otra conversación, no de esta',
+      );
+      // Y se le dice al modelo, que si no la voz se queda callada y parece que
+      // no pasó nada.
+      expect(session.toolResults.single, contains('front-mobile-b2c'));
+    });
+  });
+  // 🔴 **La frase de escritura también sujeta hablando.**
+  //
+  // El canal aplica su mitad del permiso en `sendErrand` —lo que se escribe
+  // desde el teléfono— pero el móvil también puede **abrir la voz del Mac** con
+  // `startVoice`. Por ahí el encargo llegaba a Claude sin tope, con el valor por
+  // defecto: `true`. O sea que un teléfono en solo lectura conseguía que Claude
+  // escribiera **hablando en vez de escribiendo**, que es exactamente lo que esa
+  // frase existe para impedir.
+  group('el tope de escritura, hablando', () {
+    Future<void> pedir(_Session session) async {
+      await Future<void>.delayed(Duration.zero);
+      session.emit(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: ClaudeErrand.askTool,
+          arguments: <String, Object?>{'instruccion': 'escribe el archivo'},
+        ),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 50));
+    }
+
+    test('con la frase abierta, la carpeta manda', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(
+        session,
+        bridge,
+        laCarpetaDeja: true,
+        puedeEscribir: true,
+      );
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+
+      await pedir(session);
+
+      expect(bridge.conEdicion, [true]);
+    });
+
+    test('sin la frase, no se escribe aunque la carpeta deje', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(
+        session,
+        bridge,
+        laCarpetaDeja: true,
+        puedeEscribir: false,
+      );
+      final events = conversation().listen((_) {});
+      addTearDown(events.cancel);
+
+      await pedir(session);
+
+      expect(
+        bridge.conEdicion,
+        [false],
+        reason:
+            'es un tope: baja lo que la carpeta concede, y hablando tiene que '
+            'bajar igual que escribiendo',
+      );
+    });
   });
 }
 

@@ -15,7 +15,15 @@ import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
 /// al día con cada versión suya. Leerlo, en cambio, es instantáneo; pedirle la
 /// lista al CLI tarda casi un minuto porque comprueba la salud de cada uno.
 class McpDataSource {
-  const McpDataSource();
+  const McpDataSource({this.claude = HerramientaExterna.rutaDeClaude});
+
+  /// De dónde sale el binario de `claude`.
+  ///
+  /// Inyectable por lo mismo que en [GitDataSource]: lo que hay que probar aquí
+  /// es **cómo se lee lo que contesta** —código cero, error por `stderr`, error
+  /// por `stdout`, o el binario que no está—, y con la ruta resuelta a pelo eso
+  /// solo se puede comprobar teniendo delante la instalación que lo provoca.
+  final Future<String> Function() claude;
 
   /// ¿Está el binario que pide un servidor de comando?
   ///
@@ -55,7 +63,7 @@ class McpDataSource {
   Future<List<McpServer>?> check(String configDir) async {
     try {
       final result = await Process.run(
-        await HerramientaExterna.rutaDeClaude(),
+        await claude(),
         ['mcp', 'list'],
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,
@@ -130,7 +138,7 @@ class McpDataSource {
     if (args == null) return 'Datos inválidos';
     try {
       final result = await Process.run(
-        await HerramientaExterna.rutaDeClaude(),
+        await claude(),
         args,
         environment: ClaudeEnvironment.forProfile(configDir),
         includeParentEnvironment: false,

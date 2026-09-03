@@ -6,7 +6,7 @@ import 'package:nexus_protocol/nexus_protocol.dart';
 ///
 /// La decisión 4.4 del contrato: los eventos van numerados y el servidor guarda un
 /// búfer, así que reconectar es «mándame desde el 412» en vez de «mándame todo». En
-/// 4G esa es la diferencia entre barato y caro, y con tres conversaciones a la vez
+/// 4G esa es la diferencia entre barato y caro, y con seis conversaciones a la vez
 /// no es un detalle: son tres flujos vivos.
 ///
 /// **Circular y no infinito**, y el tope es lo interesante: un búfer que lo guarda

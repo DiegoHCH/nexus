@@ -7,6 +7,24 @@ import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
+/// Lo que un marco del servicio de voz significa: los eventos que produce y las
+/// dos cosas que no son eventos.
+class LoQueDiceElMarco {
+  const LoQueDiceElMarco({
+    this.eventos = const [],
+    this.asaNueva,
+    this.sinReconocer = false,
+  });
+
+  final List<VoiceEvent> eventos;
+
+  /// El asa con la que reenganchar, si el servicio mandó una nueva.
+  final String? asaNueva;
+
+  /// No se supo qué era. Se anota —claves, no contenido— en vez de tirarlo.
+  final bool sinReconocer;
+}
+
 class GeminiVoiceGateway implements VoiceGateway {
   GeminiVoiceGateway(
     this._dataSource,
@@ -208,108 +226,118 @@ class GeminiVoiceGateway implements VoiceGateway {
       ],
     },
     'tools': [
-      {
-        'functionDeclarations': [
-          {
-            'name': toolName,
-            'description':
-                'Le pasa a Claude Code cualquier encargo: responder una pregunta, '
-                'leer o editar archivos, mirar el estado de git, ejecutar comandos. '
-                'Es la vía por defecto para todo lo que te pidan, no solo para '
-                'tareas de programación. Todavía no hay carpeta emparejada, así que '
-                'trabaja sobre el directorio donde corre la app y no sobre un '
-                'proyecto concreto.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'instruccion': {
-                  'type': 'STRING',
-                  'description':
-                      'La tarea, en español, tal como se le diría a un programador.',
-                },
-              },
-              'required': ['instruccion'],
-            },
-          },
-          {
-            'name': skillToolName,
-            'description':
-                'Crea una skill nueva para Claude Code: una carpeta con su '
-                'SKILL.md dentro del proyecto, que queda disponible para '
-                'siempre. Úsala cuando detectes que falta conocimiento que se '
-                'va a volver a necesitar —un procedimiento del proyecto, una '
-                'convención, una tarea repetitiva— en vez de repetir la '
-                'explicación cada vez. Requiere que el interruptor de permisos '
-                'esté en «puede editar»: si está en solo lectura, dilo en vez '
-                'de intentarlo.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'nombre': {
-                  'type': 'STRING',
-                  'description':
-                      'Identificador corto en minúsculas y con guiones, como nombre de carpeta.',
-                },
-                'para_que': {
-                  'type': 'STRING',
-                  'description':
-                      'Qué debe saber hacer la skill y cuándo hay que usarla, con detalle.',
-                },
-              },
-              'required': ['nombre', 'para_que'],
-            },
-          },
-          {
-            'name': testToolName,
-            'description':
-                'Lanza una prueba de Maestro del proyecto y la enseña en '
-                'pantalla, paso a paso. Úsala **siempre** que te pidan correr, '
-                'lanzar o ejecutar una prueba, un flow o el suite, en vez de '
-                'pedírselo a Claude: la lanza Nexus directamente, así que '
-                'funciona con el permiso en solo lectura y sin depender de nada '
-                'más. Si lo que dijeron encaja en varias pruebas te lo diré, y '
-                'entonces pregunta cuál en vez de elegir tú.',
-            'parameters': {
-              'type': 'OBJECT',
-              'properties': {
-                'prueba': {
-                  'type': 'STRING',
-                  'description':
-                      'El nombre de la prueba tal como lo dijeron, sin '
-                      'inventarse la extensión ni la ruta.',
-                },
-              },
-              'required': ['prueba'],
-            },
-          },
-          {
-            'name': parteToolName,
-            'description':
-                'Redacta el parte del día: lo que se hizo el último día con '
-                'trabajo, y lo deja en pantalla con un botón para mandarlo a '
-                'Slack. Úsala cuando pidan «el daily», «el parte», «el '
-                'standup», «qué hice ayer» o «cuéntame lo de ayer», en vez de '
-                'pasárselo a Claude como un encargo suelto: por aquí sale con '
-                'el material del día ya reunido, y es el mismo parte que sale '
-                'por el menú. No lleva parámetros: el día lo elige la app, que '
-                'es la que sabe cuál fue el último con trabajo.',
-            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
-          },
-          {
-            'name': agendaToolName,
-            'description':
-                'Dice qué reuniones hay hoy. Úsala cuando pregunten «qué '
-                'reuniones tengo», «qué tengo hoy», «cómo está mi agenda» o '
-                'parecido, en vez de pasárselo a Claude: la app ya leyó el '
-                'calendario para poder avisar, así que por aquí contesta al '
-                'momento y sin gastar un encargo. No lleva parámetros: siempre '
-                'es hoy.',
-            'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
-          },
-        ],
-      },
+      {'functionDeclarations': lasHerramientas},
     ],
   };
+
+  /// Lo que el modelo lee para decidir a quién llamar y con qué.
+  ///
+  /// 🔴 **Aparte del setup, y estático, para poder fijarlo en una prueba.**
+  /// Aquí vivió durante semanas una frase que decía «todavía no hay carpeta
+  /// emparejada, así que trabaja sobre el directorio donde corre la app» —
+  /// incondicional, y falsa desde que emparejar carpetas es el eje del
+  /// producto. No la pilló nadie porque esto es **interfaz hacia un modelo**:
+  /// no tiene tipos que fallen ni pantalla donde se vea mal. Se rompe en
+  /// silencio y se paga en cómo enruta cada encargo.
+  static final List<Map<String, dynamic>> lasHerramientas = [
+    {
+      'name': toolName,
+      'description':
+          'Le pasa a Claude Code cualquier encargo: responder una pregunta, '
+          'leer o editar archivos, mirar el estado de git, ejecutar comandos. '
+          'Es la vía por defecto para todo lo que te pidan, no solo para '
+          'tareas de programación. El encargo corre en la carpeta de esta '
+          'conversación, con su cuenta, su modelo y sus permisos: no tienes '
+          'que decir la ruta ni buscarla, y si no hubiera ninguna emparejada '
+          'te lo dirá la respuesta.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'instruccion': {
+            'type': 'STRING',
+            'description':
+                'La tarea, en español, tal como se le diría a un programador.',
+          },
+        },
+        'required': ['instruccion'],
+      },
+    },
+    {
+      'name': skillToolName,
+      'description':
+          'Crea una skill nueva para Claude Code: una carpeta con su '
+          'SKILL.md dentro del proyecto, que queda disponible para '
+          'siempre. Úsala cuando detectes que falta conocimiento que se '
+          'va a volver a necesitar —un procedimiento del proyecto, una '
+          'convención, una tarea repetitiva— en vez de repetir la '
+          'explicación cada vez. Requiere que el interruptor de permisos '
+          'esté en «puede editar»: si está en solo lectura, dilo en vez '
+          'de intentarlo.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'nombre': {
+            'type': 'STRING',
+            'description':
+                'Identificador corto en minúsculas y con guiones, como nombre de carpeta.',
+          },
+          'para_que': {
+            'type': 'STRING',
+            'description':
+                'Qué debe saber hacer la skill y cuándo hay que usarla, con detalle.',
+          },
+        },
+        'required': ['nombre', 'para_que'],
+      },
+    },
+    {
+      'name': testToolName,
+      'description':
+          'Lanza una prueba de Maestro del proyecto y la enseña en '
+          'pantalla, paso a paso. Úsala **siempre** que te pidan correr, '
+          'lanzar o ejecutar una prueba, un flow o el suite, en vez de '
+          'pedírselo a Claude: la lanza Nexus directamente, así que '
+          'funciona con el permiso en solo lectura y sin depender de nada '
+          'más. Si lo que dijeron encaja en varias pruebas te lo diré, y '
+          'entonces pregunta cuál en vez de elegir tú.',
+      'parameters': {
+        'type': 'OBJECT',
+        'properties': {
+          'prueba': {
+            'type': 'STRING',
+            'description':
+                'El nombre de la prueba tal como lo dijeron, sin '
+                'inventarse la extensión ni la ruta.',
+          },
+        },
+        'required': ['prueba'],
+      },
+    },
+    {
+      'name': parteToolName,
+      'description':
+          'Redacta el parte del día: lo que se hizo el último día con '
+          'trabajo, y lo deja en pantalla con un botón para mandarlo a '
+          'Slack. Úsala cuando pidan «el daily», «el parte», «el '
+          'standup», «qué hice ayer» o «cuéntame lo de ayer», en vez de '
+          'pasárselo a Claude como un encargo suelto: por aquí sale con '
+          'el material del día ya reunido, y es el mismo parte que sale '
+          'por el menú. No lleva parámetros: el día lo elige la app, que '
+          'es la que sabe cuál fue el último con trabajo.',
+      'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+    },
+    {
+      'name': agendaToolName,
+      'description':
+          'Dice qué reuniones hay hoy. Úsala cuando pregunten «qué '
+          'reuniones tengo», «qué tengo hoy», «cómo está mi agenda» o '
+          'parecido, en vez de pasárselo a Claude: la app ya leyó el '
+          'calendario para poder avisar, así que por aquí contesta al '
+          'momento y sin gastar un encargo. No lleva parámetros: siempre '
+          'es hoy.',
+      'parameters': {'type': 'OBJECT', 'properties': <String, Object?>{}},
+    },
+  ];
 
   /// Los nombres viven aquí y no sueltos en el JSON porque el caso de uso
   /// tiene que reconocerlos cuando el modelo los llama.
@@ -318,6 +346,97 @@ class GeminiVoiceGateway implements VoiceGateway {
   static const testToolName = 'correr_prueba';
   static const parteToolName = 'pedir_el_parte';
   static const agendaToolName = 'consultar_agenda';
+
+  /// Qué significa un marco del servicio.
+  ///
+  /// 🔴 **Pura y aparte porque es todo el adaptador del protocolo, y no lo
+  /// cubría nada.** Lo que se le manda al modelo sí tiene prueba —ver
+  /// [lasHerramientas]— pero lo que se lee de vuelta no la tenía, y es la mitad
+  /// que no controlamos: **el formato lo decide Google**. Si cambia la forma de
+  /// un marco esto no da error; simplemente deja de emitir ese evento, y la
+  /// conversación se queda esperando algo que ya pasó. Sin excepción, sin log y
+  /// sin nada que mirar.
+  ///
+  /// Es el mismo motivo por el que la capa `data` fija los formatos que lee de
+  /// fuera, y el mismo precedente que [loQueMandoElServicio] y
+  /// [GeminiLiveConnection.comoJson]: público para poder probarlo sin abrir un
+  /// socket.
+  static LoQueDiceElMarco leerElMarco(Map<String, dynamic> marco) {
+    if (marco.containsKey('setupComplete')) {
+      return const LoQueDiceElMarco(eventos: [VoiceSessionReady()]);
+    }
+
+    // El asa se renueva sola durante la conversación; hay que quedarse con la
+    // última, no con la primera.
+    if (marco['sessionResumptionUpdate'] case final Map<String, dynamic> r) {
+      final asa = r['newHandle'] as String?;
+      return LoQueDiceElMarco(asaNueva: r['resumable'] == true ? asa : null);
+    }
+
+    // Aviso de que esta conexión se acaba. No hace falta hacer nada: el corte
+    // se atiende igual cuando llega, con aviso o sin él —a veces no lo hay—, y
+    // el reenganche es asunto del caso de uso.
+    if (marco.containsKey('goAway')) return const LoQueDiceElMarco();
+
+    if (marco['toolCall'] case final Map<String, dynamic> llamada) {
+      return LoQueDiceElMarco(eventos: _lasLlamadas(llamada));
+    }
+
+    final server = marco['serverContent'] as Map<String, dynamic>?;
+    if (server == null) return const LoQueDiceElMarco(sinReconocer: true);
+
+    return LoQueDiceElMarco(eventos: _loDelTurno(server));
+  }
+
+  static List<VoiceEvent> _lasLlamadas(Map<String, dynamic> toolCall) => [
+    for (final call in toolCall['functionCalls'] as List<dynamic>? ?? const [])
+      if (call is Map<String, dynamic>)
+        if (call['id'] case final String id)
+          if (call['name'] case final String name)
+            VoiceToolRequested(
+              callId: id,
+              name: name,
+              arguments: call['args'] as Map<String, dynamic>? ?? const {},
+            ),
+  ];
+
+  static List<VoiceEvent> _loDelTurno(Map<String, dynamic> server) {
+    final eventos = <VoiceEvent>[];
+
+    final loQueDijo =
+        (server['inputTranscription'] as Map<String, dynamic>?)?['text']
+            as String?;
+    if (loQueDijo != null && loQueDijo.isNotEmpty) {
+      eventos.add(VoiceUserTranscript(loQueDijo));
+    }
+
+    final loQueContesta =
+        (server['outputTranscription'] as Map<String, dynamic>?)?['text']
+            as String?;
+    if (loQueContesta != null && loQueContesta.isNotEmpty) {
+      eventos.add(VoiceReplyTranscript(loQueContesta));
+    }
+
+    final partes =
+        (server['modelTurn'] as Map<String, dynamic>?)?['parts']
+            as List<dynamic>?;
+    for (final parte in partes ?? const []) {
+      if (parte is! Map<String, dynamic>) continue;
+      final dentro = parte['inlineData'] as Map<String, dynamic>?;
+      if (dentro?['data'] case final String audio) {
+        eventos.add(VoiceReplyAudio(base64Decode(audio)));
+      }
+    }
+
+    // 🔴 **El orden importa: `interrupted` antes que `turnComplete`**, porque
+    // quien escuche tiene que tirar la cola del altavoz antes de dar el turno
+    // por cerrado. Al revés se oye la coleta de lo que se acaba de interrumpir.
+    if (server['interrupted'] == true) eventos.add(const VoiceInterrupted());
+    if (server['turnComplete'] == true) {
+      eventos.add(const VoiceTurnCompleted());
+    }
+    return eventos;
+  }
 
   /// Qué anotar cuando el servicio manda un marco que no se entiende.
   ///
@@ -385,103 +504,26 @@ class _GeminiVoiceSession implements VoiceSession {
       debugPrint(GeminiVoiceGateway.loQueMandoElServicio(message));
 
   void _translate(Map<String, dynamic> message) {
-    if (message.containsKey('setupComplete')) {
-      _events.add(const VoiceSessionReady());
-      return;
+    final dice = GeminiVoiceGateway.leerElMarco(message);
+    for (final evento in dice.eventos) {
+      _events.add(evento);
     }
-
-    // El asa se renueva sola durante la conversación; hay que quedarse con la
-    // última, no con la primera.
-    final resumption =
-        message['sessionResumptionUpdate'] as Map<String, dynamic>?;
-    if (resumption != null) {
-      final handle = resumption['newHandle'] as String?;
-      if (resumption['resumable'] == true && handle != null) {
-        onResumptionHandle(handle);
-      }
-      return;
-    }
-
-    // Aviso de que esta conexión se acaba. No hace falta hacer nada: el corte
-    // se atiende igual cuando llega, con aviso o sin él —a veces no lo hay—,
-    // y el reenganche es asunto del caso de uso.
-    if (message.containsKey('goAway')) return;
-
-    final toolCall = message['toolCall'] as Map<String, dynamic>?;
-    if (toolCall != null) {
-      _translateToolCall(toolCall);
-      return;
-    }
-
-    final server = message['serverContent'] as Map<String, dynamic>?;
-    if (server == null) {
-      // 🔴 **Lo que no se reconoce se anota, no se tira.**
-      //
-      // Aquí había un `return` seco, y con él se perdía **lo único que el
-      // servicio tenía que decir** cuando algo iba mal. Medido en el registro de
-      // la app: cinco sesiones seguidas con «203 trozos del micro, 203 enviados,
-      // 1 eventos recibidos · primera señal del servicio en todavía nada». Ese
-      // «1 evento» era el `setupComplete`; si además hubiera llegado un marco de
-      // error —cuota, modelo retirado, petición rechazada— habría entrado por
-      // aquí y habría desaparecido igual.
-      //
-      // Para quien usa la app eso es silencio: el orbe escucha, se calla y
-      // vuelve a dormir sin decir nada. Y desde fuera no hay forma de saber si
-      // el problema es el micrófono, la red, la llave o el modelo.
-      //
-      // Se anotan **las claves y no el contenido**: un marco de este socket
-      // puede llevar dentro lo que dijiste o lo que Claude leyó de tu carpeta, y
-      // el registro se manda en los informes. Los nombres de las claves bastan
-      // para saber qué llegó — y si es un error, su mensaje se saca aparte,
-      // porque ahí sí está la respuesta.
-      _anotaLoDesconocido(message);
-      return;
-    }
-
-    final userText =
-        (server['inputTranscription'] as Map<String, dynamic>?)?['text']
-            as String?;
-    if (userText != null && userText.isNotEmpty) {
-      _events.add(VoiceUserTranscript(userText));
-    }
-
-    final replyText =
-        (server['outputTranscription'] as Map<String, dynamic>?)?['text']
-            as String?;
-    if (replyText != null && replyText.isNotEmpty) {
-      _events.add(VoiceReplyTranscript(replyText));
-    }
-
-    final parts =
-        (server['modelTurn'] as Map<String, dynamic>?)?['parts']
-            as List<dynamic>?;
-    for (final part in parts ?? const []) {
-      final inline =
-          (part as Map<String, dynamic>)['inlineData'] as Map<String, dynamic>?;
-      final data = inline?['data'] as String?;
-      if (data != null) _events.add(VoiceReplyAudio(base64Decode(data)));
-    }
-
-    // El orden importa: `interrupted` antes que `turnComplete`, porque quien
-    // escuche tiene que tirar la cola antes de dar el turno por cerrado.
-    if (server['interrupted'] == true) _events.add(const VoiceInterrupted());
-    if (server['turnComplete'] == true) _events.add(const VoiceTurnCompleted());
+    if (dice.asaNueva case final asa?) onResumptionHandle(asa);
+    // 🔴 **Lo que no se reconoce se anota, no se tira.**
+    //
+    // Aquí había un `return` seco, y con él se perdía **lo único que el
+    // servicio tenía que decir** cuando algo iba mal. Medido en el registro de
+    // la app: cinco sesiones seguidas con «203 trozos del micro, 203 enviados,
+    // 1 eventos recibidos · primera señal del servicio en todavía nada». Ese
+    // «1 evento» era el `setupComplete`; si además hubiera llegado un marco de
+    // error —cuota, modelo retirado, petición rechazada— habría entrado por
+    // aquí y habría desaparecido igual.
+    //
+    // Para quien usa la app eso es silencio: el orbe escucha, se calla y vuelve
+    // a dormir sin decir nada.
+    if (dice.sinReconocer) _anotaLoDesconocido(message);
   }
 
-  void _translateToolCall(Map<String, dynamic> toolCall) {
-    final calls = toolCall['functionCalls'] as List<dynamic>? ?? const [];
-    for (final call in calls) {
-      final function = call as Map<String, dynamic>;
-      final id = function['id'] as String?;
-      final name = function['name'] as String?;
-      if (id == null || name == null) continue;
-
-      final args = function['args'] as Map<String, dynamic>? ?? const {};
-      _events.add(VoiceToolRequested(callId: id, name: name, arguments: args));
-    }
-  }
-
-  @override
   @override
   void sendSystemNote(String text) {
     // `clientContent` con el turno cerrado: es lo mismo que enviaría un

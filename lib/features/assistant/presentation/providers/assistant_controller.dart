@@ -6,18 +6,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/assistant/domain/usecases/attached_files.dart';
-import 'package:nexus/features/agenda/domain/usecases/lo_que_se_pregunta_de_la_agenda.dart';
 import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/providers/generar_una_imagen.dart';
-import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
+import 'package:nexus/features/artifacts/domain/entities/lo_que_salio_del_dibujo.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
+import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
+import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
-import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
@@ -28,7 +33,6 @@ import 'package:nexus/features/history/domain/entities/conversation_record.dart'
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
-import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
@@ -340,27 +344,18 @@ class AssistantController extends Notifier<AssistantHudState> {
       donde?.branch ?? '—',
     );
 
-    // **Lo de git dentro del bloque, lo de Nexus fuera.** La salida va literal
-    // y monoespaciada porque es lo que se vino a ver —`git log --oneline` es una
-    // tabla y se lee alineada o no se lee—, y las frases de Nexus van en prosa
-    // porque no son salida de nada: son la cabecera que dice dónde se corrió y,
-    // si hizo falta, el aviso de que git terminó con error. Un código distinto
-    // de cero con la salida en blanco es un fallo mudo, y eso se lee como que
-    // la app no hizo nada.
+    // Cómo se compone el parte —qué va en bloque, qué en prosa, y qué se dice
+    // cuando no hay salida— vive en `ElComandoDirecto.comoSeCuenta`: son reglas
+    // y tienen prueba ahí.
     _say(
       ChatAuthor.nexus,
-      [
-        '**$cabecera**',
-        if (hecho.tardoDemasiado)
-          s.tardoDemasiado
-        else ...[
-          if (hecho.codigo != 0) s.gitFallo(hecho.codigo),
-          if (hecho.salida.isEmpty)
-            if (hecho.codigo == 0) s.sinNadaQueDecir else ''
-          else
-            ElComandoDirecto.enBloque(hecho.salida),
-        ],
-      ].where((linea) => linea.isNotEmpty).join('\n\n'),
+      ElComandoDirecto.comoSeCuenta(
+        hecho,
+        cabecera: cabecera,
+        tardoDemasiado: s.tardoDemasiado,
+        fallo: s.gitFallo,
+        sinNadaQueDecir: s.sinNadaQueDecir,
+      ),
     );
     _sealLast();
 
@@ -376,19 +371,20 @@ class AssistantController extends Notifier<AssistantHudState> {
     unawaited(_archive());
   }
 
-  /// Las preguntas de permiso vivas de **esta** conversación, por `request_id`.
+  /// Lo dice aquí y lo cierra, que es lo que hace falta cuando no se enruta:
+  /// quedarse callado se lee como que la app no hizo nada.
+  void _decir(String texto) {
+    _say(ChatAuthor.nexus, texto);
+    _sealLast();
+  }
+
+  /// Las preguntas de permiso vivas de **esta** conversación.
   ///
-  /// Viven aquí y no en un provider aparte porque una pregunta pertenece al
-  /// encargo que la hizo, y un encargo pertenece a una conversación: con un
-  /// buzón global, dos conversaciones trabajando a la vez se disputaban un
-  /// único hueco y la pregunta podía salir en la pestaña que no era.
-  /// El motivo de la cancelación viaja **con** el completer, resuelto desde que
-  /// se encola. No es eficiencia: sale de `stringsProvider`, y soltar puede
-  /// ocurrir dentro de un `onDispose`, donde Riverpod prohíbe leer otro
-  /// provider. Es la tercera vez que esa regla muerde en esta funcionalidad;
-  /// tomándolo aquí, contestar no depende de poder leer nada.
-  final _permisos =
-      <String, ({Completer<RespuestaDePermiso> completer, String cancelado})>{};
+  /// Suyas y no de un buzón global porque una pregunta pertenece al encargo que
+  /// la hizo, y un encargo a una conversación: con uno compartido, dos
+  /// conversaciones a la vez se disputaban un único hueco y la pregunta salía en
+  /// la pestaña que no era.
+  final _permisos = LasPreguntasEnPie();
 
   /// Claude quiere usar algo que no tiene concedido: se pregunta **en la
   /// conversación**, como un turno más.
@@ -397,9 +393,8 @@ class AssistantController extends Notifier<AssistantHudState> {
     // El texto en curso se cierra antes: la pregunta es su propio turno, y sin
     // esto el trozo siguiente de la respuesta se pegaría debajo de los botones.
     _sealLast();
-    final completer = Completer<RespuestaDePermiso>();
-    _permisos[peticion.id] = (
-      completer: completer,
+    final espera = _permisos.abrir(
+      peticion,
       cancelado: strings.permisoCanceladoMotivo,
     );
     state = state.copyWith(
@@ -416,61 +411,49 @@ class AssistantController extends Notifier<AssistantHudState> {
       // Es lo que la modal daba gratis y aquí hay que decir a mano.
       notice: strings.permisoEnEspera,
     );
-    return completer.future;
+    return espera;
   }
 
   /// Lo que la persona eligió en el turno de la pregunta.
   void responderPermiso(String id, DecisionDePermiso decision) {
-    final espera = _permisos.remove(id);
-    if (espera == null || espera.completer.isCompleted) return;
-
     final mensajes = [...state.messages];
     final donde = mensajes.indexWhere((m) => m.permiso?.id == id);
-    // La petición sale del mensaje: es la misma que la del mapa, y así lo que
+    // La petición sale del mensaje: es la misma que la del buzón, y así lo que
     // se contesta se compone con lo que se estaba enseñando de verdad.
     final peticion = donde == -1 ? null : mensajes[donde].permiso;
+
+    final strings = ref.read(stringsProvider);
+    final contestada = _permisos.contestar(
+      id,
+      LoQueSeContestaAlPermiso.de(
+        decision,
+        peticion,
+        motivoDenegado: strings.permisoDenegadoMotivo,
+        motivoCancelado: strings.permisoCanceladoMotivo,
+      ),
+    );
+    // Ya no estaba: contestada, cancelada, o de otra conversación. No se toca la
+    // pantalla, que es lo que evita marcar como decidido lo que no lo fue.
+    if (!contestada) return;
+
     if (donde != -1) {
       mensajes[donde] = mensajes[donde].copyWith(decision: decision);
     }
-
-    final strings = ref.read(stringsProvider);
-    espera.completer.complete(switch (decision) {
-      DecisionDePermiso.concedido => PermisoConcedido(peticion?.entrada ?? {}),
-      DecisionDePermiso.concedidoTodo => PermisoConcedido(
-        peticion?.entrada ?? {},
-        permisosNuevos: peticion?.sugerencias ?? const [],
-      ),
-      DecisionDePermiso.denegado => PermisoDenegado(
-        strings.permisoDenegadoMotivo,
-      ),
-      DecisionDePermiso.cancelado => PermisoDenegado(
-        strings.permisoCanceladoMotivo,
-      ),
-    });
-
     state = state.copyWith(
       messages: mensajes,
       // El aviso solo se va cuando no queda ninguna: contestar la primera de
       // dos no es haber terminado.
-      notice: _permisos.isEmpty ? null : state.notice,
+      notice: _permisos.hayAlguna ? state.notice : null,
     );
   }
 
   /// Suelta a quien espere, sin tocar el estado. Para el `onDispose`.
-  void _soltarPermisos() {
-    if (_permisos.isEmpty) return;
-    for (final espera in _permisos.values) {
-      if (!espera.completer.isCompleted) {
-        espera.completer.complete(PermisoDenegado(espera.cancelado));
-      }
-    }
-    _permisos.clear();
-  }
+  void _soltarPermisos() => _permisos.soltarTodas();
 
   /// Lo mismo, y además deja dicho en la conversación que nadie contestó.
   void _cancelarPermisos() {
-    if (_permisos.isEmpty) return;
-    _soltarPermisos();
+    if (!_permisos.hayAlguna) return;
+    _permisos.soltarTodas();
     state = state.copyWith(
       messages: [
         for (final mensaje in state.messages)
@@ -506,41 +489,84 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? loQueSeVe,
     bool reintento = false,
     bool yaEstaDicho = false,
+
+    /// Si quien lo pide **está mirando esta pantalla**.
+    ///
+    /// Lo pone en `false` el canal del teléfono: el móvil navega a una
+    /// conversación concreta y no sigue al foco, así que moverlo haría saltar
+    /// la pantalla de quien esté delante del Mac sin haberlo pedido.
+    bool elFocoSigue = true,
   }) async {
-    final trimmed = instruction.trim();
+    var trimmed = instruction.trim();
     if (trimmed.isEmpty && attachments.isEmpty) return;
 
-    // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
-    // Claude: él no tiene delante lo de ayer, así que contestaba algo con cara
-    // de parte que no lo era —y sin el botón para mandarlo—. Se desvía aquí y
-    // no en el compositor porque por escrito también se pide desde el móvil, y
-    // el atajo tiene que valer por los dos sitios.
-    // `/imagen una cosa` no es un encargo para Claude: **no pasa por él**.
-    // Va derecho a Gemini, que es quien dibuja, y el resultado cae en la
-    // carpeta de documentos como cualquier otra cosa que produce Nexus.
+    // 🔴 **Primero dónde, y solo después qué.** Nombrar la carpeta —«en el
+    // front mobile, arregla el login»— ya dice dónde hay que trabajar. Va
+    // delante del enrutado de atajos porque son dos ejes: uno decide **en qué
+    // conversación** cae esto y el otro **qué clase de cosa** es.
     //
-    // Se desvía aquí y no en el compositor por lo mismo que el parte: por
-    // escrito también se pide desde el móvil, y el atajo tiene que valer por
-    // los dos sitios.
-    // **Con adjuntos vale igual**, y por eso no se exige que no los haya: lo
-    // que se suelta en la caja son las imágenes de referencia —«este estilo»,
-    // «cámbiale esto»—, así que aquí son material y no un motivo para no
-    // reconocer el atajo.
-    // `!git status` no es un encargo: **no pasa por Claude**. Va derecho a git y
-    // la salida se enseña literal, que es lo que uno quiere de git — no un
-    // resumen de la salida de git.
+    // Quien lo decide y lo lleva es `ElDespachoDeCarpeta`, y vive fuera **por la
+    // voz**: la conversación hablada no pasa por aquí, llama al puente de Claude
+    // directamente. Con esto metido en `submit`, enrutar funcionaba escribiendo
+    // y no hablando, que es de donde salió la idea.
     //
-    // Va antes que los demás atajos porque es el único que no puede colisionar
-    // con nada: `!` no empieza ninguna frase que alguien escriba en serio.
-    if (!esElParte) {
-      if (ElComandoDirecto.deLaFrase(trimmed) case final directo?) {
-        await _correrloYo(directo, loQueSeVe: loQueSeVe ?? trimmed);
-        return;
+    // Solo para lo que acaba de escribir una persona: un reintento ya se enrutó
+    // en su día, uno encolado también, y el parte se redacta donde se pidió.
+    if (!esElParte && !reintento && !yaEstaDicho) {
+      switch (await ref
+          .read(elDespachoDeCarpetaProvider)
+          .despachar(
+            trimmed,
+            carpetaDeAqui: _folder,
+            loQueSeVe: loQueSeVe ?? instruction,
+            allowWrites: allowWrites,
+            attachments: attachments,
+            elFocoSigue: elFocoSigue,
+          )) {
+        case AtiendeloTu(:final tarea):
+          trimmed = tarea;
+        // 🔴 **Si el foco no se movió, hay que decir a dónde fue.** Desde el
+        // Mac el salto de pestaña es la señal y basta; desde el teléfono no hay
+        // ninguna, y callarse deja a quien lo pidió mirando una conversación
+        // donde no va a pasar nada.
+        case YaSeFue(:final carpeta):
+          if (!elFocoSigue) {
+            if (!_vive) return;
+            _say(ChatAuthor.user, loQueSeVe ?? instruction);
+            _sealLast();
+            _decir(ref.read(stringsProvider).seMandoA(carpeta));
+          }
+          return;
+        case HayQueDecir(:final texto):
+          if (!_vive) return;
+          _decir(texto);
+          return;
       }
+      if (!_vive) return;
     }
 
-    if (!esElParte) {
-      if (LoQueSePideDibujar.deLaFrase(trimmed) case final descripcion?) {
+    // A dónde va esto, decidido en un solo sitio. El orden y las condiciones
+    // —qué atajo se mira antes que cuál, y cuáles admiten adjuntos— viven en
+    // `ADondeVaLoQueSeEscribe`: es una precedencia, y equivocarla secuestra
+    // trabajo de verdad. Aquí solo queda llevarlo a cada sitio.
+    switch (ADondeVaLoQueSeEscribe.de(
+      trimmed,
+      esElParte: esElParte,
+      hayAdjuntos: attachments.isNotEmpty,
+    )) {
+      // `!git status` no es un encargo: va derecho a git y la salida se enseña
+      // literal, que es lo que uno quiere de git — no un resumen de la salida
+      // de git.
+      case AlGit(:final comando):
+        await _correrloYo(comando, loQueSeVe: loQueSeVe ?? trimmed);
+        return;
+
+      // `/imagen una cosa` no pasa por Claude: va derecho a Gemini, que es
+      // quien dibuja, y el resultado cae en la carpeta de documentos como
+      // cualquier otra cosa que produce Nexus. Se desvía aquí y no en el
+      // compositor porque por escrito también se pide desde el móvil, y el
+      // atajo tiene que valer por los dos sitios.
+      case ADibujar(:final descripcion):
         await _dibujar(
           descripcion,
           loQueSeVe: loQueSeVe ?? trimmed,
@@ -548,8 +574,8 @@ class AssistantController extends Notifier<AssistantHudState> {
           reintento: reintento,
         );
         return;
-      }
-      if (LoQueSePideDibujar.loQueSeCambia(trimmed) case final cambio?) {
+
+      case AEditarLaImagen(:final cambio):
         // Sin nada anterior no hay qué editar, y decirlo es mejor que dibujar
         // desde cero algo que no era lo que se pidió — y cobrarlo.
         if (_laUltimaImagen == null) {
@@ -567,44 +593,43 @@ class AssistantController extends Notifier<AssistantHudState> {
           reintento: reintento,
         );
         return;
-      }
-    }
 
-    // «¿Qué reuniones tengo hoy?» **no vuelve a Claude**: la app ya leyó el
-    // calendario para poder avisar, así que la respuesta está en memoria.
-    // Mandar un encargo para releer lo mismo cuesta un minuto de espera y
-    // tokens de la suscripción, y devuelve exactamente lo que ya se tiene.
-    //
-    // Si no hay agenda que mirar —avisos apagados, sin carpeta— devuelve `null`
-    // y esto sigue de largo hacia Claude, que sí puede salir a preguntarlo.
-    if (!esElParte &&
-        attachments.isEmpty &&
-        LoQueSePreguntaDeLaAgenda.loEstanPidiendo(trimmed)) {
-      // 🔴 La misma espera que hablando: si la lectura del día va en vuelo,
-      // esto son los 32 s del `claude -p` con el conector. Escribiendo no mata
-      // ninguna sesión, pero sí puede volver a una conversación ya cerrada.
-      final agendaDeHoy = await ref.read(laAgendaDeHoyProvider).deHoy();
-      if (!_vive) return;
-      if (agendaDeHoy case final agenda?) {
-        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+      // «¿Qué reuniones tengo hoy?» no vuelve a Claude: la app ya leyó el
+      // calendario para poder avisar, así que la respuesta está en memoria.
+      // Mandar un encargo para releer lo mismo cuesta un minuto de espera y
+      // tokens de la suscripción, y devuelve lo que ya se tiene.
+      case ALaAgenda():
+        // 🔴 La misma espera que hablando: si la lectura del día va en vuelo,
+        // esto son los 32 s del `claude -p` con el conector. Escribiendo no
+        // mata ninguna sesión, pero sí puede volver a una ya cerrada.
+        final agendaDeHoy = await ref.read(laAgendaDeHoyProvider).deHoy();
+        if (!_vive) return;
+        if (agendaDeHoy case final agenda?) {
+          _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+          _sealLast();
+          _say(ChatAuthor.nexus, agenda);
+          _sealLast();
+          return;
+        }
+      // Sin agenda que mirar se sigue de largo: Claude sí puede salir a
+      // preguntarlo.
+
+      // Escribir «dame el daily» es pedir el parte, no encargarle esa frase a
+      // Claude: él no tiene delante lo de ayer, así que contestaba algo con
+      // cara de parte que no lo era —y sin el botón para mandarlo—.
+      case AlParte():
+        if (await pedirElParte(loQueSeVe: trimmed)) return;
+        // Sin día que contar se dice, y no se le pide a Claude que se lo
+        // invente: un parte de la nada se lee igual de convincente que uno de
+        // verdad.
+        _say(ChatAuthor.user, trimmed);
         _sealLast();
-        _say(ChatAuthor.nexus, agenda);
+        _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
         _sealLast();
         return;
-      }
-    }
 
-    if (!esElParte &&
-        attachments.isEmpty &&
-        ElParteDeAyer.loEstanPidiendo(trimmed)) {
-      if (await pedirElParte(loQueSeVe: trimmed)) return;
-      // Sin día que contar se dice y no se le pide a Claude que se lo invente:
-      // un parte de la nada se lee igual de convincente que uno de verdad.
-      _say(ChatAuthor.user, trimmed);
-      _sealLast();
-      _say(ChatAuthor.nexus, ref.read(stringsProvider).parteSinDia);
-      _sealLast();
-      return;
+      case AClaude():
+        break;
     }
 
     // Lo que se le manda a Claude lleva las rutas detrás —las necesita para
@@ -781,13 +806,16 @@ class AssistantController extends Notifier<AssistantHudState> {
 
     // Se apunta antes de pintar nada: es lo que hace que el siguiente `/edita`
     // siga de ésta. Solo si salió — encadenar sobre una que falló no existe.
-    if (salio.id case final id?) _laUltimaImagen = id;
+    if (salio case LaImagenSalio(:final id?)) _laUltimaImagen = id;
 
-    final texto = switch (salio.problema) {
-      null => strings.imageDone(salio.ruta!.split('/').last),
-      'sin-llave' => strings.imageNeedsKey,
-      'sin-carpeta' => strings.imageNeedsFolder,
-      final motivo => strings.imageFailed(motivo),
+    // Los tres motivos que no son un fallo del modelo se arreglan de maneras
+    // distintas —poner la llave, elegir carpeta, reintentar—, así que se dicen
+    // por separado.
+    final texto = switch (salio) {
+      LaImagenSalio(:final ruta) => strings.imageDone(ruta.split('/').last),
+      FaltaLaLlaveDeImagenes() => strings.imageNeedsKey,
+      FaltaLaCarpetaDeDocumentos() => strings.imageNeedsFolder,
+      NoSePudoDibujar(:final motivo) => strings.imageFailed(motivo),
     };
 
     state = state.copyWith(
@@ -800,7 +828,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
     _say(ChatAuthor.nexus, texto);
     _sealLast();
-    if (salio.ruta case final ruta?) {
+    if (salio case LaImagenSalio(:final ruta)) {
       _sellarEnElMensaje(documento: ruta);
     } else {
       _marcaElFallo();
@@ -1513,10 +1541,6 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// A partir de aquí se comprime la conversación.
   ///
   /// Antes del tope a propósito: al llenarse, Claude resume solo y **se pierde
-  /// el detalle sin que nadie lo decida**. Con margen, la compresión ocurre
-  /// cuando conviene y se puede contar.
-  static const _compactAtPercent = 85;
-
   bool _compacting = false;
 
   /// Comprime la conversación con `/compact`, el mismo comando de la terminal.
@@ -1536,9 +1560,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// bajado, así que lo peor que pasa es un turno de más — bastante menos
   /// aparato que un candado compartido para un caso raro e inofensivo.
   Future<void> _compactIfNeeded() async {
-    if (_compacting) return;
-    final before = state.meter.contextPercent;
-    if (before == null || before < _compactAtPercent) return;
+    final medida = state.meter.contextPercent;
+    if (!LaCompresionDeLaConversacion.toca(
+      contexto: medida,
+      yaComprimiendo: _compacting,
+    )) {
+      return;
+    }
+    // No nulo por la línea de arriba: `toca` devuelve falso sin medida.
+    final before = medida!;
 
     _compacting = true;
     int? medido;
@@ -1583,9 +1613,12 @@ class AssistantController extends Notifier<AssistantHudState> {
       // no decir nada hacía dudar de si la compresión había hecho algo. Sí la
       // hizo: lo que faltaba era la medida nueva, que llega con el turno
       // siguiente.
-      final after = medido == null ? null : state.meter.contextPercent;
-      if (after != null && after != before) {
-        _say(ChatAuthor.nexus, strings.compacted(before, after));
+      final dejo = LaCompresionDeLaConversacion.loQueDejo(
+        antes: before,
+        despues: medido == null ? null : state.meter.contextPercent,
+      );
+      if (dejo case BajoDe(:final antes, :final despues)) {
+        _say(ChatAuthor.nexus, strings.compacted(antes, despues));
         _sealLast();
       } else {
         _say(ChatAuthor.nexus, strings.compactedUnknown);
@@ -1765,80 +1798,69 @@ class AssistantController extends Notifier<AssistantHudState> {
       return;
     }
 
-    // El guardia de i5, y va aquí —donde se abre la sesión— y no en un botón
-    // deshabilitado: si viviera en la interfaz, cualquier otro camino que
-    // abriera sesión (el atajo global, sin ir más lejos) se lo saltaría.
+    // Los guardias, en un solo sitio. El orden y los motivos viven en
+    // `SiSePuedeAbrirLaVoz`: es la promesa del producto —«una carpeta en solo
+    // texto no abre sesión de voz»— y ahí tiene prueba.
+    //
+    // Van aquí —donde se abre la sesión— y no en un botón deshabilitado: si
+    // vivieran en la interfaz, cualquier otro camino que abra sesión (el atajo
+    // global, sin ir más lejos) se los saltaría.
+    //
     // Sobre **la carpeta de esta conversación**, no sobre una «activa» global:
     // con varias abiertas, esa noción ya no existe, y consultarla haría que el
     // permiso de una decidiera por otra.
     final folder = _folder;
-    final paired = ref
-        .read(workspaceControllerProvider)
-        .folders
-        .where((item) => item.path == folder)
-        .firstOrNull;
-    if (paired == null) {
-      state = state.copyWith(
-        errorMessage: ref.read(stringsProvider).noFolderForConversation,
-      );
-      return;
-    }
-    if (!paired.modality.allowsVoice) {
-      state = state.copyWith(
-        errorMessage: ref.read(stringsProvider).textOnlyFolder(paired.name),
-      );
-      return;
-    }
+    final workspace = ref.read(workspaceControllerProvider);
+    final strings = ref.read(stringsProvider);
 
-    // El micrófono, antes de montar nada.
-    //
-    // Nadie lo comprobaba: con el permiso revocado en Ajustes del sistema —algo
-    // que pasa meses después de concederlo— el orbe respondía al clic, la sesión
-    // intentaba abrirse y lo que salía era el error del motor de audio, que no
-    // dice a dónde ir. Y en «sin decidir» hay que **preguntar**, no rendirse:
-    // ahí sí toca el diálogo del sistema, que es lo que hace `hasPermission`.
-    // 🔴 **Los dos guardias son porque aquí se espera a una persona.** Esto se
-    // llama desde el `onTap` del orbe, sin que nadie lo espere, y en «sin
-    // decidir» lo que hay en medio es el diálogo del sistema: tarda lo que
-    // tarde quien lo lea, y puede cerrar la conversación antes de contestarlo.
-    final permiso = await ref.read(microphoneAccessProvider).status();
-    if (!_vive) return;
-    switch (permiso) {
-      case MicrophoneStatus.denied:
+    // Primero lo que se decide sin preguntar nada.
+    switch (SiSePuedeAbrirLaVoz.loQueEstorba(
+      carpeta: workspace.folders
+          .where((item) => item.path == folder)
+          .firstOrNull,
+      duenoDelCajon: workspace.textOnlyOwnerOf(
+        ref.read(artifactsFolderProvider),
+      ),
+    )) {
+      case SinCarpeta():
+        state = state.copyWith(errorMessage: strings.noFolderForConversation);
+        return;
+      case LaCarpetaEsDeSoloTexto(:final carpeta):
         state = state.copyWith(
-          errorMessage: ref.read(stringsProvider).microphoneBlocked,
+          errorMessage: strings.textOnlyFolder(carpeta.name),
         );
         return;
-      case MicrophoneStatus.notAsked:
-        final concedido = await ref.read(voiceInputProvider).hasPermission();
-        if (!_vive) return;
-        if (!concedido) {
-          state = state.copyWith(
-            errorMessage: ref.read(stringsProvider).microphoneBlocked,
-          );
-          return;
-        }
-      case MicrophoneStatus.granted:
+      case ElCajonCaeEnUnaDeSoloTexto(:final carpeta):
+        state = state.copyWith(
+          errorMessage: strings.textOnlyArtifactsFolder(carpeta.name),
+        );
+        return;
+      case _:
         break;
     }
 
-    // Y la carpeta de artefactos, que es el único hueco que le quedaba a i5.
+    // Y solo entonces el micrófono, que cuesta tocar el canal nativo.
     //
-    // Es la única excepción a «ninguna otra carpeta»: viaja como `--add-dir` en
-    // todos los encargos, así que si cae dentro de una emparejada en solo texto,
-    // esta conversación podría leer de ahí y Gemini narrarlo. La sesión no se
-    // abre, que es más estricto que avisar al elegir el cajón — el aviso se
-    // ignora y la puerta se queda abierta.
-    final cajon = ref
-        .read(workspaceControllerProvider)
-        .textOnlyOwnerOf(ref.read(artifactsFolderProvider));
-    if (cajon != null) {
-      state = state.copyWith(
-        errorMessage: ref
-            .read(stringsProvider)
-            .textOnlyArtifactsFolder(cajon.name),
-      );
-      return;
+    // 🔴 **Los dos guardias de `_vive` son porque aquí se espera a una
+    // persona.** Esto se llama desde el `onTap` del orbe, sin que nadie lo
+    // espere, y en «sin decidir» lo que hay en medio es el diálogo del sistema:
+    // tarda lo que tarde quien lo lea, y puede cerrar la conversación antes de
+    // contestarlo.
+    final microfono = await ref.read(microphoneAccessProvider).status();
+    if (!_vive) return;
+    switch (SiSePuedeAbrirLaVoz.porElMicrofono(microfono)) {
+      case ElMicrofonoEstaBloqueado():
+        state = state.copyWith(errorMessage: strings.microphoneBlocked);
+        return;
+      case HayQuePedirElMicrofono():
+        final concedido = await ref.read(voiceInputProvider).hasPermission();
+        if (!_vive) return;
+        if (!concedido) {
+          state = state.copyWith(errorMessage: strings.microphoneBlocked);
+          return;
+        }
+      case _:
+        break;
     }
 
     // Hablar es del foco: si esta conversación no lo tiene, se lo lleva.

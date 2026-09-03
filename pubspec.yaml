@@ -1,7 +1,7 @@
 name: nexus
 description: "A new Flutter project."
 publish_to: 'none'
-version: 1.7.2+34
+version: 1.8.0+35
 
 environment:
   sdk: ^3.12.2
@@ -17,7 +17,7 @@ dependencies:
   # 9 o superior. Se subió porque este proyecto ya va por delante —AGP 9.0.1 y
   # Kotlin 2.3.20 en `android/settings.gradle.kts`—, no porque el aviso pareciera
   # inofensivo. Si algún día hay que bajar el AGP, esto vuelve a 0.7.
-  desktop_drop: ^0.8.2
+  desktop_drop: ^0.8.4
   file_selector: ^1.1.0
   flutter:
     sdk: flutter

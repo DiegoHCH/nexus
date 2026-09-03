@@ -75,6 +75,15 @@ mixin NucleoStrings {
   String get waitingForOwnCompaction;
   String get waitingByVoice;
   String get noFolderForConversation;
+
+  /// Se nombró más de una carpeta: se pregunta en vez de elegir.
+  String variasCarpetasNombradas(String cuales);
+
+  /// A dónde se fue el encargo, cuando quien lo pidió no va a verlo llegar.
+  String seMandoA(String carpeta);
+
+  /// Habría que abrir una conversación y no caben más.
+  String noCabeOtraConversacion(String carpeta);
   String textOnlyFolder(String folder);
   String textOnlyArtifactsFolder(String folder);
   String compacting(int percent);
@@ -148,7 +157,11 @@ mixin NucleoStrings {
   String get noImageToEdit;
   String get imageNeedsFolder;
   String imageDone(String nombre);
-  String imageFailed(String motivo);
+
+  /// 🔴 **El motivo puede faltar**, y decidir cómo se dice eso es de aquí.
+  /// Antes el tipo era `String` y el fallo sin motivo caía por la rama del
+  /// éxito: reventaba en un `!` sobre la ruta que no existía.
+  String imageFailed(String? motivo);
   String get imagesExplainer;
   String get imageKeyLabel;
   String get imagesNotWiredYet;
@@ -296,6 +309,17 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get noFolderForConversation =>
       'Esta conversación no tiene carpeta emparejada: no hay dónde trabajar.';
   @override
+  String variasCarpetasNombradas(String cuales) =>
+      'Nombraste varias carpetas —$cuales— y no elijo por ti: '
+      'de la carpeta salen la cuenta y los permisos. Di solo una.';
+  @override
+  String seMandoA(String carpeta) =>
+      'Lo mandé a «$carpeta», que es la carpeta que nombraste. El trabajo sale por ahí.';
+  @override
+  String noCabeOtraConversacion(String carpeta) =>
+      'Para trabajar en «$carpeta» hace falta otra conversación y no caben más. '
+      'Cierra una y lo repito.';
+  @override
   String textOnlyFolder(String folder) =>
       'La carpeta $folder está en modo solo texto, así que no se abre el '
       'micrófono. Escríbele por abajo o cambia el modo en Ajustes.';
@@ -441,7 +465,9 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String imageDone(String nombre) => 'Listo: $nombre';
   @override
-  String imageFailed(String motivo) => 'No se pudo generar la imagen: $motivo';
+  String imageFailed(String? motivo) => motivo == null || motivo.isEmpty
+      ? 'No se pudo generar la imagen.'
+      : 'No se pudo generar la imagen: $motivo';
   @override
   String get imagesExplainer =>
       'La llave con la que se generan las imágenes. Va aparte de la de voz '
@@ -620,6 +646,17 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get noFolderForConversation =>
       'This conversation has no folder paired: there is nowhere to work.';
   @override
+  String variasCarpetasNombradas(String cuales) =>
+      'You named several folders — $cuales — and I will not pick for you: '
+      'the account and the permissions come from the folder. Name just one.';
+  @override
+  String seMandoA(String carpeta) =>
+      'Sent it to "$carpeta", the folder you named. The work happens there.';
+  @override
+  String noCabeOtraConversacion(String carpeta) =>
+      'Working in "$carpeta" needs another conversation and there is no room. '
+      'Close one and I will repeat it.';
+  @override
   String textOnlyFolder(String folder) =>
       'The folder $folder is in text-only mode, so the microphone stays shut. '
       'Type below, or change the mode in Settings.';
@@ -763,7 +800,9 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String imageDone(String nombre) => 'Done: $nombre';
   @override
-  String imageFailed(String motivo) => 'Could not generate the image: $motivo';
+  String imageFailed(String? motivo) => motivo == null || motivo.isEmpty
+      ? 'Could not generate the image.'
+      : 'Could not generate the image: $motivo';
   @override
   String get imagesExplainer =>
       'The key images are generated with. It is separate from the voice one '
