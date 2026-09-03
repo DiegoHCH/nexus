@@ -58,7 +58,7 @@ enum UsageState {
 ///
 /// Hace falta porque el medidor de la conversación cuenta **contexto**, que es
 /// otra cosa: puedes tener la ventana medio vacía y el cupo de la semana en las
-/// últimas. Y con tres conversaciones en paralelo eso se agota tres veces más
+/// últimas. Y con seis conversaciones en paralelo eso se agota seis veces más
 /// rápido.
 class ClaudeUsageDataSource {
   /// Los dos ganchos se inyectan **solo para poder probar la decisión**, que es
