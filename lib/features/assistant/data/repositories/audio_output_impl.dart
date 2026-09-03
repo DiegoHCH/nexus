@@ -11,7 +11,21 @@ import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 /// sistema. El nodo reproductor nativo descarta sus propios buffers
 /// programados, así que la cola sobra y el corte es inmediato.
 class AudioOutputImpl implements AudioOutput {
-  AudioOutputImpl(this._audio);
+  AudioOutputImpl(this._audio, {required this.para});
+
+  /// A qué viene quien va a hablar por aquí.
+  ///
+  /// 🔴 **Obligatorio y no con valor por defecto**, y no por gusto: en una
+  /// conversación **el altavoz se pide antes que el micrófono**
+  /// —`hold_voice_conversation.dart`, el `(_output.start(), _gateway.connect())`
+  /// en paralelo— así que un `hablar` por defecto montaría el grafo de solo
+  /// salida y el micrófono lo tiraría abajo un instante después para rehacerlo
+  /// entero. Serían 1,3 s del dispositivo agregado en cada conversación, y el
+  /// que los paga no es quien elige el valor por defecto.
+  ///
+  /// Con dos sitios que lo construyen, obligar a decirlo cuesta dos palabras y
+  /// ahorra ese fallo.
+  final ParaQue para;
 
   /// Milisegundos que se retiene el audio, a propósito, para reproducir una
   /// red mala sin depender de tener una.
@@ -39,7 +53,7 @@ class AudioOutputImpl implements AudioOutput {
   Future<void> start() async {
     if (_started) return;
     _started = true;
-    await _audio.acquire();
+    await _audio.acquire(para: para);
   }
 
   @override
@@ -82,6 +96,6 @@ class AudioOutputImpl implements AudioOutput {
     if (!_started) return;
     _started = false;
     await _audio.clearPlayback();
-    await _audio.release();
+    await _audio.release(para: para);
   }
 }

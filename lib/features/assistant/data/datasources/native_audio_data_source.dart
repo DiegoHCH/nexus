@@ -11,14 +11,41 @@ import 'package:flutter/services.dart';
 /// usando: el micrófono y el altavoz lo piden por separado, y el motor se
 /// apaga cuando lo suelta el último — si cada uno pudiera pararlo, cerrar el
 /// altavoz dejaría sordo al micrófono.
+/// Para qué se pide el motor.
+///
+/// 🔴 **Existe porque montar el grafo entero para decir una frase enciende el
+/// micrófono.** Un aviso de agenda solo habla, y abría la captura, el
+/// cancelador de eco y el dispositivo agregado — con el indicador naranja de
+/// macOS encendido toda la frase, sin nada que lo justificara.
+enum ParaQue {
+  /// Solo salida. No se toca la entrada al otro lado.
+  hablar,
+
+  /// Escuchar y hablar a la vez, con cancelación de eco.
+  conversar,
+}
+
 class NativeAudioDataSource {
   NativeAudioDataSource();
 
   static const _methods = MethodChannel('nexus/audio');
   static const _frames = EventChannel('nexus/audio/frames');
 
-  int _users = 0;
+  /// Cuántos lo tienen cogido, por lo que vinieron a hacer.
+  ///
+  /// Dos cuentas y no una porque **el propósito es el máximo de lo que se le
+  /// pide**, no lo que pidió el último: con el altavoz de un aviso dentro y una
+  /// conversación abriéndose encima, hace falta el grafo entero.
+  final _users = <ParaQue, int>{ParaQue.hablar: 0, ParaQue.conversar: 0};
+  ParaQue? _montado;
   Stream<Uint8List>? _frameStream;
+
+  /// Lo que hace falta ahora mismo, o `null` si no lo tiene cogido nadie.
+  ParaQue? get _loQueHaceFalta {
+    if (_users[ParaQue.conversar]! > 0) return ParaQue.conversar;
+    if (_users[ParaQue.hablar]! > 0) return ParaQue.hablar;
+    return null;
+  }
 
   /// `true` si hay permiso de micrófono. La primera vez abre el diálogo del
   /// sistema y espera la respuesta.
@@ -27,15 +54,30 @@ class NativeAudioDataSource {
     return granted ?? false;
   }
 
-  Future<void> acquire() async {
-    _users++;
-    if (_users == 1) await _methods.invokeMethod<void>('start');
+  Future<void> acquire({ParaQue para = ParaQue.conversar}) async {
+    _users[para] = _users[para]! + 1;
+    final hace = _loQueHaceFalta;
+    if (hace == null) return;
+    // Solo se llama al nativo cuando **cambia** lo que hace falta: con el motor
+    // ya montado para conversar, un aviso que quiere hablar no monta nada.
+    if (_montado == hace) return;
+    _montado = hace;
+    await _methods.invokeMethod<void>('start', {'para': hace.name});
   }
 
-  Future<void> release() async {
-    if (_users == 0) return;
-    _users--;
-    if (_users == 0) await _methods.invokeMethod<void>('stop');
+  Future<void> release({ParaQue para = ParaQue.conversar}) async {
+    if (_users[para]! == 0) return;
+    _users[para] = _users[para]! - 1;
+    final hace = _loQueHaceFalta;
+    if (hace != null) {
+      // 🔴 **No se degrada en caliente, a propósito.** Al soltar la conversación
+      // con un aviso todavía sonando, bajar a solo salida obligaría a rehacer el
+      // grafo con audio en vuelo: se oiría el corte. Sale más barato quedarse
+      // con el grafo de más hasta que lo suelte el último.
+      return;
+    }
+    _montado = null;
+    await _methods.invokeMethod<void>('stop');
   }
 
   /// Los aparatos por los que puede sonar la respuesta.

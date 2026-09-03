@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
+import 'package:nexus/features/assistant/data/datasources/native_audio_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dart';
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
@@ -49,7 +50,10 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
 /// sigue hablándole a un solo puerto, así que la voz de vuelta no obliga a tocar
 /// `HoldVoiceConversation` para meterle un segundo camino.
 final audioOutputProvider = Provider<AudioOutput>((ref) {
-  final delMac = AudioOutputImpl(ref.watch(nativeAudioDataSourceProvider));
+  final delMac = AudioOutputImpl(
+    ref.watch(nativeAudioDataSourceProvider),
+    para: ParaQue.conversar,
+  );
   ref.onDispose(delMac.stop);
   return AudioOutputCompartido(
     local: delMac,
