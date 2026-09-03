@@ -211,6 +211,10 @@ void main() {
         ],
       );
 
+      // Y que estén de verdad: sin esto la prueba pasaría igual pintando cero
+      // filas, que es como pasan en vacío las pruebas de desbordamiento.
+      expect(find.byType(PermissionSwitch), findsOneWidget);
+      expect(find.textContaining('front-mobile-b2c-5'), findsWidgets);
       sinDesbordar(tester);
     });
 

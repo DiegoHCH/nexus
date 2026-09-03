@@ -224,6 +224,7 @@ void main() {
           ),
       ]);
 
+      expect(find.textContaining('un-zorro-naranja'), findsWidgets);
       sinDesbordar(tester);
     });
 

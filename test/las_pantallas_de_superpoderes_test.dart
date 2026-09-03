@@ -149,6 +149,9 @@ void main() {
         ),
       );
 
+      // 🔴 Y que estén: sin esto, la prueba pasaría igual pintando cero, que
+      // es como pasan en vacío las pruebas de desbordamiento.
+      expect(find.textContaining('skill-numero-'), findsWidgets);
       sinDesbordar(tester);
     });
 
@@ -259,6 +262,7 @@ void main() {
         ),
       );
 
+      expect(find.textContaining('plugin-numero-'), findsWidgets);
       sinDesbordar(tester);
     });
   });
