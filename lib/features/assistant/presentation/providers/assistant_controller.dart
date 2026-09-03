@@ -12,6 +12,7 @@ import 'package:nexus/features/artifacts/presentation/providers/generar_una_imag
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
@@ -1484,10 +1485,6 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// A partir de aquí se comprime la conversación.
   ///
   /// Antes del tope a propósito: al llenarse, Claude resume solo y **se pierde
-  /// el detalle sin que nadie lo decida**. Con margen, la compresión ocurre
-  /// cuando conviene y se puede contar.
-  static const _compactAtPercent = 85;
-
   bool _compacting = false;
 
   /// Comprime la conversación con `/compact`, el mismo comando de la terminal.
@@ -1507,9 +1504,15 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// bajado, así que lo peor que pasa es un turno de más — bastante menos
   /// aparato que un candado compartido para un caso raro e inofensivo.
   Future<void> _compactIfNeeded() async {
-    if (_compacting) return;
-    final before = state.meter.contextPercent;
-    if (before == null || before < _compactAtPercent) return;
+    final medida = state.meter.contextPercent;
+    if (!LaCompresionDeLaConversacion.toca(
+      contexto: medida,
+      yaComprimiendo: _compacting,
+    )) {
+      return;
+    }
+    // No nulo por la línea de arriba: `toca` devuelve falso sin medida.
+    final before = medida!;
 
     _compacting = true;
     int? medido;
@@ -1554,9 +1557,12 @@ class AssistantController extends Notifier<AssistantHudState> {
       // no decir nada hacía dudar de si la compresión había hecho algo. Sí la
       // hizo: lo que faltaba era la medida nueva, que llega con el turno
       // siguiente.
-      final after = medido == null ? null : state.meter.contextPercent;
-      if (after != null && after != before) {
-        _say(ChatAuthor.nexus, strings.compacted(before, after));
+      final dejo = LaCompresionDeLaConversacion.loQueDejo(
+        antes: before,
+        despues: medido == null ? null : state.meter.contextPercent,
+      );
+      if (dejo case BajoDe(:final antes, :final despues)) {
+        _say(ChatAuthor.nexus, strings.compacted(antes, despues));
         _sealLast();
       } else {
         _say(ChatAuthor.nexus, strings.compactedUnknown);
