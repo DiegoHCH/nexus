@@ -13,11 +13,12 @@ import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
+import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/remote/domain/audio_output_compartido.dart';
-import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -83,5 +84,15 @@ final holdVoiceConversationProvider =
         ref.watch(laAgendaDeHoyProvider),
         ref.watch(elDespachoDeCarpetaProvider),
         () => ref.read(conversationFolderProvider(conversationId)),
+        // 🔴 **Mientras el micrófono del teléfono es la fuente, manda su frase
+        // de escritura.** El canal ya aplica ese tope a lo que se escribe; sin
+        // esto, hablar desde el móvil lo saltaba — y la frase existe justo para
+        // que el teléfono no escriba sin permiso.
+        //
+        // Cuando habla quien está delante del Mac no hay tope que aplicar: el
+        // de la carpeta se aplica más abajo, en `AskClaude`.
+        () =>
+            !ref.read(remoteVoiceSourceProvider).activo ||
+            ref.read(writeUnlockProvider).puedeEscribir,
       ),
     );

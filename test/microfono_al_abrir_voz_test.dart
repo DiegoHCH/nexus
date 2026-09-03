@@ -77,6 +77,7 @@ class _Guionizada extends HoldVoiceConversation {
         _Agenda(),
         const SinEnrutar(),
         () => null,
+        () => true,
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();

@@ -37,7 +37,8 @@ class HoldVoiceConversation {
     this._elParteDelDia,
     this._laAgendaDeHoy,
     this._despacho,
-    this._carpetaDeAqui, {
+    this._carpetaDeAqui,
+    this._puedeEscribir, {
     this.graciaDeLaRuta = _graciaDeLaRuta,
   });
 
@@ -53,6 +54,19 @@ class HoldVoiceConversation {
   /// pantalla** —enfocar otra conversación, o abrirla— y eso no lo puede hacer
   /// el dominio.
   final ElDespachoDeCarpeta _despacho;
+
+  /// El tope de escritura de esta sesión, leído en el momento.
+  ///
+  /// 🔴 **Faltaba, y con él se saltaba la frase de escritura hablando.** El
+  /// canal aplica su mitad del permiso en `sendErrand` —`allowWrites:
+  /// unlock.puedeEscribir`— pero el teléfono también puede **abrir la voz del
+  /// Mac** con `startVoice`, y por ahí el encargo llegaba a `AskClaude` sin
+  /// tope: con el valor por defecto, `true`. O sea que un teléfono en solo
+  /// lectura conseguía que Claude escribiera **hablando en vez de escribiendo**.
+  ///
+  /// Una función y no un valor porque la frase caduca a los treinta minutos: un
+  /// valor leído al conectar seguiría abriendo la puerta después.
+  final bool Function() _puedeEscribir;
 
   /// La carpeta de esta conversación, leída en el momento.
   ///
@@ -450,7 +464,7 @@ class HoldVoiceConversation {
         if (!ended.isCompleted) ended.complete();
       }
 
-      final errand = _askClaude(instruction).listen(
+      final errand = _askClaude(instruction, allowWrites: _puedeEscribir()).listen(
         (event) {
           // Un encargo puede tardar minutos, y en ese rato no llega nada del
           // servicio de voz: sin esto, la sesión se cerraría sola por
@@ -757,7 +771,7 @@ class HoldVoiceConversation {
           instruction,
           carpetaDeAqui: _carpetaDeAqui(),
           loQueSeVe: instruction,
-          allowWrites: true,
+          allowWrites: _puedeEscribir(),
           attachments: const [],
         );
         switch (donde) {

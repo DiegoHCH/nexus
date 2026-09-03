@@ -624,6 +624,20 @@ class _RegistroDelSistemaState extends ConsumerState<_RegistroDelSistema> {
                   style: NexusTypography.mono.copyWith(color: colors.faint),
                 ),
               ),
+              // 🔴 **Y se puede apagar.** Se podía encender y no apagar: el
+              // `logcat` seguía vivo el resto de la sesión —un proceso, el
+              // cable ocupado y batería del teléfono— aunque cerraras el panel.
+              // `alterna` existía desde el primer día y no la llamaba nadie.
+              _BotonMini(
+                icono: escuchando
+                    ? Icons.pause_rounded
+                    : Icons.play_arrow_rounded,
+                titulo: strings.runSystemLog,
+                activo: escuchando,
+                onPulsar: () => ref
+                    .read(registroDelSistemaProvider.notifier)
+                    .alterna(widget.deviceId, widget.plataforma),
+              ),
               // El nivel, como un ciclo y no como un desplegable: son cuatro
               // pasos y un menú para cuatro cosas es más clics que leer.
               TextButton(

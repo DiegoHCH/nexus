@@ -361,5 +361,34 @@ void main() {
         contains('front-mobile-b2c'),
       );
     });
+
+    // 🔴 **`open()` enfoca por dentro.** El arreglo anterior solo tapó el camino
+    // de «ya hay una abierta»: cuando había que **estrenar** conversación, abrir
+    // la enfocaba igual y la pantalla del Mac saltaba lo mismo. La mitad del
+    // arreglo se colaba por aquí.
+    test(
+      'estrenar conversación desde el teléfono tampoco mueve el foco',
+      () async {
+        final container = montar(const [
+          Conversation(id: 'aqui', folderPath: _aqui),
+        ]);
+
+        await container
+            .read(assistantControllerProvider('aqui').notifier)
+            .submit(
+              'en el front mobile b2c, arregla el login',
+              elFocoSigue: false,
+            );
+        await asentar();
+
+        expect(container.read(conversationsProvider).focusedId, 'aqui');
+        expect(
+          container.read(conversationsProvider).items,
+          hasLength(2),
+          reason:
+              'la conversación sí se abre: lo que no se mueve es la pantalla',
+        );
+      },
+    );
   });
 }

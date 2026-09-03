@@ -202,6 +202,7 @@ class _Guionizada extends HoldVoiceConversation {
         const _SinAgenda(),
         const SinEnrutar(),
         () => null,
+        () => true,
       );
 
   final _events = StreamController<VoiceEvent>.broadcast();
