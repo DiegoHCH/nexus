@@ -29,6 +29,19 @@ abstract final class LoQueTocaAvisar {
     ]..sort((a, b) => a.comienza.compareTo(b.comienza));
   }
 
+  /// Los identificadores que siguen teniendo sentido guardados.
+  ///
+  /// Un día nuevo empieza sin memoria de lo avisado. Los del calendario no se
+  /// repiten, así que dejar crecer el conjunto para siempre no avisa dos veces
+  /// de nada — es una fuga lenta que nadie va a mirar.
+  static Set<String> loQueSigueVivo(
+    Set<String> yaAvisadas,
+    List<Reunion> agenda,
+  ) => {
+    for (final id in yaAvisadas)
+      if (agenda.any((reunion) => reunion.id == id)) id,
+  };
+
   /// Lo que se dice en voz alta.
   ///
   /// Título y hora, y nada más. Leer la descripción sacaría por el altavoz
