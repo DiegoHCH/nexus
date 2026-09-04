@@ -209,4 +209,91 @@ void main() {
       );
     });
   });
+
+  // El modo concedido con «Permitir todo» vive al lado de la sesión porque tiene
+  // su misma vida: es un permiso de ese hilo, no una preferencia tuya.
+  group('el modo de permisos que quedó concedido', () {
+    const work = '/Users/alguien/.claude-work';
+    const private = '/Users/alguien/.claude-private';
+
+    test('sin nada concedido, no hay modo', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      expect((await memory.read(repoA)).permissionMode, isNull);
+    });
+
+    test('se recuerda por carpeta', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      await memory.rememberPermissionMode(repoA, 'acceptEdits');
+
+      expect((await memory.read(repoA)).permissionMode, 'acceptEdits');
+      expect((await memory.read(repoB)).permissionMode, isNull);
+    });
+
+    test('y por cuenta, como la sesión', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      await memory.rememberPermissionMode(
+        repoA,
+        'acceptEdits',
+        claudeProfile: work,
+      );
+
+      expect(
+        (await memory.read(repoA, claudeProfile: work)).permissionMode,
+        'acceptEdits',
+      );
+      expect(
+        (await memory.read(repoA, claudeProfile: private)).permissionMode,
+        isNull,
+        reason:
+            'el permiso se dio sobre un hilo, y el de la otra cuenta es otro',
+      );
+    });
+
+    test('guardar el modo no toca la sesión ni lo pedido', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      await memory.rememberSession(repoA, 'sesion-a');
+      await memory.rememberPrompt(repoA, 'mira el historial');
+      await memory.rememberPermissionMode(repoA, 'acceptEdits');
+
+      final read = await memory.read(repoA);
+      expect(read.sessionId, 'sesion-a');
+      expect(read.prompts, ['mira el historial']);
+      expect(read.permissionMode, 'acceptEdits');
+    });
+
+    // 🔴 Empezar de cero se lo lleva: ese permiso se concedió sobre una sesión
+    // que ya no está, y dejarlo puesto arrancaría la conversación siguiente con
+    // una escritura que nadie concedió para ella.
+    test('olvidar la carpeta también olvida el modo', () async {
+      final memory = ConversationMemoryImpl(_FakeStore());
+
+      await memory.rememberPermissionMode(
+        repoA,
+        'acceptEdits',
+        claudeProfile: work,
+      );
+      await memory.forget(repoA);
+
+      expect(
+        (await memory.read(repoA, claudeProfile: work)).permissionMode,
+        isNull,
+      );
+    });
+
+    test('un modo con forma rara se lee como si no hubiera', () async {
+      final memory = ConversationMemoryImpl(
+        _FakeStore({
+          repoA: {
+            'modes': {'por defecto': 3},
+          },
+        }),
+      );
+
+      expect((await memory.read(repoA)).permissionMode, isNull);
+    });
+  });
 }

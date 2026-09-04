@@ -46,6 +46,7 @@ class _PuenteQueSeQuedaVivo implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Object? alPedirPermiso,
   }) async* {
     final mia = vueltas++;
@@ -76,6 +77,13 @@ class _SinMemoria implements ConversationMemory {
   }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
+  @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
+
   @override
   Future<void> forget(String folderPath) async {}
 }

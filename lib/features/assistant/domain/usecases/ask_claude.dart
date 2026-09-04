@@ -3,6 +3,7 @@ import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dar
 import 'package:nexus/features/assistant/domain/repositories/claude_bridge.dart';
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/repositories/stays_awake.dart';
+import 'package:nexus/features/assistant/domain/usecases/el_modo_que_se_concedio.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
 
 /// Dónde trabaja Claude y con cuánta mano suelta. Lo resuelve quien cablea la
@@ -154,12 +155,19 @@ class AskClaude {
           language: context.language,
           artifactsFolder: context.artifactsFolder,
           carpetaDePruebas: context.carpetaDePruebas,
+          // Donde quedó esta sesión si alguien ya pulsó «Permitir todo», para
+          // no volver a preguntar lo que ya se concedió. **Con el mismo AND**:
+          // un tope cerrado no hereda lo que se concedió con el tope abierto,
+          // o el teléfono sin la frase de escritura entraría por aquí.
+          modoConcedido: context.canEdit && allowWrites
+              ? memory.permissionMode
+              : null,
           // **Solo si el encargo ya podía escribir.** Preguntar es dar la
           // oportunidad de conceder, así que ofrecérselo a un encargo que llegó
           // con la escritura capada —el teléfono sin la frase— le devolvería
           // por el diálogo justo lo que el tope le quitó.
           alPedirPermiso: context.canEdit && allowWrites
-              ? alPedirPermiso
+              ? _recordandoElModo(folder, context, alPedirPermiso)
               : null,
         )) {
           // El identificador se guarda en cuanto arranca, no al terminar: si el
@@ -213,5 +221,35 @@ class AskClaude {
       // desde fuera eso no se parece a un fallo de esta app.
       awake();
     }
+  }
+
+  /// El mismo diálogo, con una nota al margen: si lo que se concedió cambia el
+  /// modo de la sesión, queda recordado para el encargo siguiente.
+  ///
+  /// **Se envuelve aquí porque la respuesta no se ve en ningún otro sitio.** El
+  /// permiso se contesta abajo, en la capa de datos, y de ahí se va por stdin al
+  /// proceso: nadie más lo ve pasar. Y se guarda **antes** de devolverla, que es
+  /// lo que hace que cancelar el encargo justo después no se lleve por delante
+  /// el permiso que ya se dio.
+  ///
+  /// `null` cuando no hay a quién preguntar, para que el encargo desatendido
+  /// siga siendo exactamente lo que era.
+  Future<RespuestaDePermiso> Function(PeticionDePermiso)? _recordandoElModo(
+    String folder,
+    ClaudeWorkContext context,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? preguntar,
+  ) {
+    if (preguntar == null) return null;
+    return (peticion) async {
+      final respuesta = await preguntar(peticion);
+      if (ElModoQueSeConcedio.en(respuesta) case final modo?) {
+        await _memory.rememberPermissionMode(
+          folder,
+          modo,
+          claudeProfile: context.claudeProfile,
+        );
+      }
+      return respuesta;
+    };
   }
 }

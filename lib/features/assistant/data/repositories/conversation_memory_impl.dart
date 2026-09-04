@@ -28,6 +28,7 @@ class ConversationMemoryImpl implements ConversationMemory {
     if (entry is! Map<String, dynamic>) return const FolderMemory();
     return FolderMemory(
       sessionId: _sessionIn(entry, claudeProfile),
+      permissionMode: _modeIn(entry, claudeProfile),
       prompts: [
         if (entry['prompts'] case final List<dynamic> stored)
           for (final prompt in stored)
@@ -62,6 +63,24 @@ class ConversationMemoryImpl implements ConversationMemory {
       final String id when id.isNotEmpty => id,
       _ => null,
     };
+  }
+
+  /// El modo concedido en esa cuenta, con la misma tolerancia que [_sessionIn]:
+  /// una preferencia escrita por otra versión —o tocada a mano— no puede costar
+  /// la memoria entera de la carpeta.
+  ///
+  /// No hay formato viejo que leer: esto nace por cuenta. Y lo que se guardó una
+  /// vez **se valida al usarlo**, no aquí: quien decide qué modos se sostienen
+  /// es `ElModoQueSeConcedio`, en el dominio, y repetir esa lista en la capa de
+  /// datos sería tener dos sitios donde ampliarla.
+  static String? _modeIn(Map<String, dynamic> entry, String? claudeProfile) {
+    if (entry['modes'] case final Map<String, dynamic> modes) {
+      return switch (modes[_account(claudeProfile)]) {
+        final String mode when mode.isNotEmpty => mode,
+        _ => null,
+      };
+    }
+    return null;
   }
 
   @override
@@ -100,13 +119,37 @@ class ConversationMemoryImpl implements ConversationMemory {
   }
 
   @override
+  Future<void> rememberPermissionMode(
+    String folderPath,
+    String mode, {
+    String? claudeProfile,
+  }) async {
+    await _update(folderPath, (entry) {
+      final modes = <String, dynamic>{
+        if (entry['modes'] case final Map<String, dynamic> previous)
+          ...previous,
+        _account(claudeProfile): mode,
+      };
+      return {...entry, 'modes': modes};
+    });
+  }
+
+  @override
   Future<void> forget(String folderPath) async {
     // Se van las de **todas** las cuentas: «empezar de cero en esta carpeta» no
     // significa «en esta carpeta con la cuenta que tenga puesta ahora».
+    //
+    // Y con ellas se va el modo concedido, que es lo correcto y no una limpieza
+    // de más: ese permiso se dio sobre un hilo concreto, y empezar de cero
+    // significa que ese hilo ya no existe. Dejarlo puesto sería arrancar la
+    // conversación siguiente con una escritura que nadie concedió para ella.
     await _update(
       folderPath,
-      (entry) =>
-          {...entry, 'sessions': <String, dynamic>{}}..remove('sessionId'),
+      (entry) => {
+        ...entry,
+        'sessions': <String, dynamic>{},
+        'modes': <String, dynamic>{},
+      }..remove('sessionId'),
     );
   }
 

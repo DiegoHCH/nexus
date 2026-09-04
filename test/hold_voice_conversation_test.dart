@@ -182,6 +182,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     _raw.add(instruction);
@@ -205,6 +206,13 @@ class _Memory implements ConversationMemory {
   }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
+  @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
+
   @override
   Future<void> forget(String folderPath) async {}
 }
@@ -340,6 +348,7 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     // El orden es el de verdad: primero el `init` con el modelo, y el fin de

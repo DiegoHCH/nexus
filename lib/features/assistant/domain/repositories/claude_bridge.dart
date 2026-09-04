@@ -58,6 +58,15 @@ abstract class ClaudeBridge {
     /// para el prompt del sistema. Ver `LosNombres.paraElPrompt`.
     String? nombres,
 
+    /// El modo en que quedó esta sesión cuando alguien pulsó «Permitir todo»,
+    /// o `null` para el de siempre.
+    ///
+    /// **No sube nada**: llega ya pasado por el AND de la carpeta y el tope del
+    /// encargo, y una carpeta que no escribe sigue lanzándose en `manual` diga
+    /// lo que diga esto. Lo único que hace es no volver a preguntar lo que ya
+    /// se concedió para esta sesión.
+    String? modoConcedido,
+
     /// A quién preguntarle cuando Claude quiera hacer algo que no tiene
     /// concedido. `null` es el encargo desatendido de siempre, y **tiene que
     /// seguir siendo el valor por defecto**: la agenda y la cola de la carpeta
