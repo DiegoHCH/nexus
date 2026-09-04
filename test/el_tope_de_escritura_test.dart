@@ -36,6 +36,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     // Lo único que esta prueba mira: con qué permiso llegó al puente, que es lo
@@ -57,6 +58,13 @@ class _Memory implements ConversationMemory {
   }) async {}
   @override
   Future<void> rememberPrompt(String f, String p) async {}
+  @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
+
   @override
   Future<void> forget(String f) async {}
 }

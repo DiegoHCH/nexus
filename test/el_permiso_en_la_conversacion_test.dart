@@ -323,6 +323,7 @@ class _PuenteQuePregunta implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     yield const ClaudeSessionStarted(sessionId: 's1', model: 'm');
@@ -350,6 +351,13 @@ class _NoMemory implements ConversationMemory {
   }) async {}
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
+  @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
+
   @override
   Future<void> forget(String folderPath) async {}
 }

@@ -4,7 +4,11 @@
 /// tiene nada que ver con la de otro, y mezclarlas produciría un asistente que
 /// arrastra contexto ajeno a donde no toca.
 class FolderMemory {
-  const FolderMemory({this.sessionId, this.prompts = const []});
+  const FolderMemory({
+    this.sessionId,
+    this.prompts = const [],
+    this.permissionMode,
+  });
 
   /// La sesión de Claude que se puede reanudar. `null` cuando no hay ninguna
   /// o cuando el usuario decidió empezar de cero.
@@ -13,14 +17,31 @@ class FolderMemory {
   /// Lo que se le pidió, de lo más reciente hacia atrás.
   final List<String> prompts;
 
+  /// El modo de permisos en que quedó esta sesión, o `null` para el de siempre.
+  ///
+  /// **Es lo que hace que «Permitir todo» dure lo que promete.** Ese botón no
+  /// devuelve una lista de permisos: le pide al CLI que cambie el modo de la
+  /// sesión, y el modo vive en el proceso `claude -p`, que muere al terminar el
+  /// encargo. Sin recordarlo aquí, el encargo siguiente volvía a preguntar lo
+  /// mismo —y el mensaje decía «y el resto de la sesión», así que se leía como
+  /// un botón que no hace nada—.
+  ///
+  /// Va al lado del [sessionId] y no en un ajuste porque **tiene su misma
+  /// vida**: es un permiso de esta sesión, no una preferencia tuya. Empezar de
+  /// cero en la carpeta se lo lleva con la sesión, que es lo correcto: el
+  /// permiso se concedió sobre un hilo, y ese hilo ya no está.
+  final String? permissionMode;
+
   FolderMemory copyWith({
     String? sessionId,
     List<String>? prompts,
+    String? permissionMode,
     bool forget = false,
   }) {
     return FolderMemory(
       sessionId: forget ? null : (sessionId ?? this.sessionId),
       prompts: prompts ?? this.prompts,
+      permissionMode: forget ? null : (permissionMode ?? this.permissionMode),
     );
   }
 }
@@ -42,6 +63,17 @@ abstract class ConversationMemory {
   });
 
   Future<void> rememberPrompt(String folderPath, String prompt);
+
+  /// El modo que quedó concedido en esta carpeta y con esta cuenta.
+  ///
+  /// Por cuenta como la sesión, y por el mismo motivo: el permiso se concedió
+  /// sobre un hilo concreto, y el de la otra cuenta es otro hilo. Ver
+  /// [FolderMemory.permissionMode].
+  Future<void> rememberPermissionMode(
+    String folderPath,
+    String mode, {
+    String? claudeProfile,
+  });
 
   /// Olvida la conversación de esa carpeta: la próxima empieza limpia.
   ///

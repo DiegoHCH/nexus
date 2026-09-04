@@ -58,6 +58,13 @@ class _SinMemoria implements ConversationMemory {
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async {}
   @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
+
+  @override
   Future<void> forget(String folderPath) async {}
 }
 
