@@ -40,11 +40,24 @@ class ClaudeBridgeImpl implements ClaudeBridge {
   /// Una carpeta de solo lectura **no pregunta**, y no es un descuido. Ese modo
   /// promete que no se toca el disco; convertirlo en «te lo pregunto» sería
   /// cambiar la promesa por un botón, y el botón se pulsa sin leer.
+  ///
+  /// **Y un modo ya concedido gana a la pregunta.** «Permitir todo» sobre una
+  /// escritura no devuelve permisos: le pide al CLI que ponga la sesión en
+  /// `acceptEdits`, y eso muere con el proceso —o sea, con el encargo—. Sin
+  /// arrancar donde quedó el anterior, el botón que dice «y el resto de la
+  /// sesión» duraba un encargo, y el siguiente volvía a preguntar lo mismo.
+  ///
+  /// Gana a `default` y **no** a `manual`, que es el orden que importa: lo
+  /// concedido puede ahorrar una pregunta, nunca abrir una carpeta que promete
+  /// no tocar el disco. Ver `ElModoQueSeConcedio`, que decide qué modos se
+  /// sostienen antes de llegar aquí.
   static String _permissionMode({
     required bool canEdit,
     required bool hayQuienConteste,
+    String? modoConcedido,
   }) {
     if (!canEdit) return 'manual';
+    if (modoConcedido != null && modoConcedido.isNotEmpty) return modoConcedido;
     return hayQuienConteste ? 'default' : 'acceptEdits';
   }
 
@@ -68,6 +81,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// Cómo se llama quien contesta y cómo llamarte a ti, ya compuesto
     /// para el prompt. Ver [LosNombres.paraElPrompt].
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
     alPedirPermiso,
   }) async* {
@@ -161,6 +175,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         permissionMode: _permissionMode(
           canEdit: canEdit,
           hayQuienConteste: alPedirPermiso != null,
+          modoConcedido: modoConcedido,
         ),
         alPedirPermiso: alPedirPermiso,
         // La carpeta de documentos viaja como carpeta alcanzable, y no es

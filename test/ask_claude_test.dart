@@ -29,6 +29,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     asked.add(instruction);
@@ -57,6 +58,13 @@ class _Memory implements ConversationMemory {
   @override
   Future<void> rememberPrompt(String folderPath, String prompt) async =>
       prompts.add(prompt);
+
+  @override
+  Future<void> rememberPermissionMode(
+    String f,
+    String mode, {
+    String? claudeProfile,
+  }) async {}
 
   @override
   Future<void> forget(String folderPath) async {}
