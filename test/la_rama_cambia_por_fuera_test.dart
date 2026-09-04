@@ -178,4 +178,53 @@ void main() {
           'vigilar el HEAD el chip se queda con la rama vieja hasta reiniciar',
     );
   });
+
+  // 🔴 **Y el segundo checkout también.** Aquí estaba el fallo que quedaba: el
+  // vigía emitía `void`, así que cada aviso dejaba el proveedor en el mismo
+  // `AsyncData(null)` de antes. Riverpod compara el estado nuevo con el viejo y
+  // **son iguales**, así que no notifica: el primer cambio se veía —porque venía
+  // de `AsyncLoading`— y del segundo en adelante, nada.
+  //
+  // Se reportó así: checkout en Android Studio, el chip sin moverse, y solo al
+  // preguntarle a Claude «¿en qué rama estoy?» aparecía la nueva — porque eso
+  // termina un turno, y al terminar un turno la rama se relee por otro camino.
+  test(
+    'y el segundo checkout también, que es donde se quedaba clavado',
+    () async {
+      final container = ProviderContainer();
+      addTearDown(container.dispose);
+
+      expect(
+        (await container.read(gitInfoProvider(repo.path).future))?.branch,
+        'main',
+      );
+      final sub = container.listen(gitInfoProvider(repo.path), (_, _) {});
+      addTearDown(sub.close);
+
+      Future<String?> esperarLaRama(String cual) async {
+        final plazo = DateTime.now().add(const Duration(seconds: 10));
+        String? rama;
+        while (DateTime.now().isBefore(plazo)) {
+          await Future<void>.delayed(const Duration(milliseconds: 100));
+          rama = (await container.read(
+            gitInfoProvider(repo.path).future,
+          ))?.branch;
+          if (rama == cual) break;
+        }
+        return rama;
+      }
+
+      await run(['checkout', '-q', '-b', 'la-primera']);
+      expect(await esperarLaRama('la-primera'), 'la-primera');
+
+      await run(['checkout', '-q', '-b', 'la-segunda']);
+      expect(
+        await esperarLaRama('la-segunda'),
+        'la-segunda',
+        reason:
+            'el primero se veía porque el vigía pasaba de «cargando» a «listo»; '
+            'del segundo en adelante el estado no cambiaba y nadie se enteraba',
+      );
+    },
+  );
 }
