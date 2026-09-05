@@ -20,6 +20,8 @@ mixin EjecucionStrings {
   String get runTitle;
   String get runNoConfigs;
   String get runChooseDevice;
+  String get runSearchingDevices;
+  String get runNoDevices;
   String get runStart;
   String get runStop;
   String get runReload;
@@ -74,6 +76,10 @@ mixin EjecucionStringsEs implements EjecucionStrings {
       'Este proyecto no declara configuraciones en .vscode/launch.json';
   @override
   String get runChooseDevice => 'Elige un dispositivo';
+  @override
+  String get runSearchingDevices => 'Buscando dispositivos…';
+  @override
+  String get runNoDevices => 'Ninguno conectado';
   @override
   String get runStart => 'Correr';
   @override
@@ -140,6 +146,10 @@ mixin EjecucionStringsEn implements EjecucionStrings {
       'This project declares no configurations in .vscode/launch.json';
   @override
   String get runChooseDevice => 'Pick a device';
+  @override
+  String get runSearchingDevices => 'Looking for devices…';
+  @override
+  String get runNoDevices => 'None connected';
   @override
   String get runStart => 'Run';
   @override

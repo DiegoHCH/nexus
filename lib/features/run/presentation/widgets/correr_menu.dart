@@ -206,6 +206,7 @@ class _PanelState extends ConsumerState<_Panel> {
     }
 
     final configs = ref.watch(configsProvider(proyecto)).value ?? const [];
+    final dispositivos = _losDispositivos();
     final corridas = ref
         .watch(corridasProvider)
         .values
@@ -277,11 +278,17 @@ class _PanelState extends ConsumerState<_Panel> {
               Expanded(
                 child: SelectorCompacto(
                   valor: _dispositivo,
-                  opciones: _dispositivosDisponibles(),
+                  opciones: dispositivos.ids,
                   // El nombre delante y el id detrás, por lo mismo que en el
                   // panel de pruebas: un id no dice cuál es cuál.
                   etiqueta: _comoSeLlama,
-                  pista: strings.runChooseDevice,
+                  // Tres estados donde había uno: buscando, ninguno, y elige.
+                  pista: dispositivos.buscando
+                      ? strings.runSearchingDevices
+                      : dispositivos.ids.isEmpty
+                      ? strings.runNoDevices
+                      : strings.runChooseDevice,
+                  cargando: dispositivos.buscando,
                   onElegir: (v) => setState(() => _dispositivo = v),
                 ),
               ),
@@ -337,16 +344,38 @@ class _PanelState extends ConsumerState<_Panel> {
   /// Un emulador apagado no aparece a propósito: `flutter run -d` sobre algo que
   /// no está encendido falla, y ofrecerlo sería ofrecer ese fallo. Para
   /// arrancarlo está el icono de al lado.
-  List<String> _dispositivosDisponibles() => [
-    for (final e
-        in ref.watch(emuladoresProvider).value?.emuladores ??
-            const <Emulador>[])
-      if (e.corriendo && e.deviceId != null) e.deviceId!,
-    for (final d
-        in ref.watch(dispositivosProvider).value ??
-            const <DispositivoConectado>[])
-      d.id,
-  ];
+  /// Y **si todavía se están buscando**, que es la mitad que faltaba.
+  ///
+  /// 🔴 Los dos estados iban aplanados a uno con un `?? const []`, así que
+  /// «todavía no sé» y «no hay ninguno» se pintaban igual: un selector vacío que
+  /// al pulsarlo no abre nada. Reportado mirando la pantalla —«parece que se
+  /// quedó pegada la interfaz»— y no lo parecía: estaba buscando. Y como el
+  /// botón de correr solo se enciende con un dispositivo elegido, el bloque
+  /// entero se veía muerto.
+  ///
+  /// `adb devices` cuesta 14 ms medidos —está aquí al lado—, pero arrancar su
+  /// daemon la primera vez, o un `devicectl` en frío, se van a segundos: justo
+  /// el rato en que vas a correr la app.
+  ///
+  /// Se mira `isLoading` **junto con** `hasValue` a propósito: al refrescar ya
+  /// hay una respuesta anterior que enseñar, y vaciarla para volver a llenarla
+  /// sería parpadear por nada.
+  ({bool buscando, List<String> ids}) _losDispositivos() {
+    final emuladores = ref.watch(emuladoresProvider);
+    final conectados = ref.watch(dispositivosProvider);
+
+    return (
+      buscando:
+          (emuladores.isLoading && !emuladores.hasValue) ||
+          (conectados.isLoading && !conectados.hasValue),
+      ids: [
+        for (final e in emuladores.value?.emuladores ?? const <Emulador>[])
+          if (e.corriendo && e.deviceId != null) e.deviceId!,
+        for (final d in conectados.value ?? const <DispositivoConectado>[])
+          d.id,
+      ],
+    );
+  }
 }
 
 /// Una app corriendo, con lo que se le puede pedir.

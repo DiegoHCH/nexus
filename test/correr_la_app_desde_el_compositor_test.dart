@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,6 +42,23 @@ class _MaquinaFalsa extends EmuladoresDataSource {
   Future<List<DispositivoConectado>> listarDispositivos() async => const [];
 }
 
+/// Una máquina que no contesta: los proveedores se quedan cargando.
+///
+/// Es el estado que la interfaz no sabía contar. No es teórico: `adb devices`
+/// cuesta 14 ms medidos, pero arrancar su daemon la primera vez o un
+/// `devicectl` en frío se van a segundos.
+class _MaquinaQueTarda extends EmuladoresDataSource {
+  const _MaquinaQueTarda();
+
+  @override
+  Future<({List<Emulador> emuladores, String? error})> listar() =>
+      Completer<({List<Emulador> emuladores, String? error})>().future;
+
+  @override
+  Future<List<DispositivoConectado>> listarDispositivos() =>
+      Completer<List<DispositivoConectado>>().future;
+}
+
 /// Un controlador con corridas puestas, para mirar la fila sin lanzar procesos.
 class _CorridasFijas extends CorridasController {
   _CorridasFijas(this._inicial);
@@ -75,6 +94,7 @@ Future<void> _montar(
   ],
   List<Emulador> emuladores = const [_arrancado, _apagado],
   Map<String, Corrida> corridas = const {},
+  EmuladoresDataSource? maquina,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -83,7 +103,7 @@ Future<void> _montar(
           _ConfigsFalsas({'/casa/tienda': configs}),
         ),
         emuladoresDataSourceProvider.overrideWithValue(
-          _MaquinaFalsa(emuladores),
+          maquina ?? _MaquinaFalsa(emuladores),
         ),
         corridasProvider.overrideWith(() => _CorridasFijas(corridas)),
       ],
@@ -98,7 +118,13 @@ Future<void> _montar(
       ),
     ),
   );
-  await tester.pumpAndSettle();
+  // Con la máquina que tarda no se puede asentar: la rueda gira para siempre y
+  // esperar a que pare sería esperar el tope del test.
+  if (maquina == null) {
+    await tester.pumpAndSettle();
+  } else {
+    await tester.pump();
+  }
 }
 
 Corrida _corrida({
@@ -511,6 +537,50 @@ void main() {
           );
 
       expect(contenedor.read(registrosProvider)['emulator-5554'], isNull);
+    });
+  });
+
+  group('los tres estados del selector de dispositivos', () {
+    // 🔴 Reportado mirando la pantalla: «no tiene un loading mientras no hay
+    // dispositivos disponibles, entonces uno le da clic y parece que se hubiera
+    // quedado pegada la interfaz». No lo parecía: estaba buscando. Los dos
+    // estados iban aplanados a uno con un `?? const []`.
+    testWidgets('mientras busca lo dice, en vez de parecer colgado', (
+      tester,
+    ) async {
+      await _montar(tester, maquina: const _MaquinaQueTarda());
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 400));
+
+      expect(find.text(strings.runSearchingDevices), findsOneWidget);
+      expect(find.byType(CircularProgressIndicator), findsWidgets);
+      expect(
+        find.text(strings.runNoDevices),
+        findsNothing,
+        reason: 'todavía no se sabe: decir «ninguno» sería afirmar de más',
+      );
+    });
+
+    testWidgets('sin ninguno conectado lo dice, y no se queda mudo', (
+      tester,
+    ) async {
+      await _montar(tester, emuladores: const []);
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      expect(find.text(strings.runNoDevices), findsOneWidget);
+      expect(find.text(strings.runSearchingDevices), findsNothing);
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+    });
+
+    testWidgets('y con alguno, la pista vuelve a ser elegir', (tester) async {
+      await _montar(tester);
+      await tester.tap(find.byType(CorrerMenu));
+      await tester.pumpAndSettle();
+
+      expect(find.text(strings.runChooseDevice), findsOneWidget);
+      expect(find.text(strings.runNoDevices), findsNothing);
     });
   });
 }
