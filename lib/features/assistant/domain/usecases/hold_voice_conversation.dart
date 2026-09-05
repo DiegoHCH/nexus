@@ -477,6 +477,13 @@ class HoldVoiceConversation {
             // Otra conversación tiene la carpeta ocupada. Hablando esto hay
             // que decirlo en voz alta: la pantalla puede estar detrás y el
             // silencio se interpreta como que no oyó.
+            // Un servidor MCP que no arrancó **no se dice en voz alta**: el
+            // encargo sigue igual, y hablando, cada frase que no es la
+            // respuesta compite con la respuesta. Queda en el registro y en el
+            // aviso de la conversación, que es donde se mira al terminar.
+            case ClaudeMcpCaido():
+              break;
+
             case ClaudeQueued():
               controller.add(
                 const VoiceToolProgress(

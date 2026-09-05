@@ -91,6 +91,7 @@ mixin ArranqueStrings {
   /// rutas porque cuál cambió es el dato: uno del proyecto y uno de tres
   /// carpetas más arriba no se leen igual.
   String rulesChanged(List<String> paths);
+  String mcpCaido(List<String> servidores);
 
   /// El interruptor del visor de documentos. Un documento nace sin poder
   /// ejecutar sus scripts ni salir a la red; esto es cómo se le concede.
@@ -393,6 +394,12 @@ mixin ArranqueStringsEs implements ArranqueStrings {
   String rulesChanged(List<String> paths) =>
       'Han cambiado las reglas que Claude lee antes de cada encargo: '
       '${paths.join(', ')}. El encargo sigue.';
+  @override
+  String mcpCaido(List<String> servidores) =>
+      '${servidores.length == 1 ? 'El servidor' : 'Los servidores'} '
+      '${servidores.join(', ')} no '
+      '${servidores.length == 1 ? 'arrancó' : 'arrancaron'}. El encargo sigue '
+      'sin ${servidores.length == 1 ? 'esa herramienta' : 'esas herramientas'}.';
   @override
   String get allowScriptsAndNetwork => 'Permitir scripts y red';
   @override
@@ -749,6 +756,11 @@ mixin ArranqueStringsEn implements ArranqueStrings {
   String rulesChanged(List<String> paths) =>
       'The rules Claude reads before every errand have changed: '
       '${paths.join(', ')}. The errand carries on.';
+  @override
+  String mcpCaido(List<String> servidores) =>
+      '${servidores.length == 1 ? 'Server' : 'Servers'} '
+      '${servidores.join(', ')} did not start. The errand carries on, with that '
+      'tool missing.';
   @override
   String get allowScriptsAndNetwork => 'Allow scripts and network';
   @override
