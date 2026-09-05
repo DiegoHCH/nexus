@@ -708,6 +708,7 @@ class AssistantController extends Notifier<AssistantHudState> {
           (event) => switch (event) {
             ClaudeQueued() => _onQueued(),
             ClaudeRulesChanged() => _onRulesChanged(event.paths),
+            ClaudeMcpCaido() => _onMcpCaido(event.servidores),
             ClaudeSessionStarted() => _onSessionStarted(event.model),
             ClaudeTextDelta() => _onTextDelta(buffer, event),
             ClaudeToolUsed() => _onClaudeToolUsed(event),
@@ -1957,6 +1958,20 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// cambio puede ser perfectamente normal —un `git pull`, cambiar de rama—.
   /// Lo que no puede ser es que pase sin que se vea, porque ese texto entra en
   /// el prompt de sistema de **cada** encargo.
+  /// Un servidor MCP declarado no arrancó.
+  ///
+  /// Por el mismo canal que las reglas cambiadas, y por el mismo motivo: no
+  /// detiene nada —el encargo puede ir perfectamente sin esa herramienta— pero
+  /// no puede pasar sin que se vea. Cuando el gateway de la empresa se cayó, lo
+  /// único que llegó a pantalla fue el error crudo de la herramienta al usarla,
+  /// y ese texto apunta al comando de quien pregunta y no a la causa.
+  void _onMcpCaido(List<String> servidores) {
+    debugPrint('claude · no arrancaron: ${servidores.join(', ')}');
+    state = state.copyWith(
+      notice: ref.read(stringsProvider).mcpCaido(servidores),
+    );
+  }
+
   void _onRulesChanged(List<String> paths) {
     state = state.copyWith(
       notice: ref.read(stringsProvider).rulesChanged(paths),

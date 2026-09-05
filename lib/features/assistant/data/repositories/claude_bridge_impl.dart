@@ -348,11 +348,27 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     switch (json['type']) {
       case 'system':
         if (json['subtype'] != 'init') return const [];
+        // 🔴 **Solo los que fallaron.** El arranque trae cada servidor con su
+        // estado, y ahí `pending` es lo normal —conectan después— y
+        // `needs-auth` es un conector sin autorizar, no una avería. Medido
+        // contra el binario: de dieciséis servidores, dos en `pending` y ocho
+        // en `needs-auth`, todos sanos. Avisar de «no conectado» sería gritar
+        // en cada encargo por diez cosas que están bien.
+        final caidos = [
+          for (final servidor
+              in json['mcp_servers'] as List<dynamic>? ?? const [])
+            if (servidor is Map<String, dynamic> &&
+                servidor['status'] == 'failed')
+              if (servidor['name'] case final String nombre
+                  when nombre.isNotEmpty)
+                nombre,
+        ];
         return [
           ClaudeSessionStarted(
             sessionId: json['session_id'] as String? ?? '',
             model: json['model'] as String? ?? '',
           ),
+          if (caidos.isNotEmpty) ClaudeMcpCaido(caidos),
         ];
 
       case 'stream_event':
