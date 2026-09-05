@@ -267,6 +267,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                                         .etiqueta(context.strings.nexus),
                                     onRetry: controller.reintentar,
                                     onPermiso: controller.responderPermiso,
+                                    // El comando se manda **tal cual se ve**:
+                                    // es lo que evita el error que dio origen a
+                                    // esto, que fue teclearlo de memoria.
+                                    onCorrer: controller.submit,
                                   ),
                                 ),
                                 // 🔴 Aquí había un segundo botón de «ver los
