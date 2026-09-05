@@ -28,6 +28,37 @@ abstract final class ElComandoDirecto {
   /// seguridad de verdad, y esa se diseña antes de abrirla, no después.
   static const soloEste = 'git';
 
+  /// El comando de un bloque de código que **se puede correr desde aquí**, ya
+  /// con su `!` delante, o `null` si ese bloque no es uno de esos.
+  ///
+  /// 🔴 **Existe porque un comando que se imprime hay que poder correrlo.** El
+  /// asistente contesta con el comando en un bloque y lo siguiente que hace
+  /// cualquiera es intentar ejecutarlo; hoy toca retranscribirlo, y ahí se
+  /// pierde justo la parte que importa. Medido dos días seguidos sobre el mismo
+  /// repo: se dijo `git push -u origin <rama>` y se tecleó `git push` a secas,
+  /// con dos errores 128 distintos —una rama sin upstream y otra con el upstream
+  /// en `main`— por la misma causa.
+  ///
+  /// **Una sola línea.** Un bloque de tres es un guion, y correr un guion línea
+  /// a línea es otra cosa, que se diseña aparte.
+  ///
+  /// **Y solo lo que ya se sabe correr** —ver [soloEste]—: ofrecer el botón
+  /// sobre un `aws sso login` sería ofrecer el «solo puedo git», que es la misma
+  /// regla por la que un emulador apagado no aparece en el selector.
+  ///
+  /// Se acepta el bloque escrito de las dos formas, con `!` y sin él: en la
+  /// terminal se escribe sin y aquí se escribe con.
+  static String? deUnBloque(String texto) {
+    final limpio = texto.trim();
+    if (limpio.isEmpty || limpio.contains('\n')) return null;
+
+    final frase = limpio.startsWith(prefijo) ? limpio : '$prefijo$limpio';
+    final pedido = deLaFrase(frase);
+    if (pedido == null || pedido.comando != soloEste) return null;
+
+    return frase;
+  }
+
   /// Qué se pidió con `!`, o `null` si la frase no llevaba `!` delante.
   ///
   /// Devuelve el comando aparte de sus argumentos **aunque no sea git**: quien
