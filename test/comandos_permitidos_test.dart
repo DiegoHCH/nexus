@@ -122,4 +122,56 @@ void main() {
       expect(resultado.blockedCommands, contains('build_runner'));
     });
   });
+
+  group('lo que solo mira viene de fábrica', () {
+    // 🔴 La app venía al revés: autorizaba `curl` —que sale a la red— y `sips`
+    // —que escribe— y no autorizaba `ls`. Medido en un `flow review` real: cuatro
+    // «Permitir todo» pulsados y las preguntas siguiendo, porque lo que ese botón
+    // concede sobre un Bash es una regla para *ese* comando y no para el
+    // siguiente.
+    test('los de leer están, y anclados al principio', () {
+      expect(
+        AllowedCommands.paraLeer,
+        containsAll(<String>[
+          'Bash(ls:*)',
+          'Bash(cat:*)',
+          'Bash(grep:*)',
+          'Bash(rg:*)',
+          'Bash(git status:*)',
+          'Bash(git diff:*)',
+        ]),
+      );
+      for (final patron in AllowedCommands.paraLeer) {
+        expect(
+          patron,
+          endsWith(':*)'),
+          reason: 'el comodín solo detrás, como el resto de los permitidos',
+        );
+      }
+    });
+
+    // 🔴 Y esto es la mitad que importa: la lista es corta **a propósito**.
+    test('lo que puede borrar o editar NO entra', () {
+      const fuera = ['find', 'sed', 'awk', 'xargs', 'git branch', 'rm', 'mv'];
+      for (final comando in fuera) {
+        expect(
+          AllowedCommands.paraLeer,
+          isNot(contains('Bash($comando:*)')),
+          reason:
+              '$comando no solo mira: find borra con -delete, sed edita en el '
+              'sitio, git branch -D se lleva una rama y xargs corre lo que le '
+              'echen',
+        );
+      }
+    });
+
+    test('se le cuenta que puede mirar sin pedir permiso', () {
+      final aviso = AllowedCommands.loQuePuedeCorrer(null)!;
+
+      expect(aviso, contains('`grep`'));
+      expect(aviso, contains('sin pedir permiso'));
+      // Y sin perder lo que ya decía, que es la otra mitad del aviso.
+      expect(aviso, contains('subir'));
+    });
+  });
 }

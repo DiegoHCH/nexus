@@ -100,6 +100,10 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // —`curl -o`— y no en `curl` a secas, que autorizaría también
         // `curl -d @archivo`, o sea la puerta de salida.
         comandosPermitidos: [
+          // Lo que solo mira va primero y de fábrica: es lo que evita que un
+          // repaso al código sean veinte preguntas seguidas. Ver
+          // [AllowedCommands.paraLeer], donde está dicho qué entra y qué no.
+          ...AllowedCommands.paraLeer,
           AllowedCommands.paraDescargar,
           AllowedCommands.paraConvertirImagenes,
           ...AllowedCommands.patterns(paired?.allowedCommands ?? const []),

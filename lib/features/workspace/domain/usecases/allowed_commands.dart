@@ -30,6 +30,53 @@ abstract final class AllowedCommands {
         if (entry.contains('(')) entry else 'Bash($entry:*)',
   ];
 
+  /// Lo que se puede **leer** sin preguntar, de fábrica.
+  ///
+  /// 🔴 **Porque hoy la app viene al revés.** De serie autoriza `curl` —que sale
+  /// a la red— y `sips` —que escribe archivos—, y no autoriza `ls`. Lo que no
+  /// puede hacer daño era justo lo que preguntaba veinte veces: medido en un
+  /// `flow review` de verdad, con «Permitir todo» pulsado cuatro veces y las
+  /// preguntas siguiendo, porque lo que concede ese botón sobre un `Bash` es una
+  /// regla **para ese comando** y no para el siguiente.
+  ///
+  /// La lista por carpeta ya existía y funciona, pero **hay que acordarse de
+  /// llenarla**, y una carpeta recién emparejada llega vacía. Un permiso que
+  /// depende de la memoria de alguien no es un permiso: es una trampa que se
+  /// paga contestando a ciegas.
+  ///
+  /// **Qué entra y qué no, uno por uno.** Entran los que solo miran: `ls`,
+  /// `cat`, `head`, `tail`, `wc`, `file`, `stat`, `grep` y `rg`; y de `git`, sus
+  /// cuatro lecturas —`status`, `log`, `diff`, `show`—. Se quedan fuera, y no
+  /// por descuido:
+  ///
+  /// - **`find`**, que tiene `-delete` y `-exec`: leer con él sale gratis, y
+  ///   borrar el árbol también.
+  /// - **`sed` y `awk`**, que editan en el sitio con un flag.
+  /// - **`git branch`**, que con `-D` borra ramas; sus lecturas ya están
+  ///   cubiertas por las otras cuatro.
+  /// - **`xargs`**, que ejecuta lo que le echen.
+  ///
+  /// Y el hueco que hay que decir en voz alta: **una redirección escribe**
+  /// —`cat a > b`—, y eso empieza por `cat`. No se tapa desde aquí, y no
+  /// ensancha nada de verdad: esta lista **solo viaja cuando la carpeta puede
+  /// escribir**, y ahí escribir ya está concedido por la puerta principal. En
+  /// solo lectura llega vacía, como todo lo demás.
+  static const paraLeer = [
+    'Bash(ls:*)',
+    'Bash(cat:*)',
+    'Bash(head:*)',
+    'Bash(tail:*)',
+    'Bash(wc:*)',
+    'Bash(file:*)',
+    'Bash(stat:*)',
+    'Bash(grep:*)',
+    'Bash(rg:*)',
+    'Bash(git status:*)',
+    'Bash(git log:*)',
+    'Bash(git diff:*)',
+    'Bash(git show:*)',
+  ];
+
   /// Lo que viene autorizado siempre que la carpeta pueda escribir.
   ///
   /// **`curl` entero, y esto se escribió primero al revés.** La primera versión
@@ -83,9 +130,11 @@ abstract final class AllowedCommands {
   /// convertir imágenes, y no puede subir.
   static String? loQuePuedeCorrer(String? loBloqueado) {
     const puede =
-        'En esta carpeta puedes descargar archivos con `curl` y convertir '
-        'imágenes con `sips` (por ejemplo `sips -s format png entrada.webp '
-        '--out salida.png`), sin pedir permiso. Lo que no puedes es **subir** '
+        'En esta carpeta puedes mirar sin pedir permiso: `ls`, `cat`, `head`, '
+        '`tail`, `wc`, `file`, `stat`, `grep`, `rg` y las lecturas de git '
+        '(`status`, `log`, `diff`, `show`). Puedes descargar archivos con '
+        '`curl` y convertir imágenes con `sips` (por ejemplo `sips -s format '
+        'png entrada.webp --out salida.png`), sin pedir permiso. Lo que no puedes es **subir** '
         'archivos: las formas de `curl` que mandan un archivo hacia fuera '
         '—`-d`, `-T`, `-F`— están negadas, y no hay que buscarles la vuelta. '
         'Si te piden una imagen y el modelo la devuelve en `.webp`, conviértela '
