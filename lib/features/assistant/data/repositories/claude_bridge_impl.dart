@@ -5,6 +5,7 @@ import 'package:nexus/features/assistant/data/datasources/rules_watch_data_sourc
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
 import 'package:nexus/features/assistant/domain/usecases/el_perfil_del_encargo.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_no_se_puede_pintar.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
@@ -223,6 +224,10 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         // correo para poder leerlo dejaría también mandarlo.
         disallowedTools: [
           ...disallowedTools,
+          // Y lo que no se puede enseñar, siempre: ofrecer una herramienta que
+          // no se pinta gasta una pregunta de permiso y pierde la respuesta.
+          // Ver [LoQueNoSePuedePintar], donde está el caso medido.
+          ...LoQueNoSePuedePintar.herramientas,
           if (!canEdit) ...McpPermissions.escrituraDeFuera,
         ],
         appendSystemPrompt: ProjectContextPrompt.compose(
