@@ -9,6 +9,9 @@ import 'package:nexus/features/assistant/presentation/orb/nexus_orb_painter.dart
 import 'package:nexus/features/assistant/presentation/pages/home_page.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -55,6 +58,12 @@ void main() {
               activePath: carpetas.first,
             ),
           ),
+        ),
+        // Con archivo: al arrancar, una conversación que no ha dicho nada se
+        // cierra sola, y esta prueba necesita las cuatro abiertas para mirar
+        // cómo se apila el muelle.
+        localConversationStoreProvider.overrideWithValue(
+          _ConAlgoDicho([for (final (i, _) in carpetas.indexed) 'c$i']),
         ),
         conversationsDataSourceProvider.overrideWithValue(
           _Disco({
@@ -175,6 +184,12 @@ void _laAlineacion() {
             ),
           ),
         ),
+        // Con archivo: al arrancar, una conversación que no ha dicho nada se
+        // cierra sola, y esta prueba necesita las cuatro abiertas para mirar
+        // cómo se apila el muelle.
+        localConversationStoreProvider.overrideWithValue(
+          _ConAlgoDicho([for (final (i, _) in carpetas.indexed) 'c$i']),
+        ),
         conversationsDataSourceProvider.overrideWithValue(
           _Disco({
             'items': [
@@ -245,4 +260,29 @@ class _Disco implements ConversationsDataSource {
 
   @override
   Future<void> write(Map<String, dynamic> json) async => contenido = json;
+}
+
+/// Un archivo que dice que todas ellas hablaron.
+///
+/// Hace falta desde que el arranque cierra las que no dijeron nada: sin esto,
+/// las cuatro de esta prueba se cerrarían antes de que el muelle las pinte.
+class _ConAlgoDicho implements LocalConversationStore {
+  const _ConAlgoDicho(this.ids);
+
+  final List<String> ids;
+
+  @override
+  Future<List<ConversationSummary>> list(String folderPath) async => [
+    for (final id in ids)
+      ConversationSummary(
+        id: id,
+        folderPath: folderPath,
+        startedAt: DateTime(2026, 9, 5),
+        title: 'algo',
+        turns: 2,
+      ),
+  ];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

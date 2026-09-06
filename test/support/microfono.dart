@@ -25,3 +25,25 @@ class MicrofonoConcedido implements MicrophoneAccess {
 final conMicrofono = microphoneAccessProvider.overrideWithValue(
   const MicrofonoConcedido(),
 );
+
+/// Un micrófono denegado, para las pruebas que **no van de la puerta**.
+///
+/// Al arrancar sin conversaciones, la pantalla abre una sesión de voz que
+/// saluda y pregunta dónde se trabaja — y mientras está abierta no hay caja de
+/// texto. Las pruebas que miran la caja, el muelle o el tour necesitan la
+/// pantalla de siempre, y la condición documentada para tenerla es justamente
+/// esta: sin micrófono no hay puerta que abrir.
+///
+/// Denegado y no «sin decidir» a propósito: sin decidir abre el diálogo del
+/// sistema, que en una prueba no contesta nadie.
+class MicrofonoDenegado implements MicrophoneAccess {
+  const MicrofonoDenegado();
+
+  @override
+  Future<MicrophoneStatus> status() async => MicrophoneStatus.denied;
+}
+
+/// Para las listas de `overrides`. Ver [MicrofonoDenegado].
+final sinPuerta = microphoneAccessProvider.overrideWithValue(
+  const MicrofonoDenegado(),
+);

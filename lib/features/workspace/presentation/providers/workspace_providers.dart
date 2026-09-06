@@ -458,6 +458,20 @@ final reposInsideProvider = FutureProvider.family<List<String>, String>(
 /// Global y no por carpeta, al revés que la cuenta, el modelo y los permisos:
 /// esos cambian con el trabajo y esto no. Ver [LosNombres].
 class LosNombresController extends Notifier<LosNombres> {
+  final _leidos = Completer<void>();
+
+  /// Cuando los nombres ya se han leído del disco.
+  ///
+  /// 🔴 **Hace falta porque nacen vacíos.** El estado inicial es `LosNombres()`
+  /// sin nada y el disco se lee después, así que quien pregunte en el arranque
+  /// se lleva un nombre nulo — y se ve: la puerta saludó con «Buenas noches. ¿En
+  /// dónde vamos a trabajar hoy?», sin nombrar a nadie, porque preguntó
+  /// demasiado pronto.
+  ///
+  /// Para la pantalla ese hueco no importa —se repinta cuando llegan— pero para
+  /// una frase que se dice **una vez** sí: no hay segunda oportunidad.
+  Future<void> get leidos => _leidos.future;
+
   @override
   LosNombres build() {
     unawaited(_cargar());
@@ -465,9 +479,16 @@ class LosNombresController extends Notifier<LosNombres> {
   }
 
   Future<void> _cargar() async {
-    final guardados = await const LosNombresDataSource().leer();
-    if (!ref.mounted) return;
-    state = guardados;
+    try {
+      final guardados = await const LosNombresDataSource().leer();
+      if (!ref.mounted) return;
+      state = guardados;
+    } finally {
+      // Pase lo que pase: quien espera tiene que poder seguir, aunque sea sin
+      // nombres. Colgar el arranque por no poder leer una preferencia sería
+      // peor que saludar sin nombre.
+      if (!_leidos.isCompleted) _leidos.complete();
+    }
   }
 
   /// Un `null` explícito borra; omitir el parámetro conserva. Es la distinción
