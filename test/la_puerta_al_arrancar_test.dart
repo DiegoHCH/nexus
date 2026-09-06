@@ -105,14 +105,25 @@ void main() {
     );
   });
 
-  testWidgets('lo que va diciendo se ve debajo del orbe', (tester) async {
+  // 🔴 **Se acumula, no se reemplaza.** La transcripción llega a pedazos, así
+  // que pintando solo el último trozo el saludo aparecía y se iba borrando solo
+  // delante de quien lo estaba leyendo. Reportado mirándolo.
+  testWidgets('lo que va diciendo se acumula debajo del orbe', (tester) async {
     await abrirLaCasa(tester);
     await tester.pump(const Duration(milliseconds: 50));
 
-    puerta.controlador.add(const LaPuertaDice('¿En cuál de las dos?'));
+    puerta.controlador.add(const LaPuertaDice(' ¿En cuál '));
+    puerta.controlador.add(const LaPuertaDice('de las dos?'));
     await tester.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('¿En cuál de las dos?'), findsOneWidget);
+    // El saludo pintado es un adelanto: el primer trozo que dice de verdad lo
+    // sustituye, o se veía dos veces —reportado mirándolo—.
+    expect(find.textContaining('¿En cuál de las dos?'), findsOneWidget);
+    expect(
+      find.textContaining(puerta.saludoPedido!),
+      findsNothing,
+      reason: 'lo que dice él sustituye al adelanto, no se suma',
+    );
   });
 
   // 🔴 La puerta no puede ser la única entrada.
@@ -125,6 +136,11 @@ void main() {
     await tester.pump(const Duration(milliseconds: 50));
 
     expect(find.text(strings.composerHint), findsOneWidget);
+
+    // Y se le deja tiempo a lo que la caja arranca al construirse: aparece al
+    // final de la prueba, y con el árbol cerrándose encima queda un
+    // temporizador vivo que hace fallar el cierre.
+    await tester.pump(const Duration(seconds: 3));
   });
 
   testWidgets('y sin micrófono no se abre: la pantalla de siempre', (

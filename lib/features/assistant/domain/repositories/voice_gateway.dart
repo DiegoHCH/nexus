@@ -15,10 +15,36 @@ abstract final class VoiceSessionFormat {
 
 /// Quien sabe abrir una conversación de voz. Una implementación por servicio;
 /// hoy solo la Live API de Gemini.
+/// Con qué se presenta la puerta cuando abre su sesión.
+///
+/// 🔴 **Existe porque una sesión de puerta no es una conversación.** La sesión
+/// de siempre lleva la persona del asistente y todas sus herramientas, y con eso
+/// puesto el modelo se comporta como Nexus entero: al preguntarle dónde
+/// trabajar contestaba «voy a inicializar el entorno en la carpeta de nexus» —
+/// intentando llamar a una herramienta que ahí no pinta nada.
+///
+/// Y el saludo **no puede ir como nota de sistema**: eso se manda como un turno
+/// de usuario, o sea que el modelo lo recibe como si alguien se lo hubiera
+/// pedido por teclado. Se vio en pantalla: «Argonauta, me pidieron que dijera
+/// eso exactamente». Va en la instrucción del setup, que es donde vive quién es.
+class ComoSePresentaLaPuerta {
+  const ComoSePresentaLaPuerta({required this.saludo, required this.carpetas});
+
+  /// La frase con la que empieza, ya compuesta con la hora y el nombre.
+  final String saludo;
+
+  /// Los nombres que puede reconocer. **Solo para reconocer**: quien valida y
+  /// abre es la app, con la lista de verdad.
+  final List<String> carpetas;
+}
+
 abstract class VoiceGateway {
   /// Abre una conversación **nueva**, sin memoria de las anteriores. Lanza si
   /// no hay llave guardada o si el servicio rechaza la conexión.
-  Future<VoiceSession> connect();
+  /// [comoPuerta] a `null` es la sesión de siempre: la conversación entera, con
+  /// su persona y sus herramientas. Con valor, se abre **la puerta**: otra
+  /// persona, una sola herramienta y nada más.
+  Future<VoiceSession> connect({ComoSePresentaLaPuerta? comoPuerta});
 
   /// Reengancha **la misma conversación** en una conexión nueva, conservando
   /// lo que ya se había hablado.

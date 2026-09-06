@@ -18,6 +18,7 @@ import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dar
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_que_saluda.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_sesion_de_puerta.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_button.dart';
@@ -490,8 +491,40 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
   /// escribir mandaba el encargo ahí sin decírtelo. Ahora se saluda, se
   /// pregunta dónde, y la interfaz aparece cuando hay un sitio donde trabajar.
   StreamSubscription<LoQuePasaEnLaPuerta>? _puerta;
-  var _puertaAbierta = false;
-  var _subtitulo = '';
+
+  /// 🔴 **Tres estados y no dos.** Con solo «abierta o no», el arranque
+  /// enseñaba la caja de texto un instante —mientras se consulta el micrófono y
+  /// se leen los nombres— y la quitaba de golpe al abrirse la puerta. Reportado
+  /// mirándolo: «se vio por un momento la interfaz con la casilla de escribir y
+  /// cambió a la de sin conversaciones».
+  ///
+  /// Mientras se decide no se enseña ninguna de las dos: solo el orbe. Es medio
+  /// segundo, y es la diferencia entre una pantalla que arranca y una que
+  /// parpadea.
+  _Puerta _estado = _Puerta.decidiendo;
+
+  bool get _puertaAbierta => _estado == _Puerta.abierta;
+
+  /// Todo lo que la puerta ha dicho, **acumulado**.
+  ///
+  /// 🔴 La transcripción llega a pedazos, así que pintando solo el último trozo
+  /// el saludo aparecía y se iba borrando solo delante de quien lo estaba
+  /// leyendo. Se acumula y se enseña entero, como una conversación corta.
+  ///
+  /// 🔴 **Y es un `ValueNotifier`, no un `setState`.** Los pedazos llegan a
+  /// decenas por segundo mientras suena el audio, y cada `setState` de esta
+  /// pantalla repinta **el orbe entero** —un `CustomPainter` con su malla y sus
+  /// anillos—. Con eso compitiendo por el hilo, el saludo se oía entrecortado.
+  /// Así solo se repinta el subtítulo.
+  final _dicho = ValueNotifier<String>('');
+
+  /// Lo escrito es el saludo adelantado y todavía no lo ha dicho él.
+  ///
+  /// 🔴 Se veía dos veces: primero lo pintamos nosotros para que la pantalla no
+  /// arranque muda, y después llegaba su propia transcripción diciendo lo
+  /// mismo. El adelanto es un marcador de posición, así que **el primer trozo
+  /// suyo lo sustituye** en vez de sumarse.
+  var _esUnAdelanto = false;
 
   @override
   void initState() {
@@ -502,6 +535,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
   @override
   void dispose() {
     unawaited(_puerta?.cancel());
+    _dicho.dispose();
     super.dispose();
   }
 
@@ -512,7 +546,10 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
   /// la única entrada: eso no es un arranque distinto, es un arranque cerrado.
   Future<void> _abrirLaPuerta() async {
     final carpetas = ref.read(workspaceControllerProvider).folders;
-    if (carpetas.isEmpty) return;
+    if (carpetas.isEmpty) {
+      _sinPuerta();
+      return;
+    }
 
     // El micrófono, con los mismos guardias que la voz de una conversación: el
     // orden y los motivos viven en `SiSePuedeAbrirLaVoz`.
@@ -526,18 +563,33 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
       microfono = await ref.read(microphoneAccessProvider).status();
     } on Object catch (error) {
       debugPrint('puerta · sin micrófono que consultar: $error');
+      _sinPuerta();
       return;
     }
     if (!mounted) return;
     switch (SiSePuedeAbrirLaVoz.porElMicrofono(microfono)) {
       case ElMicrofonoEstaBloqueado():
+        _sinPuerta();
         return;
       case HayQuePedirElMicrofono():
         final concedido = await ref.read(voiceInputProvider).hasPermission();
-        if (!mounted || !concedido) return;
+        if (!mounted) return;
+        if (!concedido) {
+          _sinPuerta();
+          return;
+        }
       case _:
         break;
     }
+
+    // Los nombres se leen del disco después de arrancar, así que se espera:
+    // esta frase se dice **una vez** y no hay segunda oportunidad para meter tu
+    // nombre. Ver `LosNombresController.leidos`.
+    await ref.read(losNombresProvider.notifier).leidos;
+    // Y la voz elegida, por lo mismo: la puerta conecta sola en el arranque y
+    // saludaba con la voz de fábrica en vez de con la que elegiste.
+    await ref.read(voicePreferenceProvider.notifier).leida;
+    if (!mounted) return;
 
     // 🔴 **Del ámbito del widget, no del proveedor.** Los dos existen y pueden
     // discrepar —una prueba los pilló diciendo uno inglés y el otro español—, y
@@ -548,12 +600,13 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
     );
 
     setState(() {
-      _puertaAbierta = true;
+      _estado = _Puerta.abierta;
       // El saludo se pinta ya, sin esperar a que suene: la transcripción del
       // servicio tarda lo suyo y una pantalla muda en el arranque se lee como
       // una app que no arrancó.
-      _subtitulo = saludo;
+      _esUnAdelanto = true;
     });
+    _dicho.value = saludo;
 
     _puerta = ref
         .read(laSesionDePuertaProvider)
@@ -561,17 +614,33 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         .listen(_loQuePasaEnLaPuerta);
   }
 
+  /// No hay puerta: la pantalla de siempre, con su caja.
+  void _sinPuerta() {
+    if (!mounted) return;
+    setState(() {
+      _estado = _Puerta.cerrada;
+    });
+    _dicho.value = '';
+  }
+
   void _loQuePasaEnLaPuerta(LoQuePasaEnLaPuerta evento) {
     if (!mounted) return;
     switch (evento) {
       case LaPuertaDice(:final texto):
-        setState(() => _subtitulo = texto);
+        // Los trozos se pegan tal cual llegan: el servicio ya los manda con sus
+        // espacios, y «arreglarlos» aquí parte palabras por la mitad. Y **sin
+        // `setState`**: esto pasa mientras suena el audio.
+        if (_esUnAdelanto) {
+          _dicho.value = '';
+          _esUnAdelanto = false;
+        }
+        _dicho.value += texto;
       case LaPuertaEligio(:final carpeta, :final tarea):
         unawaited(_trabajarEn(carpeta.path, tarea));
       case LaPuertaSeCayo():
         // No se dice el motivo aquí: lo que hace falta es poder seguir, y para
         // eso vuelve la caja de siempre.
-        setState(() => _puertaAbierta = false);
+        _sinPuerta();
       case LaPuertaEstaLista():
         break;
     }
@@ -637,7 +706,13 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         child: Scaffold(
           body: Column(
             children: [
-              HudTopBar(status: context.strings.asleep),
+              // 🔴 El rótulo decía «dormido» con la puerta abierta y el orbe
+              // escuchando: la barra contaba una cosa y la pantalla otra.
+              HudTopBar(
+                status: _puertaAbierta
+                    ? context.strings.listening
+                    : context.strings.asleep,
+              ),
               Expanded(
                 child: Stack(
                   children: [
@@ -655,37 +730,62 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                           child: GestureDetector(
                             onTap: _talk,
                             behavior: HitTestBehavior.opaque,
-                            child: const NexusOrb(state: NexusOrbState.sleep),
+                            // Con la puerta abierta el orbe **escucha**, que es
+                            // lo que está haciendo: dormido decía lo contrario
+                            // de lo que pasaba.
+                            child: NexusOrb(
+                              state: _puertaAbierta
+                                  ? NexusOrbState.listen
+                                  : NexusOrbState.sleep,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                    const Positioned(
-                      left: NexusSpacing.s6,
-                      bottom: ConversationDock.alDelSuelo,
-                      child: TourAnchor(
-                        stop: TourStop.dock,
-                        child: ConversationDock(),
+                    // El muelle se aparta mientras la puerta pregunta: ahí la
+                    // entrada es contestar, y «nueva» al lado ofrece otra cosa
+                    // en el único momento en que solo hay que decir dónde. Vuelve
+                    // en cuanto la puerta se cierra o no puede abrirse.
+                    if (_estado == _Puerta.cerrada)
+                      const Positioned(
+                        left: NexusSpacing.s6,
+                        bottom: ConversationDock.alDelSuelo,
+                        child: TourAnchor(
+                          stop: TourStop.dock,
+                          child: ConversationDock(),
+                        ),
                       ),
-                    ),
                     // Debajo del orbe, como los subtítulos de una conversación:
                     // lo que la puerta va diciendo, para quien no pueda oírlo.
-                    if (_puertaAbierta && _subtitulo.isNotEmpty)
+                    if (_puertaAbierta)
                       Positioned(
                         left: NexusSpacing.s8,
                         right: NexusSpacing.s8,
-                        bottom: ConversationDock.alDelSuelo + 120,
+                        bottom: ConversationDock.alDelSuelo + 40,
                         // 🔴 **Sin comerse las pulsaciones.** Se pinta después
                         // del muelle, así que queda por encima: sin esto, el
                         // borde superior de «nueva» dejaba de responder — y un
                         // subtítulo que roba toques es de los fallos que se
                         // buscan en el sitio equivocado.
                         child: IgnorePointer(
-                          child: Text(
-                            _subtitulo,
-                            textAlign: TextAlign.center,
-                            style: NexusTypography.mono.copyWith(
-                              color: colors.ink,
+                          // Sin cuadro: es un subtítulo, no un panel. Lo que
+                          // hace falta es leerlo, y un marco alrededor del orbe
+                          // convierte una frase en un trozo de interfaz.
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 140),
+                            child: ValueListenableBuilder<String>(
+                              valueListenable: _dicho,
+                              builder: (context, dicho, _) =>
+                                  SingleChildScrollView(
+                                    reverse: true,
+                                    child: Text(
+                                      dicho,
+                                      textAlign: TextAlign.center,
+                                      style: NexusTypography.mono.copyWith(
+                                        color: colors.ink,
+                                      ),
+                                    ),
+                                  ),
                             ),
                           ),
                         ),
@@ -714,7 +814,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
               // Con la puerta abierta no hay caja: se está preguntando dónde
               // se trabaja, y una caja ahí solo puede mandar el encargo a la
               // carpeta de la conversación anterior sin decirlo.
-              if (!_puertaAbierta)
+              if (_estado == _Puerta.cerrada)
                 TourAnchor(
                   stop: TourStop.composer,
                   child: ComposerBar(
@@ -889,4 +989,16 @@ class _AvisoChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// En qué punto está la puerta de voz del arranque.
+enum _Puerta {
+  /// Todavía se está viendo si se puede abrir: micrófono, carpetas, nombres.
+  decidiendo,
+
+  /// Está abierta: saluda y escucha, y no hay caja de texto.
+  abierta,
+
+  /// No se pudo abrir, o se cayó: la pantalla de siempre.
+  cerrada,
 }

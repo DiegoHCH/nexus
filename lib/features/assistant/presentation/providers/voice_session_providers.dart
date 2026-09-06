@@ -109,5 +109,6 @@ final laSesionDePuertaProvider = Provider<LaSesionDePuerta>(
     ref.watch(voiceInputProvider),
     ref.watch(voiceGatewayProvider),
     ref.watch(audioOutputProvider),
+    debugPrint,
   ),
 );

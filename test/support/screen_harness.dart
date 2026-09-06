@@ -188,4 +188,10 @@ Future<void> pumpScreen(
   // esperar para siempre.
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
+  // 🔴 **Y una tercera, para que la casa termine de decidirse.** Sin
+  // conversaciones, la pantalla mira el micrófono antes de saber si abre su
+  // puerta de voz o enseña la caja de siempre, y eso es asíncrono: con dos
+  // bombeos la prueba miraba la pantalla a medio decidir —y con la caja
+  // construyéndose justo al cerrar el árbol, dejando un temporizador vivo.
+  await tester.pump(const Duration(milliseconds: 100));
 }
