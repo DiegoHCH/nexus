@@ -20,6 +20,7 @@ import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.da
 import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_sesion_que_se_comparte.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
@@ -202,7 +203,13 @@ class AssistantController extends Notifier<AssistantHudState> {
             ?.recordId ??
         conversationId;
     final ficha = guardadas.where((r) => r.id == buscado).firstOrNull;
-    if (ficha == null) return;
+    if (ficha == null) {
+      // No hay nada que pintar: esta conversación **acaba de nacer**. Es el
+      // único momento en que se sabe, y es cuando toca decir si se está
+      // continuando un hilo que no se ve.
+      await _avisaSiContinuaLaSesion(folder);
+      return;
+    }
     if (state.messages.isNotEmpty) return;
 
     // Los mensajes se leen **solo de la que se busca**. La lista trae fichas
@@ -239,8 +246,56 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(
       subtitle: ref.read(stringsProvider).conversationForgotten,
       meter: const SessionMeter(),
+      // El aviso se va con la sesión: ya no continúa nada.
+      notice: null,
+      puedeEmpezarDeCero: false,
     );
   }
+
+  /// Si esta carpeta ya tenía sesión, decirlo: la pantalla vacía engaña.
+  ///
+  /// 🔴 **Cerrar todos los chats no suelta la sesión.** Cierras todo, abres una
+  /// conversación nueva sobre la misma carpeta y el modelo sigue acordándose
+  /// —comprobado en el código— sin que nada lo diga. Y no es teórico: un chat
+  /// recién abierto avisó «ojo que cambiaste de rama», y ese dato venía de la
+  /// sesión del anterior.
+  ///
+  /// **La sesión se pregunta por carpeta y cuenta**, como la lee el encargo: la
+  /// misma carpeta abierta con otro perfil no tiene la del anterior, y avisar de
+  /// una continuidad que no va a ocurrir sería peor que callarse.
+  Future<void> _avisaSiContinuaLaSesion(String folder) async {
+    final perfil = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((carpeta) => carpeta.path == folder)
+        .firstOrNull
+        ?.claudeProfile;
+    final memoria = await ref
+        .read(conversationMemoryProvider)
+        .read(folder, claudeProfile: perfil);
+    if (!ref.mounted) return;
+    if (!LaSesionQueSeComparte.continuaSinVerse(memoria.sessionId)) return;
+    // Lo que haya llegado mientras se leía el disco manda: avisar de que se
+    // continúa encima de una conversación que ya empezó sería ruido.
+    if (state.messages.isNotEmpty) return;
+    avisaQueContinua();
+  }
+
+  /// Esta conversación **continúa un hilo que no se ve**.
+  ///
+  /// 🔴 **Cerrar todos los chats no suelta la sesión** —comprobado en el
+  /// código— así que puedes cerrar todo, abrir una conversación nueva sobre la
+  /// misma carpeta y el modelo seguir acordándose, sin que nada lo diga. Se dice
+  /// aquí, con la salida a mano: el aviso trae «empezar de cero».
+  ///
+  /// Se llama al terminar de buscar lo dicho y **solo cuando no había nada**:
+  /// ahí se sabe que la pestaña acaba de nacer. Una retomada del archivo tiene
+  /// su registro, así que por ese camino no pasa — y continuar es justo lo que
+  /// se pidió al retomarla.
+  void avisaQueContinua() => state = state.copyWith(
+    notice: ref.read(stringsProvider).continuoDondeQuedo,
+    puedeEmpezarDeCero: true,
+  );
 
   /// Añade un turno a la conversación.
   void _say(
@@ -1983,7 +2038,8 @@ class AssistantController extends Notifier<AssistantHudState> {
   void dismissError() => state = state.copyWith(errorMessage: null);
 
   /// Lo mismo para el aviso que no es un fallo.
-  void dismissNotice() => state = state.copyWith(notice: null);
+  void dismissNotice() =>
+      state = state.copyWith(notice: null, puedeEmpezarDeCero: false);
 
   Future<void> stopVoice() async {
     await _voiceSubscription?.cancel();

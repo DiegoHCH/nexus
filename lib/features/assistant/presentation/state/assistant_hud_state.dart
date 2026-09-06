@@ -111,6 +111,7 @@ class AssistantHudState {
     this.errorMessage,
     this.laSesionCaduco = false,
     this.notice,
+    this.puedeEmpezarDeCero = false,
     this.changes,
   });
 
@@ -161,6 +162,13 @@ class AssistantHudState {
   /// justo el día que cambiaron las reglas.
   final String? notice;
 
+  /// Si el aviso de arriba se puede resolver **desde el aviso**: es el de
+  /// «continúo donde quedó la última conversación de esta carpeta», y su salida
+  /// es empezar de cero. Un botón que a veces está y a veces no es más honesto
+  /// que uno permanente que casi nunca sirve — el mismo criterio que ya sigue el
+  /// aviso de la sesión caducada.
+  final bool puedeEmpezarDeCero;
+
   /// Lo que **este turno** dejó tocado en el repositorio, si tocó algo.
   ///
   /// De este turno y no de la conversación: acumular los cambios haría que el
@@ -180,6 +188,7 @@ class AssistantHudState {
     Object? errorMessage = _unset,
     bool? laSesionCaduco,
     Object? notice = _unset,
+    bool? puedeEmpezarDeCero,
     Object? changes = _unset,
   }) {
     return AssistantHudState(
@@ -196,6 +205,7 @@ class AssistantHudState {
           : errorMessage as String?,
       laSesionCaduco: laSesionCaduco ?? this.laSesionCaduco,
       notice: notice == _unset ? this.notice : notice as String?,
+      puedeEmpezarDeCero: puedeEmpezarDeCero ?? this.puedeEmpezarDeCero,
       changes: changes == _unset ? this.changes : changes as GitChanges?,
     );
   }

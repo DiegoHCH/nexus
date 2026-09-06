@@ -4,6 +4,7 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/artifacts/presentation/widgets/artifacts_sheet.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_sesion_que_se_comparte.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -50,6 +51,14 @@ class ComposerChips extends ConsumerWidget {
     final repos = paired == null
         ? const <String>[]
         : ref.watch(reposInsideProvider(paired.path)).value ?? const [];
+    // Cuántas conversaciones abiertas comparten la sesión de esta carpeta. Ver
+    // [LaSesionQueSeComparte].
+    final comparten = folderPath == null
+        ? 0
+        : LaSesionQueSeComparte.cuantasComparten(
+            ref.watch(conversationsProvider).items.map((i) => i.folderPath),
+            folderPath!,
+          );
 
     return Row(
       children: [
@@ -247,6 +256,23 @@ class ComposerChips extends ConsumerWidget {
             if (paired?.claudeProfile?.split('/').last case final profile?)
               if (profile.startsWith('.claude-'))
                 _Chip(icon: Icons.badge_outlined, label: profile.substring(8)),
+        // 🔴 **Que este chat no es un hilo aparte.** La sesión de Claude es de
+        // la carpeta, así que dos conversaciones sobre el mismo repo reanudan
+        // **la misma**: comparten el contexto del modelo, lo pedido y el
+        // permiso concedido. Lo que no comparten es lo que se ve —cada una
+        // guarda su transcripción—, o sea dos historiales encima de una sola
+        // memoria, y hasta ahora la interfaz solo enseñaba la mitad que no se
+        // comparte. Se vio en vivo: un chat nuevo avisó «ojo que cambiaste de
+        // rama», y ese dato venía de la sesión del anterior.
+        //
+        // Solo cuando de verdad hay más de una: con un chat, decirlo sería
+        // contestar una pregunta que nadie tiene — el mismo criterio que la
+        // cuenta de Claude.
+        if (comparten > 1)
+          _Chip(
+            icon: Icons.merge_type,
+            label: strings.memoriaCompartida(comparten),
+          ),
         // La modalidad de voz no se repite aquí: se decide por carpeta en
         // Ajustes, y tenerla también en la barra creaba dos sitios que decían
         // lo mismo con distinta forma —uno como estado, el otro como

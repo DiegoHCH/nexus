@@ -8,6 +8,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_sesion_sin_dueno.dart';
 
 final conversationsDataSourceProvider = Provider<ConversationsDataSource>(
   (ref) => const ConversationsDataSource(),
@@ -249,6 +250,7 @@ class ConversationsController extends Notifier<Conversations> {
     // Y aquí igual: cerrar reescribe la lista. Sin cargar, «cerrar una» se convertía en
     // «dejar la lista vacía».
     await _reconcile();
+    final cerrada = state.byId(id);
     final items = state.items.where((item) => item.id != id).toList();
     await _persist(
       Conversations(
@@ -258,6 +260,9 @@ class ConversationsController extends Notifier<Conversations> {
             : state.focusedId,
       ),
     );
+    if (cerrada != null) {
+      await ref.read(laSesionSinDuenoProvider)(cerrada.folderPath);
+    }
   }
 
   /// Mueve una conversación a otra carpeta.

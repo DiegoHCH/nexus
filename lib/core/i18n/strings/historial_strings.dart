@@ -32,6 +32,17 @@ mixin HistorialStrings {
   String get nothingAskedYet;
   String startFromScratchIn(String folder);
   String get conversationForgotten;
+
+  /// Que esta conversación continúa la sesión de su carpeta, aunque la pantalla
+  /// esté vacía. Ver [LaSesionQueSeComparte].
+  String get continuoDondeQuedo;
+
+  /// La salida de ese aviso.
+  String get empezarDeCeroAqui;
+
+  /// Que esta carpeta tiene varias conversaciones abiertas y **comparten
+  /// memoria**: reanudan la misma sesión de Claude.
+  String memoriaCompartida(int cuantas);
   // Archivo de conversaciones
   String get archiveTitle;
   String get archiveExplainer;
@@ -125,6 +136,15 @@ mixin HistorialStringsEs implements HistorialStrings {
   @override
   String get conversationForgotten =>
       'Conversación olvidada: la próxima empieza de cero.';
+  @override
+  String get continuoDondeQuedo =>
+      'Esta carpeta ya tenía una conversación con Claude: sigo donde quedó, '
+      'aunque aquí no se vea.';
+  @override
+  String get empezarDeCeroAqui => 'Empezar de cero';
+  @override
+  String memoriaCompartida(int cuantas) =>
+      'memoria compartida · $cuantas chats';
   @override
   String get archiveTitle => 'DÓNDE SE GUARDAN LAS CONVERSACIONES';
   @override
@@ -269,6 +289,14 @@ mixin HistorialStringsEn implements HistorialStrings {
   @override
   String get conversationForgotten =>
       'Conversation forgotten: the next one starts from scratch.';
+  @override
+  String get continuoDondeQuedo =>
+      'This folder already had a conversation with Claude: I am picking up '
+      'where it left off, even though nothing shows here.';
+  @override
+  String get empezarDeCeroAqui => 'Start from scratch';
+  @override
+  String memoriaCompartida(int cuantas) => 'shared memory · $cuantas chats';
   @override
   String get archiveTitle => 'WHERE CONVERSATIONS ARE KEPT';
   @override
