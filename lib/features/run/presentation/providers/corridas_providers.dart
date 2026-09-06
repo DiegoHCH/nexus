@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +9,7 @@ import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/entities/mensaje_del_daemon.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/domain/usecases/estado_de_la_corrida.dart';
+import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
 
 /// Lo que está corriendo, por dispositivo.
 ///
@@ -65,14 +67,22 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       ),
     };
 
+    // **Lo dice la configuración, no una lista nuestra de proyectos.** Si trae
+    // el flag encendido hay consola que abrir; si no, no se hace nada y no se
+    // mira ni una línea.
+    final consola = ref.read(laConsolaQueSeAbreProvider)
+      ..alArrancar(deviceId: deviceId, args: args);
+
     final viva = await CorridaViva.arrancar(
       flutter: flutter,
       proyecto: proyecto,
       deviceId: deviceId,
       args: args,
       onEvento: (evento) => _aplica(deviceId, evento),
-      onRegistro: (linea) =>
-          ref.read(registrosProvider.notifier).anota(deviceId, linea),
+      onRegistro: (linea) {
+        ref.read(registrosProvider.notifier).anota(deviceId, linea);
+        unawaited(consola.alVerLaLinea(deviceId, linea));
+      },
       onFin: (motivo) => _termina(deviceId, motivo),
     );
 
@@ -156,6 +166,13 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     return r.error;
   }
 
+  /// Apunta en la corrida que su consola está en [puerto].
+  ///
+  /// Lo llama [LaConsolaQueSeAbre], que es quien mira las líneas: aquí solo se
+  /// guarda, porque el dato es de la corrida y el mapa es de esta clase.
+  void apuntaLaConsola(String deviceId, int puerto) =>
+      _cambia(deviceId, (c) => c.copyWith(consola: puerto));
+
   void _aplica(String deviceId, EventoDelDaemon evento) {
     final actual = state[deviceId];
     if (actual == null) return;
@@ -184,6 +201,9 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     // tirarlo justo al caerse es quitarle la prueba a quien va a mirarla.
     _vivas.remove(deviceId);
     _progresos.remove(deviceId);
+    // El túnel se va con la corrida: sin app al otro lado no lleva a ninguna
+    // parte, y uno huérfano por corrida se acumula en el daemon de `adb`.
+    unawaited(ref.read(laConsolaQueSeAbreProvider).alTerminar(deviceId));
     if (motivo != null) {
       // Se deja el motivo a la vista quitando la corrida: la fila desaparece y el
       // error queda donde se lea. Guardar una corrida muerta en el mapa haría que

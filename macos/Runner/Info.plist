@@ -31,6 +31,17 @@
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 
+	<!-- La consola de depuración que la app corriendo levanta es HTTP en el
+	     loopback —`http://localhost:<puerto>`, con `adb forward` por medio— y
+	     App Transport Security corta el HTTP sin cifrar. Esta clave abre la
+	     excepción **solo** para la red local: nada de `NSAllowsArbitraryLoads`,
+	     que la abriría para cualquier dominio de internet. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
+
 	<!-- Actualizaciones. La interfaz no es la de Sparkle: ver NexusUpdater.swift. -->
 
 	<!-- `latest/download` y no la URL de una etiqueta: GitHub redirige eso a la

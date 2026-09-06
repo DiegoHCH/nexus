@@ -9,6 +9,7 @@ import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/donde_flota_la_botonera.dart';
+import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
 import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/widgets/la_botonera_de_corridas.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -27,6 +28,7 @@ Corrida _corrida({
   EstadoDeCorrida estado = EstadoDeCorrida.corriendo,
   String? appId = 'abc',
   String? progreso,
+  int? consola,
 }) => Corrida(
   deviceId: _deviceId,
   dispositivo: 'Medium Phone API 36.1',
@@ -36,6 +38,7 @@ Corrida _corrida({
   estado: estado,
   appId: appId,
   progreso: progreso,
+  consola: consola,
 );
 
 class _Corridas extends CorridasController {
@@ -79,9 +82,12 @@ void main() {
   late _Corridas corridas;
   late _Pintor pintor;
 
+  late List<String> consolas;
+
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     pintor = _Pintor();
+    consolas = [];
   });
 
   /// El `Stack` donde cuelga **no es la ventana**: vive dentro de un `Column`,
@@ -98,6 +104,13 @@ void main() {
         overrides: [
           corridasProvider.overrideWith(() => corridas),
           elPintorDeVentanasProvider.overrideWithValue(pintor.pinta),
+          abreLaConsolaProvider.overrideWithValue(({
+            required url,
+            titulo,
+          }) async {
+            consolas.add(url);
+            return true;
+          }),
         ],
         child: MaterialApp(
           theme: NexusTheme.dark(),
@@ -214,6 +227,27 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(pintor.paginas, ['registro-emulator-5554', 'sistema-emulator-5554']);
+  });
+
+  group('la consola de la app', () {
+    // La ventana se abre sola al arrancar; este botón es para volver a ella
+    // cuando se cerró.
+    testWidgets('se puede volver a abrir desde aquí', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida(consola: 9777)});
+
+      await tester.tap(find.byTooltip(strings.runConsole));
+      await tester.pump();
+
+      expect(consolas, ['http://localhost:9777']);
+    });
+
+    // La mayoría de las apps no traen consola, y un botón que no lleva a
+    // ninguna parte enseña a no pulsarlo.
+    testWidgets('y sin consola declarada, no hay botón', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida()});
+
+      expect(find.byTooltip(strings.runConsole), findsNothing);
+    });
   });
 
   group('la recarga automática', () {

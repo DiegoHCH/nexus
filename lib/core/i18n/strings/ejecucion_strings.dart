@@ -47,6 +47,10 @@ mixin EjecucionStrings {
   String get nivelSoloFatales;
   String get runAuto;
 
+  /// La consola de depuración que la app levanta ella misma. **No** es la de
+  /// Nexus ni una nuestra: es la de la app que está corriendo.
+  String get runConsole;
+
   /// El asa de la botonera flotante. Es su único rótulo, así que dice lo que la
   /// barra es —lo que está corriendo— y no «arrastrar», que se ve solo.
   String get runToolbarDrag;
@@ -121,6 +125,8 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
   String get runToolbarDrag => 'Corriendo';
+  @override
+  String get runConsole => 'Consola de la app';
 }
 
 mixin EjecucionStringsEn implements EjecucionStrings {
@@ -193,4 +199,6 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String get runAuto => 'Reload on its own when an errand finishes';
   @override
   String get runToolbarDrag => 'Running';
+  @override
+  String get runConsole => 'App debug console';
 }
