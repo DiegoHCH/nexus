@@ -32,6 +32,7 @@ import 'package:nexus/features/history/presentation/widgets/conversation_history
 import 'package:nexus/features/assistant/presentation/widgets/composer_bar.dart';
 import 'package:nexus/features/workspace/presentation/pages/settings_page.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
+import 'package:nexus/features/run/presentation/widgets/la_botonera_de_corridas.dart';
 import 'package:nexus/features/workspace/presentation/widgets/hud_top_bar.dart';
 
 /// El orbe fijo a la izquierda y la conversación a la derecha: lo que le
@@ -360,6 +361,10 @@ class _HomePageState extends ConsumerState<HomePage> {
                             child: ConversationDock(),
                           ),
                         ),
+                        // La app corriendo, gobernable sin abrir nada. Se
+                        // posiciona sola —y se guarda dónde la dejaste—, así
+                        // que aquí no lleva sitio.
+                        const LaBotoneraDeCorridas(),
                         // El fallo y el aviso son dos cosas distintas y pueden
                         // coincidir, así que se apilan en vez de competir por el
                         // mismo hueco. El fallo va arriba: es el que urge.
@@ -755,6 +760,10 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                           child: ConversationDock(),
                         ),
                       ),
+                    // También aquí: cerrar todas las conversaciones no para la
+                    // app que dejaste corriendo, y sin botonera no habría forma
+                    // de pararla sin abrir una conversación nueva.
+                    const LaBotoneraDeCorridas(),
                     // Debajo del orbe, como los subtítulos de una conversación:
                     // lo que la puerta va diciendo, para quien no pueda oírlo.
                     if (_puertaAbierta)

@@ -46,6 +46,10 @@ mixin EjecucionStrings {
   String get nivelSoloErrores;
   String get nivelSoloFatales;
   String get runAuto;
+
+  /// El asa de la botonera flotante. Es su único rótulo, así que dice lo que la
+  /// barra es —lo que está corriendo— y no «arrastrar», que se ve solo.
+  String get runToolbarDrag;
 }
 
 mixin EjecucionStringsEs implements EjecucionStrings {
@@ -115,6 +119,8 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   String get nivelSoloFatales => 'solo fatales';
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
+  @override
+  String get runToolbarDrag => 'Corriendo';
 }
 
 mixin EjecucionStringsEn implements EjecucionStrings {
@@ -185,4 +191,6 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String get nivelSoloFatales => 'fatal only';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
+  @override
+  String get runToolbarDrag => 'Running';
 }
