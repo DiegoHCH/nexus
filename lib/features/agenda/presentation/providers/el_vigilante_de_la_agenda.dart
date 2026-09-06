@@ -6,7 +6,8 @@ import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/platform/notifications_channel.dart';
 import 'package:nexus/features/agenda/data/datasources/agenda_data_source.dart';
 import 'package:nexus/features/agenda/data/datasources/avisos_preferencias_data_source.dart';
-import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.dart';
+import 'package:nexus/features/agenda/domain/usecases/la_voz_del_aviso.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/agenda/domain/entities/reunion.dart';
 import 'package:nexus/features/agenda/domain/usecases/la_lectura_que_toca.dart';
 import 'package:nexus/features/agenda/domain/usecases/lo_que_se_contesta_de_la_agenda.dart';
@@ -18,7 +19,6 @@ import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.da
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
-import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/onboarding/presentation/providers/onboarding_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -386,15 +386,14 @@ class ElVigilanteDeLaAgenda extends Notifier<Avisos> {
       // que lo normal son ~3,9 s, o sea que un tope agotado no es «faltó un
       // poco»: es el servicio en problemas.
       final empezo = DateTime.now();
-      final dicho = await ref
-          .read(geminiTtsProvider)
-          .decir(
-            llave: llave,
-            frase: frase,
-            voz: ref.read(voicePreferenceProvider).name,
-          );
+      // 🔴 **Por la sesión de voz y ya no por el TTS.** El cupo del modelo de
+      // texto a voz del nivel gratuito se agota con dos o tres avisos —medido al
+      // sacar la 1.8.0: `RPD 13/10`— y un aviso que llega en silencio ha dejado
+      // de ser un aviso. El Live es el mismo servicio que sostiene las
+      // conversaciones y no se agota en uso normal. Ver [LaVozDelAviso].
+      final dicho = await ref.read(laVozDelAvisoProvider).decir(frase);
       debugPrint(
-        'agenda · el TTS tardó '
+        'agenda · decirlo tardó '
         '${DateTime.now().difference(empezo).inMilliseconds} ms',
       );
       if (!ref.mounted) {
@@ -530,7 +529,7 @@ final relojProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 /// Las tres fuentes del vigilante, cada una en su proveedor.
 ///
 /// 🔴 **Estaban construidas a mano dentro del notificador** —`const
-/// AgendaDataSource()`, `const GeminiTtsDataSource()`—, o sea presentation
+/// AgendaDataSource()`, la del servicio de voz—, o sea presentation
 /// alcanzando `data` sin pasar por ningún sitio. El resto del repositorio no
 /// hace eso, y aquí costaba lo de siempre: sin una costura por donde entrar,
 /// las 160 líneas de este archivo no se podían probar sin llamar de verdad al
@@ -546,8 +545,12 @@ final agendaDataSourceProvider = Provider<AgendaDataSource>(
   (ref) => const AgendaDataSource(),
 );
 
-final geminiTtsProvider = Provider<GeminiTtsDataSource>(
-  (ref) => const GeminiTtsDataSource(),
+/// Quien dice el aviso en voz alta.
+///
+/// Por la sesión de voz —la misma de las conversaciones— y no por el TTS, cuyo
+/// cupo diario se agota con dos o tres avisos. Ver [LaVozDelAviso].
+final laVozDelAvisoProvider = Provider<LaVozDelAviso>(
+  (ref) => LaVozDelAviso(ref.watch(voiceGatewayProvider), debugPrint),
 );
 
 final elVigilanteDeLaAgendaProvider =

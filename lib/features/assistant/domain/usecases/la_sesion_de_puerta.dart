@@ -311,7 +311,7 @@ class LaSesionDePuerta {
           });
 
           final live = await _servicio.connect(
-            comoPuerta: ComoSePresentaLaPuerta(
+            perfil: ComoLaPuerta(
               saludo: saludo,
               carpetas: [for (final carpeta in carpetas) carpeta.name],
             ),

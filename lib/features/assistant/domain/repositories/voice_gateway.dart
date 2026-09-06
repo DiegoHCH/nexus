@@ -15,20 +15,31 @@ abstract final class VoiceSessionFormat {
 
 /// Quien sabe abrir una conversación de voz. Una implementación por servicio;
 /// hoy solo la Live API de Gemini.
-/// Con qué se presenta la puerta cuando abre su sesión.
+/// Con qué se abre una sesión: quién es y qué puede llamar.
 ///
-/// 🔴 **Existe porque una sesión de puerta no es una conversación.** La sesión
-/// de siempre lleva la persona del asistente y todas sus herramientas, y con eso
-/// puesto el modelo se comporta como Nexus entero: al preguntarle dónde
-/// trabajar contestaba «voy a inicializar el entorno en la carpeta de nexus» —
-/// intentando llamar a una herramienta que ahí no pinta nada.
+/// 🔴 **Existe porque no todas las sesiones son una conversación.** La de
+/// siempre lleva la persona del asistente y todas sus herramientas, y con eso
+/// puesto el modelo se comporta como Nexus entero: a la puerta, al preguntarle
+/// dónde trabajar, le contestaba «voy a inicializar el entorno en la carpeta de
+/// nexus» —intentando llamar a una herramienta que ahí no pinta nada—.
 ///
-/// Y el saludo **no puede ir como nota de sistema**: eso se manda como un turno
-/// de usuario, o sea que el modelo lo recibe como si alguien se lo hubiera
-/// pedido por teclado. Se vio en pantalla: «Argonauta, me pidieron que dijera
-/// eso exactamente». Va en la instrucción del setup, que es donde vive quién es.
-class ComoSePresentaLaPuerta {
-  const ComoSePresentaLaPuerta({required this.saludo, required this.carpetas});
+/// Y lo que tenga que decir **no puede ir como nota de sistema**: eso se manda
+/// como un turno de usuario, o sea que el modelo lo recibe como si alguien se lo
+/// hubiera pedido por teclado. Se vio en pantalla: «Argonauta, me pidieron que
+/// dijera eso exactamente». Va en la instrucción del setup, que es donde vive
+/// quién es.
+sealed class PerfilDeVoz {
+  const PerfilDeVoz();
+}
+
+/// La de siempre: la conversación entera, con su persona y sus herramientas.
+final class ComoUnaConversacion extends PerfilDeVoz {
+  const ComoUnaConversacion();
+}
+
+/// La puerta del arranque: saluda, pregunta dónde se trabaja, y nada más.
+final class ComoLaPuerta extends PerfilDeVoz {
+  const ComoLaPuerta({required this.saludo, required this.carpetas});
 
   /// La frase con la que empieza, ya compuesta con la hora y el nombre.
   final String saludo;
@@ -38,13 +49,26 @@ class ComoSePresentaLaPuerta {
   final List<String> carpetas;
 }
 
+/// Un aviso: dice una frase y se va. Sin herramientas y sin escuchar.
+///
+/// Nace de que el TTS del nivel gratuito se agota con dos o tres avisos al día
+/// —medido: `RPD 13/10`— y el aviso de una reunión que llega en silencio ha
+/// dejado de ser un aviso. El Live no se agota en uso normal.
+final class ComoUnAviso extends PerfilDeVoz {
+  const ComoUnAviso(this.frase);
+
+  /// Lo que hay que decir, **literal**. Que lo diga tal cual es el requisito de
+  /// esta sesión: un aviso que se reformula ya no dice la hora ni el título.
+  final String frase;
+}
+
 abstract class VoiceGateway {
   /// Abre una conversación **nueva**, sin memoria de las anteriores. Lanza si
   /// no hay llave guardada o si el servicio rechaza la conexión.
-  /// [comoPuerta] a `null` es la sesión de siempre: la conversación entera, con
-  /// su persona y sus herramientas. Con valor, se abre **la puerta**: otra
-  /// persona, una sola herramienta y nada más.
-  Future<VoiceSession> connect({ComoSePresentaLaPuerta? comoPuerta});
+  /// [perfil] decide quién es el modelo en esta sesión. Ver [PerfilDeVoz].
+  Future<VoiceSession> connect({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  });
 
   /// Reengancha **la misma conversación** en una conexión nueva, conservando
   /// lo que ya se había hablado.

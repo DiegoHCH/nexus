@@ -11,7 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// El vigilante, probado de verdad y no por sus trozos.
 ///
 /// 🔴 **Antes esto no se podía escribir.** El notificador construía a mano
-/// `const AgendaDataSource()` y `const GeminiTtsDataSource()`, así que cualquier
+/// `const AgendaDataSource()` y la fuente de voz, así que cualquier
 /// prueba llamaba al calendario de verdad —un `claude -p` de treinta segundos—
 /// y al servicio de voz. Con las fuentes en proveedores hay por dónde entrar, y
 /// lo que se comprueba aquí es lo que costaba cupo de la suscripción cada vez
