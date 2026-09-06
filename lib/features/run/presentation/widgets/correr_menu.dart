@@ -9,7 +9,6 @@ import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/usecases/lector_de_configs.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
-import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 
 /// Correr la app: elegir entorno y dispositivo, y gobernarla.
@@ -155,6 +154,14 @@ class _PanelState extends ConsumerState<_Panel> {
       _ocupado = false;
       _error = error;
     });
+    // 🔴 **Arrancó: fuera de en medio.** El panel es una barra de elegir, y una
+    // vez elegido no queda nada que mirar aquí — lo que pasa a partir de ahora
+    // lo cuenta la botonera flotante, que además no tapa la conversación.
+    //
+    // Solo si arrancó. Un fallo —«ya está corriendo en ese dispositivo», «no se
+    // encontró Flutter»— se lee aquí abajo, y cerrar lo dejaría sin sitio donde
+    // decirse.
+    if (error == null) Navigator.of(context).pop();
   }
 
   /// De dónde sale el nombre y la plataforma de un dispositivo elegido.
@@ -206,39 +213,16 @@ class _PanelState extends ConsumerState<_Panel> {
 
     final configs = ref.watch(configsProvider(proyecto)).value ?? const [];
     final dispositivos = _losDispositivos();
-    final corridas = ref
-        .watch(corridasProvider)
-        .values
-        .where((c) => c.proyecto == proyecto)
-        .toList();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Row(
-          children: [
-            Expanded(
-              child: Text(
-                strings.runTitle,
-                style: NexusTypography.label.copyWith(color: colors.faint),
-              ),
-            ),
-            // **Apagado de fábrica.** Recargar la app sin que nadie lo pida es
-            // una sorpresa la primera vez, y aquí no se enciende por defecto lo
-            // que reinicia algo.
-            _BotonMini(
-              icono: Icons.bolt,
-              titulo: strings.runAuto,
-              activo: ref.watch(autoRecargaProvider),
-              onPulsar: () => ref.read(autoRecargaProvider.notifier).cambiar(),
-            ),
-          ],
+        Text(
+          strings.runTitle,
+          style: NexusTypography.label.copyWith(color: colors.faint),
         ),
         const SizedBox(height: NexusSpacing.s3),
-
-        for (final corrida in corridas) _FilaDeCorrida(corrida: corrida),
-        if (corridas.isNotEmpty) const SizedBox(height: NexusSpacing.s4),
 
         if (configs.isEmpty)
           Text(
@@ -374,186 +358,4 @@ class _PanelState extends ConsumerState<_Panel> {
       ],
     );
   }
-}
-
-/// Una app corriendo, con lo que se le puede pedir.
-///
-/// **La estructura viene de mirar la barra de La Oficina**, y no antes: se
-/// implementó primero por lo que tenía que mostrar, se enseñó, y lo que faltaba
-/// era exactamente lo que allí ya está resuelto. Dos cosas se traen de ahí:
-///
-/// - **El progreso tiene su propio sitio y no comparte línea con nada.** Metido
-///   detrás del nombre del dispositivo se corta: «Medium Phone API 36.1 · R…»,
-///   con la R de «Running Gradle task 'assembleCiDebug'…». Reportado tal cual:
-///   «no veo dónde dice lo de corriendo».
-/// - **El registro se abre desde aquí**, con un botón que se queda marcado. Se
-///   recogía y no se enseñaba en ningún sitio, que es tenerlo y no tenerlo.
-///
-/// Lo que **no** se trae es el interruptor de recarga automática. Allí tiene
-/// sentido; aquí quien guarda los archivos es Claude, a ráfagas de veinte
-/// ediciones por encargo, y eso es un bucle de recompilaciones. Sigue siendo una
-/// pregunta abierta y no una tarea.
-class _FilaDeCorrida extends ConsumerWidget {
-  const _FilaDeCorrida({required this.corrida});
-
-  final Corrida corrida;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final strings = context.strings;
-    final controller = ref.read(corridasProvider.notifier);
-    final ventanas = ref.watch(lasVentanasDelRegistroProvider);
-    final registros = ref.read(lasVentanasDelRegistroProvider.notifier);
-    bool abierta({required bool sistema}) => ventanas.contains(
-      LasVentanasDelRegistro.nombreDe(corrida.deviceId, sistema: sistema),
-    );
-
-    final detalle = switch (corrida.estado) {
-      EstadoDeCorrida.arrancando => corrida.progreso ?? strings.runCompiling,
-      EstadoDeCorrida.corriendo => strings.runRunning,
-      EstadoDeCorrida.parando => strings.runStopping,
-    };
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Container(
-              width: 7,
-              height: 7,
-              margin: const EdgeInsets.only(right: NexusSpacing.s3),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: corrida.estado == EstadoDeCorrida.corriendo
-                    ? colors.ok
-                    : colors.warn,
-              ),
-            ),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    corrida.configuracion,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NexusTypography.data.copyWith(color: colors.ink),
-                  ),
-                  Text(
-                    corrida.dispositivo,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: NexusTypography.mono.copyWith(color: colors.faint),
-                  ),
-                ],
-              ),
-            ),
-            if (corrida.puedeRecargar) ...[
-              _BotonMini(
-                icono: Icons.refresh,
-                titulo: strings.runReload,
-                onPulsar: () => controller.recargar(deviceId: corrida.deviceId),
-              ),
-              _BotonMini(
-                icono: Icons.restart_alt,
-                titulo: strings.runRestart,
-                onPulsar: () => controller.recargar(
-                  deviceId: corrida.deviceId,
-                  completa: true,
-                ),
-              ),
-            ],
-            _BotonMini(
-              icono: Icons.article_outlined,
-              titulo: strings.runLogs,
-              activo: abierta(sistema: false),
-              onPulsar: () => registros.alterna(corrida, sistema: false),
-            ),
-            // 🔴 **Aparte del registro de la corrida, y no dentro.** Aquél es lo
-            // que imprime la app —y ya se reenvía por el daemon—; este es lo que
-            // dice el sistema del teléfono: el crash nativo, el ANR, el `Fatal
-            // signal 11`. Juntarlos parece ahorrar un botón y lo que hace es que
-            // no se pueda mirar solo lo que hace falta.
-            _BotonMini(
-              icono: Icons.phonelink_ring_outlined,
-              titulo: strings.runSystemLog,
-              activo: abierta(sistema: true),
-              onPulsar: () => registros.alterna(corrida, sistema: true),
-            ),
-            if (corrida.estado != EstadoDeCorrida.parando)
-              _BotonMini(
-                icono: Icons.stop_rounded,
-                titulo: strings.runStop,
-                onPulsar: () => controller.parar(corrida.deviceId),
-              ),
-          ],
-        ),
-
-        // **El progreso, en su propia línea y a todo lo ancho.** Es lo que cambia
-        // cada pocos segundos mientras compila y lo único que dice que algo pasa;
-        // compartir sitio con el nombre del dispositivo lo dejaba en una letra.
-        Padding(
-          padding: const EdgeInsets.only(left: 19, top: 2),
-          child: Text(
-            detalle,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: NexusTypography.mono.copyWith(
-              color: corrida.estado == EstadoDeCorrida.corriendo
-                  ? colors.ok
-                  : colors.warn,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-/// Una acción sobre la corrida: icono con su nombre en el tooltip.
-///
-/// **Iconos y no palabras, y eso lo decidió una prueba**: «Recargar»,
-/// «Reiniciar» y «Parar» en la misma fila desbordaban por 71 px, con el nombre
-/// del entorno al lado.
-///
-/// Aquel «no hay ancho que alcance» era falso y conviene dejarlo escrito: el
-/// panel medía **280** porque Material recorta ahí cualquier menú sin
-/// `constraints`, no los 380 que yo creía. Con el ancho de verdad las palabras
-/// caben. Se quedan los iconos porque son cuatro acciones —recargar, reiniciar,
-/// registro, parar— y cuatro palabras en una fila con el nombre del entorno
-/// convierten la fila en un párrafo; además es lo que hace la barra de la que se
-/// copia esto.
-///
-/// El nombre no se pierde, se mueve al tooltip — y ahí sigue estando para quien
-/// use un lector de pantalla, porque `IconButton` lo anuncia.
-class _BotonMini extends StatelessWidget {
-  const _BotonMini({
-    required this.icono,
-    required this.titulo,
-    required this.onPulsar,
-    this.activo = false,
-  });
-
-  final IconData icono;
-  final String titulo;
-  final VoidCallback onPulsar;
-
-  /// Marcado. Lo usa el del registro: un botón que abre algo tiene que decir si
-  /// está abierto, o se pulsa dos veces buscando lo que ya estaba.
-  final bool activo;
-
-  @override
-  Widget build(BuildContext context) => IconButton(
-    onPressed: onPulsar,
-    tooltip: titulo,
-    iconSize: 15,
-    splashRadius: 14,
-    padding: const EdgeInsets.symmetric(horizontal: 4),
-    constraints: const BoxConstraints(),
-    visualDensity: VisualDensity.compact,
-    color: activo ? context.colors.accent : context.colors.faint,
-    icon: Icon(icono),
-  );
 }

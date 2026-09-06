@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
-import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
@@ -76,12 +75,27 @@ class _Pintor {
 
 /// Un controlador con corridas puestas, para mirar la fila sin lanzar procesos.
 class _CorridasFijas extends CorridasController {
-  _CorridasFijas(this._inicial);
+  _CorridasFijas(this._inicial, {this.alCorrer});
 
   final Map<String, Corrida> _inicial;
 
+  /// Lo que contesta al arrancar: `null` es que arrancó. Sin esto, la prueba
+  /// del botón de correr buscaría el `flutter` de esta máquina y lanzaría un
+  /// proceso de verdad.
+  final String? alCorrer;
+
   @override
   Map<String, Corrida> build() => _inicial;
+
+  @override
+  Future<String?> correr({
+    required String proyecto,
+    required String configuracion,
+    required List<String> args,
+    required String deviceId,
+    required String dispositivo,
+    required PlataformaEmulador plataforma,
+  }) async => alCorrer;
 }
 
 const _arrancado = Emulador(
@@ -111,6 +125,7 @@ Future<void> _montar(
   Map<String, Corrida> corridas = const {},
   EmuladoresDataSource? maquina,
   _Pintor? pintor,
+  String? alCorrer,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -121,7 +136,9 @@ Future<void> _montar(
         emuladoresDataSourceProvider.overrideWithValue(
           maquina ?? _MaquinaFalsa(emuladores),
         ),
-        corridasProvider.overrideWith(() => _CorridasFijas(corridas)),
+        corridasProvider.overrideWith(
+          () => _CorridasFijas(corridas, alCorrer: alCorrer),
+        ),
         if (pintor != null)
           elPintorDeVentanasProvider.overrideWithValue(pintor.pinta),
       ],
@@ -247,58 +264,72 @@ void main() {
     expect(boton.onPressed, isNull);
   });
 
-  group('la fila de una corrida', () {
-    testWidgets('mientras compila no ofrece recargar, y dice qué compila', (
-      tester,
-    ) async {
-      // Antes de `app.started` no hay a quién pedírselo: un botón que contesta
-      // «todavía está compilando» es un botón que no debía estar encendido.
-      await _montar(
-        tester,
-        corridas: {
-          'emulator-5554': _corrida(
-            estado: EstadoDeCorrida.arrancando,
-            appId: null,
-            progreso: 'Compilando lib/main.dart',
-          ),
-        },
-      );
+  // La fila de una corrida ya no está aquí: se fue a la botonera flotante, y
+  // con ella los botones de recargar, reiniciar, parar y los dos registros. Lo
+  // que se prueba de ella vive en `la_botonera_que_flota_test.dart`.
+  testWidgets('el panel no lleva los botones de la corrida', (tester) async {
+    await _montar(tester, corridas: {'emulator-5554': _corrida()});
+    await tester.tap(find.byType(CorrerMenu));
+    await tester.pumpAndSettle();
+
+    // 🔴 **Para recargar había que abrir el menú, apuntar a la fila y pulsar**,
+    // con la lista de entornos y dispositivos delante — y el panel se cierra al
+    // pulsar fuera, así que gobernar una corrida obligaba a reabrirlo cada vez.
+    expect(find.byTooltip(strings.runReload), findsNothing);
+    expect(find.byTooltip(strings.runRestart), findsNothing);
+    expect(find.byTooltip(strings.runStop), findsNothing);
+    expect(find.byTooltip(strings.runLogs), findsNothing);
+    // Y el panel sigue siendo lo que es: elegir entorno y dispositivo.
+    expect(find.text(strings.runStart), findsOneWidget);
+  });
+
+  group('al arrancar', () {
+    testWidgets('el panel se quita de en medio', (tester) async {
+      await _montar(tester);
       await tester.tap(find.byType(CorrerMenu));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip(strings.runReload), findsNothing);
-      // **En su propia línea**, no pegado al dispositivo: ahí se cortaba en una
-      // letra —«Medium Phone API 36.1 · R…»— y era lo único que decía que algo
-      // estaba pasando.
-      expect(find.text('Compilando lib/main.dart'), findsOneWidget);
-      expect(find.text('Medium Phone API 36.1'), findsOneWidget);
-      // Parar sí, que es lo único que se puede hacer con algo que compila.
-      expect(find.byTooltip(strings.runStop), findsOneWidget);
+      // Los dos desplegables, que es lo que el panel pide antes de dejar correr.
+      await tester.tap(find.text(strings.runTitle).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tienda (dev)').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(strings.runChooseDevice).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('emulator-5554').last);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text(strings.runStart));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.text(strings.runStart),
+        findsNothing,
+        reason: 'una vez elegido no queda nada que mirar en el panel',
+      );
     });
 
-    testWidgets('corriendo ofrece recargar, reiniciar y parar', (tester) async {
-      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+    // Un fallo se lee en el panel, así que cerrarlo lo dejaría sin sitio donde
+    // decirse: «ya está corriendo en ese dispositivo» sería silencio.
+    testWidgets('pero si no arrancó, se queda con el motivo', (tester) async {
+      await _montar(tester, alCorrer: 'Ya está corriendo en ese dispositivo');
       await tester.tap(find.byType(CorrerMenu));
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip(strings.runReload), findsOneWidget);
-      expect(find.byTooltip(strings.runRestart), findsOneWidget);
-      expect(find.byTooltip(strings.runStop), findsOneWidget);
-      // Y se dice con qué entorno corre: dos corridas iguales serían
-      // indistinguibles y «¿esto es dev o prod?» no tendría respuesta.
-      expect(find.text('Tienda (dev)'), findsWidgets);
-    });
-
-    testWidgets('parando no vuelve a ofrecer parar', (tester) async {
-      await _montar(
-        tester,
-        corridas: {'emulator-5554': _corrida(estado: EstadoDeCorrida.parando)},
-      );
-      await tester.tap(find.byType(CorrerMenu));
+      // Los dos desplegables, que es lo que el panel pide antes de dejar correr.
+      await tester.tap(find.text(strings.runTitle).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Tienda (dev)').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.text(strings.runChooseDevice).last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.textContaining('emulator-5554').last);
       await tester.pumpAndSettle();
 
-      expect(find.byTooltip(strings.runStop), findsNothing);
-      expect(find.text(strings.runStopping), findsOneWidget);
+      await tester.tap(find.text(strings.runStart));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Ya está corriendo en ese dispositivo'), findsOneWidget);
     });
   });
 
@@ -363,76 +394,6 @@ void main() {
   });
 
   group('el registro', () {
-    testWidgets('se abre en su ventana, y el botón queda marcado', (
-      tester,
-    ) async {
-      // 🔴 **Antes crecía hacia abajo dentro del menú**: el interruptor metía el
-      // volcado en la misma columna y el panel acababa siendo un cuadrado con
-      // una terminal dentro. Ahora abre una ventana, como los documentos.
-      final pintor = _Pintor();
-      await _montar(
-        tester,
-        corridas: {'emulator-5554': _corrida()},
-        pintor: pintor,
-      );
-      await tester.tap(find.byType(CorrerMenu));
-      await tester.pumpAndSettle();
-
-      await tester.tap(find.byTooltip(strings.runLogs));
-      await tester.pumpAndSettle();
-
-      final contenedor = ProviderScope.containerOf(
-        tester.element(find.byType(CorrerMenu)),
-        listen: false,
-      );
-
-      expect(pintor.paginas.single.nombre, 'registro-emulator-5554');
-      expect(
-        pintor.paginas.single.primeraVez,
-        isTrue,
-        reason: 'la primera vez es la que abre la ventana de verdad',
-      );
-      // Vacío se dice, no se deja en blanco: un hueco negro se lee como roto.
-      // Y en el idioma elegido en Ajustes, que es el que lleva el proveedor —la
-      // página no está dentro del árbol de la app y no ve su `StringsScope`—.
-      expect(
-        pintor.ultima,
-        contains(contenedor.read(stringsProvider).runCompiling),
-      );
-
-      // Y el panel no crece: lo que se abrió está fuera.
-      expect(find.byType(SelectableText), findsNothing);
-      expect(contenedor.read(lasVentanasDelRegistroProvider), {
-        'registro-emulator-5554',
-      });
-    });
-
-    testWidgets('la ventana lleva lo que imprimió la corrida', (tester) async {
-      // Cuando una compilación falla, el motivo está aquí y en ningún otro sitio.
-      final pintor = _Pintor();
-      await _montar(
-        tester,
-        corridas: {'emulator-5554': _corrida()},
-        pintor: pintor,
-      );
-      await tester.tap(find.byType(CorrerMenu));
-      await tester.pumpAndSettle();
-
-      final contenedor = ProviderScope.containerOf(
-        tester.element(find.byType(CorrerMenu)),
-        listen: false,
-      );
-      contenedor
-          .read(registrosProvider.notifier)
-          .anota('emulator-5554', "lib/main.dart:12:3: Error: Expected ';'");
-      await tester.pump();
-
-      await tester.tap(find.byTooltip(strings.runLogs));
-      await tester.pumpAndSettle();
-
-      expect(pintor.ultima, contains("Expected ';'"));
-    });
-
     testWidgets('un bloque con saltos dentro se parte en líneas', (
       tester,
     ) async {
@@ -477,33 +438,6 @@ void main() {
   });
 
   group('la recarga automática', () {
-    testWidgets('viene apagada de fábrica', (tester) async {
-      // Recargar la app sin que nadie lo pida es una sorpresa la primera vez.
-      SharedPreferences.setMockInitialValues({});
-      await _montar(tester);
-      await tester.tap(find.byType(CorrerMenu));
-      await tester.pumpAndSettle();
-
-      final boton = tester.widget<IconButton>(
-        find.widgetWithIcon(IconButton, Icons.bolt),
-      );
-      expect(boton.color, isNot(NexusColors.dark.accent));
-    });
-
-    testWidgets('encendida se recuerda y se ve marcada', (tester) async {
-      SharedPreferences.setMockInitialValues({'run.autoRecarga': true});
-      await _montar(tester);
-      await tester.tap(find.byType(CorrerMenu));
-      await tester.pumpAndSettle();
-
-      expect(
-        tester
-            .widget<IconButton>(find.widgetWithIcon(IconButton, Icons.bolt))
-            .color,
-        NexusColors.dark.accent,
-      );
-    });
-
     testWidgets('con nada corriendo no hace nada ni revienta', (tester) async {
       await _montar(tester);
       final contenedor = ProviderScope.containerOf(

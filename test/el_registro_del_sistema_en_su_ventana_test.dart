@@ -22,7 +22,7 @@ import 'package:nexus/features/run/domain/usecases/el_registro_como_html.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
-import 'package:nexus/features/run/presentation/widgets/correr_menu.dart';
+import 'package:nexus/features/run/presentation/widgets/la_botonera_de_corridas.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 /// El registro del sistema, abierto de verdad desde el menú y **en su ventana**.
@@ -36,6 +36,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// eso lo que se mira aquí ya no son widgets sino **lo que se pintó**, y los
 /// botones de la página —el nivel, la pausa— llegan como lo que son: enlaces
 /// `nexus://` que el visor reenvía.
+///
+/// Y se abre desde la **botonera flotante**, no desde el panel de correr: el
+/// panel es para elegir entorno y dispositivo, y gobernar la corrida desde un
+/// menú que se cierra al pulsar fuera obligaba a reabrirlo cada vez.
 const _deviceId = 'emulator-5554';
 
 class _Corridas extends CorridasController {
@@ -151,19 +155,17 @@ void main() {
           theme: NexusTheme.dark(),
           builder: (context, child) =>
               StringsScope(strings: strings, child: child!),
-          home: const Scaffold(
-            body: Center(child: CorrerMenu(proyecto: '/casa/tienda')),
-          ),
+          home: const Scaffold(body: Stack(children: [LaBotoneraDeCorridas()])),
         ),
       ),
     );
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(CorrerMenu));
-    await tester.pumpAndSettle();
     contenedor = ProviderScope.containerOf(
-      tester.element(find.byType(CorrerMenu)),
+      tester.element(find.byType(LaBotoneraDeCorridas)),
       listen: false,
     );
+    // Desde la botonera flotante, que es donde vive el botón: en el panel de
+    // correr ya no está.
     await tester.tap(find.byTooltip(strings.runSystemLog));
     await tester.pumpAndSettle();
   }
