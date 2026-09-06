@@ -5,6 +5,8 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/donde_flota_la_botonera.dart';
+import 'package:nexus/features/run/domain/usecases/la_consola_de_la_app.dart';
+import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
 import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 
@@ -352,6 +354,19 @@ class _Corrida extends ConsumerWidget {
               ),
             ),
           ],
+          // Solo si esta corrida declaró consola: la mayoría no la traen, y un
+          // botón que no lleva a ninguna parte enseña a no pulsarlo. La ventana
+          // se abre sola al arrancar —ver [LaConsolaQueSeAbre]—, así que esto es
+          // para volver a ella cuando se cerró.
+          if (corrida.consola case final puerto?)
+            BotonMini(
+              icono: Icons.dashboard_customize_outlined,
+              titulo: strings.runConsole,
+              onPulsar: () => ref.read(abreLaConsolaProvider)(
+                url: LaConsolaDeLaApp.urlDe(puerto),
+                titulo: '${corrida.configuracion} · ${corrida.dispositivo}',
+              ),
+            ),
           BotonMini(
             icono: Icons.article_outlined,
             titulo: strings.runLogs,
