@@ -14,11 +14,28 @@ class WorkspaceStoreImpl implements WorkspaceStore {
     final json = await _preferences.read();
     if (json == null) return const Workspace();
 
+    // Igual que con la modalidad, un valor desconocido cae en lo restrictivo.
+    final permiso = FilePermission.values.firstWhere(
+      (value) => value.name == json['permission'],
+      orElse: () => FilePermission.readOnly,
+    );
+
     final folders = <PairedFolder>[];
     for (final entry in json['folders'] as List<dynamic>? ?? const []) {
       if (entry is! Map<String, dynamic>) continue;
       final folder = PairedFolder.fromJson(entry);
-      if (folder != null) folders.add(folder);
+      if (folder == null) continue;
+      // 🔴 **Una carpeta guardada antes de que el permiso fuera suyo hereda el
+      // de la app**, que es el que tenía de hecho: sin esto, al actualizar
+      // Nexus todas las carpetas se quedarían en solo lectura de golpe y la
+      // escritura habría que volver a darla una por una, sin que nada
+      // explicara por qué. La clave se escribe siempre —también en `false`—
+      // así que su ausencia solo puede significar «esto viene de antes».
+      folders.add(
+        entry.containsKey('puedeEditar')
+            ? folder
+            : folder.copyWith(puedeEditar: permiso.canWrite),
+      );
     }
 
     final activePath = json['activePath'] as String?;
@@ -29,11 +46,7 @@ class WorkspaceStoreImpl implements WorkspaceStore {
       activePath: folders.any((folder) => folder.path == activePath)
           ? activePath
           : null,
-      // Igual que con la modalidad, un valor desconocido cae en lo restrictivo.
-      permission: FilePermission.values.firstWhere(
-        (value) => value.name == json['permission'],
-        orElse: () => FilePermission.readOnly,
-      ),
+      permission: permiso,
     );
   }
 

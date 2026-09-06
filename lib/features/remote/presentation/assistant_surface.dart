@@ -12,6 +12,7 @@ import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
 import 'package:nexus/features/remote/domain/remote_surface.dart';
 import 'package:nexus/features/remote/domain/write_phrase.dart';
 import 'package:nexus/features/remote/presentation/providers/write_phrase_providers.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_permiso_que_vale.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/remote/presentation/providers/channel_providers.dart';
 
@@ -471,7 +472,10 @@ final remoteSurfaceProvider = Provider<RemoteSurface>(AssistantSurface.new);
 /// no un dato de la app: **el AND** de lo que concede la carpeta y de lo que la
 /// frase de escritura tenga abierto. Gana el más estricto.
 final remoteAllowWritesProvider = Provider<bool>((ref) {
-  final carpeta = ref.watch(workspaceControllerProvider).permission.canWrite;
+  // **De la carpeta activa**, que es donde el canal trabaja: el permiso dejó de
+  // ser de la app. Ver [ElPermisoQueVale].
+  final workspace = ref.watch(workspaceControllerProvider);
+  final carpeta = ElPermisoQueVale.enLaCarpeta(workspace, workspace.activePath);
   return carpeta && ref.read(writeUnlockProvider).puedeEscribir;
 });
 
