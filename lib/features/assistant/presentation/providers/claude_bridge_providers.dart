@@ -18,6 +18,7 @@ import 'package:nexus/features/workspace/domain/usecases/blocked_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/repo_from_instruction.dart';
 import 'package:nexus/features/e2e/presentation/providers/raiz_de_los_flows_provider.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_permiso_que_vale.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 final claudeCliDataSourceProvider = Provider<ClaudeCliDataSource>(
@@ -75,7 +76,12 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
           folder;
       return (
         workingDirectory: activo,
-        canEdit: workspace.permission.canWrite,
+        // 🔴 **De la carpeta y no de la app.** Era el interruptor global, así
+        // que dar escritura en un proyecto la daba también en el del trabajo —y
+        // el reporte que lo destapó empezó justo así, «la carpeta ya tiene
+        // permiso de puede editar»—. El de la app sigue mandando por encima.
+        // Ver [ElPermisoQueVale].
+        canEdit: ElPermisoQueVale.enLaCarpeta(workspace, folder),
         // **Ninguna otra carpeta.** Antes viajaban todas las emparejadas como
         // `--add-dir` para que un repo pudiera leer sus reglas en una carpeta
         // hermana, y con varias conversaciones eso significaba que el trabajo de

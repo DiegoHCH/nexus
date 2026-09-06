@@ -89,18 +89,15 @@ class WorkspaceController extends Notifier<Workspace> {
         configs[folder.path]?.aplicarA(folder) ?? folder,
     ];
 
-    // El interruptor de escritura es de la app, así que lo aprieta el repo que
-    // esté delante: si el activo dice solo lectura, no se escribe aunque el
-    // interruptor de la barra esté dado. Al revés no: un repo no puede dar
-    // escritura que tú no diste.
-    final activo = configs[_guardado.activePath];
-    state = _guardado.copyWith(
-      folders: folders,
-      delRepo: configs,
-      permission: activo?.soloLectura ?? false
-          ? FilePermission.readOnly
-          : _guardado.permission,
-    );
+    // 🔴 **El repo que declara solo lectura ya no aprieta el interruptor de la
+    // app.** Lo hacía cuando el permiso era global y era la única forma de que
+    // se respetara, pero el efecto era desproporcionado: abrir una conversación
+    // sobre un repo con `soloLectura` te quitaba la escritura **en todas las
+    // demás carpetas**, sin decirlo y sin devolverla al cerrarla. Ahora la
+    // regla vive donde se pregunta —[ElPermisoQueVale], que la cuenta por
+    // carpeta— y sigue ganando hacia abajo: un repo puede negarse, nunca
+    // concederse.
+    state = _guardado.copyWith(folders: folders, delRepo: configs);
   }
 
   /// Abre el diálogo del sistema y empareja lo que se elija.
@@ -315,6 +312,33 @@ class WorkspaceController extends Notifier<Workspace> {
           folder,
     ];
     await _persist(_guardado.copyWith(folders: folders));
+  }
+
+  /// El permiso de **una carpeta**, que es el del día a día.
+  ///
+  /// 🔴 **Y si el tope de la app está cerrado, se abre también.** Dar permiso a
+  /// una carpeta con la app en solo lectura no la haría escribir: sería un
+  /// control que no hace lo que dice, que es peor que un control que falta. Se
+  /// sube y **se dice en el menú antes de elegir** —ver el compositor—, que es
+  /// justo para lo que ese menú explica cada opción en vez de ser un conmutador.
+  ///
+  /// Bajarlo no toca el tope: quitar la escritura en un sitio no significa
+  /// cerrar el cerrojo de arriba para todos.
+  Future<void> setPermisoDeCarpeta(String path, bool puedeEditar) async {
+    final folders = [
+      for (final folder in _guardado.folders)
+        if (folder.path == path)
+          folder.copyWith(puedeEditar: puedeEditar)
+        else
+          folder,
+    ];
+    final subeElTope = puedeEditar && !_guardado.permission.canWrite;
+    await _persist(
+      _guardado.copyWith(
+        folders: folders,
+        permission: subeElTope ? FilePermission.canEdit : null,
+      ),
+    );
   }
 
   Future<void> setPermission(FilePermission permission) async {

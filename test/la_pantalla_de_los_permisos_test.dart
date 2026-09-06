@@ -90,10 +90,12 @@ void main() {
       );
     });
 
-    // 🔴 **El repositorio solo puede apretar.** Si su `.nexus/config.json` dice
-    // solo lectura, el interruptor se bloquea: no se puede subir a mano lo que
-    // el repo bajó. Es la mitad de la promesa de `docs/NEXUS-CONFIG.md`.
-    testWidgets('si el repo manda solo lectura, el interruptor se bloquea', (
+    // 🔴 **El repositorio ya no bloquea este interruptor, y es una mejora.**
+    // Su `soloLectura` sigue ganando —lo cuenta [ElPermisoQueVale] en el
+    // permiso de **su** carpeta—, pero atar el cerrojo de toda la app a qué
+    // conversación tenías delante quitaba la escritura en las demás carpetas
+    // sin decirlo, y sin devolverla al cerrarla.
+    testWidgets('lo que declara un repo no toca el tope de la app', (
       tester,
     ) async {
       await abrir(
@@ -105,8 +107,8 @@ void main() {
         tester
             .widget<PermissionSwitch>(find.byType(PermissionSwitch))
             .bloqueado,
-        isTrue,
-        reason: 'el repo aprieta y no se puede aflojar desde aquí',
+        isFalse,
+        reason: 'el tope es de la app; la regla del repo vive en su carpeta',
       );
     });
 
