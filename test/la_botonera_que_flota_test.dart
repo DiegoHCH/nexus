@@ -84,6 +84,10 @@ void main() {
     pintor = _Pintor();
   });
 
+  /// El `Stack` donde cuelga **no es la ventana**: vive dentro de un `Column`,
+  /// entre la barra de arriba y el compositor. Se le da esa forma a propósito.
+  const caja = Size(700, 320);
+
   Future<ProviderContainer> montar(
     WidgetTester tester, {
     Map<String, Corrida> conCorridas = const {},
@@ -99,7 +103,22 @@ void main() {
           theme: NexusTheme.dark(),
           builder: (context, child) =>
               StringsScope(strings: strings, child: child!),
-          home: const Scaffold(body: Stack(children: [LaBotoneraDeCorridas()])),
+          // A propósito **más baja que la ventana**: es la forma que tiene de
+          // verdad —entre la barra de arriba y el compositor—, y es justo la
+          // que la dejaba fuera del recorte.
+          home: const Scaffold(
+            body: Column(
+              children: [
+                SizedBox(height: 40),
+                SizedBox(
+                  width: 700,
+                  height: 320,
+                  child: Stack(children: [LaBotoneraDeCorridas()]),
+                ),
+                Expanded(child: SizedBox()),
+              ],
+            ),
+          ),
         ),
       ),
     );
@@ -225,18 +244,38 @@ void main() {
   });
 
   group('el sitio donde flota', () {
-    testWidgets('nace abajo a la derecha, lejos del orbe y del muelle', (
-      tester,
-    ) async {
+    // 🔴 **Nacía fuera del recorte y no se veía nada.** El sitio se calculaba
+    // con el alto de la **ventana** y el `Stack` del HUD es bastante más bajo
+    // —la barra de arriba y el compositor se llevan lo suyo—, así que la barra
+    // caía por debajo del borde y un `Stack` recorta. Reportado mirando la
+    // pantalla: «la botonera no apareció».
+    testWidgets('nace dentro de su caja, no de la ventana', (tester) async {
       await montar(tester, conCorridas: {_deviceId: _corrida()});
 
-      final ventana = tester.view.physicalSize / tester.view.devicePixelRatio;
-      final caja = tester.getRect(find.byType(LaBotoneraDeCorridas));
+      final donde = tester.getRect(find.byKey(LaBotoneraDeCorridas.laLlave));
+      final suCaja = tester.getRect(find.byType(LaBotoneraDeCorridas));
 
-      expect(caja.width, LaBotoneraDeCorridas.ancho);
-      expect(caja.right, closeTo(ventana.width - 32, 0.01));
-      expect(caja.top, lessThan(ventana.height));
-      expect(caja.top, greaterThan(ventana.height / 2));
+      expect(suCaja.size, caja, reason: 'el cristal ocupa el HUD entero');
+      expect(donde.width, LaBotoneraDeCorridas.ancho);
+      // `Rect.contains` deja fuera el borde de abajo y el de la derecha, así
+      // que se comparan los lados: lo que se afirma es que **cabe**.
+      expect(
+        donde.left >= suCaja.left &&
+            donde.top >= suCaja.top &&
+            donde.right <= suCaja.right &&
+            donde.bottom <= suCaja.bottom,
+        isTrue,
+        reason: 'fuera de la caja el Stack la recorta y no se ve: $donde',
+      );
+      // Abajo a la derecha, que es donde no está ni el orbe ni el muelle. Y
+      // pegada al suelo de su caja: el sitio se cuenta desde abajo, así que una
+      // segunda corrida la hace crecer hacia arriba en vez de asomar por el
+      // borde.
+      expect(donde.right, closeTo(suCaja.right - 32, 0.01));
+      expect(
+        donde.bottom,
+        closeTo(suCaja.bottom - LaBotoneraDeCorridas.alDelSuelo, 0.01),
+      );
     });
 
     testWidgets('se arrastra por el asa, y el sitio se recuerda', (
@@ -246,7 +285,7 @@ void main() {
         tester,
         conCorridas: {_deviceId: _corrida()},
       );
-      final antes = tester.getRect(find.byType(LaBotoneraDeCorridas));
+      final antes = tester.getRect(find.byKey(LaBotoneraDeCorridas.laLlave));
 
       await tester.drag(
         find.byIcon(Icons.drag_indicator),
@@ -254,7 +293,7 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      final ahora = tester.getRect(find.byType(LaBotoneraDeCorridas));
+      final ahora = tester.getRect(find.byKey(LaBotoneraDeCorridas.laLlave));
       expect(ahora.left, closeTo(antes.left - 120, 0.01));
       expect(ahora.top, closeTo(antes.top - 60, 0.01));
 
@@ -262,42 +301,47 @@ void main() {
       // cada `onPanUpdate` son cien escrituras en un arrastre. Lo que importa
       // aquí es que al final quede guardado, porque un asa que no se recuerda
       // enseña que moverla no cuenta.
+      //
+      // Lo guardado va en las coordenadas de su caja y contando desde el suelo,
+      // así que se compara con eso y no con la pantalla: subir la barra 60 es
+      // **sumar** 60 de suelo.
+      final nace = LaBotoneraDeCorridas.dondeNace(const Size(700, 320));
       expect(
         contenedor.read(dondeFlotaLaBotoneraProvider),
-        Offset(antes.left - 120, antes.top - 60),
+        Offset(nace.dx - 120, nace.dy + 60),
       );
       final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getDouble('run.botonera.x'), antes.left - 120);
+      expect(prefs.getDouble('run.botonera.y'), nace.dy + 60);
     });
 
     // Arrastrarla fuera la dejaría irrecuperable: no queda asa que agarrar para
     // traerla de vuelta.
-    test('nunca se sale del todo de la ventana', () {
-      const ventana = Size(1200, 800);
+    test('nunca se sale del todo de su caja', () {
+      const suCaja = Size(1200, 800);
 
-      final aLaDerecha = LaBotoneraDeCorridas.dentroDe(
-        ventana,
+      final lejos = LaBotoneraDeCorridas.dentroDe(
+        suCaja,
         const Offset(5000, 5000),
       );
-      expect(aLaDerecha.dx, ventana.width - LaBotoneraDeCorridas.margen);
-      expect(aLaDerecha.dy, ventana.height - 48);
+      expect(lejos.dx, suCaja.width - LaBotoneraDeCorridas.margen);
+      expect(lejos.dy, suCaja.height - 48);
 
-      final aLaIzquierda = LaBotoneraDeCorridas.dentroDe(
-        ventana,
+      final alOtroLado = LaBotoneraDeCorridas.dentroDe(
+        suCaja,
         const Offset(-5000, -5000),
       );
       expect(
-        aLaIzquierda.dx,
+        alOtroLado.dx,
         LaBotoneraDeCorridas.margen - LaBotoneraDeCorridas.ancho,
       );
-      expect(aLaIzquierda.dy, 0);
+      expect(alOtroLado.dy, 0);
     });
 
     // Lo de la última vez puede caer fuera si la ventana se hizo más pequeña.
-    test('una ventana más pequeña la trae de vuelta', () {
+    test('una caja más pequeña la trae de vuelta', () {
       final donde = LaBotoneraDeCorridas.dentroDe(
         const Size(600, 400),
-        LaBotoneraDeCorridas.dondeNace(const Size(1600, 1000)),
+        const Offset(1500, 900),
       );
 
       expect(donde.dx, lessThanOrEqualTo(600 - LaBotoneraDeCorridas.margen));

@@ -40,21 +40,41 @@ class LaBotoneraDeCorridas extends ConsumerStatefulWidget {
   /// mueve sola debajo del ratón.
   static const ancho = 380.0;
 
+  /// La barra en sí, para poder medir **dónde acabó** y no solo el cristal que
+  /// la sostiene: lo que hay que comprobar es que caiga dentro de su caja, que
+  /// es justo lo que se salía.
+  static const laLlave = ValueKey('la-botonera-de-corridas');
+
   /// Cuánto tiene que quedar dentro de la ventana. Sin esto, arrastrarla al
   /// borde la deja irrecuperable: no hay asa que agarrar para traerla de vuelta.
   static const margen = 120.0;
 
-  /// Donde nace cuando nadie la ha movido: abajo a la derecha, encima del
-  /// compositor y lejos del orbe y del muelle, que son los otros dos dueños de
-  /// esta capa.
-  static Offset dondeNace(Size ventana) =>
-      Offset(ventana.width - ancho - NexusSpacing.s6, ventana.height - 210);
+  /// A qué altura del suelo nace.
+  static const alDelSuelo = NexusSpacing.s5;
+
+  /// Donde nace cuando nadie la ha movido: abajo a la derecha, lejos del orbe y
+  /// del muelle, que son los otros dos dueños de esta capa.
+  ///
+  /// 🔴 **La medida es la del HUD, no la de la ventana.** El `Stack` donde
+  /// cuelga vive dentro de un `Column`, entre la barra de arriba y el
+  /// compositor, así que es bastante más bajo que la ventana — y un `Stack`
+  /// recorta lo que se sale. Calculando el sitio con el alto de la ventana, la
+  /// botonera caía **fuera** del recorte y no se veía nada: reportado dos veces
+  /// mirando la pantalla, «la botonera no apareció».
+  ///
+  /// 🔴 **Y el sitio se cuenta desde abajo**, no desde arriba. Su alto depende
+  /// de cuántas corridas haya —una fila cada una— así que con la posición
+  /// contada desde arriba una segunda corrida la asoma por el borde de abajo y
+  /// el `Stack` se la come. Anclada al suelo crece hacia arriba, que además es
+  /// lo que hace cualquier barra de estado.
+  static Offset dondeNace(Size caja) =>
+      Offset(caja.width - ancho - NexusSpacing.s6, alDelSuelo);
 
   /// La deja siempre agarrable, aunque la ventana se haya hecho más pequeña
-  /// desde la última vez.
-  static Offset dentroDe(Size ventana, Offset donde) => Offset(
-    donde.dx.clamp(-ancho + margen, ventana.width - margen),
-    donde.dy.clamp(0, ventana.height - 48),
+  /// desde la última vez. `dy` se cuenta **desde el suelo**; ver [dondeNace].
+  static Offset dentroDe(Size caja, Offset donde) => Offset(
+    donde.dx.clamp(-ancho + margen, caja.width - margen),
+    donde.dy.clamp(0, (caja.height - 48).clamp(0, double.infinity)),
   );
 
   @override
@@ -75,11 +95,14 @@ class _LaBotoneraDeCorridasState extends ConsumerState<LaBotoneraDeCorridas> {
   /// juntos se pisan y la barra vuelve donde estaba. Lo pescó la prueba del
   /// arrastre, que mueve y suelta sin pintar en medio — y es exactamente lo que
   /// pasa con un tirón rápido.
-  void _mueve(Offset delta, Offset desde) =>
-      setState(() => _arrastrando = (_arrastrando ?? desde) + delta);
+  /// El eje vertical va al revés que el ratón: `dy` se cuenta desde el suelo,
+  /// así que bajar la mano es restar. Ver [LaBotoneraDeCorridas.dondeNace].
+  void _mueve(Offset delta, Offset desde) => setState(
+    () => _arrastrando = (_arrastrando ?? desde) + Offset(delta.dx, -delta.dy),
+  );
 
-  void _suelta(Size ventana, Offset desde) {
-    final donde = LaBotoneraDeCorridas.dentroDe(ventana, _arrastrando ?? desde);
+  void _suelta(Size caja, Offset desde) {
+    final donde = LaBotoneraDeCorridas.dentroDe(caja, _arrastrando ?? desde);
     ref.read(dondeFlotaLaBotoneraProvider.notifier).mover(donde);
     setState(() => _arrastrando = null);
   }
@@ -97,45 +120,73 @@ class _LaBotoneraDeCorridasState extends ConsumerState<LaBotoneraDeCorridas> {
     }
 
     final colors = context.colors;
-    final ventana = MediaQuery.sizeOf(context);
-    final donde = LaBotoneraDeCorridas.dentroDe(
-      ventana,
-      _arrastrando ??
-          ref.watch(dondeFlotaLaBotoneraProvider) ??
-          LaBotoneraDeCorridas.dondeNace(ventana),
-    );
 
-    return Positioned(
-      left: donde.dx,
-      top: donde.dy,
-      child: Material(
-        color: Colors.transparent,
-        child: Container(
-          width: LaBotoneraDeCorridas.ancho,
-          decoration: BoxDecoration(
-            color: colors.deep,
-            border: Border.all(color: colors.rule),
-            borderRadius: BorderRadius.circular(NexusRadius.md),
-            boxShadow: [
-              // Despegada del fondo: es lo único que dice que está encima y no
-              // dentro de la pantalla.
-              BoxShadow(
-                color: colors.void_.withValues(alpha: 0.5),
-                blurRadius: 16,
-                offset: const Offset(0, 6),
-              ),
-            ],
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    // **Se mide la caja del HUD y no la ventana**, que es lo que hacía falta
+    // para que no cayera fuera del recorte del `Stack`. Ver [dondeNace].
+    //
+    // `Positioned.fill` con un `Stack` dentro y no un `LayoutBuilder` a secas:
+    // un `Stack` no se queda las pulsaciones donde no tiene hijos, así que el
+    // orbe y el muelle siguen respondiendo por debajo de este cristal.
+    return Positioned.fill(
+      child: LayoutBuilder(
+        builder: (context, caja) {
+          final donde = LaBotoneraDeCorridas.dentroDe(
+            caja.biggest,
+            _arrastrando ??
+                ref.watch(dondeFlotaLaBotoneraProvider) ??
+                LaBotoneraDeCorridas.dondeNace(caja.biggest),
+          );
+
+          return Stack(
             children: [
-              _ElAsa(
-                onArrastrar: (delta) => _mueve(delta, donde),
-                onSoltar: () => _suelta(ventana, donde),
+              Positioned(
+                left: donde.dx,
+                bottom: donde.dy,
+                child: _laBarra(context, colors, caja.biggest, donde),
               ),
-              for (final corrida in corridas) _Corrida(corrida: corrida),
             ],
-          ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _laBarra(
+    BuildContext context,
+    NexusColors colors,
+    Size caja,
+    Offset donde,
+  ) {
+    final corridas = ref.watch(corridasProvider).values.toList();
+
+    return Material(
+      key: LaBotoneraDeCorridas.laLlave,
+      color: Colors.transparent,
+      child: Container(
+        width: LaBotoneraDeCorridas.ancho,
+        decoration: BoxDecoration(
+          color: colors.deep,
+          border: Border.all(color: colors.rule),
+          borderRadius: BorderRadius.circular(NexusRadius.md),
+          boxShadow: [
+            // Despegada del fondo: es lo único que dice que está encima y no
+            // dentro de la pantalla.
+            BoxShadow(
+              color: colors.void_.withValues(alpha: 0.5),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _ElAsa(
+              onArrastrar: (delta) => _mueve(delta, donde),
+              onSoltar: () => _suelta(caja, donde),
+            ),
+            for (final corrida in corridas) _Corrida(corrida: corrida),
+          ],
         ),
       ),
     );
