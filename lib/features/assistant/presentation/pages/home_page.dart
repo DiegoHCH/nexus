@@ -403,6 +403,20 @@ class _HomePageState extends ConsumerState<HomePage> {
                                     // encargo, que es justo lo que no es.
                                     color: context.colors.warn,
                                     onDismiss: controller.dismissNotice,
+                                    // Con la salida a mano cuando la hay: el
+                                    // aviso de que se continúa un hilo que no
+                                    // se ve solo sirve si se puede cortar aquí
+                                    // mismo.
+                                    accion: hud.puedeEmpezarDeCero
+                                        ? (
+                                            texto: context
+                                                .strings
+                                                .empezarDeCeroAqui,
+                                            alPulsar: () => unawaited(
+                                              controller.forgetConversation(),
+                                            ),
+                                          )
+                                        : null,
                                   ),
                               ],
                             ),

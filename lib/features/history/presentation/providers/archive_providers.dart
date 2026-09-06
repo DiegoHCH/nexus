@@ -7,6 +7,7 @@ import 'package:nexus/core/platform/system_files.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_sesion_sin_dueno.dart';
 import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
 import 'package:nexus/features/history/data/datasources/vault_reader.dart';
 import 'package:nexus/features/history/data/datasources/notion_api.dart';
@@ -375,5 +376,10 @@ final deleteConversationProvider =
 
         ref.invalidate(allSavedConversationsProvider);
         ref.invalidate(savedConversationsProvider(record.folderPath));
+
+        // Y si esa era la última que quedaba de la carpeta, la sesión se queda
+        // sin dueño: cerrar no olvida —por el archivo, y con razón— pero
+        // borrarlo todo tiene que empezar limpio. Ver [laSesionSinDuenoProvider].
+        await ref.read(laSesionSinDuenoProvider)(record.folderPath);
       };
     });
