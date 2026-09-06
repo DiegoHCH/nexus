@@ -127,6 +127,50 @@ void main() {
     );
   });
 
+  /// 🔴 **Un nombre largo desbordaba la ficha**, y el desbordamiento se pinta:
+  /// la franja amarilla y negra de Flutter salía atravesada encima de la
+  /// conversación, que es lo primero que se ve al abrir la app. Eran 2.8
+  /// píxeles —el orbe, su hueco y un ancho de texto escrito a mano sumaban 184
+  /// en una tarjeta de 176— y se reportó con una captura.
+  testWidgets('un nombre largo se corta, no desborda la ficha', (tester) async {
+    const larga = '/Users/alguien/front-mobile-b2c';
+
+    await pumpScreen(
+      tester,
+      const HomePage(),
+      overrides: [
+        workspaceControllerProvider.overrideWith(
+          () => FixedWorkspace(
+            const Workspace(
+              folders: [
+                PairedFolder(path: larga, modality: FolderModality.textOnly),
+              ],
+              activePath: larga,
+            ),
+          ),
+        ),
+        localConversationStoreProvider.overrideWithValue(_ConAlgoDicho(['c0'])),
+        conversationsDataSourceProvider.overrideWithValue(
+          _Disco({
+            'items': [
+              {'id': 'c0', 'folderPath': larga},
+            ],
+            'focusedId': 'c0',
+          }),
+        ),
+      ],
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Dos: el de la ficha del muelle y el de la chapa del compositor.
+    expect(find.text('front-mobile-b2c'), findsNWidgets(2));
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'la ficha mide 176 y el nombre tiene que caber dentro',
+    );
+  });
+
   _laAlineacion();
 
   testWidgets('con la caja estrecha sí la cede, que es para lo que existe', (

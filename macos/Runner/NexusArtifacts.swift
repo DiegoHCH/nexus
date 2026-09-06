@@ -449,6 +449,11 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   func windowWillClose(_ notification: Notification) {
     pending?.cancel()
     watcher?.cancel()
+    // **Que se cerró hay que decirlo, o nadie se entera.** Una página que se
+    // repinta sola —el registro de una corrida— seguiría escribiendo su archivo
+    // cada pocos milisegundos para una ventana que ya no existe, y el botón que
+    // la abrió seguiría marcado. Va la ruta porque hay más de una abierta.
+    NexusArtifacts.pidieron("cerrada", ruta: url.path)
     // Al siguiente turno del run loop, no aquí mismo. `onClose` saca este
     // `Viewer` del diccionario, que es quien lo sostiene: soltarlo dentro de
     // `windowWillClose` lo destruye —y con él la ventana— mientras AppKit

@@ -272,8 +272,14 @@ class _DockOrbState extends ConsumerState<_DockOrb> {
                     ),
                   ),
                   const SizedBox(width: NexusSpacing.s2),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 130),
+                  // 🔴 **Lo que sobre lo pone el nombre, no la tarjeta.** Era
+                  // un ancho máximo escrito a mano —130— que con el orbe, su
+                  // hueco y el filo sumaba 184 en una tarjeta de 176: un
+                  // `front-mobile-b2c` la desbordaba por 2.8 píxeles y salía la
+                  // franja amarilla y negra encima de la conversación. Con
+                  // `Expanded` el hueco lo dice la tarjeta y el nombre se corta
+                  // con puntos suspensivos, que es lo que ya se quería.
+                  Expanded(
                     child: Text(
                       name,
                       style: NexusTypography.label.copyWith(
