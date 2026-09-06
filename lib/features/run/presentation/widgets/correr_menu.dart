@@ -4,13 +4,12 @@ import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/design_system/selector_compacto.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
-import 'package:nexus/features/emulators/domain/entities/linea_de_registro.dart';
-import 'package:nexus/features/emulators/presentation/providers/registro_del_sistema_providers.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/usecases/lector_de_configs.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
+import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 
 /// Correr la app: elegir entorno y dispositivo, y gobernarla.
@@ -238,8 +237,7 @@ class _PanelState extends ConsumerState<_Panel> {
         ),
         const SizedBox(height: NexusSpacing.s3),
 
-        for (final corrida in corridas)
-          _FilaDeCorrida(corrida: corrida, varias: corridas.length > 1),
+        for (final corrida in corridas) _FilaDeCorrida(corrida: corrida),
         if (corridas.isNotEmpty) const SizedBox(height: NexusSpacing.s4),
 
         if (configs.isEmpty)
@@ -395,29 +393,21 @@ class _PanelState extends ConsumerState<_Panel> {
 /// sentido; aquí quien guarda los archivos es Claude, a ráfagas de veinte
 /// ediciones por encargo, y eso es un bucle de recompilaciones. Sigue siendo una
 /// pregunta abierta y no una tarea.
-class _FilaDeCorrida extends ConsumerStatefulWidget {
-  const _FilaDeCorrida({required this.corrida, required this.varias});
+class _FilaDeCorrida extends ConsumerWidget {
+  const _FilaDeCorrida({required this.corrida});
 
   final Corrida corrida;
 
-  /// Si hay más de una corriendo. Cambia el registro: con dos, cada línea lleva
-  /// delante de qué dispositivo salió, o no hay forma de saber cuál falló.
-  final bool varias;
-
   @override
-  ConsumerState<_FilaDeCorrida> createState() => _FilaDeCorridaState();
-}
-
-class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
-  var _verRegistro = false;
-  var _verSistema = false;
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
-    final corrida = widget.corrida;
     final controller = ref.read(corridasProvider.notifier);
+    final ventanas = ref.watch(lasVentanasDelRegistroProvider);
+    final registros = ref.read(lasVentanasDelRegistroProvider.notifier);
+    bool abierta({required bool sistema}) => ventanas.contains(
+      LasVentanasDelRegistro.nombreDe(corrida.deviceId, sistema: sistema),
+    );
 
     final detalle = switch (corrida.estado) {
       EstadoDeCorrida.arrancando => corrida.progreso ?? strings.runCompiling,
@@ -478,8 +468,8 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
             _BotonMini(
               icono: Icons.article_outlined,
               titulo: strings.runLogs,
-              activo: _verRegistro,
-              onPulsar: () => setState(() => _verRegistro = !_verRegistro),
+              activo: abierta(sistema: false),
+              onPulsar: () => registros.alterna(corrida, sistema: false),
             ),
             // 🔴 **Aparte del registro de la corrida, y no dentro.** Aquél es lo
             // que imprime la app —y ya se reenvía por el daemon—; este es lo que
@@ -489,8 +479,8 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
             _BotonMini(
               icono: Icons.phonelink_ring_outlined,
               titulo: strings.runSystemLog,
-              activo: _verSistema,
-              onPulsar: () => setState(() => _verSistema = !_verSistema),
+              activo: abierta(sistema: true),
+              onPulsar: () => registros.alterna(corrida, sistema: true),
             ),
             if (corrida.estado != EstadoDeCorrida.parando)
               _BotonMini(
@@ -517,208 +507,7 @@ class _FilaDeCorridaState extends ConsumerState<_FilaDeCorrida> {
             ),
           ),
         ),
-
-        if (_verRegistro)
-          _Registro(deviceId: corrida.deviceId, conNombre: widget.varias),
-
-        if (_verSistema)
-          _RegistroDelSistema(
-            deviceId: corrida.deviceId,
-            plataforma: corrida.plataforma,
-          ),
       ],
-    );
-  }
-}
-
-/// Lo que ha impreso la corrida.
-///
-/// **Cuando una compilación falla, el motivo está aquí y en ningún otro sitio.**
-/// Los errores de Gradle, los del compilador de Dart y los del NDK salen por
-/// aquí; el panel de arriba solo sabe decir que algo va mal.
-class _Registro extends ConsumerWidget {
-  const _Registro({required this.deviceId, required this.conNombre});
-
-  final String deviceId;
-  final bool conNombre;
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final colors = context.colors;
-    final strings = context.strings;
-    final lineas = ref.watch(registrosProvider)[deviceId] ?? const <String>[];
-
-    return Container(
-      margin: const EdgeInsets.only(top: NexusSpacing.s2, left: 19),
-      padding: const EdgeInsets.all(NexusSpacing.s2),
-      // Más bajo que antes: con el panel ancho caben las mismas líneas en menos
-      // alto, y un registro alto vuelve a hacer del panel un cuadrado.
-      constraints: const BoxConstraints(maxHeight: 120),
-      decoration: BoxDecoration(
-        color: colors.void_.withValues(alpha: 0.6),
-        border: Border.all(color: colors.rule),
-        borderRadius: BorderRadius.circular(NexusRadius.sm),
-      ),
-      child: lineas.isEmpty
-          // Vacío se dice, no se deja en blanco: un hueco negro se lee como roto
-          // y lo que pasa es que todavía no ha escrito nada.
-          ? Text(
-              strings.runCompiling,
-              style: NexusTypography.mono.copyWith(color: colors.faint),
-            )
-          : SingleChildScrollView(
-              // Lo último abajo y a la vista, como una terminal: lo que se busca
-              // cuando algo falla son las últimas líneas.
-              reverse: true,
-              child: SelectableText(
-                lineas.join('\n'),
-                style: NexusTypography.mono.copyWith(color: colors.faint),
-              ),
-            ),
-    );
-  }
-}
-
-/// Lo que dice el sistema del dispositivo, no la app.
-///
-/// 🔴 **Es la mitad de la respuesta a «por qué se cayó».** Un crash nativo, un
-/// ANR o el `Fatal signal 11` no pasan por el daemon de Flutter, así que el
-/// registro de arriba no los ve — y hasta ahora eso obligaba a salir a la
-/// terminal, que es justo lo que la app vino a evitar.
-///
-/// **Se escucha a petición y no con la corrida**, que es la decisión de producto:
-/// un `logcat` abierto es un proceso más, un cable ocupado y batería del
-/// teléfono, y la mayoría de las veces no hace falta. Se enciende cuando algo se
-/// cayó, que es cuando sirve.
-class _RegistroDelSistema extends ConsumerStatefulWidget {
-  const _RegistroDelSistema({required this.deviceId, required this.plataforma});
-
-  final String deviceId;
-  final PlataformaEmulador plataforma;
-
-  @override
-  ConsumerState<_RegistroDelSistema> createState() =>
-      _RegistroDelSistemaState();
-}
-
-class _RegistroDelSistemaState extends ConsumerState<_RegistroDelSistema> {
-  @override
-  void initState() {
-    super.initState();
-    // Se enciende al abrir el panel y **no se apaga al cerrarlo**: cerrarlo para
-    // mirar otra cosa y volver no debería perder lo que pasó en medio, que es
-    // justo el rato en el que suele caerse.
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      ref
-          .read(registroDelSistemaProvider.notifier)
-          .escucha(widget.deviceId, widget.plataforma);
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = context.colors;
-    final strings = context.strings;
-    final filtro = ref.watch(filtroDelRegistroProvider);
-    final lineas = ref.watch(loQueSeVeDelRegistroProvider(widget.deviceId));
-    final escuchando = ref
-        .watch(registroDelSistemaProvider.notifier)
-        .escuchando(widget.deviceId);
-
-    return Container(
-      margin: const EdgeInsets.only(top: NexusSpacing.s2, left: 19),
-      padding: const EdgeInsets.all(NexusSpacing.s2),
-      constraints: const BoxConstraints(maxHeight: 160),
-      decoration: BoxDecoration(
-        color: colors.void_.withValues(alpha: 0.6),
-        border: Border.all(color: colors.rule),
-        borderRadius: BorderRadius.circular(NexusRadius.sm),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Row(
-            children: [
-              Icon(
-                escuchando ? Icons.podcasts_rounded : Icons.pause_rounded,
-                size: 12,
-                color: escuchando ? colors.ok : colors.faint,
-              ),
-              const SizedBox(width: NexusSpacing.s2),
-              Expanded(
-                child: Text(
-                  strings.runSystemLog,
-                  style: NexusTypography.mono.copyWith(color: colors.faint),
-                ),
-              ),
-              // 🔴 **Y se puede apagar.** Se podía encender y no apagar: el
-              // `logcat` seguía vivo el resto de la sesión —un proceso, el
-              // cable ocupado y batería del teléfono— aunque cerraras el panel.
-              // `alterna` existía desde el primer día y no la llamaba nadie.
-              _BotonMini(
-                icono: escuchando
-                    ? Icons.pause_rounded
-                    : Icons.play_arrow_rounded,
-                titulo: strings.runSystemLog,
-                activo: escuchando,
-                onPulsar: () => ref
-                    .read(registroDelSistemaProvider.notifier)
-                    .alterna(widget.deviceId, widget.plataforma),
-              ),
-              // El nivel, como un ciclo y no como un desplegable: son cuatro
-              // pasos y un menú para cuatro cosas es más clics que leer.
-              TextButton(
-                onPressed: () => ref
-                    .read(filtroDelRegistroProvider.notifier)
-                    .siguienteNivel(),
-                child: Text(switch (filtro.minimo) {
-                  NivelDeRegistro.aviso => strings.nivelDesdeAvisos,
-                  NivelDeRegistro.error => strings.nivelSoloErrores,
-                  NivelDeRegistro.fatal => strings.nivelSoloFatales,
-                  _ => strings.nivelTodo,
-                }, style: NexusTypography.mono.copyWith(color: colors.accent)),
-              ),
-            ],
-          ),
-          Flexible(
-            child: lineas.isEmpty
-                // Vacío se dice, no se deja en blanco: un hueco negro se lee
-                // como roto y lo que pasa es que todavía no ha dicho nada.
-                ? Text(
-                    escuchando
-                        ? strings.runSystemLogWaiting
-                        : strings.runSystemLogOff,
-                    style: NexusTypography.mono.copyWith(color: colors.faint),
-                  )
-                : SingleChildScrollView(
-                    reverse: true,
-                    child: SelectableText.rich(
-                      TextSpan(
-                        children: [
-                          for (final linea in lineas)
-                            TextSpan(
-                              text: '${linea.etiqueta}: ${linea.texto}\n',
-                              style: NexusTypography.mono.copyWith(
-                                // El nivel se dice con color y no con una letra
-                                // delante: lo que se busca en un volcado es lo
-                                // rojo, y una `E` en monoespaciado no salta.
-                                color: switch (linea.nivel) {
-                                  NivelDeRegistro.fatal ||
-                                  NivelDeRegistro.error => colors.err,
-                                  NivelDeRegistro.aviso => colors.warn,
-                                  _ => colors.faint,
-                                },
-                              ),
-                            ),
-                        ],
-                      ),
-                    ),
-                  ),
-          ),
-        ],
-      ),
     );
   }
 }

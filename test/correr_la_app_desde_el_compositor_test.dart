@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/data/datasources/emuladores_data_source.dart';
@@ -14,6 +15,7 @@ import 'package:nexus/features/run/data/datasources/configs_data_source.dart';
 import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
+import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/run/presentation/widgets/correr_menu.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -59,6 +61,19 @@ class _MaquinaQueTarda extends EmuladoresDataSource {
       Completer<List<DispositivoConectado>>().future;
 }
 
+/// Las páginas que se habrían escrito, sin tocar el disco ni abrir ventanas.
+class _Pintor {
+  final paginas = <({String nombre, String html, bool primeraVez})>[];
+
+  Future<void> pinta(
+    String nombre,
+    String html, {
+    required bool primeraVez,
+  }) async => paginas.add((nombre: nombre, html: html, primeraVez: primeraVez));
+
+  String get ultima => paginas.last.html;
+}
+
 /// Un controlador con corridas puestas, para mirar la fila sin lanzar procesos.
 class _CorridasFijas extends CorridasController {
   _CorridasFijas(this._inicial);
@@ -95,6 +110,7 @@ Future<void> _montar(
   List<Emulador> emuladores = const [_arrancado, _apagado],
   Map<String, Corrida> corridas = const {},
   EmuladoresDataSource? maquina,
+  _Pintor? pintor,
 }) async {
   await tester.pumpWidget(
     ProviderScope(
@@ -106,6 +122,8 @@ Future<void> _montar(
           maquina ?? _MaquinaFalsa(emuladores),
         ),
         corridasProvider.overrideWith(() => _CorridasFijas(corridas)),
+        if (pintor != null)
+          elPintorDeVentanasProvider.overrideWithValue(pintor.pinta),
       ],
       child: MaterialApp(
         theme: NexusTheme.dark(),
@@ -345,31 +363,66 @@ void main() {
   });
 
   group('el registro', () {
-    testWidgets('se abre desde la fila y el botón queda marcado', (
+    testWidgets('se abre en su ventana, y el botón queda marcado', (
       tester,
     ) async {
-      // Se recogía y no se enseñaba en ningún sitio, que es tenerlo y no tenerlo.
-      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      // 🔴 **Antes crecía hacia abajo dentro del menú**: el interruptor metía el
+      // volcado en la misma columna y el panel acababa siendo un cuadrado con
+      // una terminal dentro. Ahora abre una ventana, como los documentos.
+      final pintor = _Pintor();
+      await _montar(
+        tester,
+        corridas: {'emulator-5554': _corrida()},
+        pintor: pintor,
+      );
       await tester.tap(find.byType(CorrerMenu));
       await tester.pumpAndSettle();
-
-      expect(find.byType(SelectableText), findsNothing);
 
       await tester.tap(find.byTooltip(strings.runLogs));
       await tester.pumpAndSettle();
 
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+
+      expect(pintor.paginas.single.nombre, 'registro-emulator-5554');
+      expect(
+        pintor.paginas.single.primeraVez,
+        isTrue,
+        reason: 'la primera vez es la que abre la ventana de verdad',
+      );
       // Vacío se dice, no se deja en blanco: un hueco negro se lee como roto.
-      expect(find.text(strings.runCompiling), findsWidgets);
+      // Y en el idioma elegido en Ajustes, que es el que lleva el proveedor —la
+      // página no está dentro del árbol de la app y no ve su `StringsScope`—.
+      expect(
+        pintor.ultima,
+        contains(contenedor.read(stringsProvider).runCompiling),
+      );
+
+      // Y el panel no crece: lo que se abrió está fuera.
+      expect(find.byType(SelectableText), findsNothing);
+      expect(contenedor.read(lasVentanasDelRegistroProvider), {
+        'registro-emulator-5554',
+      });
     });
 
-    testWidgets('enseña lo que imprimió la corrida', (tester) async {
+    testWidgets('la ventana lleva lo que imprimió la corrida', (tester) async {
       // Cuando una compilación falla, el motivo está aquí y en ningún otro sitio.
-      await _montar(tester, corridas: {'emulator-5554': _corrida()});
+      final pintor = _Pintor();
+      await _montar(
+        tester,
+        corridas: {'emulator-5554': _corrida()},
+        pintor: pintor,
+      );
       await tester.tap(find.byType(CorrerMenu));
       await tester.pumpAndSettle();
 
-      final contenedor = tester.element(find.byType(CorrerMenu));
-      ProviderScope.containerOf(contenedor, listen: false)
+      final contenedor = ProviderScope.containerOf(
+        tester.element(find.byType(CorrerMenu)),
+        listen: false,
+      );
+      contenedor
           .read(registrosProvider.notifier)
           .anota('emulator-5554', "lib/main.dart:12:3: Error: Expected ';'");
       await tester.pump();
@@ -377,7 +430,7 @@ void main() {
       await tester.tap(find.byTooltip(strings.runLogs));
       await tester.pumpAndSettle();
 
-      expect(find.textContaining("Expected ';'"), findsOneWidget);
+      expect(pintor.ultima, contains("Expected ';'"));
     });
 
     testWidgets('un bloque con saltos dentro se parte en líneas', (
