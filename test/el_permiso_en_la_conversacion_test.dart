@@ -318,6 +318,7 @@ class _PuenteQuePregunta implements ClaudeBridge {
     String? effort,
     String? artifactsFolder,
     String? carpetaDePruebas,
+    String? laConsola,
     List<String> disallowedTools = const [],
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,

@@ -31,6 +31,7 @@ abstract class ClaudeBridge {
     /// Dónde van las pruebas de este proyecto, si lo declaró. `null` cuando vale la
     /// convención de Maestro, y entonces tampoco se le dice nada: `.maestro/` la sabe.
     String? carpetaDePruebas,
+    String? laConsola,
 
     /// Lo que no se puede ejecutar aquí, en la sintaxis del CLI.
     List<String> disallowedTools,

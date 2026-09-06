@@ -74,6 +74,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     String? effort,
     String? artifactsFolder,
     String? carpetaDePruebas,
+    String? laConsola,
     List<String> disallowedTools = const [],
     List<String> comandosPermitidos = const [],
     String? constraintsNotice,
@@ -237,6 +238,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
           sharedContext: context.sharedContext,
           artifactsFolder: artifactsFolder,
           carpetaDePruebas: carpetaDePruebas,
+          laConsola: laConsola,
           // La cuenta sale **de aquí** y no de un parámetro nuevo: es donde el
           // perfil de la carpeta y el destino de los documentos se encuentran por
           // primera vez, y derivarla más arriba obligaría a llevarla de la mano por

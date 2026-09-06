@@ -59,4 +59,36 @@ abstract final class LaConsolaDeLaApp {
   /// A dónde apunta la ventana, ya en la máquina: el túnel deja el puerto del
   /// dispositivo en el mismo número de aquí.
   static String urlDe(int puerto) => 'http://localhost:$puerto';
+
+  /// Lo que se le cuenta al encargo sobre la app que está corriendo.
+  ///
+  /// 🔴 **Esto es la mitad que faltaba, y puede ser la que más vale.** El
+  /// dashboard local **no pide login** —es HTTP en el loopback— así que
+  /// cualquier proceso de la máquina lo consulta, `claude -p` incluido. Con
+  /// esto, «¿por qué se cayó?» deja de contestarse con suposiciones: se le
+  /// pregunta a la app en qué pantalla está, qué providers tiene vivos y qué
+  /// rutas registró.
+  ///
+  /// Se dice **qué hay y dónde**, no una lista de rutas: las rutas son de *ese*
+  /// repositorio y cambian con él, así que enumerarlas aquí sería inventarle un
+  /// contrato a la app de otro. Que las descubra preguntando, que es lo que un
+  /// servidor de depuración sabe contestar.
+  ///
+  /// Y se dice el límite: **es una API con escritura** —mockear un endpoint,
+  /// forzar un remote config, retener un loading— y eso pasa por el mismo
+  /// permiso que todo lo demás.
+  static String paraElPrompt({
+    required int puerto,
+    required String dispositivo,
+  }) =>
+      'La app de este proyecto está corriendo ahora mismo en $dispositivo, y '
+      'trae su propia consola de depuración escuchando en ${urlDe(puerto)} '
+      '(HTTP en el loopback, sin autenticación). Si te preguntan por qué algo '
+      'se cae o en qué estado está la app, **pregúntale a ella** con `curl` en '
+      'vez de suponerlo: expone una API de depuración y sabe decir en qué '
+      'pantalla está, qué providers tiene vivos y qué rutas registró. Empieza '
+      'por lo que la propia consola liste. Ojo: también tiene endpoints que '
+      '**escriben** —mockear respuestas, forzar configuración remota—; esos '
+      'cambian el comportamiento de la app que alguien está mirando, así que '
+      'no los toques sin que te lo pidan.';
 }

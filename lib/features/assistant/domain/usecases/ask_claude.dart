@@ -23,6 +23,11 @@ typedef ClaudeWorkContext = ({
   String? artifactsFolder,
   String? carpetaDePruebas,
 
+  /// La app de este proyecto corriendo con su consola de depuración abierta, ya
+  /// compuesto para el prompt, o `null` si no hay ninguna. Ver
+  /// [LaConsolaDeLaApp.paraElPrompt].
+  String? laConsola,
+
   /// Cómo se llama quien contesta y cómo llamar a quien pregunta, ya compuesto
   /// para el prompt. Viaja en el contexto y no como parámetro suelto porque es
   /// lo mismo que el idioma: una preferencia de la app, no del encargo.
@@ -155,6 +160,10 @@ class AskClaude {
           language: context.language,
           artifactsFolder: context.artifactsFolder,
           carpetaDePruebas: context.carpetaDePruebas,
+          // **Sin el AND de la escritura**: preguntarle a la app en qué estado
+          // está es leer, y un parte del día o un repaso en solo lectura es
+          // justo cuando más ayuda saberlo.
+          laConsola: context.laConsola,
           // Donde quedó esta sesión si alguien ya pulsó «Permitir todo», para
           // no volver a preguntar lo que ya se concedió. **Con el mismo AND**:
           // un tope cerrado no hereda lo que se concedió con el tope abierto,

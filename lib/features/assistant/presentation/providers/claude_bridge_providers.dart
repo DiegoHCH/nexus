@@ -17,6 +17,8 @@ import 'package:nexus/features/workspace/domain/usecases/allowed_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/blocked_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/repo_from_instruction.dart';
 import 'package:nexus/features/e2e/presentation/providers/raiz_de_los_flows_provider.dart';
+import 'package:nexus/features/run/domain/usecases/la_consola_de_la_app.dart';
+import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -123,6 +125,7 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // decirlo en cada encargo de cada proyecto sería ruido para quien no tiene
         // pruebas.
         carpetaDePruebas: _dondeVanLasPruebas(ref, paired),
+        laConsola: _laConsolaDeLaApp(ref, paired),
       );
     },
     ref.watch(conversationMemoryProvider),
@@ -130,6 +133,30 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
     ref.watch(staysAwakeProvider),
   );
 });
+
+/// La app de este proyecto corriendo con su consola abierta, o `null`.
+///
+/// 🔴 **Esto es lo que convierte la consola en algo más que una ventana.** El
+/// dashboard local no pide login —es HTTP en el loopback—, así que `claude -p`
+/// lo consulta como cualquier proceso de la máquina: con esta línea en el
+/// prompt, «¿por qué se cayó?» deja de contestarse con suposiciones.
+///
+/// Se mira **en cada encargo** y no se guarda: una corrida se para, y un puerto
+/// que ya no contesta convertiría la ayuda en una pista falsa. Y solo la de
+/// **este** proyecto: la consola de otra app no dice nada de esta.
+String? _laConsolaDeLaApp(Ref ref, PairedFolder? paired) {
+  if (paired == null) return null;
+  for (final corrida in ref.read(corridasProvider).values) {
+    if (corrida.proyecto != paired.path) continue;
+    if (corrida.consola case final puerto?) {
+      return LaConsolaDeLaApp.paraElPrompt(
+        puerto: puerto,
+        dispositivo: corrida.dispositivo,
+      );
+    }
+  }
+  return null;
+}
 
 /// La carpeta de pruebas que se le nombra al encargo, o `null` si no hay nada elegido.
 ///

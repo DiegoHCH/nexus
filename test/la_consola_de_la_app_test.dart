@@ -191,6 +191,8 @@ void main() {
     });
   });
 
+  _loQueSeLeCuentaAlEncargo();
+
   group('el túnel', () {
     test('enchufa el mismo puerto a los dos lados', () async {
       final pedidos = <List<String>>[];
@@ -304,4 +306,36 @@ class _Corridas extends CorridasController {
       appId: 'abc',
     ),
   };
+}
+
+/// Y la mitad que no se ve: lo que se le cuenta al encargo.
+///
+/// 🔴 **El dashboard local no pide login** —es HTTP en el loopback—, así que
+/// `claude -p` lo consulta como cualquier proceso de la máquina. Con esta línea
+/// en el prompt, «¿por qué se cayó?» deja de contestarse con suposiciones.
+void _loQueSeLeCuentaAlEncargo() {
+  group('lo que se le cuenta al encargo', () {
+    final dicho = LaConsolaDeLaApp.paraElPrompt(
+      puerto: 9777,
+      dispositivo: 'Medium Phone API 36.1',
+    );
+
+    test('dónde preguntar y en qué está corriendo', () {
+      expect(dicho, contains('http://localhost:9777'));
+      expect(dicho, contains('Medium Phone API 36.1'));
+      expect(dicho, contains('curl'));
+    });
+
+    // Las rutas son de *ese* repositorio y cambian con él: enumerarlas sería
+    // inventarle un contrato a la app de otro.
+    test('sin inventarse las rutas de la app', () {
+      expect(dicho, isNot(contains('/api/')));
+    });
+
+    // Es una API con escritura —mockear respuestas, forzar remote config— y eso
+    // cambia lo que ve quien está mirando la app.
+    test('y con el límite dicho, que escribe', () {
+      expect(dicho.toLowerCase(), contains('escriben'));
+    });
+  });
 }

@@ -59,6 +59,10 @@ abstract final class ProjectContextPrompt {
     String? artifactsFolder,
     String? artifactsAccount,
     String? carpetaDePruebas,
+
+    /// La app de este proyecto corriendo con su consola abierta. Ver
+    /// [LaConsolaDeLaApp.paraElPrompt].
+    String? laConsola,
     String? language,
     String? constraintsNotice,
 
@@ -98,6 +102,15 @@ abstract final class ProjectContextPrompt {
     // la sesión que no debería quedar por debajo de él.
     if (perfil != null && perfil.isNotEmpty) {
       sections.add(perfil);
+    }
+
+    // **La app corriendo, si la hay.** Va con lo de arriba —qué hay a mano
+    // aquí— y antes de las reglas del repositorio: es un hecho de la sesión, no
+    // material del repo. Y es de las pocas cosas de este texto que caducan: la
+    // corrida se para y el puerto deja de contestar, así que quien lo compone
+    // lo mira en cada encargo en vez de guardarlo.
+    if (laConsola != null && laConsola.isNotEmpty) {
+      sections.add(laConsola);
     }
 
     // El idioma **es una preferencia, no una orden**: si escribes en otro idioma, gana lo
