@@ -232,4 +232,74 @@ void main() {
     expect(events.whereType<ClaudeSessionStarted>().single.sessionId, 'nueva');
     expect(events.whereType<ClaudeFailed>(), isEmpty);
   });
+
+  // Un servidor MCP que no arrancó, y **solo ese**.
+  //
+  // El JSON de aquí abajo está copiado de una sesión real del CLI: dieciséis
+  // servidores, con `pending` los que todavía estaban conectando y `needs-auth`
+  // los conectores sin autorizar. Ninguno de esos dos es una avería, y por eso
+  // esta parte se midió antes de escribirla: avisar de «no conectado» habría
+  // gritado en cada encargo por diez cosas que estaban bien.
+  group('los servidores MCP del arranque', () {
+    Map<String, dynamic> arranqueCon(List<Map<String, String>> servidores) => {
+      'type': 'system',
+      'subtype': 'init',
+      'session_id': 'abc',
+      'model': 'claude-opus-5[1m]',
+      'mcp_servers': servidores,
+    };
+
+    test('el que falló se dice, con su nombre', () async {
+      final events = await decode([
+        arranqueCon(const [
+          {'name': 'context7', 'status': 'connected'},
+          {'name': 'g66', 'status': 'failed'},
+        ]),
+      ]);
+
+      final caido = events.whereType<ClaudeMcpCaido>().single;
+      expect(caido.servidores, ['g66']);
+    });
+
+    // 🔴 La medición que evita el griterío.
+    test('pending y needs-auth no son averías', () async {
+      final events = await decode([
+        arranqueCon(const [
+          {'name': 'maestro', 'status': 'pending'},
+          {'name': 'g66', 'status': 'pending'},
+          {'name': 'claude.ai Figma', 'status': 'needs-auth'},
+          {'name': 'claude.ai Sentry', 'status': 'needs-auth'},
+          {'name': 'context7', 'status': 'connected'},
+        ]),
+      ]);
+
+      expect(events.whereType<ClaudeMcpCaido>(), isEmpty);
+    });
+
+    test('sin la clave no se inventa nada', () async {
+      final events = await decode([
+        {
+          'type': 'system',
+          'subtype': 'init',
+          'session_id': 'abc',
+          'model': 'claude-opus-5[1m]',
+        },
+      ]);
+
+      expect(events.whereType<ClaudeMcpCaido>(), isEmpty);
+      expect(events.whereType<ClaudeSessionStarted>(), hasLength(1));
+    });
+
+    test('y la sesión sigue saliendo igual', () async {
+      final events = await decode([
+        arranqueCon(const [
+          {'name': 'g66', 'status': 'failed'},
+        ]),
+      ]);
+
+      final arranque = events.whereType<ClaudeSessionStarted>().single;
+      expect(arranque.sessionId, 'abc');
+      expect(arranque.model, 'claude-opus-5[1m]');
+    });
+  });
 }

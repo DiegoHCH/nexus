@@ -223,4 +223,49 @@ void main() {
       expect(parte(salida: '   \n  '), contains('sin nada que decir'));
     });
   });
+
+  // El botón de «correr esto» junto a un bloque de código.
+  //
+  // Nace de un error medido dos días seguidos sobre el mismo repo: el asistente
+  // contestó `git push -u origin <rama>` y lo que se mandó fue `git push` a
+  // secas. Dos errores 128 distintos —una rama sin upstream y otra con el
+  // upstream en `main`— por la misma causa: el comando estaba escrito y había
+  // que retranscribirlo.
+  group('el comando de un bloque de código', () {
+    test('una línea de git se puede correr, y sale con su «!»', () {
+      expect(
+        ElComandoDirecto.deUnBloque('git push -u origin HEAD'),
+        '!git push -u origin HEAD',
+      );
+    });
+
+    test('y si el bloque ya trae el «!», no se le pone otro', () {
+      expect(ElComandoDirecto.deUnBloque('!git status'), '!git status');
+    });
+
+    // 🔴 Un botón que a veces contesta «solo sé de git» enseña a no pulsarlo, y
+    // entonces tampoco se pulsa el día que sí lleva a algún sitio.
+    test('lo que no se sabe correr no ofrece botón', () {
+      expect(ElComandoDirecto.deUnBloque('aws sso login'), isNull);
+      expect(ElComandoDirecto.deUnBloque('flutter test'), isNull);
+    });
+
+    // Un bloque de tres líneas es un guion, y correr un guion línea a línea es
+    // otra cosa: se diseña aparte o no se hace.
+    test('un bloque de varias líneas tampoco, aunque todas sean git', () {
+      expect(
+        ElComandoDirecto.deUnBloque('git add -A\ngit commit -m "x"'),
+        isNull,
+      );
+    });
+
+    test('lo vacío y lo que solo es espacio, tampoco', () {
+      expect(ElComandoDirecto.deUnBloque(''), isNull);
+      expect(ElComandoDirecto.deUnBloque('   \n  '), isNull);
+    });
+
+    test('los saltos de línea de alrededor no estorban', () {
+      expect(ElComandoDirecto.deUnBloque('\ngit status\n'), '!git status');
+    });
+  });
 }

@@ -107,10 +107,42 @@ abstract final class ACarpetaVaLoQueDices {
     'switch',
     'switch to',
     'open',
+    // 🔴 **Y las de trabajar**, que son las que se dicen cuando la pregunta es
+    // «¿dónde vamos a trabajar hoy?». Sin ellas, «trabajemos en nexus» deja
+    // «trabajemos» de encargo: una conversación que nace preguntándole a Claude
+    // qué quiso decir eso. Vale para los dos caminos —también escribiendo—,
+    // porque el fallo era el mismo y no se había visto.
+    'trabajemos',
+    'trabajamos',
+    'trabajar',
+    'vamos a trabajar',
+    'quiero trabajar',
+    'sigamos',
+    'seguimos',
+    'continuemos',
+    'hoy',
+    'lets work',
+    'let us work',
+    'work',
+    'work on',
+    'continue',
   };
 
+  /// Preposiciones que quedan colgando al quitar el nombre.
+  ///
+  /// «Trabajemos **en** nexus» deja «trabajemos en», y eso no está en la lista
+  /// de arriba ni debe estarlo: la lista es de verbos, no de sus combinaciones.
+  /// Se recortan aquí para que la lista no tenga que multiplicarse por cuatro.
+  static const _colgando = {'en', 'a', 'al', 'con', 'to', 'in', 'on', 'into'};
+
   static bool _esSoloIrAlli(String resto) {
-    final limpio = _aplanar(resto).replaceAll(RegExp(r'[^a-z0-9 ]'), '').trim();
+    var limpio = _aplanar(resto).replaceAll(RegExp(r'[^a-z0-9 ]'), '').trim();
+    // Las preposiciones sueltas del final se caen: lo que decide es el verbo.
+    var piezas = limpio.split(RegExp(r'\s+'));
+    while (piezas.isNotEmpty && _colgando.contains(piezas.last)) {
+      piezas = piezas.sublist(0, piezas.length - 1);
+    }
+    limpio = piezas.join(' ').trim();
     return limpio.isEmpty || _irAlli.contains(limpio);
   }
 

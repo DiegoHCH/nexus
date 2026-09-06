@@ -30,6 +30,7 @@ class PairedFolder {
     this.activeRepo,
     this.blockedCommands = const [],
     this.allowedCommands = const [],
+    this.puedeEditar = false,
     this.carpetaDePruebas,
   });
 
@@ -87,6 +88,23 @@ class PairedFolder {
   /// clonas y ya puede ejecutar: ampliar permisos es decisión de quien empareja
   /// la carpeta, nunca del contenido de la carpeta.
   final List<String> allowedCommands;
+
+  /// Si Claude puede **escribir** en esta carpeta.
+  ///
+  /// 🔴 **Estaba a nivel de app y todo el mundo creía que no.** El reporte que
+  /// lo destapó empezó con «la carpeta ya tiene permiso de puede editar», que
+  /// es el modelo mental natural con tres conversaciones abiertas sobre repos
+  /// distintos — y con un interruptor global, tocarlo para un repo lo tocaba
+  /// para todos: dabas escritura en tu proyecto y se la estabas dando también
+  /// al del trabajo.
+  ///
+  /// **El de la app sigue existiendo y manda por encima**: es el tope. Si la
+  /// app está en solo leer no se escribe en ninguna carpeta, aunque esta diga
+  /// que sí. Ver [ElPermisoQueVale].
+  ///
+  /// De fábrica **no**, como todo lo que abre una puerta aquí: una carpeta
+  /// recién emparejada no escribe hasta que alguien lo diga.
+  final bool puedeEditar;
 
   /// Dónde viven las pruebas de este proyecto, o `null` para la convención de Maestro.
   ///
@@ -172,6 +190,7 @@ class PairedFolder {
 
   PairedFolder copyWith({
     FolderModality? modality,
+    bool? puedeEditar,
     String? claudeProfile,
     String? claudeModel,
     String? claudeEffort,
@@ -189,6 +208,7 @@ class PairedFolder {
     activeRepo: activeRepo ?? this.activeRepo,
     blockedCommands: blockedCommands ?? this.blockedCommands,
     allowedCommands: allowedCommands ?? this.allowedCommands,
+    puedeEditar: puedeEditar ?? this.puedeEditar,
     carpetaDePruebas: sinCarpetaDePruebas
         ? null
         : (carpetaDePruebas ?? this.carpetaDePruebas),
@@ -203,6 +223,11 @@ class PairedFolder {
     if (activeRepo != null) 'activeRepo': activeRepo,
     if (blockedCommands.isNotEmpty) 'blockedCommands': blockedCommands,
     if (allowedCommands.isNotEmpty) 'allowedCommands': allowedCommands,
+    // Se escribe siempre, también en `false`, y esa es la diferencia que
+    // importa: **la ausencia significa «esto viene de antes»** y quien lee
+    // hereda el permiso que tenía la app. Escribir solo los `true` haría
+    // indistinguible una carpeta que dijo no de una que nunca eligió.
+    'puedeEditar': puedeEditar,
     if (carpetaDePruebas != null && carpetaDePruebas!.trim().isNotEmpty)
       'carpetaDePruebas': carpetaDePruebas!.trim(),
   };
@@ -212,6 +237,10 @@ class PairedFolder {
     if (path == null || path.isEmpty) return null;
     return PairedFolder(
       path: path,
+      // **Solo lo que esté escrito.** Sin la clave no se decide aquí: quien lee
+      // el espacio de trabajo hereda el permiso de la app, que es lo que esa
+      // carpeta tenía de hecho hasta ahora. Ver `WorkspaceStoreImpl`.
+      puedeEditar: json['puedeEditar'] as bool? ?? false,
       claudeProfile: json['claudeProfile'] as String?,
       claudeModel: json['claudeModel'] as String?,
       claudeEffort: json['claudeEffort'] as String?,

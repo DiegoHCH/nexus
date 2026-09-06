@@ -43,7 +43,11 @@ class PermissionsSection extends ConsumerWidget {
           child: PermissionSwitch(
             permission: workspace.permission,
             onChanged: controller.setPermission,
-            bloqueado: manda?.soloLectura ?? false,
+            // 🔴 **Ya no lo bloquea el repo que esté delante.** Esto es el tope
+            // de la app y un `soloLectura` de un repositorio se respeta donde
+            // toca —en el permiso de **su** carpeta, ver [ElPermisoQueVale]—.
+            // Bloquearlo aquí ataba el cerrojo de toda la app a qué
+            // conversación tenías abierta.
           ),
         ),
         const SizedBox(height: NexusSpacing.s2),

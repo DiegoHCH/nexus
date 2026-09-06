@@ -6,6 +6,7 @@ import 'package:nexus/features/workspace/data/datasources/repo_config_data_sourc
 import 'package:nexus/features/workspace/domain/entities/config_del_repo.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_permiso_que_vale.dart';
 import 'package:nexus/features/workspace/domain/repositories/workspace_store.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -284,8 +285,19 @@ void main() {
 
         final visto = container.read(workspaceControllerProvider);
         expect(visto.folders.single.modality, FolderModality.textOnly);
-        expect(visto.permission, FilePermission.readOnly);
         expect(visto.configActiva?.soloTexto, isTrue);
+
+        // 🔴 **Su solo lectura se respeta en su carpeta y no en el tope de la
+        // app.** Antes apretaba el interruptor global, así que abrir una
+        // conversación sobre este repo te quitaba la escritura **en todas las
+        // demás carpetas** —sin decirlo, y sin devolverla al cerrarla—. Ahora
+        // la regla se cuenta donde se pregunta.
+        expect(
+          ElPermisoQueVale.enLaCarpeta(visto, repo.path),
+          isFalse,
+          reason: 'el repo se niega, y eso gana',
+        );
+        expect(visto.permission, FilePermission.canEdit);
 
         // Y lo tuyo sigue intacto: el día que el repositorio quite la regla,
         // vuelve la voz que tú habías dado, no la que te dejó él.

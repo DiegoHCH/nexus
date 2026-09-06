@@ -13,6 +13,29 @@ final class ClaudeQueued extends ClaudeEvent {
   const ClaudeQueued();
 }
 
+/// Un servidor MCP declarado **no arrancó**, y el encargo corre sin él.
+///
+/// 🔴 **Solo los que fallaron, y esto está medido.** El mensaje de arranque del
+/// CLI trae cada servidor con su estado, y en ese instante lo normal es que
+/// varios estén en `pending` —conectan después— y que los conectores sin
+/// autorizar estén en `needs-auth`. Copiado de una sesión real: de dieciséis
+/// servidores, dos en `pending` y ocho en `needs-auth`, todos sanos. Avisar de
+/// «no conectado» sería gritar en cada encargo por diez cosas que están bien.
+///
+/// Existe porque lo contrario ya costó una tarde: el gateway de la empresa dejó
+/// de responder —se había vencido el SSO de AWS— y lo único que llegó a
+/// pantalla fue un `-32602 Invalid request parameters` que apunta al comando de
+/// quien pregunta. Nexus sabía qué servidores había pedido y nunca miró cuáles
+/// contestaron.
+///
+/// No detiene nada: el encargo sigue, con una herramienta menos.
+final class ClaudeMcpCaido extends ClaudeEvent {
+  const ClaudeMcpCaido(this.servidores);
+
+  /// Los que el CLI marcó como `failed`, por su nombre.
+  final List<String> servidores;
+}
+
 /// Los archivos de reglas de esta carpeta no son los mismos que la última vez.
 ///
 /// Llega antes de que Claude empiece, y **no detiene nada**: el encargo sigue.

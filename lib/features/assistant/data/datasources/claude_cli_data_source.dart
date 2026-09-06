@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/features/assistant/data/datasources/la_salida_que_se_cancela.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 
 /// Lanza `claude -p` headless y entrega cada línea de su `stream-json` ya
@@ -66,6 +67,61 @@ class ClaudeCliDataSource {
     /// que el de la entrada y solo existe si esa entrada está abierta.
     Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
     alPedirPermiso,
+  }) {
+    // 🔴 **El envoltorio no es adorno**: sin él, cancelar esta suscripción no
+    // despierta al generador de abajo y su `finally` —el que mata el proceso—
+    // no corre jamás. Ver [LaSalidaQueSeCancela] y [ElProcesoDelTurno], donde
+    // está medido lo que costó no saberlo.
+    final vivo = ElProcesoDelTurno();
+    return LaSalidaQueSeCancela.de(
+      () => _correr(
+        instruction,
+        workingDirectory: workingDirectory,
+        permissionMode: permissionMode,
+        extraDirectories: extraDirectories,
+        resumeSessionId: resumeSessionId,
+        appendSystemPrompt: appendSystemPrompt,
+        configDir: configDir,
+        model: model,
+        effort: effort,
+        disallowedTools: disallowedTools,
+        herramientasMcp: herramientasMcp,
+        alPedirPermiso: alPedirPermiso,
+        vivo: vivo,
+      ),
+      alCancelar: vivo.soltar,
+    );
+  }
+
+  /// El generador de siempre. Privado porque **no se expone sin envolver**: un
+  /// `async*` suelto no se entera de que lo cancelan.
+  Stream<Map<String, dynamic>> _correr(
+    String instruction, {
+    required String workingDirectory,
+    required String permissionMode,
+    List<String> extraDirectories = const [],
+    String? resumeSessionId,
+    String? appendSystemPrompt,
+    String? configDir,
+    String? model,
+    String? effort,
+    List<String> disallowedTools = const [],
+
+    /// Los servidores MCP que este encargo puede usar, ya con el prefijo `mcp__`.
+    /// Vacío significa **ninguno**, que es lo que había antes sin querer.
+    List<String> herramientasMcp = const [],
+
+    /// A quién preguntarle cuando Claude quiera usar una herramienta que no
+    /// tiene concedida. `null` —lo de siempre— deja el encargo headless puro:
+    /// no hay canal de vuelta y el modo de permisos decide solo.
+    ///
+    /// **No es un adorno opcional: cambia cómo se lanza el proceso.** Con esto
+    /// puesto la instrucción deja de ir en la línea de comandos y entra por
+    /// stdin como `stream-json`, porque el canal de las preguntas es el mismo
+    /// que el de la entrada y solo existe si esa entrada está abierta.
+    Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
+    alPedirPermiso,
+    required ElProcesoDelTurno vivo,
   }) async* {
     // Con alguien a quien preguntar, el CLI habla por un canal distinto: manda
     // `control_request` por stdout y espera el `control_response` por stdin.
@@ -163,6 +219,10 @@ class ClaudeCliDataSource {
       '${effort == null ? '' : ' · esfuerzo $effort'}',
     );
 
+    // Desde aquí ya se le puede rematar desde fuera, que es lo que hace falta
+    // si alguien cancela mientras arranca.
+    vivo.tomar(process, preguntando: preguntando);
+
     if (preguntando) {
       // La instrucción, ahora como mensaje del protocolo. **Y el stdin se queda
       // abierto**, al revés que en el camino de siempre: por ahí van las
@@ -224,6 +284,16 @@ class ClaudeCliDataSource {
           }
         }
         yield decoded;
+
+        // 🔴 **El turno acabó: se le cierra el stdin y sale solo.** Sin esto se
+        // queda leyendo una entrada que nadie va a volver a usar —los permisos
+        // eran de este turno— y el proceso vive hasta que cierres la app. Uno
+        // por encargo: 49 vivos y 3,92 GB medidos en un día.
+        //
+        // Se cierra **después** de emitir la línea, no antes: el `result` es lo
+        // último que hay que entregar, y el bucle de aquí arriba termina solo
+        // en cuanto el proceso suelte su stdout.
+        if (decoded['type'] == 'result') vivo.elTurnoAcabo();
       }
 
       await stderrDone;
@@ -243,6 +313,9 @@ class ClaudeCliDataSource {
       // descriptor suelto por encargo se acumula.
       if (preguntando) unawaited(process.stdin.close().catchError((_) {}));
       process.kill();
+      // Y se desarma el remate: el proceso ya salió, así que el temporizador
+      // solo serviría para mantener viva una referencia diez segundos más.
+      vivo.olvida();
     }
   }
 
@@ -343,6 +416,71 @@ class ClaudeCliDataSource {
   /// que `CLAUDE_CONFIG_DIR` venga seteado igual en cada lanzamiento: se
   /// parte del entorno completo del proceso (HOME, USER, etc.) y se fuerza
   /// lo que el bridge necesita, en vez de dejarlo a lo que herede.
+}
+
+/// El proceso de este turno, para poder rematarlo **desde fuera del generador**.
+///
+/// 🔴 **Hace falta porque cancelar no ejecuta el `finally` de un `async*`** —ver
+/// [LaSalidaQueSeCancela], donde está medido—. Ese `finally` de ahí abajo lleva
+/// escrito desde siempre el `kill` que nadie ejecutaba.
+///
+/// Y hay un segundo motivo, medido el mismo día: **el CLI ignora `SIGTERM`**. De
+/// 52 procesos acumulados, 51 lo aguantaron. Como `Process.kill()` manda
+/// `SIGTERM` por defecto, ese `kill` tampoco habría servido de haber corrido.
+class ElProcesoDelTurno {
+  Process? _proceso;
+  var _preguntando = false;
+  Timer? _remate;
+
+  /// Cuánto se le espera a que salga por las buenas antes de rematarlo.
+  ///
+  /// **Sale en 1,48 s, medido**: se lanzó el CLI en `stream-json`, se le cerró el
+  /// stdin sin mandarle nada y salió con código 0. Diez segundos es casi siete
+  /// veces eso, así que agotarlos no es «tardó un poco».
+  static const plazo = Duration(seconds: 10);
+
+  void tomar(Process proceso, {required bool preguntando}) {
+    _proceso = proceso;
+    _preguntando = preguntando;
+  }
+
+  /// El turno terminó: se le cierra la entrada y **se le deja salir solo**.
+  ///
+  /// Cerrar antes que matar no es cortesía: un CLI que sale limpio recoge a sus
+  /// propios servidores MCP. Y sin esto no sale nunca, porque con
+  /// `--input-format stream-json` se queda leyendo el stdin que le dejamos
+  /// abierto para los permisos — un proceso dormido por encargo, que es la fuga
+  /// que se midió en 49 procesos y 3,92 GB en un día.
+  void elTurnoAcabo() {
+    final proceso = _proceso;
+    if (proceso == null || !_preguntando) return;
+    unawaited(proceso.stdin.close().catchError((_) {}));
+    _remate ??= Timer(plazo, () {
+      debugPrint('claude · no salió al cerrarle el stdin: se remata');
+      proceso.kill(ProcessSignal.sigkill);
+    });
+  }
+
+  /// Alguien canceló —Detener, o cerrar la conversación—: aquí no hay salida
+  /// limpia que esperar, porque lo que se pidió fue que parase ya.
+  ///
+  /// `SIGKILL` y no el `kill()` de fábrica, por lo dicho arriba. Los servidores
+  /// MCP se recogen igual: medido al limpiar 52 procesos, se fueron 195 hijos y
+  /// no quedó ni un huérfano.
+  Future<void> soltar() async {
+    final proceso = _proceso;
+    olvida();
+    if (proceso == null) return;
+    if (_preguntando) await proceso.stdin.close().catchError((_) {});
+    proceso.kill(ProcessSignal.sigkill);
+  }
+
+  /// El proceso ya salió por su cuenta: no hay nada que rematar.
+  void olvida() {
+    _remate?.cancel();
+    _remate = null;
+    _proceso = null;
+  }
 }
 
 class ClaudeProcessException implements Exception {

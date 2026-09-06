@@ -9,6 +9,9 @@ import 'package:nexus/features/assistant/presentation/orb/nexus_orb_painter.dart
 import 'package:nexus/features/assistant/presentation/pages/home_page.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/conversation_dock.dart';
+import 'package:nexus/features/history/data/datasources/local_conversation_store.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
@@ -55,6 +58,12 @@ void main() {
               activePath: carpetas.first,
             ),
           ),
+        ),
+        // Con archivo: al arrancar, una conversación que no ha dicho nada se
+        // cierra sola, y esta prueba necesita las cuatro abiertas para mirar
+        // cómo se apila el muelle.
+        localConversationStoreProvider.overrideWithValue(
+          _ConAlgoDicho([for (final (i, _) in carpetas.indexed) 'c$i']),
         ),
         conversationsDataSourceProvider.overrideWithValue(
           _Disco({
@@ -118,6 +127,50 @@ void main() {
     );
   });
 
+  /// 🔴 **Un nombre largo desbordaba la ficha**, y el desbordamiento se pinta:
+  /// la franja amarilla y negra de Flutter salía atravesada encima de la
+  /// conversación, que es lo primero que se ve al abrir la app. Eran 2.8
+  /// píxeles —el orbe, su hueco y un ancho de texto escrito a mano sumaban 184
+  /// en una tarjeta de 176— y se reportó con una captura.
+  testWidgets('un nombre largo se corta, no desborda la ficha', (tester) async {
+    const larga = '/Users/alguien/front-mobile-b2c';
+
+    await pumpScreen(
+      tester,
+      const HomePage(),
+      overrides: [
+        workspaceControllerProvider.overrideWith(
+          () => FixedWorkspace(
+            const Workspace(
+              folders: [
+                PairedFolder(path: larga, modality: FolderModality.textOnly),
+              ],
+              activePath: larga,
+            ),
+          ),
+        ),
+        localConversationStoreProvider.overrideWithValue(_ConAlgoDicho(['c0'])),
+        conversationsDataSourceProvider.overrideWithValue(
+          _Disco({
+            'items': [
+              {'id': 'c0', 'folderPath': larga},
+            ],
+            'focusedId': 'c0',
+          }),
+        ),
+      ],
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    // Dos: el de la ficha del muelle y el de la chapa del compositor.
+    expect(find.text('front-mobile-b2c'), findsNWidgets(2));
+    expect(
+      tester.takeException(),
+      isNull,
+      reason: 'la ficha mide 176 y el nombre tiene que caber dentro',
+    );
+  });
+
   _laAlineacion();
 
   testWidgets('con la caja estrecha sí la cede, que es para lo que existe', (
@@ -174,6 +227,12 @@ void _laAlineacion() {
               activePath: carpetas.first,
             ),
           ),
+        ),
+        // Con archivo: al arrancar, una conversación que no ha dicho nada se
+        // cierra sola, y esta prueba necesita las cuatro abiertas para mirar
+        // cómo se apila el muelle.
+        localConversationStoreProvider.overrideWithValue(
+          _ConAlgoDicho([for (final (i, _) in carpetas.indexed) 'c$i']),
         ),
         conversationsDataSourceProvider.overrideWithValue(
           _Disco({
@@ -245,4 +304,29 @@ class _Disco implements ConversationsDataSource {
 
   @override
   Future<void> write(Map<String, dynamic> json) async => contenido = json;
+}
+
+/// Un archivo que dice que todas ellas hablaron.
+///
+/// Hace falta desde que el arranque cierra las que no dijeron nada: sin esto,
+/// las cuatro de esta prueba se cerrarían antes de que el muelle las pinte.
+class _ConAlgoDicho implements LocalConversationStore {
+  const _ConAlgoDicho(this.ids);
+
+  final List<String> ids;
+
+  @override
+  Future<List<ConversationSummary>> list(String folderPath) async => [
+    for (final id in ids)
+      ConversationSummary(
+        id: id,
+        folderPath: folderPath,
+        startedAt: DateTime(2026, 9, 5),
+        title: 'algo',
+        turns: 2,
+      ),
+  ];
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => throw UnimplementedError();
 }

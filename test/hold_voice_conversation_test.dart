@@ -118,7 +118,9 @@ class _Gateway implements VoiceGateway {
   final _Session session;
 
   @override
-  Future<VoiceSession> connect() async => session;
+  Future<VoiceSession> connect({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  }) async => session;
 
   @override
   Future<VoiceSession> resume() async => session;

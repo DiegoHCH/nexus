@@ -29,6 +29,7 @@ class Corrida {
     this.progreso,
     this.url,
     this.error,
+    this.consola,
   });
 
   /// El `-d` con el que se lanzó. **Es la clave de todo**: una corrida por
@@ -60,6 +61,11 @@ class Corrida {
   /// La URL del depurador, cuando la manda.
   final String? url;
 
+  /// El puerto de la **consola de depuración de la propia app**, cuando la app
+  /// dice que la abrió. Nulo es lo normal: no todas las traen, y las que la
+  /// traen la apagan en la mayoría de los entornos. Ver [LaConsolaDeLaApp].
+  final int? consola;
+
   final String? error;
 
   bool get puedeRecargar =>
@@ -72,6 +78,7 @@ class Corrida {
     bool limpiaProgreso = false,
     String? url,
     String? error,
+    int? consola,
   }) => Corrida(
     deviceId: deviceId,
     dispositivo: dispositivo,
@@ -83,6 +90,7 @@ class Corrida {
     progreso: limpiaProgreso ? null : (progreso ?? this.progreso),
     url: url ?? this.url,
     error: error ?? this.error,
+    consola: consola ?? this.consola,
   );
 }
 

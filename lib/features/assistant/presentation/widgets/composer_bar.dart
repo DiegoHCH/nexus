@@ -19,6 +19,7 @@ import 'package:nexus/features/onboarding/presentation/state/tour_state.dart';
 import 'package:nexus/features/onboarding/presentation/widgets/tour_anchor.dart';
 import 'package:nexus/features/workspace/domain/entities/paired_folder.dart';
 import 'package:nexus/features/workspace/domain/entities/workspace.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_permiso_que_vale.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
 /// La caja para escribirle, con sus controles alrededor.
@@ -411,7 +412,14 @@ class _Controls extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final colors = context.colors;
     final strings = context.strings;
-    final canWrite = workspace.permission.canWrite;
+    // De la carpeta de esta conversación y no de la app: el interruptor global
+    // dejaba que dar escritura en un proyecto la diera también en el del
+    // trabajo. Ver [ElPermisoQueVale].
+    final carpeta = folder;
+    final canWrite = ElPermisoQueVale.enLaCarpeta(workspace, carpeta?.path);
+    // Con el tope cerrado, dar permiso aquí no haría escribir: se dice en el
+    // propio menú y elegirlo lo sube también.
+    final subeElTope = !ElPermisoQueVale.elTopeLoPermite(workspace);
 
     return Row(
       children: [
@@ -421,10 +429,16 @@ class _Controls extends ConsumerWidget {
         PopupMenuButton<FilePermission>(
           color: colors.deep,
           tooltip: '',
-          initialValue: workspace.permission,
-          onSelected: ref
+          // **Sin carpeta emparejada no hay permiso que dar.** Es el caso de la
+          // carpeta de documentos: no se escribe ahí por este camino, y un menú
+          // que se abre para no poder elegir nada engaña.
+          enabled: carpeta != null,
+          initialValue: canWrite
+              ? FilePermission.canEdit
+              : FilePermission.readOnly,
+          onSelected: (opcion) => ref
               .read(workspaceControllerProvider.notifier)
-              .setPermission,
+              .setPermisoDeCarpeta(carpeta!.path, opcion.canWrite),
           itemBuilder: (context) => [
             for (final option in FilePermission.values)
               PopupMenuItem<FilePermission>(
@@ -442,6 +456,16 @@ class _Controls extends ConsumerWidget {
                           : strings.readOnlyExplainer,
                       style: NexusTypography.mono.copyWith(color: colors.faint),
                     ),
+                    // Lo que además va a pasar, dicho **antes** de elegir: para
+                    // eso este control es un menú con explicaciones y no un
+                    // conmutador.
+                    if (option.canWrite && subeElTope)
+                      Text(
+                        strings.tambienSubeElTope,
+                        style: NexusTypography.mono.copyWith(
+                          color: colors.warn,
+                        ),
+                      ),
                   ],
                 ),
               ),

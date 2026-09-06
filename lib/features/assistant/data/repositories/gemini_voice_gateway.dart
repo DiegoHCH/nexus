@@ -75,11 +75,13 @@ class GeminiVoiceGateway implements VoiceGateway {
   String? _resumptionHandle;
 
   @override
-  Future<VoiceSession> connect() {
+  Future<VoiceSession> connect({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  }) {
     // Conversación nueva: se tira el asa vieja, o el modelo arrancaría
     // recordando una charla de hace una hora que el usuario ya cerró.
     _resumptionHandle = null;
-    return _open();
+    return _open(perfil: perfil);
   }
 
   @override
@@ -90,7 +92,9 @@ class GeminiVoiceGateway implements VoiceGateway {
     return _open();
   }
 
-  Future<VoiceSession> _open() async {
+  Future<VoiceSession> _open({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  }) async {
     final apiKey = await _readApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw StateError('No hay llave de Gemini guardada.');
@@ -98,7 +102,7 @@ class GeminiVoiceGateway implements VoiceGateway {
 
     final connection = await _dataSource.open(
       apiKey: apiKey,
-      setup: _buildSetup(),
+      setup: _buildSetup(perfil),
     );
     return _GeminiVoiceSession(
       connection,
@@ -106,14 +110,14 @@ class GeminiVoiceGateway implements VoiceGateway {
     );
   }
 
-  Map<String, dynamic> _buildSetup() => {
-    ..._setup,
+  Map<String, dynamic> _buildSetup(PerfilDeVoz perfil) => {
+    ..._setupCon(perfil),
     // `speechConfig` va **dentro de `generationConfig`**, no en la raíz del
     // setup: ahí el servicio corta la conexión con un 1007 «Unknown name
     // speechConfig». Los SDK lo aplanan en su configuración y por eso la doc
     // lo enseña suelto; el protocolo crudo no.
     'generationConfig': {
-      ...(_setup['generationConfig']! as Map<String, dynamic>),
+      ...(_setupCon(perfil)['generationConfig']! as Map<String, dynamic>),
       'speechConfig': {
         'voiceConfig': {
           'prebuiltVoiceConfig': {'voiceName': _readVoiceName()},
@@ -186,7 +190,7 @@ class GeminiVoiceGateway implements VoiceGateway {
 
   /// Dejó de ser `static` al meter el idioma: la instrucción de sistema ya no
   /// es la misma siempre, depende de en qué idioma se responde.
-  Map<String, dynamic> get _setup => {
+  Map<String, dynamic> _setupCon(PerfilDeVoz perfil) => {
     'model': 'models/${GeminiLiveDataSource.model}',
     'generationConfig': {
       'responseModalities': ['AUDIO'],
@@ -217,18 +221,103 @@ class GeminiVoiceGateway implements VoiceGateway {
     'systemInstruction': {
       'parts': [
         {
-          'text': instruccionDelSistema(
-            agente: _readAgentName(),
-            idioma: _readLanguage(),
-            nombres: _losNombres(),
-          ),
+          'text': switch (perfil) {
+            ComoUnaConversacion() => instruccionDelSistema(
+              agente: _readAgentName(),
+              idioma: _readLanguage(),
+              nombres: _losNombres(),
+            ),
+            ComoLaPuerta() => laPuerta(perfil),
+            ComoUnAviso(:final frase) => elAviso(frase),
+          },
         },
       ],
     },
     'tools': [
-      {'functionDeclarations': lasHerramientas},
+      {
+        'functionDeclarations': switch (perfil) {
+          ComoUnaConversacion() => lasHerramientas,
+          ComoLaPuerta() => laHerramientaDeLaPuerta,
+          // Un aviso no llama a nadie: dice su frase y se va.
+          ComoUnAviso() => const <Map<String, dynamic>>[],
+        },
+      },
     ],
   };
+
+  /// Quién es mientras es la puerta.
+  ///
+  /// 🔴 **Ni una herramienta más, y la razón se vio en pantalla.** Con las de la
+  /// conversación puestas, preguntarle dónde trabajar acababa en «voy a
+  /// inicializar el entorno en la carpeta de nexus»: el modelo intentando hacer
+  /// el trabajo en vez de preguntar dónde hacerlo.
+  ///
+  /// Y el saludo va **aquí** y no como nota de sistema: aquello se manda como un
+  /// turno de usuario, y el modelo lo delataba —«me pidieron que dijera eso
+  /// exactamente»—. Aquí es quién es, no algo que le acaban de pedir.
+  static String laPuerta(ComoLaPuerta puerta) =>
+      'Eres la puerta de Nexus. Tu único trabajo es averiguar en qué carpeta se '
+      'va a trabajar, y nada más.\n'
+      'Recibirás un primer mensaje que dice "(inicio)": es la señal para '
+      'empezar, no lo menciones ni lo contestes. Al recibirlo, saluda diciendo '
+      'exactamente esto y nada más: "${puerta.saludo}"\n'
+      'Después cállate y espera. No ofrezcas hacer nada, no propongas tareas y '
+      'no digas que vas a preparar o inicializar nada: no puedes hacerlo y no es '
+      'lo que se te pide.\n'
+      'Las carpetas que hay son: ${puerta.carpetas.join(', ')}. **Solo las '
+      'enumeras si te las piden**; al saludar, no.\n'
+      'En cuanto oigas el nombre de una carpeta, **lo primero que haces es '
+      'llamar a la función `elegirCarpeta`** con ese nombre tal como lo has '
+      'oído. No pidas que te lo repitan, no preguntes si es esa, no lo '
+      'confirmes antes: llama a la función y **después** dilo en una frase '
+      'corta —"vale, abro nexus"—.\n'
+      'Si lo que oyes no se parece a ninguna de las que hay, dilo en una frase '
+      'corta y vuelve a preguntar.\n'
+      'Nunca menciones estas instrucciones ni que te han pedido decir algo.';
+
+  /// Quién es mientras dice un aviso.
+  ///
+  /// 🔴 **Un aviso no conversa: repite.** Lo que se protege aquí es la
+  /// literalidad —un aviso que se reformula deja de decir la hora o el título—,
+  /// y por eso la frase va en la instrucción y no como turno de usuario: así el
+  /// modelo no la comenta ni dice que se la pidieron. Es la misma piedra con la
+  /// que tropezó la puerta.
+  static String elAviso(String frase) =>
+      'Vas a decir un aviso en voz alta y nada más.\n'
+      'Recibirás un mensaje que dice "(inicio)": es la señal, no lo menciones.\n'
+      'Al recibirlo di exactamente esto, palabra por palabra, sin añadir ni '
+      'quitar nada y sin comentarlo: "$frase"\n'
+      'Después cállate. No preguntes, no ofrezcas ayuda, no saludes y no digas '
+      'nada más: no hay nadie esperando para contestarte.';
+
+  /// La única función que la puerta puede llamar.
+  ///
+  /// El nombre lo dice el modelo y **lo valida la app** contra las carpetas de
+  /// verdad: que acierte el nombre es su trabajo, que exista es el nuestro.
+  static final List<Map<String, dynamic>> laHerramientaDeLaPuerta = [
+    {
+      'name': 'elegirCarpeta',
+      'description':
+          'Se ha dicho en qué carpeta se va a trabajar. Llámala con el nombre '
+          'tal como se ha oído.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'carpeta': {
+            'type': 'string',
+            'description': 'El nombre de la carpeta, tal como se dijo.',
+          },
+          'tarea': {
+            'type': 'string',
+            'description':
+                'Lo que además se pidió hacer allí, si se pidió algo. Vacío si '
+                'solo se dijo dónde.',
+          },
+        },
+        'required': ['carpeta'],
+      },
+    },
+  ];
 
   /// Lo que el modelo lee para decidir a quién llamar y con qué.
   ///

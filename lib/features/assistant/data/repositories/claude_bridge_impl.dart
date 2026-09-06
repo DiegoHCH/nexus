@@ -5,6 +5,7 @@ import 'package:nexus/features/assistant/data/datasources/rules_watch_data_sourc
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
 import 'package:nexus/features/assistant/data/repositories/tool_activity_reader.dart';
 import 'package:nexus/features/assistant/domain/usecases/el_perfil_del_encargo.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_no_se_puede_pintar.dart';
 import 'package:nexus/features/assistant/domain/usecases/mcp_permissions.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
@@ -223,6 +224,10 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         // correo para poder leerlo dejaría también mandarlo.
         disallowedTools: [
           ...disallowedTools,
+          // Y lo que no se puede enseñar, siempre: ofrecer una herramienta que
+          // no se pinta gasta una pregunta de permiso y pierde la respuesta.
+          // Ver [LoQueNoSePuedePintar], donde está el caso medido.
+          ...LoQueNoSePuedePintar.herramientas,
           if (!canEdit) ...McpPermissions.escrituraDeFuera,
         ],
         appendSystemPrompt: ProjectContextPrompt.compose(
@@ -343,11 +348,27 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     switch (json['type']) {
       case 'system':
         if (json['subtype'] != 'init') return const [];
+        // 🔴 **Solo los que fallaron.** El arranque trae cada servidor con su
+        // estado, y ahí `pending` es lo normal —conectan después— y
+        // `needs-auth` es un conector sin autorizar, no una avería. Medido
+        // contra el binario: de dieciséis servidores, dos en `pending` y ocho
+        // en `needs-auth`, todos sanos. Avisar de «no conectado» sería gritar
+        // en cada encargo por diez cosas que están bien.
+        final caidos = [
+          for (final servidor
+              in json['mcp_servers'] as List<dynamic>? ?? const [])
+            if (servidor is Map<String, dynamic> &&
+                servidor['status'] == 'failed')
+              if (servidor['name'] case final String nombre
+                  when nombre.isNotEmpty)
+                nombre,
+        ];
         return [
           ClaudeSessionStarted(
             sessionId: json['session_id'] as String? ?? '',
             model: json['model'] as String? ?? '',
           ),
+          if (caidos.isNotEmpty) ClaudeMcpCaido(caidos),
         ];
 
       case 'stream_event':

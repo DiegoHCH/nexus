@@ -369,10 +369,18 @@ class _Workspace extends WorkspaceController {
 
   @override
   Workspace build() => Workspace(
-    folders: [PairedFolder(path: folderPath, modality: FolderModality.voice)],
+    folders: [
+      PairedFolder(
+        path: folderPath,
+        modality: FolderModality.voice,
+        // **El permiso es de la carpeta**, y el de la app es el tope: hacen
+        // falta los dos para que se escriba, así que los dos van a lo que pida
+        // la prueba. Sin esto no se pregunta nada — que es lo correcto y no lo
+        // que esta prueba mira.
+        puedeEditar: permiso.canWrite,
+      ),
+    ],
     activePath: folderPath,
-    // Sin esto nace en `readOnly` —el valor de fábrica— y entonces no se
-    // pregunta nada, que es lo correcto y no lo que esta prueba mira.
     permission: permiso,
   );
 }

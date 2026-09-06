@@ -10,6 +10,7 @@ import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_ac
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:markdown/markdown.dart' as md;
 import 'package:nexus/core/design_system/el_resaltado_del_codigo.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_comando_directo.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/features/assistant/presentation/widgets/attachment_strip.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -32,6 +33,7 @@ class ChatPanel extends StatefulWidget {
     required this.messages,
     this.onRetry,
     this.onPermiso,
+    this.onCorrer,
     this.etiquetaDelAgente,
   });
 
@@ -51,6 +53,13 @@ class ChatPanel extends StatefulWidget {
   /// [onRetry]: el panel no sabe de qué conversación es, y los completers que
   /// hay al otro lado sí son de una.
   final void Function(String id, DecisionDePermiso decision)? onPermiso;
+
+  /// Correr el comando de un bloque de código, tal cual está escrito.
+  ///
+  /// Entra por parámetro por lo mismo que [onRetry]: el panel no sabe de qué
+  /// conversación es. `null` deja los bloques como estaban — es lo que quiere
+  /// quien solo pinta mensajes, como el historial.
+  final void Function(String comando)? onCorrer;
 
   final List<ChatMessage> messages;
 
@@ -109,6 +118,7 @@ class _ChatPanelState extends State<ChatPanel> {
           etiqueta: widget.etiquetaDelAgente,
           onRetry: widget.onRetry,
           onPermiso: widget.onPermiso,
+          onCorrer: widget.onCorrer,
         ),
       ),
     );
@@ -132,9 +142,17 @@ class _Turn extends StatelessWidget {
     this.etiqueta,
     this.onRetry,
     this.onPermiso,
+    this.onCorrer,
   });
 
   final void Function(String id, DecisionDePermiso decision)? onPermiso;
+
+  /// Correr el comando de un bloque de código, tal cual está escrito.
+  ///
+  /// Entra por parámetro por lo mismo que [onRetry]: el panel no sabe de qué
+  /// conversación es. `null` deja los bloques como estaban — es lo que quiere
+  /// quien solo pinta mensajes, como el historial.
+  final void Function(String comando)? onCorrer;
 
   /// Cómo se llama quien contesta, o `null` para el nombre de la app.
   final String? etiqueta;
@@ -219,7 +237,7 @@ class _Turn extends StatelessWidget {
               ),
             )
           else if (!isUser)
-            _Answer(text: message.text),
+            _Answer(text: message.text, onCorrer: onCorrer),
           // Lo que este turno dejó, al pie de su propio mensaje.
           //
           // Aquí y no en una barra bajo la conversación, que es donde estaba:
@@ -621,7 +639,9 @@ class _Boton extends StatelessWidget {
 /// para lo que se ejecuta y tablas ajustadas al ancho en vez de desbordar la
 /// ventana — esto sigue siendo un panel de control.
 class _Answer extends StatelessWidget {
-  const _Answer({required this.text});
+  const _Answer({required this.text, this.onCorrer});
+
+  final void Function(String comando)? onCorrer;
 
   final String text;
 
@@ -677,7 +697,11 @@ class _Answer extends StatelessWidget {
       // una conversación en la que un turno ocupa cinco pantallas deja de poder
       // recorrerse.
       builders: {
-        'pre': _CodigoPlegable(estilo: mono, relleno: _rellenoDelCodigo),
+        'pre': _CodigoPlegable(
+          estilo: mono,
+          relleno: _rellenoDelCodigo,
+          onCorrer: onCorrer,
+        ),
       },
       styleSheet: MarkdownStyleSheet(
         p: body,
@@ -752,10 +776,11 @@ const _sePliegaDesde = 12;
 /// por defecto: descarta el hijo y el bloque se pinta **vacío**. Así que aquí no
 /// hay «déjalo como estaba»; el caso corto también se dibuja a mano.
 class _CodigoPlegable extends MarkdownElementBuilder {
-  _CodigoPlegable({required this.estilo, required this.relleno});
+  _CodigoPlegable({required this.estilo, required this.relleno, this.onCorrer});
 
   final TextStyle estilo;
   final EdgeInsets relleno;
+  final void Function(String comando)? onCorrer;
 
   /// El lenguaje del bloque que se está visitando ahora.
   ///
@@ -786,6 +811,7 @@ class _CodigoPlegable extends MarkdownElementBuilder {
     lenguaje: _lenguaje,
     estilo: estilo,
     relleno: relleno,
+    onCorrer: onCorrer,
   );
 }
 
@@ -800,12 +826,14 @@ class _BloqueDeCodigo extends StatefulWidget {
     required this.lenguaje,
     required this.estilo,
     required this.relleno,
+    this.onCorrer,
   });
 
   final String texto;
   final String? lenguaje;
   final TextStyle estilo;
   final EdgeInsets relleno;
+  final void Function(String comando)? onCorrer;
 
   @override
   State<_BloqueDeCodigo> createState() => _BloqueDeCodigoState();
@@ -814,6 +842,15 @@ class _BloqueDeCodigo extends StatefulWidget {
 class _BloqueDeCodigoState extends State<_BloqueDeCodigo> {
   final _scroll = ScrollController();
   var _desplegado = false;
+
+  /// El comando que este bloque ofrece correr, o `null` si no ofrece ninguno.
+  ///
+  /// Se pregunta al dominio y no aquí: qué se puede correr es una regla suya
+  /// —hoy, solo `git`— y duplicarla en la interfaz sería tener dos sitios donde
+  /// ampliarla, con uno de los dos siempre a medio actualizar.
+  String? get _comando => widget.onCorrer == null
+      ? null
+      : ElComandoDirecto.deUnBloque(widget.texto);
 
   @override
   void dispose() {
@@ -839,16 +876,23 @@ class _BloqueDeCodigoState extends State<_BloqueDeCodigo> {
         // esquina. Solo cuando el cercado lo declaró — inventarlo para la salida
         // de un `!`, que no es ningún lenguaje, sería decir algo falso en un
         // sitio donde uno confía.
-        if (widget.lenguaje != null)
+        if (widget.lenguaje != null || _comando != null)
           Padding(
             padding: EdgeInsets.only(
               left: widget.relleno.left,
               right: widget.relleno.right,
               top: widget.relleno.top,
             ),
-            child: Text(
-              widget.lenguaje!,
-              style: NexusTypography.label.copyWith(color: colors.faint),
+            child: Row(
+              children: [
+                if (widget.lenguaje != null) _ElLenguaje(widget.lenguaje!),
+                const Spacer(),
+                // 🔴 **Solo cuando se puede correr de verdad.** Un botón que a
+                // veces contesta «solo sé de git» enseña a no pulsarlo, y
+                // entonces tampoco se pulsa el día que sí lleva a algún sitio.
+                if (_comando case final comando?)
+                  _CorrerEsto(onTap: () => widget.onCorrer!(comando)),
+              ],
             ),
           ),
         Scrollbar(
@@ -965,6 +1009,62 @@ class _LaPreguntaCitada extends StatelessWidget {
             style: NexusTypography.mono.copyWith(color: colors.faint),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// El lenguaje del bloque, discreto y arriba: lo que un editor pone en la
+/// esquina.
+class _ElLenguaje extends StatelessWidget {
+  const _ElLenguaje(this.lenguaje);
+
+  final String lenguaje;
+
+  @override
+  Widget build(BuildContext context) => Text(
+    lenguaje,
+    style: NexusTypography.label.copyWith(color: context.colors.faint),
+  );
+}
+
+/// «Correr esto», al lado del comando que lo dice.
+///
+/// 🔴 **Nace de un error medido dos días seguidos.** El asistente contestó
+/// `git push -u origin <rama>` y lo que se mandó fue `git push` a secas, con dos
+/// errores 128 distintos por la misma causa: el comando estaba escrito y había
+/// que retranscribirlo. Esto manda **el texto que se ve**, sin editarlo por el
+/// camino.
+class _CorrerEsto extends StatelessWidget {
+  const _CorrerEsto({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final texto = context.strings.runThisCommand;
+
+    return Semantics(
+      button: true,
+      label: texto,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.play_arrow_rounded, size: 13, color: colors.accent),
+              const SizedBox(width: 3),
+              Text(
+                texto,
+                style: NexusTypography.label.copyWith(color: colors.accent),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

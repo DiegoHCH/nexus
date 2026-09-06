@@ -6,6 +6,10 @@
 /// Los tres van juntos —lo que se declara y sus dos traducciones— porque lo
 /// que se rompe es la terna: añadir un texto y olvidar un idioma. Tenerlos en
 /// el mismo archivo hace que el hueco se vea al escribirlo, no al compilar.
+library;
+
+import 'package:nexus/core/i18n/franja_del_dia.dart';
+
 mixin NucleoStrings {
   /// El código que se le dice a los modelos para que respondan igual que la
   /// interfaz. Sin esto, la app estaría en inglés y la voz seguiría en español.
@@ -63,6 +67,10 @@ mixin NucleoStrings {
   String get seeActivity;
   String get expandWindow;
   String get retryErrand;
+  String get runThisCommand;
+  String saludoDeLaPuerta(FranjaDelDia franja, String? nombre);
+  String get laPuertaNoEntendio;
+  String laPuertaOyoDos(List<String> carpetas);
   String get stopNow;
   String get restoreWindow;
   String stepsProgress(int done, int total);
@@ -287,6 +295,24 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get expandWindow => 'Ampliar';
   @override
   String get retryErrand => 'REINTENTAR';
+  @override
+  String get runThisCommand => 'CORRER';
+  @override
+  String saludoDeLaPuerta(FranjaDelDia franja, String? nombre) {
+    final hora = switch (franja) {
+      FranjaDelDia.manana => 'Buenos días',
+      FranjaDelDia.tarde => 'Buenas tardes',
+      FranjaDelDia.noche => 'Buenas noches',
+    };
+    final aQuien = (nombre == null || nombre.isEmpty) ? '' : ', $nombre';
+    return '$hora$aQuien. ¿En dónde vamos a trabajar hoy?';
+  }
+
+  @override
+  String get laPuertaNoEntendio => 'No te seguí. ¿En qué carpeta trabajamos?';
+  @override
+  String laPuertaOyoDos(List<String> carpetas) =>
+      'Oí ${carpetas.join(' y ')}. ¿En cuál de las dos?';
   @override
   String get stopNow => 'Detener el encargo';
   @override
@@ -624,6 +650,24 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get expandWindow => 'Expand';
   @override
   String get retryErrand => 'RETRY';
+  @override
+  String get runThisCommand => 'RUN';
+  @override
+  String saludoDeLaPuerta(FranjaDelDia franja, String? nombre) {
+    final hora = switch (franja) {
+      FranjaDelDia.manana => 'Good morning',
+      FranjaDelDia.tarde => 'Good afternoon',
+      FranjaDelDia.noche => 'Good evening',
+    };
+    final aQuien = (nombre == null || nombre.isEmpty) ? '' : ', $nombre';
+    return '$hora$aQuien. Where are we working today?';
+  }
+
+  @override
+  String get laPuertaNoEntendio => "I didn't catch that. Which folder?";
+  @override
+  String laPuertaOyoDos(List<String> carpetas) =>
+      'I heard ${carpetas.join(' and ')}. Which one?';
   @override
   String get stopNow => 'Stop the errand';
   @override

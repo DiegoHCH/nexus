@@ -152,6 +152,10 @@ mixin PruebasStrings {
   String get elAcentoExplainer;
   String get elAcentoAutomatico;
   String get filePermissionsTitle;
+
+  /// Lo que además pasa al dar escritura a una carpeta con el tope de la app
+  /// cerrado: que el tope sube. Se dice **antes** de elegir.
+  String get tambienSubeElTope;
   String get filePermissionsExplainer;
   String get repoDeclaraTitle;
   String get repoDeclaraExplainer;
@@ -539,10 +543,15 @@ mixin PruebasStringsEs implements PruebasStrings {
   @override
   String get filePermissionsTitle => 'PERMISOS SOBRE TUS ARCHIVOS';
   @override
+  String get tambienSubeElTope =>
+      'La app está en solo lectura: al dar permiso aquí, también se abre el de '
+      'la app. Las demás carpetas se quedan como están.';
+  @override
   String get filePermissionsExplainer =>
-      'Este interruptor está siempre visible en la barra superior. En «solo '
-      'leer», Nexus puede abrir archivos y correr comandos que no escriben; en '
-      '«puede editar», también modifica archivos.';
+      'Este es el tope de la app y manda por encima de todo: en «solo leer» '
+      'no se escribe en ninguna carpeta, aunque alguna diga que sí. El permiso '
+      'del día a día es de cada carpeta y se cambia junto a la caja de '
+      'escribir, en la conversación de esa carpeta.';
   @override
   String get repoDeclaraTitle => 'LO QUE DECLARA ESTE REPOSITORIO';
   @override
@@ -976,10 +985,15 @@ mixin PruebasStringsEn implements PruebasStrings {
   @override
   String get filePermissionsTitle => 'PERMISSIONS OVER YOUR FILES';
   @override
+  String get tambienSubeElTope =>
+      'The app is read-only: allowing writes here opens the app-level one too. '
+      'Every other folder stays as it is.';
+  @override
   String get filePermissionsExplainer =>
-      'This switch is always visible in the top bar. On “read only”, Nexus can '
-      'open files and run commands that do not write; on “can edit”, it changes '
-      'files too.';
+      'This is the app-level cap and it wins over everything: on “read only” '
+      'nothing is written in any folder, even one that says otherwise. The '
+      'day-to-day permission belongs to each folder and is changed next to the '
+      'composer, inside that folder’s conversation.';
   @override
   String get repoDeclaraTitle => 'WHAT THIS REPOSITORY DECLARES';
   @override

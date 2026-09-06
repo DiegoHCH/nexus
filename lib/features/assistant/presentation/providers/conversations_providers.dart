@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/assistant/data/datasources/conversations_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/conversation.dart';
@@ -7,6 +8,7 @@ import 'package:nexus/features/workspace/presentation/providers/workspace_provid
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/assistant_controller.dart';
+import 'package:nexus/features/assistant/presentation/providers/la_sesion_sin_dueno.dart';
 
 final conversationsDataSourceProvider = Provider<ConversationsDataSource>(
   (ref) => const ConversationsDataSource(),
@@ -17,6 +19,57 @@ class ConversationsController extends Notifier<Conversations> {
   /// Lo guardado en disco, leído una sola vez.
   List<Conversation>? _saved;
   String? _savedFocusId;
+
+  /// Quita de lo recién leído del disco las que **no llegaron a decir nada**.
+  ///
+  /// 🔴 **Una pestaña vacía no es trabajo empezado**: es una que se abrió y se
+  /// dejó. Y mientras esté ahí el arranque no es el arranque — la puerta que
+  /// saluda y pregunta dónde se trabaja solo aparece sin ninguna conversación
+  /// abierta, así que una vacía de ayer la tapa entera.
+  ///
+  /// **Sobre lo leído y antes de mezclar**, que es la única foto donde «esto
+  /// venía de antes» significa lo que parece: en cuanto la sesión abre algo, lo
+  /// persiste, y a partir de ahí lo guardado ya no distingue el ayer del ahora.
+  /// Costó dos intentos verlo — el primero miraba el estado ya mezclado.
+  ///
+  /// Vacía se decide por **los turnos de su ficha**, no porque la ficha exista:
+  /// la ficha se escribe al abrir la conversación, así que hasta la que no ha
+  /// dicho nada tiene la suya. Los turnos los pone Claude, o sea que sin
+  /// hablarle ni escribirle no hay ninguno.
+  Future<void> _quitarLasQueNoDijeronNada() async {
+    final guardadas = _saved;
+    if (guardadas == null || guardadas.isEmpty) return;
+
+    final almacen = ref.read(localConversationStoreProvider);
+    final conAlgoDicho = <String>{};
+    for (final carpeta in {for (final una in guardadas) una.folderPath}) {
+      try {
+        for (final ficha in await almacen.list(carpeta)) {
+          if (ficha.turns > 0) conAlgoDicho.add(ficha.id);
+        }
+      } catch (error) {
+        // Si el archivo no se deja leer no se cierra nada: perder una pestaña
+        // por no poder mirar el disco es peor que dejarla puesta.
+        debugPrint('conversaciones · no se pudo mirar el archivo: $error');
+        return;
+      }
+    }
+
+    final quedan = [
+      for (final una in guardadas)
+        if (conAlgoDicho.contains(una.recordId ?? una.id)) una,
+    ];
+    if (quedan.length == guardadas.length) return;
+
+    debugPrint(
+      'conversaciones · al arrancar se cierran '
+      '${guardadas.length - quedan.length} sin nada dicho',
+    );
+    _saved = quedan;
+    if (!quedan.any((una) => una.id == _savedFocusId)) {
+      _savedFocusId = quedan.firstOrNull?.id;
+    }
+  }
 
   @override
   Conversations build() {
@@ -39,6 +92,7 @@ class ConversationsController extends Notifier<Conversations> {
           if (entry is Map<String, dynamic>) ?Conversation.fromJson(entry),
       ];
       _savedFocusId = json['focusedId'] as String?;
+      await _quitarLasQueNoDijeronNada();
     }
 
     // Sale con `unawaited`: si la pantalla se fue mientras tanto, el proveedor
@@ -95,7 +149,9 @@ class ConversationsController extends Notifier<Conversations> {
         list.any((item) => item.id == (state.focusedId ?? _savedFocusId))
         ? (state.focusedId ?? _savedFocusId)
         : list.first.id;
-    if (list.length == state.items.length && state.focusedId == focus) return;
+    if (list.length == state.items.length && state.focusedId == focus) {
+      return;
+    }
     await _persist(Conversations(items: list, focusedId: focus));
   }
 
@@ -194,6 +250,7 @@ class ConversationsController extends Notifier<Conversations> {
     // Y aquí igual: cerrar reescribe la lista. Sin cargar, «cerrar una» se convertía en
     // «dejar la lista vacía».
     await _reconcile();
+    final cerrada = state.byId(id);
     final items = state.items.where((item) => item.id != id).toList();
     await _persist(
       Conversations(
@@ -203,6 +260,9 @@ class ConversationsController extends Notifier<Conversations> {
             : state.focusedId,
       ),
     );
+    if (cerrada != null) {
+      await ref.read(laSesionSinDuenoProvider)(cerrada.folderPath);
+    }
   }
 
   /// Mueve una conversación a otra carpeta.

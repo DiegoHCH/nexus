@@ -1,105 +1,157 @@
-import 'dart:convert';
+import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:nexus/features/agenda/data/datasources/gemini_tts_data_source.dart';
+import 'package:nexus/features/agenda/domain/usecases/la_voz_del_aviso.dart';
+import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
+import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 
-/// La voz del aviso, que es una llamada suelta y no una sesión.
-///
-/// Aquí nadie está mirando la pantalla: si esto falla en silencio, el fallo es
-/// que el aviso no suena y no queda rastro de por qué. Por eso lo que se prueba
-/// es sobre todo que **siempre haya una respuesta**.
+// El aviso de una reunión, dicho por la sesión de voz y ya no por el TTS.
+//
+// 🔴 **Porque el TTS se agota y un aviso mudo no es un aviso.** El cupo diario
+// del modelo de texto a voz del nivel gratuito es minúsculo —medido al sacar la
+// 1.8.0: `RPD 13/10`— y con dos o tres reuniones ya no suena nada. El Live es el
+// mismo servicio que sostiene las conversaciones y no se agota en uso normal.
+
+class _Sesion implements VoiceSession {
+  final _eventos = StreamController<VoiceEvent>.broadcast();
+  final notas = <String>[];
+  var cerrada = false;
+
+  @override
+  Stream<VoiceEvent> get events => _eventos.stream;
+
+  @override
+  void sendSystemNote(String text) => notas.add(text);
+
+  @override
+  Future<void> close() async => cerrada = true;
+
+  void emite(VoiceEvent evento) => _eventos.add(evento);
+
+  @override
+  dynamic noSuchMethod(Invocation invocation) => null;
+}
+
+class _Servicio implements VoiceGateway {
+  _Servicio(this.sesion, {this.revienta = false});
+
+  final _Sesion sesion;
+  final bool revienta;
+  PerfilDeVoz? conQuePerfil;
+
+  @override
+  Future<VoiceSession> connect({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  }) async {
+    conQuePerfil = perfil;
+    if (revienta) throw StateError('sin llave');
+    return sesion;
+  }
+
+  @override
+  Future<VoiceSession> resume() => connect();
+}
+
 void main() {
-  String json(Object? cuerpo) => jsonEncode(cuerpo);
+  late _Sesion sesion;
+  late _Servicio servicio;
 
-  group('lo que devuelve', () {
-    test('el audio por el atajo documentado', () {
-      final dicho = GeminiTtsDataSource.leerElAudio(
-        json({
-          'output_audio': {
-            'data': base64Encode([1, 2, 3]),
-          },
-        }),
-      );
-
-      expect(dicho.salio, isTrue);
-      expect(dicho.pcm, [1, 2, 3]);
-    });
-
-    test('y recorriendo los pasos si el atajo no viene', () {
-      final dicho = GeminiTtsDataSource.leerElAudio(
-        json({
-          'steps': [
-            {
-              'content': [
-                {
-                  'data': base64Encode([7, 7]),
-                },
-              ],
-            },
-          ],
-        }),
-      );
-
-      expect(dicho.pcm, [7, 7]);
-    });
-
-    test('sin audio se dice, no se devuelve vacío', () {
-      final dicho = GeminiTtsDataSource.leerElAudio(
-        json({'steps': <Object>[]}),
-      );
-
-      expect(dicho.salio, isFalse);
-      expect(dicho.problema, 'no devolvió audio');
-    });
-
-    test('una respuesta ilegible no revienta', () {
-      expect(
-        GeminiTtsDataSource.leerElAudio('esto no es json').problema,
-        'respuesta ilegible',
-      );
-    });
-
-    // Un código a secas no distingue una llave de otro proyecto de una voz que
-    // no existe, y esas dos se arreglan distinto.
-    test('el motivo de la API se prefiere al código de estado', () {
-      expect(
-        GeminiTtsDataSource.loQueSalioMal(
-          json({
-            'error': {'message': 'Requested voice is not available.'},
-          }),
-        ),
-        'Requested voice is not available.',
-      );
-    });
+  setUp(() {
+    sesion = _Sesion();
+    servicio = _Servicio(sesion);
   });
 
-  group('lo que ni siquiera sale a la red', () {
-    test('sin llave se dice', () async {
-      final dicho = await const GeminiTtsDataSource().decir(
-        llave: '',
-        frase: 'lo que sea',
-        voz: 'Charon',
-      );
+  Future<void> vueltas([int n = 6]) async {
+    for (var i = 0; i < n; i++) {
+      await Future<void>.delayed(Duration.zero);
+    }
+  }
 
-      expect(dicho.problema, 'falta la llave');
-    });
+  test('se abre como aviso, con la frase literal dentro', () async {
+    final dicho = LaVozDelAviso(servicio).decir('Reunión en cinco minutos.');
+    await vueltas();
 
-    // Un aviso vacío sería una llamada pagada para no decir nada.
-    test('sin frase tampoco', () async {
-      final dicho = await const GeminiTtsDataSource().decir(
-        llave: 'la-que-sea',
-        frase: '   ',
-        voz: 'Charon',
-      );
+    final perfil = servicio.conQuePerfil;
+    expect(perfil, isA<ComoUnAviso>());
+    expect((perfil! as ComoUnAviso).frase, 'Reunión en cinco minutos.');
 
-      expect(dicho.problema, 'no hay nada que decir');
-    });
+    sesion.emite(const VoiceTurnCompleted());
+    await dicho;
   });
 
-  // El motor de audio documenta 24 kHz como no negociable, y es exactamente lo
-  // que sirve este modelo. Si un día deja de coincidir, el aviso sonaría a otra
-  // velocidad — así que el modelo queda fijado aquí.
-  test('el modelo es el que sirve PCM a 24 kHz', () {
-    expect(GeminiTtsDataSource.modelo, 'gemini-2.5-flash-preview-tts');
+  test('devuelve el audio que dijo, y cierra la sesión', () async {
+    final futuro = LaVozDelAviso(servicio).decir('Reunión en cinco minutos.');
+    await vueltas();
+
+    sesion.emite(const VoiceSessionReady());
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([1, 2])));
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([3])));
+    sesion.emite(const VoiceTurnCompleted());
+
+    final dicho = await futuro;
+    expect(dicho.salio, isTrue);
+    expect(dicho.pcm, [1, 2, 3]);
+
+    // El cierre se suelta sin esperarlo —quien pide el aviso quiere el audio,
+    // no la despedida—, así que se le da una vuelta al bucle.
+    await vueltas();
+    expect(sesion.cerrada, isTrue, reason: 'una sesión de un solo uso');
+  });
+
+  // 🔴 Y solo la señal, no la frase: lo que se manda por ahí llega como turno de
+  // usuario, y con la frase dentro el modelo la comenta —«me pidieron que dijera
+  // eso»—. La frase vive en la instrucción del setup.
+  test('al estar lista solo se le da la señal de arranque', () async {
+    final futuro = LaVozDelAviso(servicio).decir('Reunión en cinco minutos.');
+    await vueltas();
+
+    sesion.emite(const VoiceSessionReady());
+    await vueltas();
+
+    expect(sesion.notas, ['(inicio)']);
+
+    sesion.emite(const VoiceTurnCompleted());
+    await futuro;
+  });
+
+  test('un turno sin audio se cuenta como fallo, no como silencio', () async {
+    final futuro = LaVozDelAviso(servicio).decir('Reunión en cinco minutos.');
+    await vueltas();
+
+    sesion.emite(const VoiceTurnCompleted());
+
+    final dicho = await futuro;
+    expect(dicho.salio, isFalse);
+    expect(dicho.problema, 'no dijo nada');
+  });
+
+  test('si el servicio se cae, se dice por qué', () async {
+    final futuro = LaVozDelAviso(servicio).decir('Reunión en cinco minutos.');
+    await vueltas();
+
+    sesion.emite(const VoiceSessionFailed('se cortó'));
+
+    final dicho = await futuro;
+    expect(dicho.salio, isFalse);
+    expect(dicho.problema, 'se cortó');
+  });
+
+  // Aquí no hay nadie mirando la pantalla: un fallo sin recoger sería silencio,
+  // que es justo lo que este aviso viene a evitar.
+  test('y si ni se puede conectar, tampoco revienta', () async {
+    final dicho = await LaVozDelAviso(
+      _Servicio(sesion, revienta: true),
+    ).decir('Reunión en cinco minutos.');
+
+    expect(dicho.salio, isFalse);
+    expect(dicho.problema, contains('sin llave'));
+  });
+
+  test('sin nada que decir no se abre ninguna sesión', () async {
+    final dicho = await LaVozDelAviso(servicio).decir('   ');
+
+    expect(dicho.salio, isFalse);
+    expect(servicio.conQuePerfil, isNull);
   });
 }

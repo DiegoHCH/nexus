@@ -53,6 +53,27 @@ final class NexusArtifacts: NSObject {
         result(true)
         return
       }
+      // La consola de una app corriendo no es un archivo, así que entra antes
+      // de exigir uno. Y no reusa el visor a propósito: aquél nace con los
+      // scripts apagados y sin red porque lo que enseña lo escribió un modelo;
+      // esto es un servidor nuestro en el loopback y necesita justo lo
+      // contrario. Mezclarlos sería dejarle al visor un modo «déjalo todo
+      // pasar», que es la mitad de su razón de existir.
+      if call.method == "consola" {
+        let args = call.arguments as? [String: Any]
+        guard let url = args?["url"] as? String else {
+          result(FlutterMethodNotImplemented)
+          return
+        }
+        Consola.enseña(
+          url: url,
+          titulo: args?["titulo"] as? String,
+          width: args?["width"] as? Double,
+          height: args?["height"] as? Double
+        )
+        result(true)
+        return
+      }
       guard let path = (call.arguments as? [String: Any])?["path"] as? String else {
         result(FlutterMethodNotImplemented)
         return
@@ -449,10 +470,97 @@ final class Viewer: NSObject, NSWindowDelegate, WKNavigationDelegate {
   func windowWillClose(_ notification: Notification) {
     pending?.cancel()
     watcher?.cancel()
+    // **Que se cerró hay que decirlo, o nadie se entera.** Una página que se
+    // repinta sola —el registro de una corrida— seguiría escribiendo su archivo
+    // cada pocos milisegundos para una ventana que ya no existe, y el botón que
+    // la abrió seguiría marcado. Va la ruta porque hay más de una abierta.
+    NexusArtifacts.pidieron("cerrada", ruta: url.path)
     // Al siguiente turno del run loop, no aquí mismo. `onClose` saca este
     // `Viewer` del diccionario, que es quien lo sostiene: soltarlo dentro de
     // `windowWillClose` lo destruye —y con él la ventana— mientras AppKit
     // todavía está cerrándola. Es la segunda mitad del mismo fallo.
     DispatchQueue.main.async { [onClose] in onClose() }
+  }
+}
+
+// MARK: - La consola de una app corriendo
+
+/// La consola de depuración de la app, en una ventana de Nexus.
+///
+/// 🔴 **No es el visor de documentos y no debe serlo.** Aquél enseña HTML que
+/// escribió un modelo, así que nace sin scripts y con la red cortada; esto es un
+/// servidor de depuración en el loopback —el que la propia app levanta— y sin
+/// scripts ni red no hay nada que enseñar. Compartir clase obligaría a darle al
+/// visor un modo «déjalo todo pasar», y ese modo es exactamente lo que su
+/// bloqueo existe para que no haya.
+///
+/// **Lo que sí se comparte es la idea**: una `NSWindow` de verdad, que se mueve,
+/// se deja al lado y no bloquea la app — al contrario que un diálogo.
+final class Consola: NSObject, NSWindowDelegate {
+  /// Una por dirección. Abrir dos veces la misma trae la que ya está delante en
+  /// vez de apilar ventanas iguales, que es lo que hace el visor con sus
+  /// archivos y lo que espera cualquiera que pulse dos veces.
+  private static var abiertas: [String: Consola] = [:]
+
+  static func enseña(url: String, titulo: String?, width: Double?, height: Double?) {
+    if let ya = abiertas[url], ya.window.isVisible {
+      ya.window.makeKeyAndOrderFront(nil)
+      NSApp.activate(ignoringOtherApps: true)
+      return
+    }
+    guard let destino = URL(string: url) else { return }
+    let consola = Consola(url: destino, titulo: titulo, width: width, height: height)
+    abiertas[url] = consola
+    consola.window.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
+  }
+
+  let window: NSWindow
+  private let web: WKWebView
+  private let clave: String
+
+  private init(url: URL, titulo: String?, width: Double?, height: Double?) {
+    clave = url.absoluteString
+
+    // Persistente y compartida con el resto de la app: un panel de depuración
+    // recuerda en qué pestaña lo dejaste, y con un almacén de los de usar y
+    // tirar volvería al principio en cada arranque.
+    let configuracion = WKWebViewConfiguration()
+    configuracion.websiteDataStore = .default()
+    web = WKWebView(frame: .zero, configuration: configuracion)
+
+    window = NSWindow(
+      // Más ancha que alta: lo que se lee aquí son tablas —rutas, providers,
+      // filas de una base— y partirlas es lo que estorba.
+      contentRect: NSRect(
+        x: 0, y: 0, width: width ?? 1100, height: height ?? 760
+      ),
+      styleMask: [.titled, .closable, .miniaturizable, .resizable],
+      backing: .buffered,
+      defer: false
+    )
+    super.init()
+
+    // Una `NSWindow` creada a mano llega con `isReleasedWhenClosed = true`, y
+    // aquí la posee esta clase: ese release de más mata la app al cerrar. Es la
+    // misma piedra que ya se documentó en el visor, y se paga igual.
+    window.isReleasedWhenClosed = false
+    window.identifier = NexusAppearance.ourMark
+    window.appearance = NSAppearance(named: NexusAppearance.isDark ? .darkAqua : .aqua)
+    window.backgroundColor = NexusAppearance.voidColor
+    window.title = titulo ?? url.absoluteString
+    window.center()
+    window.contentView = web
+    window.delegate = self
+
+    web.load(URLRequest(url: url))
+  }
+
+  func windowWillClose(_ notification: Notification) {
+    // Al siguiente turno del run loop y no aquí: quien sostiene esta instancia
+    // es el diccionario, y soltarla dentro de `windowWillClose` la destruye
+    // mientras AppKit todavía está cerrando su ventana.
+    let clave = self.clave
+    DispatchQueue.main.async { Consola.abiertas.removeValue(forKey: clave) }
   }
 }
