@@ -9,6 +9,7 @@ import 'package:nexus/features/assistant/data/repositories/audio_output_impl.dar
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_sesion_de_puerta.dart';
 import 'package:nexus/features/agenda/presentation/providers/el_vigilante_de_la_agenda.dart';
 import 'package:nexus/features/assistant/domain/usecases/hold_voice_conversation.dart';
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
@@ -96,3 +97,17 @@ final holdVoiceConversationProvider =
             ref.read(writeUnlockProvider).puedeEscribir,
       ),
     );
+
+/// La puerta: la sesión de voz que se abre **sin carpeta**, al arrancar sin
+/// conversaciones, para preguntar dónde se va a trabajar.
+///
+/// Tres piezas y ninguna más —micrófono, servicio y altavoz—, que es justo lo
+/// que la distingue de una conversación: aquí no hay puente a Claude, ni
+/// herramientas, ni nada que leer. Ver [LaSesionDePuerta].
+final laSesionDePuertaProvider = Provider<LaSesionDePuerta>(
+  (ref) => LaSesionDePuerta(
+    ref.watch(voiceInputProvider),
+    ref.watch(voiceGatewayProvider),
+    ref.watch(audioOutputProvider),
+  ),
+);

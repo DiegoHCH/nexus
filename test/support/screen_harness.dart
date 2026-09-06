@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+
+import 'microfono.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
@@ -134,6 +136,15 @@ Future<void> pumpScreen(
   // rompería con la próxima versión.
   List<Object> overrides = const [],
 
+  /// Si la pantalla de arranque puede abrir su puerta de voz.
+  ///
+  /// 🔴 **Apagada por defecto.** Sin conversaciones, la casa saluda y pregunta
+  /// dónde se trabaja, y mientras esa puerta está abierta **no hay caja de
+  /// texto** — que es justo lo que mira la mitad de estas pruebas. Encenderla
+  /// aquí y no con un `override` suelto porque Riverpod 3 no deja pisar dos
+  /// veces el mismo proveedor: el arnés ya pone uno.
+  bool conPuerta = false,
+
   /// El tema con el que se dibuja. Existe porque **el tema claro nunca se
   /// había mirado**: estaba construido y cableado, pero sin forma de elegirlo
   /// nadie lo vio nunca puesto, así que ninguna pantalla se había comprobado
@@ -150,6 +161,17 @@ Future<void> pumpScreen(
     ProviderScope(
       overrides: [
         voiceInputProvider.overrideWithValue(const FakeVoiceInput()),
+        // 🔴 **Sin micrófono por defecto, y a propósito.** Al arrancar sin
+        // conversaciones la pantalla abre una sesión de voz que saluda y
+        // pregunta dónde se trabaja; una prueba de pantalla no quiere levantar
+        // eso —ni salir a la red— y mientras la puerta está abierta no hay caja
+        // de texto, que es lo que la mitad de estas pruebas mira.
+        //
+        // Quien sí prueba la puerta pone `conMicrofono` en sus propios
+        // `overrides`, que van después y ganan.
+        microphoneAccessProvider.overrideWithValue(
+          conPuerta ? const MicrofonoConcedido() : const MicrofonoDenegado(),
+        ),
         emuladoresDataSourceProvider.overrideWithValue(const SinDispositivos()),
         ...overrides.cast(),
       ],

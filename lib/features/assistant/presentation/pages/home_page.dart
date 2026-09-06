@@ -13,6 +13,12 @@ import 'package:nexus/features/assistant/presentation/providers/assistant_contro
 import 'package:nexus/features/assistant/presentation/providers/la_ventana_de_actividad.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
+import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_puerta_que_saluda.dart';
+import 'package:nexus/features/assistant/domain/usecases/la_sesion_de_puerta.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
+import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_button.dart';
 import 'package:nexus/features/assistant/presentation/widgets/chat_panel.dart';
@@ -476,6 +482,109 @@ class _FirstRun extends ConsumerStatefulWidget {
 }
 
 class _FirstRunState extends ConsumerState<_FirstRun> {
+  /// La puerta, mientras esté abierta.
+  ///
+  /// 🔴 **Mientras está abierta no se pinta la caja de texto**, y ese es el
+  /// cambio: la pantalla de arranque enseñaba el compositor con los chips de la
+  /// conversación que acababas de cerrar —carpeta, repo, rama y cuenta— y
+  /// escribir mandaba el encargo ahí sin decírtelo. Ahora se saluda, se
+  /// pregunta dónde, y la interfaz aparece cuando hay un sitio donde trabajar.
+  StreamSubscription<LoQuePasaEnLaPuerta>? _puerta;
+  var _puertaAbierta = false;
+  var _subtitulo = '';
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_abrirLaPuerta());
+  }
+
+  @override
+  void dispose() {
+    unawaited(_puerta?.cancel());
+    super.dispose();
+  }
+
+  /// Abre la puerta si se puede, y si no **deja la pantalla como estaba**.
+  ///
+  /// Sin micrófono, sin carpetas emparejadas o con el servicio caído, lo que
+  /// queda es la caja de siempre. Una puerta que no puede hablar no puede ser
+  /// la única entrada: eso no es un arranque distinto, es un arranque cerrado.
+  Future<void> _abrirLaPuerta() async {
+    final carpetas = ref.read(workspaceControllerProvider).folders;
+    if (carpetas.isEmpty) return;
+
+    // El micrófono, con los mismos guardias que la voz de una conversación: el
+    // orden y los motivos viven en `SiSePuedeAbrirLaVoz`.
+    //
+    // 🔴 **Y con red debajo.** Preguntar por el permiso toca el canal nativo, y
+    // eso puede fallar —sin binding, con el canal caído—. Un fallo ahí no puede
+    // costar la pantalla: lo que se pierde es la puerta, no el arranque. Es la
+    // misma regla que ya sigue el aviso de agenda al mirar las reglas del repo.
+    final MicrophoneStatus microfono;
+    try {
+      microfono = await ref.read(microphoneAccessProvider).status();
+    } on Object catch (error) {
+      debugPrint('puerta · sin micrófono que consultar: $error');
+      return;
+    }
+    if (!mounted) return;
+    switch (SiSePuedeAbrirLaVoz.porElMicrofono(microfono)) {
+      case ElMicrofonoEstaBloqueado():
+        return;
+      case HayQuePedirElMicrofono():
+        final concedido = await ref.read(voiceInputProvider).hasPermission();
+        if (!mounted || !concedido) return;
+      case _:
+        break;
+    }
+
+    // 🔴 **Del ámbito del widget, no del proveedor.** Los dos existen y pueden
+    // discrepar —una prueba los pilló diciendo uno inglés y el otro español—, y
+    // el que manda en lo que se ve es el que envuelve a esta pantalla.
+    final saludo = context.strings.saludoDeLaPuerta(
+      LaPuertaQueSaluda.franjaDe(DateTime.now()),
+      ref.read(losNombresProvider).tuyo,
+    );
+
+    setState(() {
+      _puertaAbierta = true;
+      // El saludo se pinta ya, sin esperar a que suene: la transcripción del
+      // servicio tarda lo suyo y una pantalla muda en el arranque se lee como
+      // una app que no arrancó.
+      _subtitulo = saludo;
+    });
+
+    _puerta = ref
+        .read(laSesionDePuertaProvider)
+        .abrir(saludo: saludo, carpetas: carpetas)
+        .listen(_loQuePasaEnLaPuerta);
+  }
+
+  void _loQuePasaEnLaPuerta(LoQuePasaEnLaPuerta evento) {
+    if (!mounted) return;
+    switch (evento) {
+      case LaPuertaDice(:final texto):
+        setState(() => _subtitulo = texto);
+      case LaPuertaEligio(:final carpeta, :final tarea):
+        unawaited(_trabajarEn(carpeta.path, tarea));
+      case LaPuertaSeCayo():
+        // No se dice el motivo aquí: lo que hace falta es poder seguir, y para
+        // eso vuelve la caja de siempre.
+        setState(() => _puertaAbierta = false);
+      case LaPuertaEstaLista():
+        break;
+    }
+  }
+
+  /// Ya se sabe dónde: se abre esa conversación y, si dijiste qué, se manda.
+  Future<void> _trabajarEn(String carpeta, String tarea) async {
+    final id = await ref.read(conversationsProvider.notifier).open(carpeta);
+    if (id == null || !mounted) return;
+    if (tarea.trim().isEmpty) return;
+    await ref.read(assistantControllerProvider(id).notifier).submit(tarea);
+  }
+
   Future<void> _startWith(String text, List<String> adjuntos) async {
     final where = whereToStart(ref);
     if (where == null) {
@@ -559,6 +668,28 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                         child: ConversationDock(),
                       ),
                     ),
+                    // Debajo del orbe, como los subtítulos de una conversación:
+                    // lo que la puerta va diciendo, para quien no pueda oírlo.
+                    if (_puertaAbierta && _subtitulo.isNotEmpty)
+                      Positioned(
+                        left: NexusSpacing.s8,
+                        right: NexusSpacing.s8,
+                        bottom: ConversationDock.alDelSuelo + 120,
+                        // 🔴 **Sin comerse las pulsaciones.** Se pinta después
+                        // del muelle, así que queda por encima: sin esto, el
+                        // borde superior de «nueva» dejaba de responder — y un
+                        // subtítulo que roba toques es de los fallos que se
+                        // buscan en el sitio equivocado.
+                        child: IgnorePointer(
+                          child: Text(
+                            _subtitulo,
+                            textAlign: TextAlign.center,
+                            style: NexusTypography.mono.copyWith(
+                              color: colors.ink,
+                            ),
+                          ),
+                        ),
+                      ),
                     if (folders.isEmpty &&
                         ref.watch(artifactsFolderProvider) == null)
                       Positioned(
@@ -580,13 +711,17 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                   ],
                 ),
               ),
-              TourAnchor(
-                stop: TourStop.composer,
-                child: ComposerBar(
-                  onSubmit: _startWith,
-                  onFocusChanged: (_) {},
+              // Con la puerta abierta no hay caja: se está preguntando dónde
+              // se trabaja, y una caja ahí solo puede mandar el encargo a la
+              // carpeta de la conversación anterior sin decirlo.
+              if (!_puertaAbierta)
+                TourAnchor(
+                  stop: TourStop.composer,
+                  child: ComposerBar(
+                    onSubmit: _startWith,
+                    onFocusChanged: (_) {},
+                  ),
                 ),
-              ),
               // Fuera del `Stack` a propósito: se pinta en el `Overlay` de la app,
               // así que su sitio en el árbol da igual — pero **dentro** del Stack
               // le fijaba el ancho a cero, porque un Stack se dimensiona por sus
