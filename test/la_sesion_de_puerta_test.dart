@@ -69,13 +69,15 @@ class _Servicio implements VoiceGateway {
   bool Function()? alConectar;
   bool? micEscuchandoAlConectar;
 
-  ComoSePresentaLaPuerta? comoPuerta;
+  ComoLaPuerta? comoPuerta;
 
   @override
-  Future<VoiceSession> connect({ComoSePresentaLaPuerta? comoPuerta}) async {
+  Future<VoiceSession> connect({
+    PerfilDeVoz perfil = const ComoUnaConversacion(),
+  }) async {
     conexiones++;
     micEscuchandoAlConectar = alConectar?.call();
-    this.comoPuerta = comoPuerta;
+    comoPuerta = perfil is ComoLaPuerta ? perfil : null;
     return sesion;
   }
 
