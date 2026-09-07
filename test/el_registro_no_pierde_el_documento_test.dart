@@ -23,6 +23,8 @@ import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/hasta_que.dart';
+
 /// Lo que el registro de una conversación perdía al cerrar la app.
 ///
 /// 🔴 **Salió usándolo.** Un encargo generó un diagrama, el chat enseñó su
@@ -189,18 +191,15 @@ void main() {
   /// El plazo es largo a propósito. No es lo que tarda: es lo que se tolera
   /// antes de decir que no va a pasar. En una máquina libre esto sale en
   /// milisegundos.
-  Future<void> hastaQue(
-    bool Function() pasa, {
-    required String esperando,
-    Duration limite = const Duration(seconds: 15),
-  }) async {
-    final hasta = DateTime.now().add(limite);
-    while (!pasa()) {
-      if (DateTime.now().isAfter(hasta)) {
-        fail('no llegó a pasar en ${limite.inSeconds} s: $esperando');
-      }
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
+  /// Lo que hay que mirar cuando la del documento se cae: si se guardó algo y
+  /// si el último mensaje del último registro traía el documento.
+  String loGuardado(_AlmacenQueApunta almacen) {
+    if (almacen.guardados.isEmpty) return 'guardados=0 (no se archivó nada)';
+    final ultimo = almacen.guardados.last;
+    final mensaje = ultimo.messages.isEmpty ? null : ultimo.messages.last;
+    return 'guardados=${almacen.guardados.length} · '
+        'mensajes=${ultimo.messages.length} · '
+        'documento=${mensaje?.documento ?? "null"}';
   }
 
   /// Y para lo que hay que comprobar que **no** vuelve a pasar: se espera a que
@@ -261,6 +260,7 @@ void main() {
           todo.almacen.guardados.isNotEmpty &&
           todo.almacen.guardados.last.messages.last.documento != null,
       esperando: 'que el registro guardado traiga el documento',
+      loQueSeVe: () => loGuardado(todo.almacen),
     );
 
     expect(
@@ -301,6 +301,8 @@ void main() {
             (r) => r.messages.any((m) => m.text == strings.compactedUnknown),
           ),
       esperando: 'que el aviso de la compresión llegue al registro guardado',
+      loQueSeVe: () =>
+          '${loGuardado(todo.almacen)} · pedidos=${todo.claude.pedidos}',
     );
 
     expect(todo.claude.pedidos, contains('/compact'));
@@ -324,6 +326,8 @@ void main() {
     await hastaQue(
       () => todo.destino.veces >= 1,
       esperando: 'que se escriba en el destino externo',
+      loQueSeVe: () =>
+          'veces=${todo.destino.veces} · ${loGuardado(todo.almacen)}',
     );
     await yQueNoHayaMas();
 
@@ -356,6 +360,9 @@ void main() {
             .messages
             .any((m) => m.text == strings.compactedUnknown),
         esperando: 'el aviso de la compresión sin medida',
+        loQueSeVe: () =>
+            'en pantalla: '
+            '${todo.container.read(assistantControllerProvider(_id)).messages.map((m) => m.text)}',
       );
 
       var estado = todo.container.read(assistantControllerProvider(_id));
@@ -372,6 +379,9 @@ void main() {
             .messages
             .any((m) => m.text == strings.compacted(90, 30)),
         esperando: 'el aviso completado con la medida del turno siguiente',
+        loQueSeVe: () =>
+            'en pantalla: '
+            '${todo.container.read(assistantControllerProvider(_id)).messages.map((m) => m.text)}',
       );
 
       estado = todo.container.read(assistantControllerProvider(_id));

@@ -95,6 +95,8 @@ final holdVoiceConversationProvider =
         () =>
             !ref.read(remoteVoiceSourceProvider).activo ||
             ref.read(writeUnlockProvider).puedeEscribir,
+        // Cómo se llama, para saber cuándo le hablan a ella y no a su lado.
+        () => ref.read(losNombresProvider).agente,
       ),
     );
 

@@ -446,10 +446,19 @@ class _Controls extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      option.canWrite ? strings.canEdit : strings.readOnly,
-                      style: NexusTypography.data.copyWith(color: colors.ink),
-                    ),
+                    // 🔴 **Con el nombre de la carpeta dentro.** El permiso es
+                    // suyo desde el #278 y el menú seguía rotulado en genérico,
+                    // que es exactamente lo que hizo creer que era de la app
+                    // —«la carpeta ya tiene permiso de puede editar»—. Los dos
+                    // textos existían traducidos y sin usar desde antes, hechos
+                    // para esto: eran deuda esperando a que la decisión
+                    // existiera.
+                    Text(switch ((option.canWrite, carpeta?.name)) {
+                      (true, final donde?) => strings.canEditFilesIn(donde),
+                      (false, final donde?) => strings.readOnlyIn(donde),
+                      (true, _) => strings.canEdit,
+                      (false, _) => strings.readOnly,
+                    }, style: NexusTypography.data.copyWith(color: colors.ink)),
                     Text(
                       option.canWrite
                           ? strings.canEditExplainer

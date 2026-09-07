@@ -216,7 +216,27 @@ class GeminiVoiceGateway implements VoiceGateway {
         'silenceDurationMs': 1200,
         // Sin esto se come el principio de la primera palabra.
         'prefixPaddingMs': 300,
+        // 🔴 **Baja a propósito, para que la habitación no la despierte.** Con
+        // la sensibilidad de fábrica, una conversación de al lado cuenta como
+        // que alguien empezó a hablar: está medido con la transcripción
+        // delante —«sí, porque el otro muchacho fue el que hizo el servicio en
+        // el día»— y el modelo la contestaba. Quien habla al Mac está a medio
+        // metro del micrófono; la conversación de al lado, no.
+        'startOfSpeechSensitivity': 'START_SENSITIVITY_LOW',
       },
+      // 🔴 **Y el servicio no interrumpe: interrumpe quien le habla.** Su
+      // detector cortaba la respuesta con cualquier sonido con forma de habla,
+      // así que la conversación de la habitación la dejaba a media frase. Con
+      // esto la decisión se mueve a este lado, donde hay transcripción para
+      // decidir: su nombre o una palabra de control la callan al momento —lo
+      // hace [HoldVoiceConversation]— y lo demás no la toca. Ver
+      // [ElAudioAjeno], donde está el caso medido.
+      //
+      // Los dos nombres están comprobados contra la referencia de la API
+      // —`RealtimeInputConfig`— y no supuestos: aquí una clave inventada no
+      // falla en el análisis, cierra la conexión con «Unknown name», que es
+      // como se perdió una tarde con `toolConfig`.
+      'activityHandling': 'NO_INTERRUPTION',
     },
     'systemInstruction': {
       'parts': [
@@ -520,6 +540,9 @@ class GeminiVoiceGateway implements VoiceGateway {
     // 🔴 **El orden importa: `interrupted` antes que `turnComplete`**, porque
     // quien escuche tiene que tirar la cola del altavoz antes de dar el turno
     // por cerrado. Al revés se oye la coleta de lo que se acaba de interrumpir.
+    // Con `NO_INTERRUPTION` puesto esto casi no llega —el servicio ya no corta
+    // por su cuenta—, pero se sigue atendiendo: puede venir de una cancelación
+    // del propio servicio, y tirar la cola del altavoz es lo correcto igual.
     if (server['interrupted'] == true) eventos.add(const VoiceInterrupted());
     if (server['turnComplete'] == true) {
       eventos.add(const VoiceTurnCompleted());

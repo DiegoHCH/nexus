@@ -21,6 +21,8 @@ void main() {
     sugerencias: sugiere ?? const [],
   );
 
+  _loQueSeDevuelveYLoQueNo();
+
   group('quién espera y cómo se le suelta', () {
     test('contestar resuelve el futuro, una sola vez', () async {
       final buzon = LasPreguntasEnPie();
@@ -109,18 +111,22 @@ void main() {
     // 🔴 La diferencia que no falla, solo decepciona: sin las sugerencias,
     // «no me lo vuelvas a preguntar» se convierte en «vale, solo esta vez», y
     // quien lo sufre cree que el botón no hace nada.
-    test('conceder todo devuelve las sugerencias que ofreció el CLI', () {
+    test('conceder todo devuelve las sugerencias de sesión del CLI', () {
       final dado =
           contestar(
                 DecisionDePermiso.concedidoTodo,
                 sugiere: const [
-                  {'type': 'addRules'},
+                  {
+                    'type': 'setMode',
+                    'mode': 'acceptEdits',
+                    'destination': 'session',
+                  },
                 ],
               )
               as PermisoConcedido;
 
       expect(dado.permisosNuevos, [
-        {'type': 'addRules'},
+        {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
       ]);
     });
 
@@ -155,6 +161,101 @@ void main() {
               as PermisoConcedido;
 
       expect(dado.entrada, isEmpty);
+    });
+  });
+}
+
+/// Lo que «Permitir todo» devuelve al CLI, y lo que **no**.
+///
+/// 🔴 **Medido contra el binario el 6 de septiembre.** Al conceder un `Bash`, el
+/// CLI ofrece tres salidas y una de ellas escribe en tu repositorio. Este es el
+/// payload tal cual llegó, con `mkdir -p uno` como comando:
+///
+/// ```json
+/// [{"type":"addRules","rules":[{"toolName":"Bash","ruleContent":"mkdir -p uno"}],
+///   "behavior":"allow","destination":"localSettings"},
+///  {"type":"addDirectories","directories":["…/repo"],"destination":"session"},
+///  {"type":"setMode","mode":"acceptEdits","destination":"session"}]
+/// ```
+///
+/// Devolviéndolo entero —que es lo que se hacía— aparece
+/// `<repo>/.claude/settings.local.json` con `Bash(mkdir -p uno)` dentro. Y no
+/// sirve para lo que se quería: con **solo** esa regla devuelta, el siguiente
+/// comando —`mkdir -p dos`— volvió a preguntar. Lo que de verdad corta la
+/// sangría es `setMode`, que es de sesión.
+void _loQueSeDevuelveYLoQueNo() {
+  /// El payload medido, literal.
+  const medido = [
+    {
+      'type': 'addRules',
+      'rules': [
+        {'toolName': 'Bash', 'ruleContent': 'mkdir -p uno'},
+      ],
+      'behavior': 'allow',
+      'destination': 'localSettings',
+    },
+    {
+      'type': 'addDirectories',
+      'directories': ['/tmp/repo'],
+      'destination': 'session',
+    },
+    {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
+  ];
+
+  group('permitir todo, con el payload de verdad', () {
+    PermisoConcedido concedeTodo() =>
+        LoQueSeContestaAlPermiso.de(
+              DecisionDePermiso.concedidoTodo,
+              const PeticionDePermiso(
+                id: 'r1',
+                herramienta: 'Bash',
+                nombreVisible: 'Bash',
+                entrada: {'command': 'mkdir -p uno'},
+                sugerencias: medido,
+              ),
+              motivoDenegado: 'no',
+              motivoCancelado: 'se paró',
+            )
+            as PermisoConcedido;
+
+    test('lo de sesión pasa: es lo que el botón promete', () {
+      final tipos = [
+        for (final una in concedeTodo().permisosNuevos) una['type'],
+      ];
+
+      expect(tipos, ['addDirectories', 'setMode']);
+    });
+
+    // 🔴 **Y lo que escribe en tu repositorio se queda fuera.** El botón dice «y
+    // el resto de la sesión», no «y para siempre en este repositorio, en un
+    // archivo que no abriste» — y en un repo del trabajo ese archivo se comparte.
+    test('la regla que se escribe en disco no se devuelve', () {
+      expect(
+        concedeTodo().permisosNuevos.any((una) => una['type'] == 'addRules'),
+        isFalse,
+      );
+      expect(LoQueSeContestaAlPermiso.loQueSeDescarta(medido), [
+        'addRules → localSettings',
+      ], reason: 'lo que se deja fuera se puede leer, no se adivina');
+    });
+
+    // El filtro es **el destino y no una lista de tipos**: así una salida nueva
+    // del CLI que dure la sesión pasa sola, y una que escriba en disco no entra
+    // por olvidarse de añadirla a una lista.
+    test('un tipo nuevo de sesión pasa sin tocar nada', () {
+      const inventado = {
+        'type': 'algoQueNoExisteAun',
+        'destination': 'session',
+      };
+
+      expect(LoQueSeContestaAlPermiso.loQueDuraLaSesion(inventado), isTrue);
+      expect(
+        LoQueSeContestaAlPermiso.loQueDuraLaSesion(const {
+          'type': 'otro',
+          'destination': 'userSettings',
+        }),
+        isFalse,
+      );
     });
   });
 }
