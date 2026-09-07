@@ -64,20 +64,45 @@ void main() {
     expect(deteccion(aviso).containsKey('startOfSpeechSensitivity'), isFalse);
   });
 
-  // Lo que **no** cambia por perfil, y conviene que siga así: el detector
-  // alargado. Una instrucción larga tiene pausas para pensar, y con el corte de
-  // fábrica el servicio se queda con media frase y contesta a eso.
-  test('el detector va alargado en los tres', () {
+  // Conversando, el detector va alargado: una instrucción larga tiene pausas
+  // para pensar, y con el corte de fábrica el servicio se queda con media frase
+  // y contesta a eso.
+  test('conversando, el turno se cierra despacio', () {
+    final vad = deteccion(const ComoUnaConversacion());
+
+    expect(vad['endOfSpeechSensitivity'], 'END_SENSITIVITY_LOW');
+    expect(vad['silenceDurationMs'], 1200);
+  });
+
+  // 🔴 **Y en la puerta, deprisa.** Ahí lo que se espera son dos palabras: con
+  // el silencio largo, decir la carpeta dos veces seguidas llegaba como **un
+  // solo turno** —medido: «Fra Moai B2C Fra Moai B2C»— y el modelo no movía un
+  // dedo hasta cerrarlo. Desde fuera: «no hace caso y al rato responde».
+  test('en la puerta el turno se cierra deprisa', () {
+    final vad = deteccion(
+      const ComoLaPuerta(saludo: 'Buenas', carpetas: ['nexus']),
+    );
+
+    expect(vad['endOfSpeechSensitivity'], 'END_SENSITIVITY_HIGH');
+    expect(vad['silenceDurationMs'], 500);
+    expect(
+      vad['silenceDurationMs'],
+      lessThan(1200),
+      reason:
+          'cortar de más aquí no cuesta nada: el nombre no cuadra y vuelve '
+          'a preguntar; cortar de menos cuesta que no te haga caso',
+    );
+  });
+
+  // Lo que **no** cambia por perfil: el margen del principio.
+  test('el margen del principio va en los tres', () {
     for (final perfil in const <PerfilDeVoz>[
       ComoUnaConversacion(),
       ComoLaPuerta(saludo: 'Buenas', carpetas: ['nexus']),
       ComoUnAviso('Reunión'),
     ]) {
-      final vad = deteccion(perfil);
-      expect(vad['endOfSpeechSensitivity'], 'END_SENSITIVITY_LOW');
-      expect(vad['silenceDurationMs'], 1200);
       expect(
-        vad['prefixPaddingMs'],
+        deteccion(perfil)['prefixPaddingMs'],
         300,
         reason: 'sin esto se come el principio de la primera palabra',
       );

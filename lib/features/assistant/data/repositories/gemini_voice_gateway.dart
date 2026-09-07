@@ -220,8 +220,20 @@ class GeminiVoiceGateway implements VoiceGateway {
   @visibleForTesting
   static Map<String, dynamic> comoSeEscucha(PerfilDeVoz perfil) => {
     'automaticActivityDetection': {
-      'endOfSpeechSensitivity': 'END_SENSITIVITY_LOW',
-      'silenceDurationMs': 1200,
+      // 🔴 **En la puerta se corta antes.** Lo que se espera ahí son dos
+      // palabras: con el silencio largo de una conversación, decir la carpeta
+      // dos veces seguidas llegaba como **un solo turno** —medido: «Fra Moai
+      // B2C Fra Moai B2C»— y el modelo no movía un dedo hasta cerrarlo. Desde
+      // fuera se ve como que no hace caso y «al rato responde». Ver
+      // [ElRitmoDeLaVoz.silencioEnLaPuerta].
+      'endOfSpeechSensitivity': perfil is ComoLaPuerta
+          ? 'END_SENSITIVITY_HIGH'
+          : 'END_SENSITIVITY_LOW',
+      'silenceDurationMs':
+          (perfil is ComoLaPuerta
+                  ? ElRitmoDeLaVoz.silencioEnLaPuerta
+                  : ElRitmoDeLaVoz.silencioQueCierraElTurno)
+              .inMilliseconds,
       // Sin esto se come el principio de la primera palabra.
       'prefixPaddingMs': 300,
       // La habitación no la despierta: quien habla al Mac está a medio metro
