@@ -139,6 +139,22 @@ class _Speaker implements AudioOutput {
   Future<void> stop() async {}
 }
 
+/// Un altavoz que apunta lo que suena y lo que se tira.
+///
+/// Hace falta para las pruebas del audio ajeno: lo que se comprueba ahí es que
+/// **no suene** la respuesta a algo que nadie preguntó, y que la respuesta sí se
+/// corte cuando de verdad se le habla encima.
+class _Altavoz extends _Speaker {
+  var sonaron = 0;
+  var descartes = 0;
+
+  @override
+  void enqueue(Uint8List pcm) => sonaron++;
+
+  @override
+  Future<void> discard() async => descartes++;
+}
+
 /// Anota el encargo que le llega. Es el testigo de la prueba: lo que Claude
 /// recibe es lo que el usuario dijo, o no lo es.
 ///
@@ -238,10 +254,12 @@ HoldVoiceConversation _conversation(
   String? carpeta,
   bool puedeEscribir = true,
   bool laCarpetaDeja = false,
+  String? agente,
+  AudioOutput? altavoz,
 }) => HoldVoiceConversation(
   _Mic(),
   _Gateway(session),
-  _Speaker(),
+  altavoz ?? _Speaker(),
   _askClaude(bridge, canEdit: laCarpetaDeja),
   log ?? (_) {},
   lanzador ?? _Lanzador(),
@@ -250,6 +268,9 @@ HoldVoiceConversation _conversation(
   despacho ?? const SinEnrutar(),
   () => carpeta,
   () => puedeEscribir,
+  // Cómo se llama, para saber cuándo le hablan a ella: con `null` solo vale
+  // «nexus», que es el nombre del producto.
+  () => agente,
   // 🔴 **Cero por defecto, y con motivo.** Cuando el modelo contesta de
   // memoria, primero se le pide que lo pase él y solo al vencer este plazo se
   // hace por él. Las pruebas de esta clase van de **qué llega a Claude**, no de
@@ -365,6 +386,8 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
 }
 
 void main() {
+  _elAudioAjeno();
+
   test(
     'una frase larga llega en pedazos y va a Claude entera, no su cola (b11)',
     () async {
@@ -383,6 +406,7 @@ void main() {
         const SinEnrutar(),
         () => null,
         () => true,
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -437,6 +461,7 @@ void main() {
         const SinEnrutar(),
         () => null,
         () => true,
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -689,6 +714,7 @@ void main() {
         const SinEnrutar(),
         () => null,
         () => true,
+        () => null,
       );
 
       final subscription = conversation().listen((_) {});
@@ -767,6 +793,7 @@ void main() {
       const SinEnrutar(),
       () => null,
       () => true,
+      () => null,
     );
 
     final vistos = <VoiceEvent>[];
@@ -1023,6 +1050,7 @@ void main() {
       const SinEnrutar(),
       () => null,
       () => true,
+      () => null,
     );
 
     final sub = conversation().listen((_) {});
@@ -1423,4 +1451,136 @@ class _Agenda implements LaAgendaDeHoy {
     if (tarda > Duration.zero) await Future<void>.delayed(tarda);
     return respuesta;
   }
+}
+
+/// La conversación de al lado, mientras Nexus está hablando.
+///
+/// 🔴 **Pasó, dos corridas seguidas.** El micrófono recogió conversación de la
+/// habitación, el modelo la contestó, y el servicio la tomó por interrupción y
+/// cortó la frase a medias. Lo que se prueba aquí es el ciclo entero: que no va
+/// a Claude, que no suena la respuesta, que se dice, y que **su nombre sigue
+/// cortando** — o el arreglo habría convertido a Nexus en algo a lo que no se
+/// puede interrumpir.
+void _elAudioAjeno() {
+  group('el audio ajeno, mientras habla', () {
+    test('no va a Claude, no suena y se dice', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final altavoz = _Altavoz();
+      final conversation = _conversation(session, bridge, altavoz: altavoz);
+
+      final vistos = <VoiceEvent>[];
+      final subscription = conversation().listen(vistos.add);
+      await Future<void>.delayed(Duration.zero);
+
+      // Está diciendo algo…
+      session.emit(VoiceReplyAudio(Uint8List.fromList([1, 2])));
+      // …y de fondo, la habitación.
+      session.emit(
+        const VoiceUserTranscript(
+          'sí, porque el otro muchacho fue el que hizo el servicio en el día',
+        ),
+      );
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(bridge.asked, isEmpty, reason: 'nadie le pidió nada a Claude');
+      expect(vistos.whereType<VoiceIgnorado>(), hasLength(1));
+      expect(
+        vistos.whereType<VoiceIgnorado>().single.texto,
+        contains('el otro muchacho'),
+      );
+
+      // Y la respuesta que el servicio genere para eso no suena: no se puede
+      // evitar que la genere, sí que la oiga alguien que no preguntó.
+      final sonaron = altavoz.sonaron;
+      session.emit(VoiceReplyAudio(Uint8List.fromList([3])));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(altavoz.sonaron, sonaron);
+
+      // Cerrado ese turno, se vuelve a oír con normalidad.
+      session.emit(const VoiceTurnCompleted());
+      session.emit(VoiceReplyAudio(Uint8List.fromList([4])));
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(altavoz.sonaron, sonaron + 1);
+
+      await subscription.cancel();
+    });
+
+    test('su nombre la calla al momento, y se atiende', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final altavoz = _Altavoz();
+      final conversation = _conversation(session, bridge, altavoz: altavoz);
+
+      final vistos = <VoiceEvent>[];
+      final subscription = conversation().listen(vistos.add);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(VoiceReplyAudio(Uint8List.fromList([1])));
+      session.emit(
+        const VoiceUserTranscript('nexus, mira el historial de git'),
+      );
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      // 🔴 **El corte lo hace este lado.** El servicio ya no interrumpe, así que
+      // sin esto decirle su nombre no la callaría hasta acabar la frase.
+      expect(altavoz.descartes, 1);
+
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(vistos.whereType<VoiceIgnorado>(), isEmpty);
+      expect(bridge.asked.single, contains('mira el historial de git'));
+
+      await subscription.cancel();
+    });
+
+    // «Para» es lo que se dice justo cuando está hablando, y tiene que valer sin
+    // el nombre delante.
+    test('«para» también, y no se manda a Claude', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final altavoz = _Altavoz();
+      final conversation = _conversation(session, bridge, altavoz: altavoz);
+
+      final subscription = conversation().listen((_) {});
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(VoiceReplyAudio(Uint8List.fromList([1])));
+      session.emit(const VoiceUserTranscript('para'));
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(altavoz.descartes, 1);
+      expect(bridge.asked, isEmpty);
+
+      await subscription.cancel();
+    });
+
+    // Con Nexus callada no se filtra nada: la sesión la abriste tú y lo primero
+    // que dices va dirigido a ella.
+    test('callada, lo mismo sí se atiende', () async {
+      final session = _Session();
+      final bridge = _Bridge();
+      final conversation = _conversation(session, bridge);
+
+      final vistos = <VoiceEvent>[];
+      final subscription = conversation().listen(vistos.add);
+      await Future<void>.delayed(Duration.zero);
+
+      session.emit(
+        const VoiceUserTranscript(
+          'sí, porque el otro muchacho fue el que hizo el servicio en el día',
+        ),
+      );
+      session.emit(const VoiceTurnCompleted());
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+
+      expect(vistos.whereType<VoiceIgnorado>(), isEmpty);
+      expect(bridge.asked, hasLength(1));
+
+      await subscription.cancel();
+    });
+  });
 }

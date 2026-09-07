@@ -43,6 +43,10 @@ mixin HistorialStrings {
   /// Que esta carpeta tiene varias conversaciones abiertas y **comparten
   /// memoria**: reanudan la misma sesión de Claude.
   String memoriaCompartida(int cuantas);
+
+  /// Que se oyó algo que no iba dirigido a ella y se tiró, con el mecanismo
+  /// para cortarla cuando sí quieres. Ver [ElAudioAjeno].
+  String get noEraParaMi;
   // Archivo de conversaciones
   String get archiveTitle;
   String get archiveExplainer;
@@ -145,6 +149,10 @@ mixin HistorialStringsEs implements HistorialStrings {
   @override
   String memoriaCompartida(int cuantas) =>
       'memoria compartida · $cuantas chats';
+  @override
+  String get noEraParaMi =>
+      'Oí algo mientras hablaba que no parecía para mí y no lo atendí. Para '
+      'cortarme, dime mi nombre o «para».';
   @override
   String get archiveTitle => 'DÓNDE SE GUARDAN LAS CONVERSACIONES';
   @override
@@ -297,6 +305,10 @@ mixin HistorialStringsEn implements HistorialStrings {
   String get empezarDeCeroAqui => 'Start from scratch';
   @override
   String memoriaCompartida(int cuantas) => 'shared memory · $cuantas chats';
+  @override
+  String get noEraParaMi =>
+      'I heard something while I was talking that did not seem to be for me, '
+      'so I let it go. To cut me off, say my name or “stop”.';
   @override
   String get archiveTitle => 'WHERE CONVERSATIONS ARE KEPT';
   @override

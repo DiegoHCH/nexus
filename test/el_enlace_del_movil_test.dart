@@ -6,6 +6,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/remote/data/channel_link.dart';
 import 'package:nexus_protocol/nexus_protocol.dart';
 
+import 'support/hasta_que.dart';
+
 // El lado del teléfono, probado **sin red**.
 //
 // Lo que puede romperse aquí son los tiempos y el orden: qué pasa si el `ack` no
@@ -614,9 +616,17 @@ void main() {
       // el `while` y no en un `return`. Si se quedara puesto, el siguiente `conectar`
       // volveria en silencio sin abrir nada — y eso es peor que el fallo original: el
       // telefono no tendria forma de volver.
+      // 🔴 **Se espera a que el reintento ocurra, no a que pasen 30 ms.** Con
+      // el reloj fijo esto se cayó en el CI el 6 de septiembre: el reintento va
+      // a 10 ms, y en un runner cargado treinta milisegundos no son tiempo, son
+      // una apuesta. Ver [hastaQue].
       enlace = montar(esperas: const [Duration(milliseconds: 10)]);
       sinLlegar = true;
       unawaited(enlace.conectar());
+      // Este sí es un reloj, y a propósito: lo que se quiere es **estar en
+      // medio de los reintentos** cuando llegue el `desconectar`, y eso es un
+      // rato, no una condición. Cortar en el primer socket abierto cambiaría el
+      // escenario — se sale del bucle por otro sitio.
       await Future<void>.delayed(const Duration(milliseconds: 30));
 
       await enlace.desconectar();
@@ -624,7 +634,12 @@ void main() {
       final antes = abiertos.length;
 
       unawaited(enlace.conectar());
-      await Future<void>.delayed(const Duration(milliseconds: 30));
+      await hastaQue(
+        () => abiertos.length > antes,
+        esperando: 'que tras desconectar se pueda volver a abrir',
+        loQueSeVe: () =>
+            'abiertos=${abiertos.length} (antes $antes) · estado=${enlace.ahora}',
+      );
 
       expect(abiertos.length, greaterThan(antes));
     });
@@ -654,7 +669,11 @@ void main() {
       // Se cae y el enlace lo reintenta por su cuenta: si el guardia se hubiera
       // quedado puesto, esto no abriria nada.
       socket.caer();
-      await Future<void>.delayed(const Duration(milliseconds: 120));
+      await hastaQue(
+        () => abiertos.length > 1,
+        esperando: 'que el enlace reintente por su cuenta tras la caída',
+        loQueSeVe: () => 'abiertos=${abiertos.length} · estado=${enlace.ahora}',
+      );
 
       expect(abiertos.length, greaterThan(1));
     });
