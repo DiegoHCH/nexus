@@ -181,6 +181,20 @@ final class VoiceInterrupted extends VoiceEvent {
   const VoiceInterrupted();
 }
 
+/// Se oyó algo que no iba dirigido a Nexus mientras estaba hablando, y se tiró.
+///
+/// 🔴 **Un turno tirado en silencio se lee como que la voz no funciona.** Y hay
+/// que enseñar el mecanismo una vez: para cortarla mientras habla hay que
+/// decirle su nombre o una palabra de control. Ver [ElAudioAjeno].
+///
+/// Lleva lo que se oyó porque es lo único que hace creíble el aviso: «ignoré
+/// *esto*» se entiende, «ignoré algo» suena a excusa.
+final class VoiceIgnorado extends VoiceEvent {
+  const VoiceIgnorado(this.texto);
+
+  final String texto;
+}
+
 /// La sesión se cayó o no se pudo abrir.
 final class VoiceSessionFailed extends VoiceEvent {
   const VoiceSessionFailed(this.message);

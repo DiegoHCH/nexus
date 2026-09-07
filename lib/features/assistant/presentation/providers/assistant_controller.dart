@@ -1947,6 +1947,7 @@ class AssistantController extends Notifier<AssistantHudState> {
         VoiceUserTranscript() => _onHeard(event.text),
         VoiceReplyTranscript() => _onReply(event.text),
         VoiceInterrupted() => _onInterrupted(),
+        VoiceIgnorado() => _onIgnorado(event.texto),
         VoiceTurnCompleted() => _onVoiceTurnCompleted(),
         VoiceToolStarted() => _onToolStarted(event.instruction),
         VoiceLookupStarted() => _onLookupStarted(event.headline),
@@ -2026,6 +2027,20 @@ class AssistantController extends Notifier<AssistantHudState> {
       notice: ref.read(stringsProvider).mcpCaido(servidores),
     );
   }
+
+  /// Se oyó algo que no iba con ella mientras hablaba.
+  ///
+  /// Se dice **una vez por sesión de voz**: el aviso enseña el mecanismo —para
+  /// cortarla, su nombre o «para»— y repetirlo en cada frase de la habitación
+  /// convertiría la pantalla en un contador de ruido.
+  void _onIgnorado(String texto) {
+    debugPrint('voz · ignorado, no iba dirigido a ella: «$texto»');
+    if (_yaLoDijo) return;
+    _yaLoDijo = true;
+    state = state.copyWith(notice: ref.read(stringsProvider).noEraParaMi);
+  }
+
+  var _yaLoDijo = false;
 
   void _onRulesChanged(List<String> paths) {
     state = state.copyWith(

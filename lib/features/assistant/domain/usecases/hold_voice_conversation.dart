@@ -4,6 +4,7 @@ import 'package:nexus/features/assistant/domain/entities/audio_frame.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/audio_output.dart';
+import 'package:nexus/features/assistant/domain/usecases/el_audio_ajeno.dart';
 import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/repositories/la_agenda_de_hoy.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
@@ -38,7 +39,8 @@ class HoldVoiceConversation {
     this._laAgendaDeHoy,
     this._despacho,
     this._carpetaDeAqui,
-    this._puedeEscribir, {
+    this._puedeEscribir,
+    this._comoSeLlama, {
     this.graciaDeLaRuta = _graciaDeLaRuta,
   });
 
@@ -74,6 +76,13 @@ class HoldVoiceConversation {
   /// puede cambiar mientras la sesión está abierta, y un valor fijo se
   /// congelaría al conectar.
   final String? Function() _carpetaDeAqui;
+
+  /// Cómo se llama ella en esta instalación, para saber cuándo le están
+  /// hablando a **ella**.
+  ///
+  /// Una función y no un valor por lo mismo que la carpeta: el nombre se cambia
+  /// en Ajustes y la sesión puede estar abierta mientras. Ver [ElAudioAjeno].
+  final String? Function() _comoSeLlama;
 
   /// Cuánto se le da al modelo para pasar por Claude lo que contestó de
   /// memoria, antes de hacerlo por él. Ver [_graciaDeLaRuta].
@@ -187,6 +196,11 @@ class HoldVoiceConversation {
     // porque caben en un pedazo.
     final asked = StringBuffer();
     var answeredAlone = 0;
+
+    /// Cuántas frases de alrededor se han tirado. Va al recuento de la sesión:
+    /// «cero ignorados» y «doce ignorados» describen dos sitios distintos donde
+    /// trabajar, y desde fuera se ven igual.
+    var ajenos = 0;
 
     /// Sube con **cada frase nueva** del usuario. Existe para saber si una
     /// corrección que tardó sigue siendo de lo que se está hablando.
@@ -372,7 +386,8 @@ class HoldVoiceConversation {
           '${heardAt == null ? '(sin señal del servicio todavía)' : ''}· '
           '$micFrames trozos del micro, $sentFrames enviados, '
           '$eventsSeen eventos recibidos · $turn turnos, '
-          '$answeredAlone corregidos, $stale descartados por viejos · '
+          '$answeredAlone corregidos, $stale descartados por viejos, '
+          '$ajenos ajenos ignorados · '
           '${reloj()}',
         );
         await shutdown();
@@ -873,6 +888,21 @@ class HoldVoiceConversation {
       }
     }
 
+    /// Si en **este** turno del modelo ya ha sonado respuesta.
+    ///
+    /// Es lo que distingue «te estoy hablando» de «hablaron encima mientras
+    /// contestabas»: la conversación de la habitación llega justo cuando el
+    /// modelo está diciendo algo, y ahí es donde hay que filtrar. En silencio no
+    /// se filtra nada — la sesión la abriste tú. Ver [ElAudioAjeno].
+    var estabaHablando = false;
+
+    /// Si la respuesta que venga se tira: es la contestación a algo que no iba
+    /// dirigido a ella.
+    ///
+    /// Hace falta porque el servicio contesta igual: el filtro de este lado
+    /// evita que vaya a Claude y que suene, no que el modelo lo procese.
+    var tirandoLaRespuesta = false;
+
     attach = (VoiceSession live) {
       session = live;
       sessionSubscription = live.events.listen(
@@ -897,7 +927,11 @@ class HoldVoiceConversation {
             // que la interfaz necesita de la respuesta es el texto, que
             // llega aparte como transcripción.
             case VoiceReplyAudio(:final pcm):
-              _output.enqueue(pcm);
+              estabaHablando = true;
+              // La respuesta a un turno ignorado no suena. Y no se puede evitar
+              // que el servicio la genere: lo que se puede es no ponerla en el
+              // altavoz de alguien que no preguntó nada.
+              if (!tirandoLaRespuesta) _output.enqueue(pcm);
             case VoiceInterrupted():
               unawaited(_output.discard());
               controller.add(event);
@@ -927,6 +961,21 @@ class HoldVoiceConversation {
               // siguientes son la misma frase llegando a trozos.
               if (asked.isEmpty) turn++;
               asked.write(text);
+              // 🔴 **El corte lo hacemos nosotros.** El servicio ya no
+              // interrumpe —`NO_INTERRUPTION`, para que la conversación de la
+              // habitación no le corte la frase—, así que cuando de verdad se
+              // le habla encima hay que callarla desde aquí: en cuanto se oye
+              // su nombre o una palabra de control, se tira lo que quedaba por
+              // sonar. Y con eso este turno deja de ser «ajeno»: interrumpió, o
+              // sea que iba con ella.
+              if (estabaHablando &&
+                  ElAudioAjeno.interrumpe(
+                    asked.toString(),
+                    agente: _comoSeLlama(),
+                  )) {
+                unawaited(_output.discard());
+                estabaHablando = false;
+              }
               controller.add(event);
             case VoiceTurnCompleted():
               // Terminó un turno sin que el modelo llamara a nadie. Si lo que
@@ -937,6 +986,25 @@ class HoldVoiceConversation {
               // otra.
               final utterance = asked.toString().trim();
               asked.clear();
+              // 🔴 **Lo que se oyó mientras hablaba y no iba con ella se tira
+              // entero.** Pasó con la transcripción delante: conversación de la
+              // habitación contestada por el modelo, y el servicio tomándola
+              // por una interrupción que cortaba la frase a medias. Ver
+              // [ElAudioAjeno], que es quien decide.
+              if (ElAudioAjeno.seIgnora(
+                utterance,
+                estabaHablando: estabaHablando,
+                agente: _comoSeLlama(),
+              )) {
+                ajenos++;
+                _log('voz · ignorado ($ajenos en esta sesión): «$utterance»');
+                tirandoLaRespuesta = true;
+                estabaHablando = false;
+                controller.add(VoiceIgnorado(utterance));
+                break;
+              }
+              estabaHablando = false;
+              tirandoLaRespuesta = false;
               if (utterance.isNotEmpty) {
                 if (VoiceRouting.needsClaude(utterance)) {
                   answeredAlone++;
