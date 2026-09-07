@@ -686,6 +686,13 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         // No se dice el motivo aquí: lo que hace falta es poder seguir, y para
         // eso vuelve la caja de siempre.
         _sinPuerta();
+      // Lo que va a abrir, escrito ya: el modelo no siempre lo dice, y la
+      // pantalla no puede cambiar en silencio. Si lo dice, su transcripción
+      // trae la misma frase y esto no se mueve — ver [ElAdelantoDeLaPuerta].
+      case LaPuertaAbrira(:final carpeta):
+        _adelanto = context.strings.laPuertaAbre(carpeta.name);
+        _loTranscrito.clear();
+        _dicho.value = _adelanto;
       case LaPuertaHabla(:final hablando):
         _hablandoLaPuerta.value = hablando;
       case LaPuertaEstaLista():

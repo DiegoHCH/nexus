@@ -37,6 +37,21 @@ final class LaPuertaHabla extends LoQuePasaEnLaPuerta {
   final bool hablando;
 }
 
+/// Se sabe dónde y **está a punto de abrirse**: la frase de «vale, abro X» va
+/// aquí, no en la pantalla.
+///
+/// 🔴 **Porque el modelo no siempre la dice.** Se le pide —y cuando la dice, se
+/// oye—, pero medido en el registro: llamó a la función y se quedó mudo, así que
+/// la carpeta se abría en silencio y la pantalla cambiaba de golpe. Emitiendo la
+/// frase desde aquí, lo que se lee debajo del orbe es lo mismo se oiga o no; y
+/// si él la dice, su transcripción trae la misma frase y el subtítulo no se
+/// mueve — ver [ElAdelantoDeLaPuerta].
+final class LaPuertaAbrira extends LoQuePasaEnLaPuerta {
+  const LaPuertaAbrira(this.carpeta);
+
+  final PairedFolder carpeta;
+}
+
 /// Ya se sabe dónde: se abre esa conversación y la puerta se cierra.
 final class LaPuertaEligio extends LoQuePasaEnLaPuerta {
   const LaPuertaEligio(this.carpeta, this.tarea);
@@ -109,9 +124,12 @@ class LaSesionDePuerta {
   ///
   /// Dos segundos por encima de ese silencio: lo que tarda en decidir y arrancar
   /// la voz. Si el número del servicio cambia, este se mueve con él — que es
-  /// justo lo que no pasaba cuando eran dos constantes en dos capas.
+  /// justo lo que no pasaba cuando eran dos constantes en dos capas. Y el
+  /// silencio que cuenta es **el de la puerta**, que es más corto que el de una
+  /// conversación por lo mismo que este plazo existe: aquí se espera un nombre,
+  /// no un párrafo.
   static final plazoParaEmpezar =
-      ElRitmoDeLaVoz.silencioQueCierraElTurno + const Duration(seconds: 2);
+      ElRitmoDeLaVoz.silencioEnLaPuerta + const Duration(seconds: 2);
 
   /// Y cuánto se le deja **mientras habla**, por si no termina nunca.
   ///
@@ -155,6 +173,22 @@ class LaSesionDePuerta {
     /// encima, mientras llega.
     LaPuertaEligio? loElegido;
     Timer? elPlazoDeLaDespedida;
+
+    /// Si ya acabó de saludar. **Hasta entonces el micro no sale de aquí.**
+    ///
+    /// 🔴 **Lo que suena en la habitación antes del saludo le pisaba el saludo.**
+    /// Medido con la transcripción delante: mientras la puerta arrancaba, el
+    /// micro mandó dos frases largas de algo que estaba puesto de fondo —«si soy
+    /// un monstruo, entonces no necesito nada bonito», «envíen una patrulla a la
+    /// casa de los…»— y el servicio las tomó por tu turno, así que interrumpió
+    /// el saludo antes de la primera sílaba. Desde fuera se oye entrecortado, y
+    /// la primera vez del día no pasa porque no había nada sonando.
+    ///
+    /// **En la puerta no se pierde nada cerrándolo**: el saludo es una frase fija
+    /// nuestra, no una respuesta a lo que digas, y lo único que hay que oír
+    /// —dónde se trabaja— se dice **después** de la pregunta. Escuchar es lo que
+    /// hace cuando termina la frase, igual que dice el rótulo.
+    var yaSaludo = false;
 
     /// Está hablando ella, así que el micro no se le manda.
     ///
@@ -222,6 +256,9 @@ class LaSesionDePuerta {
         );
       }
       loElegido = LaPuertaEligio(carpeta, tarea);
+      // Lo que se va a abrir, dicho ya: la pantalla lo pone debajo del orbe sin
+      // esperar a que él lo diga, porque a veces no lo dice.
+      fuera.add(LaPuertaAbrira(carpeta));
       // Corrigiendo no se rearman los plazos: el que hay ya está contando desde
       // que se supo la carpeta, y reiniciarlo alargaría la espera cada vez que
       // el modelo confirma lo que la transcripción ya había acertado.
@@ -319,9 +356,15 @@ class LaSesionDePuerta {
               sesion?.sendToolResult(
                 callId: callId,
                 name: name,
+                // 🔴 **Con las palabras exactas.** «Dilo en una frase corta»
+                // dejaba que decidiera si decía algo, y medido: la mitad de las
+                // veces se quedaba mudo tras llamar a la función. Es la misma
+                // piedra del saludo, y allí se resolvió igual — dándole la
+                // frase literal.
                 result:
-                    'Abierta ${carpeta.name}. Dilo en una frase corta y no '
-                    'preguntes nada más.',
+                    'Abierta ${carpeta.name}. Di ahora mismo, en voz alta y '
+                    'nada más: "Vale, abro ${carpeta.name}". No preguntes nada '
+                    'más ni añadas nada.',
               );
               // La interfaz no aparece todavía: se le deja decir «vale, abro
               // nexus» y la pantalla cambia cuando acabe. Ver [yaSeSabeDonde].
@@ -345,6 +388,7 @@ class LaSesionDePuerta {
         // Terminó de hablar: el micro vuelve a contar.
         case VoiceTurnCompleted() when loElegido == null:
           hablando = false;
+          yaSaludo = true;
           fuera.add(const LaPuertaHabla(false));
 
         // Acabó de despedirse: ahora sí se abre la carpeta y se cierra.
@@ -384,6 +428,9 @@ class LaSesionDePuerta {
             // no mandar audio antes de tiempo. Y mientras habla ella tampoco se
             // le manda — ver [hablando].
             if (hablando) return;
+            // Y **antes** de saludar tampoco: lo que suene en la habitación
+            // mientras arranca le pisa el saludo. Ver [yaSaludo].
+            if (!yaSaludo) return;
             // 🔴 **Y en cuanto se sabe la carpeta, el micrófono deja de
             // importar.** Lo único que falta es que diga su frase, y mandarle
             // audio mientras la prepara es darle motivos para no decirla: en la

@@ -115,6 +115,30 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   private var worstGapMs = 0
   private var playedAnything = false
 
+  /// Lo convertido que espera a que haya colchón suficiente para empezar.
+  ///
+  /// 🔴 **El altavoz se quedaba seco entre trozos, y eso es el «entrecortado»**
+  /// que se oyó toda la mañana. Medido con el contador de huecos: **ocho cortes
+  /// en un solo saludo**, de 109 a 509 ms. El servicio entrega el audio más
+  /// rápido que en tiempo real, pero no a ritmo constante — llega a ráfagas— y
+  /// el camino hasta aquí pasa por el socket, la decodificación y el hilo de
+  /// Dart. Programando cada trozo en cuanto llega, la primera pausa del camino
+  /// se convierte en silencio a media palabra.
+  ///
+  /// Con colchón, la pausa se la come la cola: se junta [colchonMinimo] de audio
+  /// antes de dejar sonar el primero. Se paga una vez por frase, en el arranque,
+  /// y es el intercambio que hace cualquier reproductor de streaming.
+  private var enEspera: [AVAudioPCMBuffer] = []
+
+  /// Si esta frase ya está sonando —o sea, si el colchón ya se llenó—.
+  private var sonando = false
+
+  /// Cuánto audio se junta antes de empezar. Medido contra los huecos de verdad:
+  /// el peor fue de 509 ms, pero ese incluye el arranque del grafo; los de media
+  /// frase iban de 109 a 259, así que 400 ms cubre los de media frase con
+  /// margen sin que el retardo se note al empezar a hablar.
+  private static let colchonMinimo: TimeInterval = 0.4
+
   /// El motor sigue montado, pero la conversación terminó: **no se entrega ni
   /// un bloque de audio a nadie**. Es la diferencia entre tener el micrófono
   /// abierto en local y estar escuchando.
@@ -601,6 +625,7 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     sesionAbierta = true
     montadoPara = .conversar
     startedAt = Date()
+    montadoEn = Date()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor en marcha")
   }
 
@@ -653,6 +678,7 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     sesionAbierta = true
     montadoPara = .hablar
     startedAt = Date()
+    montadoEn = Date()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor solo salida en marcha, sin micrófono")
   }
 
@@ -681,6 +707,8 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     starvedAt = nil
     playedAnything = false
     pendingFrames = 0
+    enEspera = []
+    sonando = false
     pendingLock.unlock()
     Self.log.info(
       "reproducción · \(gaps, privacy: .public) huecos, el peor de \(worst, privacy: .public) ms"
@@ -699,7 +727,29 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
   /// despacho: puede repetirse antes de que el primero acabe.
   private var restarting = false
 
+  /// El remonte pendiente, si llegó un aviso y todavía no se ha hecho.
+  ///
+  /// 🔴 **Porque los avisos vienen en tormenta y nuestro propio montaje los
+  /// provoca.** Desenchufar unos auriculares dispara varios cambios seguidos, y
+  /// encender el cancelador de eco cambia el formato del IO unit — o sea que
+  /// remontar genera otro aviso, que remonta otra vez. Medido en el registro con
+  /// el saludo sonando: **31 montajes del motor** intercalados con las sílabas,
+  /// y por eso no se oía nada — cada desmontaje tira lo que quedaba en la cola.
+  private var remontePendiente: DispatchWorkItem?
+
+  /// Cuándo acabó el último montaje. Los avisos que llegan justo después son,
+  /// casi siempre, consecuencia de él.
+  private var montadoEn: Date?
+
+  /// Cuántos avisos se juntaron en el remonte que viene. Solo para el registro:
+  /// «uno» y «once» describen dos problemas distintos.
+  private var avisosJuntados = 0
+
   private func teardown() {
+    // Lo pendiente se cancela: remontar un motor que se está cerrando dejaría el
+    // micrófono cogido después de colgar.
+    remontePendiente?.cancel()
+    remontePendiente = nil
     guard running else { return }
     let era = montadoPara
     running = false
@@ -767,8 +817,42 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       return
     }
     guard running else { return }
+
+    // 🔴 **El aviso que provocamos nosotros no cuenta.** Montar el grafo enciende
+    // el cancelador de eco y eso cambia el formato del IO unit, así que cada
+    // montaje dispara su propio aviso: sin esta ventana, remontar era la causa
+    // del siguiente remonte y el motor no paraba. Medido: 31 montajes seguidos
+    // con el saludo sonando, y por eso no se oía nada.
+    if let desde = montadoEn, Date().timeIntervalSince(desde) < Self.graciaTrasMontar {
+      Self.log.info("cambio de configuración recién montado: es nuestro, se ignora")
+      return
+    }
+
+    // **Y los de verdad se juntan.** Desenchufar unos auriculares dispara varios
+    // seguidos; remontar en cada uno es tirar la cola del altavoz tres veces
+    // para acabar en el mismo sitio. Se espera a que el aparato se asiente y se
+    // remonta una vez.
+    avisosJuntados += 1
+    remontePendiente?.cancel()
+    let trabajo = DispatchWorkItem { [weak self] in self?.remontarAhora() }
+    remontePendiente = trabajo
+    DispatchQueue.main.asyncAfter(deadline: .now() + Self.esperaParaRemontar, execute: trabajo)
+  }
+
+  /// Cuánto se espera a que el aparato se asiente antes de remontar.
+  private static let esperaParaRemontar: TimeInterval = 0.35
+
+  /// Y cuánto después de montar se dan por nuestros los avisos que lleguen.
+  private static let graciaTrasMontar: TimeInterval = 1.0
+
+  private func remontarAhora() {
+    remontePendiente = nil
+    let juntados = avisosJuntados
+    avisosJuntados = 0
+    guard !restarting, running else { return }
     restarting = true
     defer { restarting = false }
+    Self.log.info("remonte por cambio de configuración (\(juntados, privacy: .public) avisos juntados)")
     // Se desmonta de verdad, no se deja caliente: cambió el aparato, así que
     // el grafo entero —formatos, canal de voz, cancelador— hay que rehacerlo.
     // Reutilizarlo sería quedarse hablándole al dispositivo que ya no está.
@@ -951,17 +1035,54 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       gapCount += 1
       worstGapMs = max(worstGapMs, gap)
       Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
+      // Y por stdout, que es donde se lee cuando alguien dice «se escucha
+      // entrecortado»: un hueco es el altavoz quedándose sin audio, o sea que
+      // el problema está **antes** del motor —el socket, la decodificación, el
+      // hilo de Dart— y no en el grafo. Sin este número se busca en el sitio
+      // equivocado, que es lo que llevamos haciendo toda la mañana.
+      #if DEBUG
+        print("audio · hueco de \(gap) ms (\(self.gapCount) en esta sesión)")
+      #endif
     }
     starvedAt = nil
     pendingFrames += frameCount
     playedAnything = true
     pendingLock.unlock()
 
+    // 🔴 **Aquí está el colchón.** Hasta que no haya [colchonMinimo] juntos no
+    // suena nada: si se programa el primer trozo en cuanto llega, la primera
+    // pausa del camino —socket, decodificación, hilo de Dart— se oye como un
+    // corte a media palabra. Y cuando la cola se vacía se vuelve a llenar antes
+    // de seguir, que es lo que convierte un hueco en un arranque un poco más
+    // tarde en vez de una frase partida.
+    if !sonando {
+      enEspera.append(converted)
+      let juntado = enEspera.reduce(0.0) {
+        $0 + Double($1.frameLength) / $1.format.sampleRate
+      }
+      if juntado < Self.colchonMinimo { return }
+      sonando = true
+      let listos = enEspera
+      enEspera = []
+      for buffer in listos { programar(buffer) }
+      return
+    }
+    programar(converted)
+  }
+
+  /// Programa un buffer ya convertido y lleva la cuenta de lo que queda.
+  private func programar(_ converted: AVAudioPCMBuffer) {
+    let frameCount = Int64(converted.frameLength)
     player.scheduleBuffer(converted, completionCallbackType: .dataPlayedBack) { [weak self] _ in
       guard let self else { return }
       self.pendingLock.lock()
       self.pendingFrames = max(0, self.pendingFrames - frameCount)
-      if self.pendingFrames == 0 { self.starvedAt = Date() }
+      if self.pendingFrames == 0 {
+        self.starvedAt = Date()
+        // Vaciada la cola, el colchón se vuelve a llenar: lo que venga detrás
+        // es otra ráfaga y programarlo suelto repetiría el corte.
+        self.sonando = false
+      }
       self.pendingLock.unlock()
     }
     if !player.isPlaying { player.play() }
@@ -984,6 +1105,10 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     player.stop()
     pendingLock.lock()
     pendingFrames = 0
+    // Y el colchón se vacía con la cola: lo que estaba esperando a sonar era de
+    // la frase que se acaba de interrumpir.
+    enEspera = []
+    sonando = false
     // Interrumpir vacía la cola a propósito: eso no es un hueco de red y
     // contarlo como tal estropearía la medida justo en las sesiones con más
     // interrupciones.

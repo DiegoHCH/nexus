@@ -410,9 +410,25 @@ void main() {
     expect(altavoz.parado, isTrue);
   });
 
-  test('el micro va a la sesión mientras dure', () async {
+  // 🔴 **Y no antes de saludar**, que es lo que le pisaba el saludo: lo que
+  // suena en la habitación mientras la puerta arranca lo tomaba el servicio por
+  // tu turno e interrumpía la frase antes de la primera sílaba. Medido con la
+  // transcripción delante, con una telenovela de fondo.
+  test('el micro va a la sesión en cuanto acaba de saludar', () async {
     final sub = abrir().listen((_) {});
     addTearDown(sub.cancel);
+    await vueltas();
+
+    microfono.habla();
+    await vueltas();
+    expect(
+      sesion.enviado,
+      isEmpty,
+      reason: 'todavía no ha saludado: lo que suene no es para ella',
+    );
+
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([1])));
+    sesion.emite(const VoiceTurnCompleted());
     await vueltas();
 
     microfono.habla();
@@ -444,6 +460,11 @@ void main() {
   test('mientras habla, el micro no se le manda', () async {
     final sub = abrir().listen((_) {});
     addTearDown(sub.cancel);
+    await vueltas();
+
+    // Primero se le deja saludar: hasta entonces el micro está cerrado.
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([1])));
+    sesion.emite(const VoiceTurnCompleted());
     await vueltas();
 
     microfono.habla();
@@ -568,6 +589,59 @@ void main() {
       isEmpty,
       reason: 'el «nexus» del turno anterior ya no cuenta',
     );
+  });
+
+  // 🔴 **La frase de «vale, abro X» sale de aquí, no de que él la diga.** Se le
+  // pide —y con las palabras exactas—, pero medido en el registro: llamó a la
+  // función y se quedó mudo, así que la carpeta se abría en silencio y la
+  // pantalla cambiaba de golpe. Emitiéndola, lo que se lee debajo del orbe es lo
+  // mismo se oiga o no.
+  test(
+    'al saber la carpeta dice lo que va a abrir, sin esperar a que hable',
+    () async {
+      final vistos = <LoQuePasaEnLaPuerta>[];
+      final sub = abrir().listen(vistos.add);
+      addTearDown(sub.cancel);
+      await vueltas();
+
+      sesion.emite(
+        const VoiceToolRequested(
+          callId: 'c1',
+          name: 'elegirCarpeta',
+          arguments: {'carpeta': 'nexus', 'tarea': ''},
+        ),
+      );
+      await vueltas();
+
+      final aviso = vistos.whereType<LaPuertaAbrira>().single;
+      expect(aviso.carpeta.name, 'nexus');
+      expect(
+        vistos.whereType<LaPuertaEligio>(),
+        isEmpty,
+        reason:
+            'anunciar no es abrir: la pantalla cambia cuando acabe la frase',
+      );
+    },
+  );
+
+  // Y lo que se le pide decir lleva **las palabras exactas**: «dilo en una frase
+  // corta» dejaba que decidiera si decía algo, y la mitad de las veces no decía
+  // nada. Es la misma piedra del saludo, resuelta igual.
+  test('se le pide la frase literal al contestarle la función', () async {
+    final sub = abrir().listen((_) {});
+    addTearDown(sub.cancel);
+    await vueltas();
+
+    sesion.emite(
+      const VoiceToolRequested(
+        callId: 'c1',
+        name: 'elegirCarpeta',
+        arguments: {'carpeta': 'nexus', 'tarea': ''},
+      ),
+    );
+    await vueltas();
+
+    expect(sesion.resultados.single, contains('"Vale, abro nexus"'));
   });
 }
 

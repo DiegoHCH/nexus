@@ -41,12 +41,27 @@ abstract final class VoiceSessionFormat {
 /// Aquí no se decide nada: se declara el número una vez para que quien tenga que
 /// contar con él lo derive en vez de copiarlo.
 abstract final class ElRitmoDeLaVoz {
-  /// Cuánto silencio hace falta para que el servicio dé tu turno por terminado.
+  /// Cuánto silencio hace falta para que el servicio dé tu turno por terminado
+  /// **en una conversación**.
   ///
   /// Alargado a propósito respecto a lo de fábrica: una instrucción larga tiene
   /// pausas naturales —para pensar, para respirar— y con el corte corto el
   /// servicio se quedaba con media frase y contestaba a eso.
   static const silencioQueCierraElTurno = Duration(milliseconds: 1200);
+
+  /// Y cuánto **en la puerta**, que es otra cosa.
+  ///
+  /// 🔴 **Ahí lo que se espera son dos palabras, no un párrafo.** Con el silencio
+  /// largo de una conversación, decir la carpeta dos veces seguidas llegaba como
+  /// **un solo turno** —medido: «Fra Moai B2C Fra Moai B2C»— y el modelo no
+  /// movía un dedo hasta que ese turno se cerrara. Desde fuera se ve como que no
+  /// hace caso y «al rato responde».
+  ///
+  /// Medio segundo: lo que separa dos intentos de una pausa para respirar. Aquí
+  /// cortar de más no cuesta nada —si se queda con media palabra, el nombre no
+  /// coincide con ninguna carpeta y vuelve a preguntar—, mientras que cortar de
+  /// menos cuesta justo lo que se vio.
+  static const silencioEnLaPuerta = Duration(milliseconds: 500);
 }
 
 sealed class PerfilDeVoz {
