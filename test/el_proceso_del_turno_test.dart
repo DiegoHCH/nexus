@@ -81,4 +81,40 @@ void main() {
     expect(proceso.kill(), isTrue, reason: 'seguía vivo, como debe');
     proceso.kill(ProcessSignal.sigkill);
   });
+
+  // 🔴 **Y si lo matamos nosotros, hay que poder saberlo.** El remate vuelve al
+  // que espera como `-9` —`SIGKILL`—, y enseñarlo como fallo del encargo cuenta
+  // como roto un trabajo que ya había entregado su resultado: reportado tal cual,
+  // «me salió un error, claude terminó con código -9».
+  test('el que sale solo no cuenta como rematado', () async {
+    final proceso = await Process.start('/bin/cat', []);
+    final vivo = ElProcesoDelTurno()..tomar(proceso, preguntando: true);
+
+    vivo.elTurnoAcabo();
+    await proceso.exitCode.timeout(const Duration(seconds: 5));
+
+    expect(
+      vivo.loMatamosNosotros,
+      isFalse,
+      reason: 'salió por las buenas: su código dice algo del encargo',
+    );
+  });
+
+  test('el que soltamos, sí', () async {
+    // El que atrapa SIGTERM, como el CLI: solo se va con SIGKILL.
+    final proceso = await Process.start('/bin/sh', [
+      '-c',
+      'trap "" TERM; while :; do sleep 0.05; done',
+    ]);
+    final vivo = ElProcesoDelTurno()..tomar(proceso, preguntando: false);
+
+    await vivo.soltar();
+    await proceso.exitCode.timeout(const Duration(seconds: 5));
+
+    expect(
+      vivo.loMatamosNosotros,
+      isTrue,
+      reason: 'su código es nuestro, no del encargo',
+    );
+  });
 }
