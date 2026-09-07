@@ -21,6 +21,10 @@ mixin NucleoStrings {
   String get listening;
   String get working;
   String get speaking;
+
+  /// Lo que la puerta pone debajo del orbe cuando ya sabe dónde. Se escribe
+  /// aunque el modelo no llegue a decirlo. Ver [LaPuertaAbrira].
+  String laPuertaAbre(String carpeta);
   // Barra superior e inferior
   String get pairFolder;
   String get noConversation;
@@ -207,6 +211,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get working => 'Trabajando';
   @override
   String get speaking => 'Hablando';
+  @override
+  String laPuertaAbre(String carpeta) => 'Vale, abro $carpeta.';
   @override
   String get pairFolder => 'EMPAREJAR CARPETA';
   @override
@@ -563,6 +569,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get working => 'Working';
   @override
   String get speaking => 'Speaking';
+  @override
+  String laPuertaAbre(String carpeta) => 'Right, opening $carpeta.';
   @override
   String get pairFolder => 'PAIR A FOLDER';
   @override

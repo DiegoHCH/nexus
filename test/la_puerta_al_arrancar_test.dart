@@ -152,4 +152,39 @@ void main() {
     expect(find.text(strings.composerHint), findsOneWidget);
     expect(puerta.saludoPedido, isNull, reason: 'ni se intentó saludar');
   });
+
+  // 🔴 **Reportado mirando la pantalla:** «el estado en el saludo mientras habla
+  // debería ser otro y no escuchando; el escuchando debería mostrarse solo
+  // cuando terminó la frase». Y con razón: el estado se ponía al abrir la puerta
+  // y ahí se quedaba, así que durante el saludo entero la barra contaba lo
+  // contrario de lo que se oía — y una barra que miente se deja de mirar.
+  testWidgets('el rótulo dice hablando mientras habla, y luego escuchando', (
+    tester,
+  ) async {
+    await abrirLaCasa(tester);
+    await tester.pump(const Duration(milliseconds: 50));
+
+    // En mayúsculas, que es como la barra pinta su rótulo.
+    // Nada más abrir, antes de que suene: está esperando a que hables.
+    expect(find.text(strings.listening.toUpperCase()), findsOneWidget);
+
+    puerta.controlador.add(const LaPuertaHabla(true));
+    await tester.pump();
+
+    expect(find.text(strings.speaking.toUpperCase()), findsOneWidget);
+    expect(
+      find.text(strings.listening.toUpperCase()),
+      findsNothing,
+      reason: 'las dos a la vez serían dos versiones de lo mismo',
+    );
+
+    puerta.controlador.add(const LaPuertaHabla(false));
+    await tester.pump();
+
+    expect(
+      find.text(strings.listening.toUpperCase()),
+      findsOneWidget,
+      reason: 'escuchar es lo que hace al terminar la frase',
+    );
+  });
 }

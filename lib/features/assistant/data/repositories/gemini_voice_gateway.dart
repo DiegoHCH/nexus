@@ -188,6 +188,68 @@ class GeminiVoiceGateway implements VoiceGateway {
     return linea == null ? '' : '$linea\n';
   }
 
+  /// Cómo se la escucha, que **no es igual en una conversación que en la
+  /// puerta**.
+  ///
+  /// El detector de voz del servicio va alargado en las dos: por defecto corta
+  /// el turno con una pausa muy corta, y una instrucción larga tiene pausas
+  /// naturales —para pensar, para respirar—, así que se quedaba con media frase
+  /// y contestaba a eso. Se paga con algo más de espera antes de que responda,
+  /// que es el intercambio correcto.
+  ///
+  /// Lo que cambia por perfil es **quién puede interrumpirla**:
+  ///
+  /// - **En una conversación, el servicio no interrumpe nunca.** Su detector
+  ///   cortaba la respuesta con cualquier sonido con forma de habla, así que la
+  ///   conversación de la habitación la dejaba a media frase; la decisión se
+  ///   movió a este lado, donde hay transcripción para decidir. Ver
+  ///   [ElAudioAjeno]. Y la sensibilidad de arranque baja, para que la
+  ///   habitación no cuente ni como que alguien empezó a hablar.
+  /// - 🔴 **En la puerta, interrumpirla es el diseño.** El saludo es largo
+  ///   —hora, tu nombre, la pregunta y la lista de carpetas— y lo normal es
+  ///   contestar antes de que acabe. Con `NO_INTERRUPTION` puesto ahí pasaron
+  ///   las dos cosas que ya estaban predichas en el código de la puerta: el
+  ///   servicio no manda `interrupted`, así que **no se tira lo que quedaba por
+  ///   sonar y se oye pisado —entrecortado—**, y el `turnComplete` del saludo
+  ///   llega *después* de que se sepa la carpeta, así que la puerta lo toma por
+  ///   «acabó de despedirse» y **abre sin decir la frase**. Las dos reportadas
+  ///   de oído, las dos por la misma línea de configuración.
+  ///
+  /// El aviso de agenda no escucha nada —no abre micrófono—, así que se queda
+  /// con lo de siempre: lo que no se usa no se configura.
+  @visibleForTesting
+  static Map<String, dynamic> comoSeEscucha(PerfilDeVoz perfil) => {
+    'automaticActivityDetection': {
+      // 🔴 **En la puerta se corta antes.** Lo que se espera ahí son dos
+      // palabras: con el silencio largo de una conversación, decir la carpeta
+      // dos veces seguidas llegaba como **un solo turno** —medido: «Fra Moai
+      // B2C Fra Moai B2C»— y el modelo no movía un dedo hasta cerrarlo. Desde
+      // fuera se ve como que no hace caso y «al rato responde». Ver
+      // [ElRitmoDeLaVoz.silencioEnLaPuerta].
+      'endOfSpeechSensitivity': perfil is ComoLaPuerta
+          ? 'END_SENSITIVITY_HIGH'
+          : 'END_SENSITIVITY_LOW',
+      'silenceDurationMs':
+          (perfil is ComoLaPuerta
+                  ? ElRitmoDeLaVoz.silencioEnLaPuerta
+                  : ElRitmoDeLaVoz.silencioQueCierraElTurno)
+              .inMilliseconds,
+      // Sin esto se come el principio de la primera palabra.
+      'prefixPaddingMs': 300,
+      // La habitación no la despierta: quien habla al Mac está a medio metro
+      // del micrófono y la conversación de al lado, no. Solo en conversación:
+      // en la puerta hay que oírte a la primera, y bajarla era justo lo que
+      // obligaba a repetir la carpeta.
+      if (perfil is ComoUnaConversacion)
+        'startOfSpeechSensitivity': 'START_SENSITIVITY_LOW',
+    },
+    // Los dos nombres están comprobados contra la referencia de la API
+    // —`RealtimeInputConfig`— y no supuestos: aquí una clave inventada no falla
+    // en el análisis, cierra la conexión con «Unknown name», que es como se
+    // perdió una tarde con `toolConfig`.
+    if (perfil is ComoUnaConversacion) 'activityHandling': 'NO_INTERRUPTION',
+  };
+
   /// Dejó de ser `static` al meter el idioma: la instrucción de sistema ya no
   /// es la misma siempre, depende de en qué idioma se responde.
   Map<String, dynamic> _setupCon(PerfilDeVoz perfil) => {
@@ -210,34 +272,7 @@ class GeminiVoiceGateway implements VoiceGateway {
     // media frase y contestaba a eso. Se paga con algo más de espera antes de
     // que responda, que es el intercambio correcto: mejor esperar medio
     // segundo más que contestar a una pregunta que no terminaste.
-    'realtimeInputConfig': {
-      'automaticActivityDetection': {
-        'endOfSpeechSensitivity': 'END_SENSITIVITY_LOW',
-        'silenceDurationMs': 1200,
-        // Sin esto se come el principio de la primera palabra.
-        'prefixPaddingMs': 300,
-        // 🔴 **Baja a propósito, para que la habitación no la despierte.** Con
-        // la sensibilidad de fábrica, una conversación de al lado cuenta como
-        // que alguien empezó a hablar: está medido con la transcripción
-        // delante —«sí, porque el otro muchacho fue el que hizo el servicio en
-        // el día»— y el modelo la contestaba. Quien habla al Mac está a medio
-        // metro del micrófono; la conversación de al lado, no.
-        'startOfSpeechSensitivity': 'START_SENSITIVITY_LOW',
-      },
-      // 🔴 **Y el servicio no interrumpe: interrumpe quien le habla.** Su
-      // detector cortaba la respuesta con cualquier sonido con forma de habla,
-      // así que la conversación de la habitación la dejaba a media frase. Con
-      // esto la decisión se mueve a este lado, donde hay transcripción para
-      // decidir: su nombre o una palabra de control la callan al momento —lo
-      // hace [HoldVoiceConversation]— y lo demás no la toca. Ver
-      // [ElAudioAjeno], donde está el caso medido.
-      //
-      // Los dos nombres están comprobados contra la referencia de la API
-      // —`RealtimeInputConfig`— y no supuestos: aquí una clave inventada no
-      // falla en el análisis, cierra la conexión con «Unknown name», que es
-      // como se perdió una tarde con `toolConfig`.
-      'activityHandling': 'NO_INTERRUPTION',
-    },
+    'realtimeInputConfig': comoSeEscucha(perfil),
     'systemInstruction': {
       'parts': [
         {
