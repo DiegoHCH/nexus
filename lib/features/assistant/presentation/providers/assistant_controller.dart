@@ -478,6 +478,20 @@ class AssistantController extends Notifier<AssistantHudState> {
     final peticion = donde == -1 ? null : mensajes[donde].permiso;
 
     final strings = ref.read(stringsProvider);
+    // Lo que el CLI ofrecía y no se le devuelve, dicho en el registro: son
+    // reglas que se escribirían en el repositorio de quien pregunta, y una
+    // decisión así no puede quedar solo en el código. Ver
+    // [LoQueSeContestaAlPermiso.loQueDuraLaSesion].
+    if (decision == DecisionDePermiso.concedidoTodo && peticion != null) {
+      final fuera = LoQueSeContestaAlPermiso.loQueSeDescarta(
+        peticion.sugerencias,
+      );
+      if (fuera.isNotEmpty) {
+        debugPrint(
+          'permiso · no se devuelve, escribe en disco: ${fuera.join(', ')}',
+        );
+      }
+    }
     final contestada = _permisos.contestar(
       id,
       LoQueSeContestaAlPermiso.de(
