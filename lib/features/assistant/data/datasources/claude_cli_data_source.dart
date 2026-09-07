@@ -298,7 +298,18 @@ class ClaudeCliDataSource {
 
       await stderrDone;
       final exitCode = await process.exitCode;
-      if (exitCode != 0) {
+      // 🔴 **Lo que matamos nosotros no es un fallo del encargo.** El `result`
+      // ya salió por arriba —es lo último que hay que entregar— y solo después
+      // se le cierra el stdin y, si no sale en diez segundos, se le remata con
+      // `SIGKILL`. Ese remate vuelve aquí como `-9`, y enseñarlo como error
+      // cuenta como roto un trabajo que salió bien: reportado tal cual, «me
+      // salió un error, claude terminó con código -9».
+      //
+      // Se anota, que no es lo mismo que callarlo: un CLI que deja de salir
+      // limpio es un cambio de comportamiento que conviene ver venir.
+      if (vivo.loMatamosNosotros) {
+        debugPrint('claude · salió con $exitCode porque lo rematamos nosotros');
+      } else if (exitCode != 0) {
         throw ClaudeProcessException(exitCode, stderrBuffer.toString().trim());
       }
     } finally {
@@ -432,6 +443,19 @@ class ElProcesoDelTurno {
   var _preguntando = false;
   Timer? _remate;
 
+  /// Si el proceso salió porque **nosotros** lo matamos.
+  ///
+  /// 🔴 **Porque un `-9` nuestro se estaba enseñando como un fallo del encargo.**
+  /// Reportado tal cual: «me salió un error, claude terminó con código -9». Y el
+  /// -9 es `SIGKILL`, o sea el remate de aquí: el turno **ya había entregado su
+  /// resultado** —el `result` se emite antes de cerrarle el stdin— y lo único
+  /// que pasó después es que el CLI no salió en diez segundos y se le remató.
+  /// Enseñar eso como error es contar como roto un encargo que salió bien, y
+  /// además invita a reintentarlo.
+  bool get loMatamosNosotros => _rematado;
+
+  var _rematado = false;
+
   /// Cuánto se le espera a que salga por las buenas antes de rematarlo.
   ///
   /// **Sale en 1,48 s, medido**: se lanzó el CLI en `stream-json`, se le cerró el
@@ -457,6 +481,7 @@ class ElProcesoDelTurno {
     unawaited(proceso.stdin.close().catchError((_) {}));
     _remate ??= Timer(plazo, () {
       debugPrint('claude · no salió al cerrarle el stdin: se remata');
+      _rematado = true;
       proceso.kill(ProcessSignal.sigkill);
     });
   }
@@ -471,6 +496,7 @@ class ElProcesoDelTurno {
     final proceso = _proceso;
     olvida();
     if (proceso == null) return;
+    _rematado = true;
     if (_preguntando) await proceso.stdin.close().catchError((_) {});
     proceso.kill(ProcessSignal.sigkill);
   }
