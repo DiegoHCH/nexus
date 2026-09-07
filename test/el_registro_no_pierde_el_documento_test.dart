@@ -23,6 +23,8 @@ import 'package:nexus/features/workspace/domain/entities/workspace.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'support/hasta_que.dart';
+
 /// Lo que el registro de una conversación perdía al cerrar la app.
 ///
 /// 🔴 **Salió usándolo.** Un encargo generó un diagrama, el chat enseñó su
@@ -189,47 +191,6 @@ void main() {
   /// El plazo es largo a propósito. No es lo que tarda: es lo que se tolera
   /// antes de decir que no va a pasar. En una máquina libre esto sale en
   /// milisegundos.
-  /// Espera a la condición, y **si se rinde dice qué estaba viendo**.
-  ///
-  /// 🔴 **Porque esta prueba es la intermitente, y su fallo no distinguía nada.**
-  /// «El documento que dejó el encargo entra en el registro» se cae dentro de la
-  /// suite entera —dos veces en ocho pasadas medidas el 6 de septiembre— y sola
-  /// pasa diez de diez en menos de un segundo. Con «no llegó a pasar en 15 s» a
-  /// secas hay dos causas posibles y ninguna forma de elegir:
-  ///
-  /// - **Hambre de CPU.** Noventa archivos de prueba en paralelo, y este isolate
-  ///   no llega a mirar el disco en quince segundos. Se reconoce porque **no se
-  ///   guardó nada**: `guardados=0`.
-  /// - **La carrera de verdad**, que es justo lo que esta prueba nació para
-  ///   cubrir: se archiva el registro mientras el documento aún se busca. Se
-  ///   reconoce al revés: `guardados=1` con `documento: null`.
-  ///
-  /// Por eso el mensaje lleva **el estado y el tiempo de verdad**, no el plazo:
-  /// subirle el plazo sin saber cuál de las dos es taparía la única señal que
-  /// queda. [loQueSeVe] lo escribe quien llama, que es quien sabe qué mirar.
-  Future<void> hastaQue(
-    bool Function() pasa, {
-    required String esperando,
-    String Function()? loQueSeVe,
-    Duration limite = const Duration(seconds: 15),
-  }) async {
-    final desde = DateTime.now();
-    final hasta = desde.add(limite);
-    var vueltas = 0;
-    while (!pasa()) {
-      if (DateTime.now().isAfter(hasta)) {
-        final tardo = DateTime.now().difference(desde).inMilliseconds;
-        fail(
-          'no llegó a pasar: $esperando\n'
-          'se rindió tras $tardo ms y $vueltas vueltas de espera\n'
-          'lo que veía al rendirse: ${loQueSeVe?.call() ?? 'nadie lo contó'}',
-        );
-      }
-      vueltas++;
-      await Future<void>.delayed(const Duration(milliseconds: 10));
-    }
-  }
-
   /// Lo que hay que mirar cuando la del documento se cae: si se guardó algo y
   /// si el último mensaje del último registro traía el documento.
   String loGuardado(_AlmacenQueApunta almacen) {
