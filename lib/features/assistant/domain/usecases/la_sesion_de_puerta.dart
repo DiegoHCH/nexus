@@ -196,9 +196,36 @@ class LaSesionDePuerta {
     /// llamada a la función o por la transcripción de lo que dijiste, y el
     /// segundo abría de golpe: se veía como que cambiaba la pantalla sin decir
     /// nada, que es justo lo que se estaba arreglando en el primero.
-    void yaSeSabeDonde(PairedFolder carpeta, String tarea) {
-      if (loElegido != null) return;
+    ///
+    /// 🔴 **Y cuando los dos caminos no coinciden, manda la función.** Pasó, con
+    /// el registro delante: la transcripción llegó hecha polvo —«Franma Y B2C
+    /// Mobile B2C Nexus Franma Y B2C Oé, hazme caso»— y ahí dentro estaba la
+    /// palabra «nexus», así que el reconocedor eligió *nexus*; un segundo
+    /// después el modelo llamó a la función con *front-mobile-b2c*, que es lo
+    /// que de verdad le habían dicho. Como el primero ya había escrito, se le
+    /// contestó «abierta front-mobile-b2c» —y eso es lo que dijo en voz alta— y
+    /// se abrió **nexus**. Decir una cosa y abrir otra es el único fallo de esta
+    /// pantalla que no se puede permitir, así que [corrige] existe: mientras no
+    /// se haya abierto nada, la función reescribe lo que la transcripción
+    /// adivinó.
+    void yaSeSabeDonde(
+      PairedFolder carpeta,
+      String tarea, {
+      bool corrige = false,
+    }) {
+      final antes = loElegido;
+      if (antes != null && !corrige) return;
+      if (antes != null && antes.carpeta.path != carpeta.path) {
+        _log(
+          'puerta · la función manda: era ${antes.carpeta.name} y es '
+          '${carpeta.name}',
+        );
+      }
       loElegido = LaPuertaEligio(carpeta, tarea);
+      // Corrigiendo no se rearman los plazos: el que hay ya está contando desde
+      // que se supo la carpeta, y reiniciarlo alargaría la espera cada vez que
+      // el modelo confirma lo que la transcripción ya había acertado.
+      if (antes != null) return;
       // Dos plazos: uno corto por si no llega a abrir la boca, y otro largo
       // por si la abre y no la cierra. Ver [plazoParaEmpezar] y [plazoHablando].
       elPlazoDeLaDespedida = Timer(plazoParaEmpezar, () {
@@ -233,7 +260,15 @@ class LaSesionDePuerta {
         case VoiceReplyAudio(:final pcm):
           // Solo en el primer trozo: son decenas por frase y la pantalla no
           // tiene por qué enterarse de cada uno.
-          if (!hablando) fuera.add(const LaPuertaHabla(true));
+          if (!hablando) {
+            fuera.add(const LaPuertaHabla(true));
+            // 🔴 **Y lo oído se cierra aquí.** El acumulado cruzaba turnos, así
+            // que una palabra de hace tres frases podía decidir la carpeta de
+            // ahora: en el registro, un «nexus» perdido en medio de un intento
+            // fallido eligió esa carpeta cuando lo que se estaba diciendo era
+            // otra. Que ella contesta significa que tu turno ya se consumió.
+            oido.clear();
+          }
           hablando = true;
           _altavoz.enqueue(pcm);
 
@@ -241,19 +276,28 @@ class LaSesionDePuerta {
           _log('puerta · dice: $text');
           fuera.add(LaPuertaDice(text));
 
-        // 🔴 **Se mira en cada trozo, no al final del turno.** La transcripción
-        // llega a pedazos y el nombre de una carpeta aparece entero en cuanto se
-        // dice; esperar al final del turno añadiría un segundo de silencio justo
-        // después de que ya se sabe la respuesta.
+        // 🔴 **Se apunta lo que oye, y no se decide nada con ello.** Aquí se
+        // elegía la carpeta en cuanto el nombre aparecía en la transcripción, y
+        // eso daba dos clases de falso positivo, las dos medidas:
+        //
+        // - **Ruido con una palabra dentro.** «Franma Y B2C Mobile B2C Nexus
+        //   Franma Y B2C Oé, hazme caso» eligió *nexus* porque ahí estaba la
+        //   palabra, cuando lo que se estaba diciendo era otra carpeta. Y como
+        //   el primero en escribir ganaba, la función llegó después con la
+        //   buena, se le contestó «abierta front-mobile-b2c» —que es lo que
+        //   dijo en voz alta— y se abrió *nexus*.
+        // - **Una negación.** «No, nexus no, espera» también elegía.
+        //
+        // La carpeta la dice **la función**, que es el camino que el servicio
+        // manda siempre y el que su instrucción le pide usar primero. Un solo
+        // sitio donde se decide: si el modelo no llama, se repite la frase — que
+        // es infinitamente mejor que abrir la carpeta equivocada.
+        //
+        // La transcripción se sigue registrando porque es con lo que se
+        // diagnostica: sin ella, «no me hizo caso» no tiene evidencia.
         case VoiceUserTranscript(:final text):
           oido.write(text);
-          final acumulado = oido.toString();
-          final dicho = LaPuertaQueSaluda.interpreta(acumulado, carpetas);
-          _log('puerta · oye «$acumulado» → ${dicho.runtimeType}');
-          if (dicho case SeTrabajaAqui(:final carpeta, :final tarea)) {
-            _log('puerta · se trabaja en ${carpeta.name}');
-            yaSeSabeDonde(carpeta, tarea);
-          }
+          _log('puerta · oye «${oido.toString().trim()}»');
 
         // 🔴 **Así es como dice dónde**, y no por la transcripción. Medido: el
         // modelo oía «nexus» perfectamente y la transcripción de lo dicho no
@@ -281,7 +325,10 @@ class LaSesionDePuerta {
               );
               // La interfaz no aparece todavía: se le deja decir «vale, abro
               // nexus» y la pantalla cambia cuando acabe. Ver [yaSeSabeDonde].
-              yaSeSabeDonde(carpeta, tarea);
+              //
+              // Y **corrigiendo**: si la transcripción había adivinado otra, la
+              // que se abre es esta, que es la que él acaba de anunciar.
+              yaSeSabeDonde(carpeta, tarea, corrige: true);
             case SeNombraronDos():
             case NoSeEntendioDonde():
               // Se le contesta que no, y sigue preguntando ella misma: cortar

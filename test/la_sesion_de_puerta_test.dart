@@ -316,14 +316,21 @@ void main() {
   // Por transcripción también vale, y **por el mismo camino**: se guarda y se
   // le deja despedirse. Antes esta vía abría de golpe y la pantalla cambiaba
   // sin que dijera nada — reportado escuchándolo.
-  test('al oír la carpeta la guarda, y no abre hasta despedirse', () async {
+  test('al elegir la carpeta la guarda, y no abre hasta despedirse', () async {
     final vistos = <LoQuePasaEnLaPuerta>[];
     final sub = abrir().listen(vistos.add);
     addTearDown(sub.cancel);
     await vueltas();
 
-    sesion.emite(const VoiceUserTranscript('trabajemos '));
-    sesion.emite(const VoiceUserTranscript('en nexus'));
+    // Por la función, que es el único camino que decide. La transcripción se
+    // registra pero ya no elige: elegía con ruido dentro y con negaciones.
+    sesion.emite(
+      const VoiceToolRequested(
+        callId: 'c1',
+        name: 'elegirCarpeta',
+        arguments: {'carpeta': 'nexus', 'tarea': ''},
+      ),
+    );
     await vueltas();
 
     expect(vistos.whereType<LaPuertaEligio>(), isEmpty);
@@ -345,7 +352,13 @@ void main() {
     addTearDown(sub.cancel);
     await vueltas();
 
-    sesion.emite(const VoiceUserTranscript('en nexus, mira el último PR'));
+    sesion.emite(
+      const VoiceToolRequested(
+        callId: 'c1',
+        name: 'elegirCarpeta',
+        arguments: {'carpeta': 'nexus', 'tarea': 'mira el último PR'},
+      ),
+    );
     sesion.emite(const VoiceTurnCompleted());
     await vueltas();
 
@@ -355,13 +368,13 @@ void main() {
     );
   });
 
-  test('lo que no nombra ninguna carpeta no elige nada', () async {
+  test('la transcripción no elige nada, ni nombrando la carpeta', () async {
     final vistos = <LoQuePasaEnLaPuerta>[];
     final sub = abrir().listen(vistos.add);
     addTearDown(sub.cancel);
     await vueltas();
 
-    sesion.emite(const VoiceUserTranscript('buenos días, qué tal'));
+    sesion.emite(const VoiceUserTranscript('trabajemos en nexus'));
     await vueltas();
 
     expect(vistos.whereType<LaPuertaEligio>(), isEmpty);
@@ -490,6 +503,70 @@ void main() {
       hasLength(antes),
       reason:
           'con la carpeta elegida, lo que suene ya no puede pisarle la frase',
+    );
+  });
+
+  // 🔴 **Decir una cosa y abrir otra es el único fallo que esta pantalla no se
+  // puede permitir**, y pasó con el registro delante: la transcripción llegó
+  // hecha polvo —«Franma Y B2C Mobile B2C Nexus Franma Y B2C Oé, hazme caso»— y
+  // ahí dentro estaba la palabra «nexus», así que el reconocedor eligió *nexus*;
+  // un segundo después la función llegó con *front-mobile-b2c*, que es lo que de
+  // verdad le habían dicho. Dijo en voz alta «vale, abro front-mobile-b2c» y
+  // abrió nexus.
+  test('cuando los dos caminos no coinciden, manda la función', () async {
+    final vistos = <LoQuePasaEnLaPuerta>[];
+    final sub = abrir().listen(vistos.add);
+    addTearDown(sub.cancel);
+    await vueltas();
+
+    // La transcripción, mal oída, cuela la otra carpeta.
+    sesion.emite(const VoiceUserTranscript('nexus algo mal oído'));
+    await vueltas();
+
+    sesion.emite(
+      const VoiceToolRequested(
+        callId: 'c1',
+        name: 'elegirCarpeta',
+        arguments: {'carpeta': 'front-mobile-b2c', 'tarea': ''},
+      ),
+    );
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([1])));
+    sesion.emite(const VoiceTurnCompleted());
+    await vueltas();
+
+    final elegida = vistos.whereType<LaPuertaEligio>().single;
+    expect(
+      elegida.carpeta.name,
+      'front-mobile-b2c',
+      reason: 'es la que ella acaba de anunciar en voz alta',
+    );
+  });
+
+  // Y lo oído se cierra en cuanto contesta: sin esto, una palabra de hace tres
+  // frases decide la carpeta de ahora — que es exactamente cómo se colaba
+  // «nexus» en el caso de arriba.
+  test('lo que se oyó en un turno no decide el siguiente', () async {
+    final vistos = <LoQuePasaEnLaPuerta>[];
+    final sub = abrir().listen(vistos.add);
+    addTearDown(sub.cancel);
+    await vueltas();
+
+    // Un intento fallido que menciona una carpeta de pasada.
+    sesion.emite(const VoiceUserTranscript('no, nexus no, espera'));
+    await vueltas();
+    // Ella contesta: ese turno ya se consumió.
+    sesion.emite(VoiceReplyAudio(Uint8List.fromList([1])));
+    sesion.emite(const VoiceTurnCompleted());
+    await vueltas();
+
+    // Y ahora se dice otra cosa que no nombra ninguna carpeta.
+    sesion.emite(const VoiceUserTranscript('hazme caso'));
+    await vueltas();
+
+    expect(
+      vistos.whereType<LaPuertaEligio>(),
+      isEmpty,
+      reason: 'el «nexus» del turno anterior ya no cuenta',
     );
   });
 }
