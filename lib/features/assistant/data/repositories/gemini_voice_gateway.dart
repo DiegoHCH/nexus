@@ -221,7 +221,8 @@ class GeminiVoiceGateway implements VoiceGateway {
   static Map<String, dynamic> comoSeEscucha(PerfilDeVoz perfil) => {
     'automaticActivityDetection': {
       'endOfSpeechSensitivity': 'END_SENSITIVITY_LOW',
-      'silenceDurationMs': 1200,
+      'silenceDurationMs':
+          ElRitmoDeLaVoz.silencioQueCierraElTurno.inMilliseconds,
       // Sin esto se come el principio de la primera palabra.
       'prefixPaddingMs': 300,
       // La habitación no la despierta: quien habla al Mac está a medio metro

@@ -32,6 +32,30 @@ enum PropositoDelMotor: String {
   case conversar
 }
 
+/// Lo que puede salir mal montando el grafo, dicho en vez de reventado.
+///
+/// 🔴 **Existe porque AVFAudio no lanza errores: tira NSException y termina el
+/// proceso.** Un formato imposible o cambiado a mitad del montaje mataba la app
+/// —«Failed to create tap due to format mismatch»— y lo único que quedaba era el
+/// volcado. Con esto sale por el mismo camino que los demás fallos del motor: un
+/// `FlutterError` que Dart recoge y la app sigue viva.
+enum NexusAudioError: LocalizedError {
+  /// El aparato expuso un formato sin canales o sin ritmo: está cambiando.
+  case formatoSinSentido(String)
+
+  /// El formato del nodo cambió entre montar el grafo e instalar el tap.
+  case formatoQueCambio(String)
+
+  var errorDescription: String? {
+    switch self {
+    case .formatoSinSentido(let detalle):
+      return "el aparato de entrada no tiene un formato usable: \(detalle)"
+    case .formatoQueCambio(let detalle):
+      return "el aparato cambió mientras se montaba el motor: \(detalle)"
+    }
+  }
+}
+
 final class NexusAudioEngine: NSObject, FlutterStreamHandler {
 
   /// Si un motor ya montado sirve para lo que se le pide ahora.
@@ -455,7 +479,19 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       }
     }
 
+    // 🔴 **Un formato sin canales no se monta: se dice y se sale.** Un aparato
+    // en pleno cambio —el agregado del cancelador construyéndose, unos AirPods
+    // conectándose— expone 0 canales por un instante, y con eso se construían
+    // conversores sobre un formato imposible. Lo que llegaba después era la
+    // NSException que mata el proceso; esto lo convierte en un error que Dart ya
+    // sabe recoger.
     let inputFormat = engine.inputNode.outputFormat(forBus: 0)
+    guard inputFormat.channelCount > 0, inputFormat.sampleRate > 0 else {
+      throw NexusAudioError.formatoSinSentido(
+        "la entrada expuso \(inputFormat.channelCount) ch a "
+          + "\(Int(inputFormat.sampleRate)) Hz"
+      )
+    }
     let voiceFormat = AVAudioFormat(
       commonFormat: .pcmFormatFloat32,
       sampleRate: inputFormat.sampleRate > 0 ? inputFormat.sampleRate : 48000,
@@ -485,11 +521,31 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     )!
     captureMonoFormat = monoInput
     captureConverter = AVAudioConverter(from: monoInput, to: captureFormat)
+    // 🔴 **Y el ritmo del hardware de salida, que es el que faltaba.** La cadena
+    // interna se construye con el ritmo de la **entrada**, y cuando la salida va
+    // a otro —44,1 contra 48— lo que se oye es la respuesta en cámara lenta y
+    // entrecortada: reportado de oído dos veces, y sin este número no había
+    // forma de saber cuál de los dos manda. Con los tres en el registro, el
+    // diagnóstico es una línea en vez de una tarde.
+    let salidaHw = engine.outputNode.outputFormat(forBus: 0)
+    // Y por stdout además del registro del sistema: `flutter run` no enseña
+    // OSLog, y estos tres números son justo los que hacen falta cuando alguien
+    // dice «se oye en cámara lenta».
+    #if DEBUG
+      print(
+        "audio · entrada \(Int(inputFormat.sampleRate)) Hz "
+          + "\(inputFormat.channelCount) ch · voz \(Int(voiceFormat.sampleRate)) Hz "
+          + "\(voiceFormat.channelCount) ch · salida \(Int(salidaHw.sampleRate)) Hz "
+          + "\(salidaHw.channelCount) ch"
+      )
+    #endif
     Self.log.info("""
       arranque · entrada \(inputFormat.sampleRate, privacy: .public) Hz \
       \(inputFormat.channelCount, privacy: .public) ch · voz \
       \(voiceFormat.sampleRate, privacy: .public) Hz \
-      \(voiceFormat.channelCount, privacy: .public) ch
+      \(voiceFormat.channelCount, privacy: .public) ch · salida \
+      \(salidaHw.sampleRate, privacy: .public) Hz \
+      \(salidaHw.channelCount, privacy: .public) ch
       """)
 
     // **Se quita cualquier tap antes de poner el nuevo.** AVFAudio exige que no haya
@@ -502,6 +558,29 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     // micrófono provocan avisos de cambio de configuración, y dos solapados dejaban un
     // tap puesto y otro instalándose.
     engine.inputNode.removeTap(onBus: 0)
+
+    // 🔴 **Y el formato se vuelve a leer justo antes de instalar.** Entre leerlo
+    // arriba y llegar aquí se monta el grafo entero, y en ese rato el aparato
+    // puede haber cambiado: instalar el tap con el formato viejo mata la app con
+    // «Failed to create tap due to format mismatch», que es una NSException y no
+    // un error atrapable. Pasó de verdad con el saludo del arranque: un cambio
+    // de configuración, el reinicio del motor fallando con -10875, y el intento
+    // siguiente instalando un tap de 48 kHz sobre un nodo que ya iba a 44,1.
+    //
+    // Si cambió no se instala nada: los conversores de arriba se construyeron
+    // con el formato viejo, así que seguir sería entregar audio al ritmo
+    // equivocado. Se sale con un error, y el aviso de cambio de configuración
+    // que viene detrás vuelve a montarlo todo coherente.
+    let alInstalar = engine.inputNode.outputFormat(forBus: 0)
+    guard alInstalar.sampleRate == inputFormat.sampleRate,
+          alInstalar.channelCount == inputFormat.channelCount
+    else {
+      throw NexusAudioError.formatoQueCambio(
+        "se montó para \(Int(inputFormat.sampleRate)) Hz "
+          + "\(inputFormat.channelCount) ch y al instalar el tap el nodo iba a "
+          + "\(Int(alInstalar.sampleRate)) Hz \(alInstalar.channelCount) ch"
+      )
+    }
     engine.inputNode.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
       self?.deliver(buffer)
     }

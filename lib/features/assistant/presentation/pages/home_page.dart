@@ -15,6 +15,7 @@ import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/repositories/microphone_access.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
+import 'package:nexus/features/assistant/domain/usecases/el_adelanto_de_la_puerta.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_que_saluda.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_sesion_de_puerta.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -537,13 +538,29 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
   /// Así solo se repinta el subtítulo.
   final _dicho = ValueNotifier<String>('');
 
+  /// Si la puerta está diciendo algo ahora mismo.
+  ///
+  /// 🔴 **La barra decía «Escuchando» mientras hablaba**, porque el estado se
+  /// ponía al abrir la puerta y ahí se quedaba: la pantalla contaba lo contrario
+  /// de lo que pasaba durante el saludo entero. Escuchar es lo que hace cuando
+  /// termina la frase.
+  ///
+  /// Un `ValueNotifier` y no `setState`, por lo mismo que el subtítulo: esto
+  /// cambia mientras suena el audio, y repintar la pantalla entera ahí es lo que
+  /// entrecortaba la voz.
+  final _hablandoLaPuerta = ValueNotifier<bool>(false);
+
   /// Lo escrito es el saludo adelantado y todavía no lo ha dicho él.
   ///
   /// 🔴 Se veía dos veces: primero lo pintamos nosotros para que la pantalla no
   /// arranque muda, y después llegaba su propia transcripción diciendo lo
   /// mismo. El adelanto es un marcador de posición, así que **el primer trozo
   /// suyo lo sustituye** en vez de sumarse.
-  var _esUnAdelanto = false;
+  /// El saludo escrito por adelantado, y lo que el servicio ha transcrito de
+  /// verdad. Se guardan los dos porque **cuál se lee es una decisión**, no un
+  /// relevo: ver [ElAdelantoDeLaPuerta].
+  var _adelanto = '';
+  final _loTranscrito = StringBuffer();
 
   @override
   void initState() {
@@ -555,6 +572,7 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
   void dispose() {
     unawaited(_puerta?.cancel());
     _dicho.dispose();
+    _hablandoLaPuerta.dispose();
     super.dispose();
   }
 
@@ -618,13 +636,12 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
       ref.read(losNombresProvider).tuyo,
     );
 
-    setState(() {
-      _estado = _Puerta.abierta;
-      // El saludo se pinta ya, sin esperar a que suene: la transcripción del
-      // servicio tarda lo suyo y una pantalla muda en el arranque se lee como
-      // una app que no arrancó.
-      _esUnAdelanto = true;
-    });
+    setState(() => _estado = _Puerta.abierta);
+    // El saludo se pinta ya, sin esperar a que suene: la transcripción del
+    // servicio tarda lo suyo y una pantalla muda en el arranque se lee como una
+    // app que no arrancó.
+    _adelanto = saludo;
+    _loTranscrito.clear();
     _dicho.value = saludo;
 
     _puerta = ref
@@ -640,6 +657,9 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
       _estado = _Puerta.cerrada;
     });
     _dicho.value = '';
+    _adelanto = '';
+    _hablandoLaPuerta.value = false;
+    _loTranscrito.clear();
   }
 
   void _loQuePasaEnLaPuerta(LoQuePasaEnLaPuerta evento) {
@@ -649,17 +669,25 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
         // Los trozos se pegan tal cual llegan: el servicio ya los manda con sus
         // espacios, y «arreglarlos» aquí parte palabras por la mitad. Y **sin
         // `setState`**: esto pasa mientras suena el audio.
-        if (_esUnAdelanto) {
-          _dicho.value = '';
-          _esUnAdelanto = false;
-        }
-        _dicho.value += texto;
+        _loTranscrito.write(texto);
+        // 🔴 **El adelanto ya no se borra.** Se borraba al llegar el primer
+        // trozo y la misma frase se escribía otra vez desde cero: «está el
+        // texto escrito abajo y después se quita, y ahí sí empieza a hablar».
+        // Y hay un segundo motivo, que lo notó el oído antes que nadie: cada
+        // trozo repintaba el subtítulo mientras sonaba el audio, y con el texto
+        // quieto **la voz no se entrecorta**. Ver [ElAdelantoDeLaPuerta].
+        _dicho.value = ElAdelantoDeLaPuerta.loQueSeVe(
+          adelanto: _adelanto,
+          dicho: _loTranscrito.toString(),
+        );
       case LaPuertaEligio(:final carpeta, :final tarea):
         unawaited(_trabajarEn(carpeta.path, tarea));
       case LaPuertaSeCayo():
         // No se dice el motivo aquí: lo que hace falta es poder seguir, y para
         // eso vuelve la caja de siempre.
         _sinPuerta();
+      case LaPuertaHabla(:final hablando):
+        _hablandoLaPuerta.value = hablando;
       case LaPuertaEstaLista():
         break;
     }
@@ -727,10 +755,22 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
             children: [
               // 🔴 El rótulo decía «dormido» con la puerta abierta y el orbe
               // escuchando: la barra contaba una cosa y la pantalla otra.
-              HudTopBar(
-                status: _puertaAbierta
-                    ? context.strings.listening
-                    : context.strings.asleep,
+              // 🔴 **Y dice «Hablando» mientras habla.** Se quedaba en
+              // «Escuchando» todo el saludo, que es lo contrario de lo que
+              // pasaba: escuchar es lo que hace **al terminar la frase**.
+              //
+              // Por `ValueListenableBuilder` y no con `setState`: esto cambia
+              // mientras suena el audio, y repintar la pantalla entera ahí es lo
+              // que entrecortaba la voz. Solo se rehace la barra.
+              ValueListenableBuilder<bool>(
+                valueListenable: _hablandoLaPuerta,
+                builder: (context, hablando, _) => HudTopBar(
+                  status: switch ((_puertaAbierta, hablando)) {
+                    (true, true) => context.strings.speaking,
+                    (true, false) => context.strings.listening,
+                    (false, _) => context.strings.asleep,
+                  },
+                ),
               ),
               Expanded(
                 child: Stack(
@@ -752,10 +792,19 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                             // Con la puerta abierta el orbe **escucha**, que es
                             // lo que está haciendo: dormido decía lo contrario
                             // de lo que pasaba.
-                            child: NexusOrb(
-                              state: _puertaAbierta
-                                  ? NexusOrbState.listen
-                                  : NexusOrbState.sleep,
+                            // El orbe cuenta lo mismo que el rótulo: hablando
+                            // late con la voz, escuchando abre su malla. Con
+                            // los dos en «escuchando» durante el saludo, la
+                            // pantalla enseñaba una cosa y se oía otra.
+                            child: ValueListenableBuilder<bool>(
+                              valueListenable: _hablandoLaPuerta,
+                              builder: (context, hablando, _) => NexusOrb(
+                                state: switch ((_puertaAbierta, hablando)) {
+                                  (true, true) => NexusOrbState.speak,
+                                  (true, false) => NexusOrbState.listen,
+                                  (false, _) => NexusOrbState.sleep,
+                                },
+                              ),
                             ),
                           ),
                         ),
@@ -796,19 +845,28 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
                           // convierte una frase en un trozo de interfaz.
                           child: ConstrainedBox(
                             constraints: const BoxConstraints(maxHeight: 140),
-                            child: ValueListenableBuilder<String>(
-                              valueListenable: _dicho,
-                              builder: (context, dicho, _) =>
-                                  SingleChildScrollView(
-                                    reverse: true,
-                                    child: Text(
-                                      dicho,
-                                      textAlign: TextAlign.center,
-                                      style: NexusTypography.mono.copyWith(
-                                        color: colors.ink,
+                            // 🔴 **En su propia capa.** El subtítulo cambia
+                            // mientras suena el audio, y sin esta frontera cada
+                            // cambio repinta también el orbe —que es un
+                            // `CustomPaint` animado— en la misma pasada. Se
+                            // notó de oído antes que en ningún perfil: con el
+                            // texto quieto la voz no se entrecortaba, y con él
+                            // moviéndose sí.
+                            child: RepaintBoundary(
+                              child: ValueListenableBuilder<String>(
+                                valueListenable: _dicho,
+                                builder: (context, dicho, _) =>
+                                    SingleChildScrollView(
+                                      reverse: true,
+                                      child: Text(
+                                        dicho,
+                                        textAlign: TextAlign.center,
+                                        style: NexusTypography.mono.copyWith(
+                                          color: colors.ink,
+                                        ),
                                       ),
                                     ),
-                                  ),
+                              ),
                             ),
                           ),
                         ),

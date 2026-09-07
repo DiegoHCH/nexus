@@ -136,6 +136,8 @@ class _Altavoz implements AudioOutput {
 }
 
 void main() {
+  _elPlazoContraElSilencio();
+
   late _Sesion sesion;
   late _Servicio servicio;
   late _Microfono microfono;
@@ -453,5 +455,80 @@ void main() {
     await vueltas();
 
     expect(sesion.enviado, hasLength(2), reason: 'y al callarse, vuelve');
+  });
+
+  // 🔴 **Y en cuanto se sabe la carpeta, el micro se cierra del todo.** Lo único
+  // que falta es que diga su frase, y en la puerta el servicio **sí**
+  // interrumpe —ahí está bien, es como se le corta el saludo—, así que
+  // cualquier ruido de la habitación le pisaba la despedida antes de empezar.
+  // Medido en el registro, dos veces seguidas: «eligió front-mobile-b2c» y tres
+  // segundos después «no dijo nada, se abre igual».
+  test('elegida la carpeta, el micro se cierra hasta que acabe', () async {
+    final sub = abrir().listen((_) {});
+    addTearDown(sub.cancel);
+    await vueltas();
+
+    microfono.habla();
+    await vueltas();
+    final antes = sesion.enviado.length;
+
+    sesion.emite(
+      const VoiceToolRequested(
+        callId: 'c1',
+        name: 'elegirCarpeta',
+        arguments: {'carpeta': 'nexus', 'tarea': ''},
+      ),
+    );
+    await vueltas();
+
+    microfono.habla();
+    microfono.habla();
+    await vueltas();
+
+    expect(
+      sesion.enviado,
+      hasLength(antes),
+      reason:
+          'con la carpeta elegida, lo que suene ya no puede pisarle la frase',
+    );
+  });
+}
+
+/// El plazo para despedirse, contra el reloj del propio servicio.
+///
+/// 🔴 **Reportado dos veces con las mismas palabras**: «abre de una el chat y no
+/// dice lo del mensaje». Y en el registro, la línea que lo confirma: «puerta ·
+/// no dijo nada, se abre igual». La causa no estaba en la puerta sino en la
+/// relación entre dos números que vivían en capas distintas: el servicio da tu
+/// frase por terminada tras **1,2 s de silencio** —lo pone el `setup`— y solo
+/// entonces llama a la función y habla; la puerta esperaba **1,8 s** a que
+/// empezara. O sea que el plazo vencía antes de que pudiera abrir la boca.
+void _elPlazoContraElSilencio() {
+  test('se espera más de lo que el servicio tarda en cerrar tu turno', () {
+    expect(
+      LaSesionDePuerta.plazoParaEmpezar,
+      greaterThan(ElRitmoDeLaVoz.silencioQueCierraElTurno),
+      reason:
+          'con el plazo por debajo del silencio, la carpeta se abre antes de '
+          'que el modelo pueda decir nada — pasó, dos veces',
+    );
+    // Y con margen para decidir y arrancar la voz, no justo por encima: entre
+    // que el turno se cierra y sale la primera sílaba hay una llamada a función
+    // y la respuesta del servicio.
+    expect(
+      LaSesionDePuerta.plazoParaEmpezar -
+          ElRitmoDeLaVoz.silencioQueCierraElTurno,
+      greaterThanOrEqualTo(const Duration(seconds: 1)),
+    );
+  });
+
+  // Y el otro plazo sigue siendo el largo: son dos cosas distintas —no abrir la
+  // boca y no cerrarla— y confundirlos deja la puerta esperando a un servicio
+  // que dejó de contestar.
+  test('y el de mientras habla sigue siendo mayor', () {
+    expect(
+      LaSesionDePuerta.plazoHablando,
+      greaterThan(LaSesionDePuerta.plazoParaEmpezar),
+    );
   });
 }

@@ -28,6 +28,27 @@ abstract final class VoiceSessionFormat {
 /// hubiera pedido por teclado. Se vio en pantalla: «Argonauta, me pidieron que
 /// dijera eso exactamente». Va en la instrucción del setup, que es donde vive
 /// quién es.
+/// Los tiempos del servicio de voz que **otros necesitan saber**.
+///
+/// 🔴 **Existe porque dos números que se tienen que respetar vivían en capas
+/// distintas y se desincronizaron.** El detector de voz del servicio cierra el
+/// turno tras 1,2 s de silencio —lo configura el `setup`, en la capa de datos— y
+/// la puerta del arranque espera «a que empiece a despedirse» antes de abrir la
+/// carpeta. Con el plazo de la puerta más corto que ese silencio, la carpeta se
+/// abría **antes** de que el modelo pudiera abrir la boca: reportado dos veces,
+/// «abre de una el chat y no dice lo del mensaje».
+///
+/// Aquí no se decide nada: se declara el número una vez para que quien tenga que
+/// contar con él lo derive en vez de copiarlo.
+abstract final class ElRitmoDeLaVoz {
+  /// Cuánto silencio hace falta para que el servicio dé tu turno por terminado.
+  ///
+  /// Alargado a propósito respecto a lo de fábrica: una instrucción larga tiene
+  /// pausas naturales —para pensar, para respirar— y con el corte corto el
+  /// servicio se quedaba con media frase y contestaba a eso.
+  static const silencioQueCierraElTurno = Duration(milliseconds: 1200);
+}
+
 sealed class PerfilDeVoz {
   const PerfilDeVoz();
 }

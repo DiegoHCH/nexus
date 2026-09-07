@@ -24,6 +24,19 @@ final class LaPuertaDice extends LoQuePasaEnLaPuerta {
   final String texto;
 }
 
+/// Está diciendo algo, o acabó de decirlo.
+///
+/// 🔴 **Porque la barra decía «Escuchando» mientras hablaba.** El orbe y el
+/// rótulo se ponían en «escuchando» al abrir la puerta y ahí se quedaban, así
+/// que durante el saludo entero la pantalla contaba lo contrario de lo que
+/// pasaba — y quien lo mira aprende a no creerle. Escuchar es lo que hace
+/// **cuando termina la frase**, y eso es justo lo que este evento dice.
+final class LaPuertaHabla extends LoQuePasaEnLaPuerta {
+  const LaPuertaHabla(this.hablando);
+
+  final bool hablando;
+}
+
 /// Ya se sabe dónde: se abre esa conversación y la puerta se cierra.
 final class LaPuertaEligio extends LoQuePasaEnLaPuerta {
   const LaPuertaEligio(this.carpeta, this.tarea);
@@ -85,7 +98,20 @@ class LaSesionDePuerta {
   /// el caso de que no diga nada: llamó a la función y se quedó callado. Ahí
   /// esperar cinco segundos con la carpeta ya elegida se siente como un cuelgue,
   /// así que se abre y punto.
-  static const plazoParaEmpezar = Duration(milliseconds: 1800);
+  ///
+  /// 🔴 **Y se deriva del silencio que cierra el turno, no se elige a mano.**
+  /// Eran 1800 ms fijos, menos de lo que el propio servicio tarda en dar por
+  /// terminada tu frase —1,2 s de silencio, y solo entonces llama a la función y
+  /// habla—. O sea que el plazo vencía **antes** de que pudiera abrir la boca y
+  /// la carpeta se abría en silencio: reportado dos veces con las mismas
+  /// palabras, «abre de una el chat y no dice lo del mensaje». Medido en el
+  /// registro: «puerta · no dijo nada, se abre igual».
+  ///
+  /// Dos segundos por encima de ese silencio: lo que tarda en decidir y arrancar
+  /// la voz. Si el número del servicio cambia, este se mueve con él — que es
+  /// justo lo que no pasaba cuando eran dos constantes en dos capas.
+  static final plazoParaEmpezar =
+      ElRitmoDeLaVoz.silencioQueCierraElTurno + const Duration(seconds: 2);
 
   /// Y cuánto se le deja **mientras habla**, por si no termina nunca.
   ///
@@ -205,6 +231,9 @@ class LaSesionDePuerta {
         // El audio se reproduce y no sale hacia la pantalla; lo que la pantalla
         // necesita es el texto, que llega aparte.
         case VoiceReplyAudio(:final pcm):
+          // Solo en el primer trozo: son decenas por frase y la pantalla no
+          // tiene por qué enterarse de cada uno.
+          if (!hablando) fuera.add(const LaPuertaHabla(true));
           hablando = true;
           _altavoz.enqueue(pcm);
 
@@ -269,6 +298,7 @@ class LaSesionDePuerta {
         // Terminó de hablar: el micro vuelve a contar.
         case VoiceTurnCompleted() when loElegido == null:
           hablando = false;
+          fuera.add(const LaPuertaHabla(false));
 
         // Acabó de despedirse: ahora sí se abre la carpeta y se cierra.
         case VoiceTurnCompleted() when loElegido != null:
@@ -307,6 +337,16 @@ class LaSesionDePuerta {
             // no mandar audio antes de tiempo. Y mientras habla ella tampoco se
             // le manda — ver [hablando].
             if (hablando) return;
+            // 🔴 **Y en cuanto se sabe la carpeta, el micrófono deja de
+            // importar.** Lo único que falta es que diga su frase, y mandarle
+            // audio mientras la prepara es darle motivos para no decirla: en la
+            // puerta el servicio **sí** interrumpe —ahí está bien, es como se
+            // le corta el saludo— así que cualquier ruido de la habitación, o
+            // el final de tu propia frase, le pisaba la despedida antes de
+            // empezar. Medido en el registro: «eligió front-mobile-b2c» y, tres
+            // segundos después, «no dijo nada, se abre igual», dos veces
+            // seguidas y con la transcripción llena de ruido mal oído.
+            if (loElegido != null) return;
             sesion?.sendAudio(frame.pcm);
           });
 
