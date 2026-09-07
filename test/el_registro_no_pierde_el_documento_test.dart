@@ -189,18 +189,56 @@ void main() {
   /// El plazo es largo a propósito. No es lo que tarda: es lo que se tolera
   /// antes de decir que no va a pasar. En una máquina libre esto sale en
   /// milisegundos.
+  /// Espera a la condición, y **si se rinde dice qué estaba viendo**.
+  ///
+  /// 🔴 **Porque esta prueba es la intermitente, y su fallo no distinguía nada.**
+  /// «El documento que dejó el encargo entra en el registro» se cae dentro de la
+  /// suite entera —dos veces en ocho pasadas medidas el 6 de septiembre— y sola
+  /// pasa diez de diez en menos de un segundo. Con «no llegó a pasar en 15 s» a
+  /// secas hay dos causas posibles y ninguna forma de elegir:
+  ///
+  /// - **Hambre de CPU.** Noventa archivos de prueba en paralelo, y este isolate
+  ///   no llega a mirar el disco en quince segundos. Se reconoce porque **no se
+  ///   guardó nada**: `guardados=0`.
+  /// - **La carrera de verdad**, que es justo lo que esta prueba nació para
+  ///   cubrir: se archiva el registro mientras el documento aún se busca. Se
+  ///   reconoce al revés: `guardados=1` con `documento: null`.
+  ///
+  /// Por eso el mensaje lleva **el estado y el tiempo de verdad**, no el plazo:
+  /// subirle el plazo sin saber cuál de las dos es taparía la única señal que
+  /// queda. [loQueSeVe] lo escribe quien llama, que es quien sabe qué mirar.
   Future<void> hastaQue(
     bool Function() pasa, {
     required String esperando,
+    String Function()? loQueSeVe,
     Duration limite = const Duration(seconds: 15),
   }) async {
-    final hasta = DateTime.now().add(limite);
+    final desde = DateTime.now();
+    final hasta = desde.add(limite);
+    var vueltas = 0;
     while (!pasa()) {
       if (DateTime.now().isAfter(hasta)) {
-        fail('no llegó a pasar en ${limite.inSeconds} s: $esperando');
+        final tardo = DateTime.now().difference(desde).inMilliseconds;
+        fail(
+          'no llegó a pasar: $esperando\n'
+          'se rindió tras $tardo ms y $vueltas vueltas de espera\n'
+          'lo que veía al rendirse: ${loQueSeVe?.call() ?? 'nadie lo contó'}',
+        );
       }
+      vueltas++;
       await Future<void>.delayed(const Duration(milliseconds: 10));
     }
+  }
+
+  /// Lo que hay que mirar cuando la del documento se cae: si se guardó algo y
+  /// si el último mensaje del último registro traía el documento.
+  String loGuardado(_AlmacenQueApunta almacen) {
+    if (almacen.guardados.isEmpty) return 'guardados=0 (no se archivó nada)';
+    final ultimo = almacen.guardados.last;
+    final mensaje = ultimo.messages.isEmpty ? null : ultimo.messages.last;
+    return 'guardados=${almacen.guardados.length} · '
+        'mensajes=${ultimo.messages.length} · '
+        'documento=${mensaje?.documento ?? "null"}';
   }
 
   /// Y para lo que hay que comprobar que **no** vuelve a pasar: se espera a que
@@ -261,6 +299,7 @@ void main() {
           todo.almacen.guardados.isNotEmpty &&
           todo.almacen.guardados.last.messages.last.documento != null,
       esperando: 'que el registro guardado traiga el documento',
+      loQueSeVe: () => loGuardado(todo.almacen),
     );
 
     expect(
@@ -301,6 +340,8 @@ void main() {
             (r) => r.messages.any((m) => m.text == strings.compactedUnknown),
           ),
       esperando: 'que el aviso de la compresión llegue al registro guardado',
+      loQueSeVe: () =>
+          '${loGuardado(todo.almacen)} · pedidos=${todo.claude.pedidos}',
     );
 
     expect(todo.claude.pedidos, contains('/compact'));
@@ -324,6 +365,8 @@ void main() {
     await hastaQue(
       () => todo.destino.veces >= 1,
       esperando: 'que se escriba en el destino externo',
+      loQueSeVe: () =>
+          'veces=${todo.destino.veces} · ${loGuardado(todo.almacen)}',
     );
     await yQueNoHayaMas();
 
@@ -356,6 +399,9 @@ void main() {
             .messages
             .any((m) => m.text == strings.compactedUnknown),
         esperando: 'el aviso de la compresión sin medida',
+        loQueSeVe: () =>
+            'en pantalla: '
+            '${todo.container.read(assistantControllerProvider(_id)).messages.map((m) => m.text)}',
       );
 
       var estado = todo.container.read(assistantControllerProvider(_id));
@@ -372,6 +418,9 @@ void main() {
             .messages
             .any((m) => m.text == strings.compacted(90, 30)),
         esperando: 'el aviso completado con la medida del turno siguiente',
+        loQueSeVe: () =>
+            'en pantalla: '
+            '${todo.container.read(assistantControllerProvider(_id)).messages.map((m) => m.text)}',
       );
 
       estado = todo.container.read(assistantControllerProvider(_id));
