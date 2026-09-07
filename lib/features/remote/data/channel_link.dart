@@ -299,10 +299,28 @@ class ChannelLink {
 
   /// Se desconecta **y deja de reintentar**. Lo segundo importa: sin eso, cerrar la
   /// pantalla dejaría un bucle de reconexión vivo gastando radio.
+  ///
+  /// 🔴 **Y despierta la espera en curso, que es la mitad que faltaba.** El bucle
+  /// duerme entre reintentos hasta 30 segundos —el final de la escalera— y
+  /// mientras duerme **tiene el guardia puesto**: apagar la bandera no lo saca de
+  /// ahí, así que la siguiente llamada a [conectar] se encontraba el guardia y
+  /// volvía en silencio sin abrir nada. Salía en desemparejar y emparejar otra
+  /// vez con mala cobertura: media hora de «reconectando» que en realidad era
+  /// medio minuto de nadie intentando nada, sin forma de acelerarlo.
+  ///
+  /// Despertándola, el bucle mira la bandera, ve que ya no se quiere estar
+  /// conectado, sale y suelta el guardia — que es lo que deja volver a intentar.
   Future<void> desconectar() async {
     _quiereEstarConectado = false;
+    _despierta();
     await _tirarSocket();
     _pasarA(LinkState.sinConexion);
+  }
+
+  /// Corta la espera entre reintentos, si hay alguna. Ver [reintentarYa].
+  void _despierta() {
+    final espera = _despertar;
+    if (espera != null && !espera.isCompleted) espera.complete();
   }
 
   Future<void> cerrar() async {
@@ -437,6 +455,11 @@ class ChannelLink {
   var _intentando = false;
 
   Future<void> _intentar({bool desdeCero = false}) async {
+    // Ya hay un bucle: no se abre otro. Y **no se acorta su espera desde aquí**,
+    // aunque la tentación es grande: probado, y lo que consigue es que el bucle
+    // que ya estaba siga adelante con la bandera recién puesta y se coma otro
+    // plazo del saludo entero. Para «inténtalo ya» está [reintentarYa], que es
+    // lo que llama la app al volver del fondo.
     if (_intentando) return;
     _intentando = true;
     var intento = 0;
@@ -522,7 +545,7 @@ class ChannelLink {
   void reintentarYa() {
     if (_cerrado || ahora == LinkState.conectado) return;
     if (_despertar != null && !_despertar!.isCompleted) {
-      _despertar!.complete();
+      _despierta();
       return;
     }
     // Sin espera en curso: o está conectando —y entonces no hay nada que acortar— o
@@ -726,8 +749,25 @@ class ChannelLink {
     final socket = _socket;
     _escucha = null;
     _socket = null;
+    // 🔴 **Y se corta el saludo que estuviera esperando.** Sin esto, tirar el
+    // socket dejaba vivo un `await` de **diez segundos** —el plazo del saludo—
+    // con el guardia puesto: el enlace no estaba reintentando ni conectado, y
+    // ni desconectar ni pedir conexión lo movían. Se ve como «reconectando»
+    // clavado, y es el mismo silencio que ya costó una tarde con los dos
+    // bucles. Medido: cada intento sin saludo cuesta diez segundos de nada.
+    _cortarElSaludo();
     await escucha?.cancel();
     await socket?.close();
+  }
+
+  /// Corta el saludo en vuelo, si lo hay: el `await` de [_saludar] falla ya y
+  /// quien esté en el bucle decide qué hacer con la bandera en la mano.
+  void _cortarElSaludo() {
+    final saludo = _saludo;
+    _saludo = null;
+    if (saludo != null && !saludo.isCompleted) {
+      saludo.completeError(const LinkError(LinkFailure.desconectado));
+    }
   }
 
   void _pasarA(LinkState nuevo) {

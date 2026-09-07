@@ -69,18 +69,27 @@ void main() {
   /// donde vive más de un fallo de este enlace.
   var sinLlegar = false;
 
+  /// Cuántas veces se le ha pedido abrir un socket. **Es la señal de que hubo un
+  /// intento**, que no es lo mismo que un socket abierto: cuando `abrir` falla no
+  /// hay socket, y lo que se quiere comprobar en las pruebas del guardia es
+  /// justo eso — que se intentó otra vez.
+  var intentosDeAbrir = 0;
+
   ChannelLink montar({
     List<Duration>? esperas,
     Future<void> Function(Duration)? dormir,
     String Function()? idNuevo,
+    Duration plazoDelSaludo = const Duration(milliseconds: 200),
   }) {
     abiertos = [];
     sinLlegar = false;
+    intentosDeAbrir = 0;
     socket = _SocketFalso();
     abiertos.add(socket);
     var primera = true;
     return ChannelLink(
       abrir: () async {
+        intentosDeAbrir++;
         if (sinLlegar) throw const ChannelUnreachable();
         if (primera) {
           primera = false;
@@ -91,6 +100,12 @@ void main() {
         return socket;
       },
       appVersion: '0.0.8',
+      // 🔴 **El plazo del saludo, corto.** El de producción son diez segundos, y
+      // una prueba que abre un socket al que nadie contesta la bienvenida los
+      // paga enteros: el archivo pasó de menos de un segundo a dieciséis en
+      // cuanto `desconectar` empezó a soltar el bucle a tiempo. Lo que se mide
+      // aquí es el ciclo, no el plazo — quien mida el plazo lo pasará.
+      plazoDelSaludo: plazoDelSaludo,
       esperas: esperas ?? const [Duration(milliseconds: 1)],
       dormir: dormir,
       idNuevo: idNuevo,
@@ -658,6 +673,72 @@ void main() {
       await Future<void>.delayed(Duration.zero);
 
       expect(abiertos.length, greaterThan(antes));
+    });
+
+    // 🔴 **La espera entre reintentos llega a treinta segundos, y mientras duerme
+    // tiene el guardia puesto.** Apagar la bandera no la saca de ahí: el
+    // siguiente `conectar` se encontraba el guardia y volvía en silencio sin
+    // abrir nada. Sale en desemparejar y volver a emparejar con mala cobertura —
+    // medio minuto de «reconectando» que era medio minuto de nadie intentando
+    // nada, y sin forma de acelerarlo.
+    test('desconectar corta la espera y suelta el bucle', () async {
+      // Una espera que **no acaba sola**: si el arreglo no estuviera, esto no
+      // vuelve nunca. Es lo que convierte el plazo de `hastaQue` en la
+      // afirmación, y no en un reloj de adorno.
+      enlace = montar(dormir: (_) => Completer<void>().future);
+      sinLlegar = true;
+      unawaited(enlace.conectar());
+      await hastaQue(
+        () => enlace.ahora == LinkState.noSeLlega,
+        esperando: 'que el primer intento falle y se ponga a esperar',
+        loQueSeVe: () => 'estado=${enlace.ahora}',
+      );
+
+      await enlace.desconectar();
+      sinLlegar = false;
+      final antes = intentosDeAbrir;
+
+      unawaited(enlace.conectar());
+      await hastaQue(
+        () => intentosDeAbrir > antes,
+        esperando:
+            'que se intente de nuevo sin esperar a que venza la escalera',
+        loQueSeVe: () =>
+            'intentos=$intentosDeAbrir (antes $antes) · estado=${enlace.ahora}',
+        limite: const Duration(seconds: 2),
+      );
+
+      expect(intentosDeAbrir, greaterThan(antes));
+    });
+
+    // 🔴 **Y el saludo sin contestar también tenía el guardia puesto.** Diez
+    // segundos de plazo en los que el enlace no está conectado ni reintentando,
+    // y ni desconectar lo movía: tirar el socket dejaba vivo el `await`. Con el
+    // plazo largo a propósito, si no se cortara, el socket nuevo no llegaría
+    // dentro de los dos segundos que se le dan aquí.
+    test('desconectar corta el saludo que nadie contestó', () async {
+      enlace = montar(plazoDelSaludo: const Duration(seconds: 30));
+      unawaited(enlace.conectar());
+      await hastaQue(
+        () => abiertos.isNotEmpty,
+        esperando: 'que el primer socket se abra y quede esperando bienvenida',
+        loQueSeVe: () => 'abiertos=${abiertos.length} · estado=${enlace.ahora}',
+      );
+
+      await enlace.desconectar();
+      expect(enlace.ahora, LinkState.sinConexion);
+      final antes = intentosDeAbrir;
+
+      unawaited(enlace.conectar());
+      await hastaQue(
+        () => intentosDeAbrir > antes,
+        esperando: 'que se pueda volver a intentar sin esperar el plazo entero',
+        loQueSeVe: () =>
+            'intentos=$intentosDeAbrir (antes $antes) · estado=${enlace.ahora}',
+        limite: const Duration(seconds: 2),
+      );
+
+      expect(intentosDeAbrir, greaterThan(antes));
     });
 
     test('despues de conectar se puede volver a intentar', () async {
