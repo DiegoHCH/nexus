@@ -29,6 +29,7 @@ Corrida _corrida({
   String? appId = 'abc',
   String? progreso,
   int? consola,
+  int errores = 0,
 }) => Corrida(
   deviceId: _deviceId,
   dispositivo: 'Medium Phone API 36.1',
@@ -39,6 +40,7 @@ Corrida _corrida({
   appId: appId,
   progreso: progreso,
   consola: consola,
+  errores: errores,
 );
 
 class _Corridas extends CorridasController {
@@ -141,6 +143,44 @@ void main() {
       listen: false,
     );
   }
+
+  // 🔴 **El aviso que faltaba, y de dónde sale.** Lo reportado no fue «falta
+  // una línea en el registro», fue que el error **no saltó** al correr la app
+  // desde Nexus, y sí desde VS Code. El registro es una ventana que se abre a
+  // mano: un error que solo vive ahí es un error que nadie mira.
+  group('los errores de la app se ven sin abrir nada', () {
+    testWidgets('con errores, se dice cuántos', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida(errores: 3)});
+
+      expect(find.text('3'), findsOneWidget);
+      expect(find.byTooltip(strings.runAppErrors(3)), findsOneWidget);
+    });
+
+    // Un aviso que está siempre puesto no avisa de nada.
+    testWidgets('sin errores no ocupa sitio', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida()});
+
+      expect(find.byIcon(Icons.error_outline), findsNothing);
+    });
+
+    testWidgets('y pulsarlo abre el registro de esa corrida', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida(errores: 1)});
+
+      await tester.tap(find.byIcon(Icons.error_outline));
+      await tester.pumpAndSettle();
+
+      expect(pintor.paginas, contains('registro-emulator-5554'));
+    });
+
+    // Con la app rompiéndose en cada fotograma esto llega a los miles, y el
+    // número entero ensancha la fila hasta empujar los botones fuera.
+    testWidgets('mil errores no ensanchan la fila', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida(errores: 4212)});
+
+      expect(find.text('999+'), findsOneWidget);
+      expect(tester.takeException(), isNull, reason: 'desbordó');
+    });
+  });
 
   testWidgets('sin nada corriendo no hay botonera', (tester) async {
     await montar(tester);

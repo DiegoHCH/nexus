@@ -87,6 +87,10 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       onEvento: (evento) => _aplica(deviceId, evento),
       onRegistro: (linea) {
         ref.read(registrosProvider.notifier).anota(deviceId, linea);
+        // Los errores que **sí** salen por stdout —la excepción asíncrona sin
+        // dueño— también cuentan: son de la app igual que los del framework, y
+        // hasta ahora se leían en gris entre las líneas de Gradle.
+        _sumaErrores(deviceId, ElErrorQuePintaLaApp.cuantosErrores(linea));
         unawaited(consola.alVerLaLinea(deviceId, linea));
       },
       onFin: (motivo) => _termina(deviceId, motivo),
@@ -115,6 +119,11 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
 
     final resultados = <String, ({bool ok, String? error})>{};
     for (final id in destinos) {
+      // La cuenta se pone a cero **al pedir la recarga**, igual que hace el
+      // framework con su `errorsSinceReload`: lo que dice el número es si lo
+      // que tienes delante está roto, no cuántas veces lo estuvo. Antes de
+      // esperar el resultado, que es cuando se ve el cambio en la fila.
+      _cambia(id, (c) => c.copyWith(errores: 0));
       resultados[id] = await _vivas[id]!.recargar(completa: completa);
     }
     return resultados;
@@ -213,7 +222,12 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     final registros = ref.read(registrosProvider.notifier);
     final canal = await ElCanalDelVmService.abrir(
       url,
-      alOirUnError: (error) => registros.anota(deviceId, error),
+      alOirUnError: (error) {
+        registros.anota(deviceId, error);
+        // Uno por evento, no por línea: el bloque del framework son treinta
+        // líneas de un solo error.
+        _sumaErrores(deviceId, 1);
+      },
     );
     if (canal == null) return;
     // Si la corrida se murió mientras se conectaba, este socket ya no es de
@@ -223,6 +237,11 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       return;
     }
     _oidos[deviceId] = canal;
+  }
+
+  void _sumaErrores(String deviceId, int cuantos) {
+    if (cuantos <= 0) return;
+    _cambia(deviceId, (c) => c.copyWith(errores: c.errores + cuantos));
   }
 
   void _cambia(String deviceId, Corrida Function(Corrida) como) {

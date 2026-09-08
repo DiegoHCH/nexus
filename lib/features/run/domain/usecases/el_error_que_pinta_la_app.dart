@@ -105,6 +105,17 @@ abstract final class ElErrorQuePintaLaApp {
     return texto.trimRight();
   }
 
+  /// Cuántos errores hay en este trozo de registro.
+  ///
+  /// **Por líneas y no por trozo**, porque lo que llega no viene en líneas: el
+  /// stdout de un proceso llega en pedazos del tamaño que decida el sistema, y
+  /// dos errores pueden venir pegados. Y de un bloque de varias líneas solo su
+  /// **primera** se lee como error —la de `EXCEPTION CAUGHT BY`, la de
+  /// `[ERROR:…`—, así que las de la traza no vuelven a contar: si contaran, un
+  /// solo fallo con veinte líneas de pila se anunciaría como veinte.
+  static int cuantosErrores(String trozo) =>
+      trozo.split('\n').where(pintaMal).length;
+
   /// Si esta línea del registro se lee como un error.
   ///
   /// Sirve para pintarla, y por eso no distingue de dónde vino: valen las tres

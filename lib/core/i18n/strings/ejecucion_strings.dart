@@ -47,6 +47,13 @@ mixin EjecucionStrings {
   String get nivelSoloFatales;
   String get runAuto;
 
+  /// Los errores que ha dado la app, para el aviso que se ve sin abrir nada.
+  ///
+  /// Con parámetro porque el número **es** el mensaje: «1 error» y «14 errores»
+  /// se leen distinto, y saber que son catorce es la diferencia entre mirar
+  /// ahora y mirar luego.
+  String runAppErrors(int cuantos);
+
   /// La consola de depuración que la app levanta ella misma. **No** es la de
   /// Nexus ni una nuestra: es la de la app que está corriendo.
   String get runConsole;
@@ -124,6 +131,10 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
+  String runAppErrors(int cuantos) => cuantos == 1
+      ? '1 error de la app desde la última recarga · abre el registro'
+      : '$cuantos errores de la app desde la última recarga · abre el registro';
+  @override
   String get runToolbarDrag => 'Corriendo';
   @override
   String get runConsole => 'Consola de la app';
@@ -197,6 +208,10 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String get nivelSoloFatales => 'fatal only';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
+  @override
+  String runAppErrors(int cuantos) => cuantos == 1
+      ? '1 app error since the last reload · open the log'
+      : '$cuantos app errors since the last reload · open the log';
   @override
   String get runToolbarDrag => 'Running';
   @override

@@ -108,6 +108,44 @@ void main() {
     });
   });
 
+  group('cuántos errores trae un trozo de registro', () {
+    // 🔴 **De un bloque cuenta su primera línea y nada más.** Un fallo con
+    // veinte líneas de pila se anunciaría como veinte errores, y un número que
+    // exagera se deja de creer igual que uno que se calla.
+    test('un bloque con su traza es un error, no veinte', () {
+      const bloque = '''
+[ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled Exception: Bad state: x
+#0      Culpable.build (package:rojo/main.dart:12:21)
+#1      Timer._createTimer (dart:async-patch/timer_patch.dart:18:15)
+#2      _Timer._runTimers (dart:isolate-patch/timer_impl.dart:423:19)
+''';
+
+      expect(ElErrorQuePintaLaApp.cuantosErrores(bloque), 1);
+    });
+
+    // Y llegan pegados, porque el stdout de un proceso no viene en líneas: se
+    // parte en pedazos del tamaño que decida el sistema.
+    test('dos pegados en el mismo trozo son dos', () {
+      expect(
+        ElErrorQuePintaLaApp.cuantosErrores(
+          '[ERROR:flutter/x.cc(1)] Unhandled Exception: uno\n'
+          'flutter: algo por medio\n'
+          'Another exception was thrown: dos',
+        ),
+        2,
+      );
+    });
+
+    test('y un trozo sin errores no suma nada', () {
+      expect(
+        ElErrorQuePintaLaApp.cuantosErrores(
+          'flutter: el print de la app\n✓ Built rojo.app',
+        ),
+        0,
+      );
+    });
+  });
+
   group('por dónde se puede oír', () {
     test('por el socket del depurador, sí', () {
       expect(
