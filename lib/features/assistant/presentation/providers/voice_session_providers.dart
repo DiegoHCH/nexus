@@ -44,11 +44,12 @@ final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
 /// Los tres se esperan **a la vez**, no en fila: son tres lecturas
 /// independientes del mismo disco.
 final losAjustesQueSuenanProvider = Provider<Future<void> Function()>(
-  (ref) => () => Future.wait([
-    ref.read(voicePreferenceProvider.notifier).leida,
-    ref.read(elAcentoProvider.notifier).leido,
-    ref.read(losNombresProvider.notifier).leidos,
-  ]),
+  (ref) =>
+      () => Future.wait([
+        ref.read(voicePreferenceProvider.notifier).leida,
+        ref.read(elAcentoProvider.notifier).leido,
+        ref.read(losNombresProvider.notifier).leidos,
+      ]),
 );
 
 final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
