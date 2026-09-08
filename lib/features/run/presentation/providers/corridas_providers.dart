@@ -5,9 +5,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/run/data/datasources/corrida_viva.dart';
+import 'package:nexus/features/run/data/datasources/el_canal_del_vm_service.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/entities/mensaje_del_daemon.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
+import 'package:nexus/features/run/domain/usecases/el_error_que_pinta_la_app.dart';
 import 'package:nexus/features/run/domain/usecases/estado_de_la_corrida.dart';
 import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
 
@@ -24,6 +26,10 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
   /// mapa. Fuera del estado a propósito: es contabilidad del protocolo y no algo
   /// que la pantalla tenga que mirar.
   final _progresos = <String, Map<String, ProgresoDelDaemon>>{};
+
+  /// El oído puesto en los errores de cada app, cuando ya dijo por dónde
+  /// escucharla. Uno por corrida, y se cierra con ella.
+  final _oidos = <String, ElCanalDelVmService>{};
 
   @override
   Map<String, Corrida> build() => const {};
@@ -188,6 +194,35 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     }
     _progresos[deviceId] = resultado.progresos;
     state = {...state, deviceId: resultado.corrida};
+
+    // 🔴 **El sitio donde se engancha el oído.** La corrida acaba de decir por
+    // dónde se le puede hablar —`app.debugPort` trae el `wsUri`— y es la única
+    // vez que lo dice. Sin esto, los errores del framework no llegan a ninguna
+    // parte: en modo máquina `flutter run` no los imprime, porque da por hecho
+    // que quien escucha es un IDE. Ver [ElErrorQuePintaLaApp].
+    final url = resultado.corrida.url;
+    if (ElErrorQuePintaLaApp.sePuedeOir(url) && !_oidos.containsKey(deviceId)) {
+      unawaited(_escuchaErrores(deviceId, url!));
+    }
+  }
+
+  Future<void> _escuchaErrores(String deviceId, String url) async {
+    // Se reserva el sitio antes de conectar: el evento puede llegar dos veces
+    // —`app.debugPort` y `app.webLaunchUrl` cuentan lo mismo— y dos sockets al
+    // mismo VM service enseñarían cada error por duplicado.
+    final registros = ref.read(registrosProvider.notifier);
+    final canal = await ElCanalDelVmService.abrir(
+      url,
+      alOirUnError: (error) => registros.anota(deviceId, error),
+    );
+    if (canal == null) return;
+    // Si la corrida se murió mientras se conectaba, este socket ya no es de
+    // nadie: se cierra en vez de quedarse abierto contra una app que no está.
+    if (!state.containsKey(deviceId)) {
+      unawaited(canal.cerrar());
+      return;
+    }
+    _oidos[deviceId] = canal;
   }
 
   void _cambia(String deviceId, Corrida Function(Corrida) como) {
@@ -201,6 +236,9 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
     // tirarlo justo al caerse es quitarle la prueba a quien va a mirarla.
     _vivas.remove(deviceId);
     _progresos.remove(deviceId);
+    // El oído también se va con la corrida: un socket abierto contra un VM
+    // service que ya no existe es un descriptor suelto por cada app que se para.
+    if (_oidos.remove(deviceId) case final oido?) unawaited(oido.cerrar());
     // El túnel se va con la corrida: sin app al otro lado no lleva a ninguna
     // parte, y uno huérfano por corrida se acumula en el daemon de `adb`.
     unawaited(ref.read(laConsolaQueSeAbreProvider).alTerminar(deviceId));
