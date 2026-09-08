@@ -101,6 +101,25 @@ void main() {
     );
   });
 
+  // 🔴 **Y un error de la app se lee como un error.** Aquí todo se pintaba del
+  // mismo gris: el registro del sistema separa por nivel porque el teléfono lo
+  // trae hecho, y este no tenía de dónde sacarlo. Nace del reporte de que un
+  // error en debug «no saltaba» desde Nexus — la mitad del arreglo es que
+  // llegue, y la otra que se vea.
+  test('un error de la app se pinta de rojo, y una línea normal no', () async {
+    await ventanas().abre(_corrida, sistema: false);
+    anota('Another exception was thrown: Bad state: el fallo pintando');
+    anota('flutter: el print de la app');
+    await alRitmo();
+
+    expect(pintor.ultima, contains('class="l error"'));
+    expect(
+      pintor.ultima.split('\n').where((l) => l.contains('class="l error"')),
+      hasLength(1),
+      reason: 'un registro todo rojo no señala nada',
+    );
+  });
+
   // 🔴 **Gradle escupe a ráfagas**, y escribir el archivo por cada línea es
   // machacar el disco y pedirle al visor una recarga por línea.
   test('una ráfaga se escribe una sola vez', () async {

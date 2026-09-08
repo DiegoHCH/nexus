@@ -335,6 +335,16 @@ class _Corrida extends ConsumerWidget {
               ],
             ),
           ),
+          // 🔴 **El aviso que faltaba.** Lo reportado no fue «falta una línea
+          // en el registro», fue que el error **no saltó**: el registro es una
+          // ventana que se abre a mano, y lo que no se anuncia no se mira. Esto
+          // se ve sin abrir nada, dice cuántos son y lleva al registro de un
+          // toque. Solo cuando hay: un aviso que está siempre puesto no avisa.
+          if (corrida.errores > 0)
+            _ElAviso(
+              cuantos: corrida.errores,
+              onPulsar: () => registros.abre(corrida, sistema: false),
+            ),
           if (corrida.puedeRecargar) ...[
             BotonMini(
               icono: Icons.refresh,
@@ -390,6 +400,52 @@ class _Corrida extends ConsumerWidget {
               onPulsar: () => controller.parar(corrida.deviceId),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Los errores de la app, a la vista y con su número.
+///
+/// **Número y no un punto rojo**, porque el número es el mensaje: uno se mira
+/// luego y catorce se miran ahora. Y en rojo, como el botón de parar: es el
+/// mismo rojo del registro, así que lo que se ve aquí y lo que se lee allí se
+/// reconocen como lo mismo.
+class _ElAviso extends StatelessWidget {
+  const _ElAviso({required this.cuantos, required this.onPulsar});
+
+  final int cuantos;
+  final VoidCallback onPulsar;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Tooltip(
+      message: strings.runAppErrors(cuantos),
+      child: InkWell(
+        onTap: onPulsar,
+        borderRadius: BorderRadius.circular(NexusRadius.sm),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: NexusSpacing.s2,
+            vertical: 2,
+          ),
+          child: Row(
+            children: [
+              Icon(Icons.error_outline, size: 14, color: colors.err),
+              const SizedBox(width: 3),
+              Text(
+                // Tres dígitos como tope: con la app rompiéndose en cada
+                // fotograma esto llega a los miles, y el número entero
+                // ensancharía la fila hasta empujar los botones fuera.
+                cuantos > 999 ? '999+' : '$cuantos',
+                style: NexusTypography.label.copyWith(color: colors.err),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

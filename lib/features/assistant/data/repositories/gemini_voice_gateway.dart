@@ -33,6 +33,7 @@ class GeminiVoiceGateway implements VoiceGateway {
     this._readLanguage,
     this._readNames,
     this._readAgentName,
+    this._ajustesYaLeidos,
   );
 
   /// La llave se pide en el momento de conectar, no se guarda aquí: así una
@@ -67,6 +68,23 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// vuelta de un texto que se escribió para un modelo es adivinar, no saber.
   final String? Function() _readAgentName;
 
+  /// Cuando lo que se elige en Ajustes **ya salió del disco**.
+  ///
+  /// 🔴 **Porque el timbre se fija en el `setup` y no se renegocia.** Los
+  /// ajustes de la voz nacen en su valor de fábrica y se leen del disco un
+  /// instante después de arrancar, así que una sesión abierta pronto se
+  /// construía con la voz que nadie eligió — y ahí se queda hasta que la
+  /// conversación se cierre: reportado de oído, «en ocasiones responde con otra
+  /// voz y no con la que tengo configurada».
+  ///
+  /// La espera vive **aquí** y no en quien conecta a propósito. Eran tres
+  /// puertas —la conversación, la puerta del arranque y el aviso de agenda— y
+  /// solo una esperaba; con la espera en el sitio por donde pasan las tres, una
+  /// cuarta no puede nacer olvidándola. Y lo que se espera son todos los
+  /// ajustes que suenan, no solo la voz: el acento y los nombres tenían el
+  /// mismo agujero, y el acento ni siquiera se podía esperar.
+  final Future<void> Function() _ajustesYaLeidos;
+
   final GeminiLiveDataSource _dataSource;
 
   /// Lo último que el servicio dio para poder reengancharse. Vive aquí —y no
@@ -95,22 +113,32 @@ class GeminiVoiceGateway implements VoiceGateway {
   Future<VoiceSession> _open({
     PerfilDeVoz perfil = const ComoUnaConversacion(),
   }) async {
+    await _ajustesYaLeidos();
     final apiKey = await _readApiKey();
     if (apiKey == null || apiKey.isEmpty) {
       throw StateError('No hay llave de Gemini guardada.');
     }
 
-    final connection = await _dataSource.open(
-      apiKey: apiKey,
-      setup: _buildSetup(perfil),
-    );
+    final setup = elSetupDe(perfil);
+    // El timbre, dicho en el registro. «Contestó con otra voz» no se puede
+    // perseguir sin saber con cuál abrió cada sesión, y es un dato de una
+    // palabra.
+    debugPrint('voz · timbre ${_readVoiceName()}');
+    final connection = await _dataSource.open(apiKey: apiKey, setup: setup);
     return _GeminiVoiceSession(
       connection,
       onResumptionHandle: (handle) => _resumptionHandle = handle,
     );
   }
 
-  Map<String, dynamic> _buildSetup(PerfilDeVoz perfil) => {
+  /// El `setup` completo de una sesión, tal como sale al socket.
+  ///
+  /// Visible para poder comprobarlo: construir el gateway no abre nada —el
+  /// socket se abre al conectar—, así que esto sí se puede leer en una prueba,
+  /// y **que la voz elegida llegue al sitio donde el servicio la lee** no
+  /// estaba comprobado en ninguna parte.
+  @visibleForTesting
+  Map<String, dynamic> elSetupDe(PerfilDeVoz perfil) => {
     ..._setupCon(perfil),
     // `speechConfig` va **dentro de `generationConfig`**, no en la raíz del
     // setup: ahí el servicio corta la conexión con un 1007 «Unknown name

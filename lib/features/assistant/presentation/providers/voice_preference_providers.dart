@@ -66,6 +66,18 @@ final voicePreferenceProvider =
 /// dos valen desde la siguiente sesión; se dice aquí para que nadie asuma que
 /// comparten el motivo.
 class ElAcentoController extends Notifier<ElAcento> {
+  final _leido = Completer<void>();
+
+  /// Cuando el acento elegido ya se ha leído del disco.
+  ///
+  /// 🔴 **Faltaba, y era el único de los tres que no se podía esperar.** El
+  /// acento viaja en la instrucción del sistema, que se compone al conectar:
+  /// una sesión abierta antes de esta lectura habla con el acento de fábrica
+  /// hasta que se cierre. La voz y los nombres ya tenían su espera —y la voz la
+  /// estrenó saludando con un timbre que nadie eligió—; este llegaba al mismo
+  /// agujero sin forma de taparlo.
+  Future<void> get leido => _leido.future;
+
   @override
   ElAcento build() {
     unawaited(_load());
@@ -73,6 +85,16 @@ class ElAcentoController extends Notifier<ElAcento> {
   }
 
   Future<void> _load() async {
+    try {
+      await _leerlo();
+    } finally {
+      // Pase lo que pase, igual que la voz: quien espera tiene que poder
+      // seguir, aunque sea con el acento de fábrica.
+      if (!_leido.isCompleted) _leido.complete();
+    }
+  }
+
+  Future<void> _leerlo() async {
     final saved = await ref
         .read(voicePreferencesDataSourceProvider)
         .readAccent();
