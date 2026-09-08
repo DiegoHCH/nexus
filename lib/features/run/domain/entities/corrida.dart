@@ -30,6 +30,7 @@ class Corrida {
     this.url,
     this.error,
     this.consola,
+    this.errores = 0,
   });
 
   /// El `-d` con el que se lanzó. **Es la clave de todo**: una corrida por
@@ -68,6 +69,19 @@ class Corrida {
 
   final String? error;
 
+  /// Cuántos errores ha dado **la app** desde la última recarga.
+  ///
+  /// 🔴 **Está en el estado porque tiene que verse sin abrir nada.** El reporte
+  /// que trajo todo esto no fue «falta una línea en el registro», fue «el error
+  /// **no saltó**»: el registro es una ventana que se abre a mano, y un error que
+  /// solo está ahí es un error que nadie mira. Con esto la fila de la corrida
+  /// puede decirlo sola.
+  ///
+  /// **Desde la última recarga**, y no en total, por lo mismo que hace el
+  /// framework con su `errorsSinceReload`: lo que importa es si lo que tienes
+  /// delante está roto, no cuántas veces se rompió antes de arreglarlo.
+  final int errores;
+
   bool get puedeRecargar =>
       appId != null && estado == EstadoDeCorrida.corriendo;
 
@@ -79,6 +93,7 @@ class Corrida {
     String? url,
     String? error,
     int? consola,
+    int? errores,
   }) => Corrida(
     deviceId: deviceId,
     dispositivo: dispositivo,
@@ -91,6 +106,7 @@ class Corrida {
     url: url ?? this.url,
     error: error ?? this.error,
     consola: consola ?? this.consola,
+    errores: errores ?? this.errores,
   );
 }
 

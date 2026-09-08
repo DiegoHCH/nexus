@@ -8,6 +8,7 @@ import 'package:nexus/core/platform/ventana_del_visor.dart';
 import 'package:nexus/features/emulators/domain/entities/linea_de_registro.dart';
 import 'package:nexus/features/emulators/presentation/providers/registro_del_sistema_providers.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
+import 'package:nexus/features/run/domain/usecases/el_error_que_pinta_la_app.dart';
 import 'package:nexus/features/run/domain/usecases/el_registro_como_html.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:path_provider/path_provider.dart';
@@ -219,7 +220,20 @@ class LasVentanasDelRegistro extends Notifier<Set<String>> {
     final lineas = ref.read(registrosProvider)[corrida.deviceId] ?? const [];
     return ElRegistroComoHtml.escribe(
       viva: viva,
-      lineas: [for (final linea in lineas) LineaDeLaVentana(linea)],
+      // 🔴 **Aquí todo se pintaba del mismo gris**, y por eso un error de la app
+      // se leía igual que una línea de Gradle: el registro del sistema sí
+      // separaba por nivel —lo trae el teléfono hecho— y este no tenía de dónde
+      // sacarlo. Ahora lo dice el texto, que es lo único que hay. Ver
+      // [ElErrorQuePintaLaApp.pintaMal].
+      lineas: [
+        for (final linea in lineas)
+          LineaDeLaVentana(
+            linea,
+            tono: ElErrorQuePintaLaApp.pintaMal(linea)
+                ? TonoDeLinea.error
+                : TonoDeLinea.normal,
+          ),
+      ],
       textos: TextosDelRegistro(
         titulo: s.runLogs,
         dispositivo: '${corrida.configuracion} · ${corrida.dispositivo}',
