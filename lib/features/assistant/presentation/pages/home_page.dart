@@ -19,7 +19,6 @@ import 'package:nexus/features/assistant/domain/usecases/el_adelanto_de_la_puert
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_que_saluda.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_sesion_de_puerta.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
-import 'package:nexus/features/assistant/presentation/providers/voice_preference_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/widgets/activity_button.dart';
@@ -623,9 +622,10 @@ class _FirstRunState extends ConsumerState<_FirstRun> {
     // esta frase se dice **una vez** y no hay segunda oportunidad para meter tu
     // nombre. Ver `LosNombresController.leidos`.
     await ref.read(losNombresProvider.notifier).leidos;
-    // Y la voz elegida, por lo mismo: la puerta conecta sola en el arranque y
-    // saludaba con la voz de fábrica en vez de con la que elegiste.
-    await ref.read(voicePreferenceProvider.notifier).leida;
+    // La voz elegida ya no se espera aquí: la espera de todo lo que suena vive
+    // en el gateway —`losAjustesQueSuenanProvider`—, que es por donde pasan las
+    // tres puertas. Aquí se espera lo que hace falta para **esta** frase, que
+    // se pinta antes de sonar.
     if (!mounted) return;
 
     // 🔴 **Del ámbito del widget, no del proveedor.** Los dos existen y pueden

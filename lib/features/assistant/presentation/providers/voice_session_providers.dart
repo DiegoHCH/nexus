@@ -30,6 +30,28 @@ final geminiLiveDataSourceProvider = Provider<GeminiLiveDataSource>(
 /// La llave la pone onboarding, que es quien la guardó. El puente entre las
 /// dos features se hace aquí, en el cableado, y no dentro del gateway: así
 /// `assistant` no depende de `onboarding` más que en este punto.
+/// Cuando los ajustes que **suenan** ya salieron del disco: la voz, el acento y
+/// los nombres.
+///
+/// 🔴 **Existe porque los tres nacen en su valor de fábrica** y se leen un
+/// instante después de arrancar. El timbre se fija en el `setup` del socket y no
+/// se renegocia, así que una sesión abierta en ese hueco habla con la voz de
+/// fábrica hasta que se cierre — reportado de oído, «en ocasiones responde con
+/// otra voz». Se compone aquí, en el cableado, y lo espera el gateway: por ahí
+/// pasan las tres puertas —conversación, puerta del arranque y aviso de
+/// agenda— y antes solo una de las tres esperaba.
+///
+/// Los tres se esperan **a la vez**, no en fila: son tres lecturas
+/// independientes del mismo disco.
+final losAjustesQueSuenanProvider = Provider<Future<void> Function()>(
+  (ref) =>
+      () => Future.wait([
+        ref.read(voicePreferenceProvider.notifier).leida,
+        ref.read(elAcentoProvider.notifier).leido,
+        ref.read(losNombresProvider.notifier).leidos,
+      ]),
+);
+
 final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
   final keyStore = ref.watch(geminiKeyStoreProvider);
   return GeminiVoiceGateway(
@@ -44,6 +66,7 @@ final voiceGatewayProvider = Provider<VoiceGateway>((ref) {
         .conElIdioma(ref.read(stringsProvider).languageName),
     () => ref.read(losNombresProvider).paraElPrompt(),
     () => ref.read(losNombresProvider).agente,
+    ref.watch(losAjustesQueSuenanProvider),
   );
 });
 
