@@ -4,6 +4,8 @@ import 'dart:io';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/i18n/language_preference.dart';
+import 'package:nexus/features/artifacts/data/datasources/artifacts_data_source.dart';
+import 'package:nexus/features/artifacts/domain/entities/artifact.dart';
 import 'package:nexus/features/artifacts/domain/repositories/gemini_image_key_store.dart';
 import 'package:nexus/features/artifacts/presentation/providers/artifacts_providers.dart';
 import 'package:nexus/features/assistant/domain/entities/claude_event.dart';
@@ -53,8 +55,42 @@ const _contextoComprimido = 60000;
 /// Lo de escribirlo desde aquí no es adorno: el documento se detecta comparando
 /// la carpeta antes y después del encargo, así que para medir la carrera tiene
 /// que aparecer justo en medio, como aparece de verdad.
+/// El cajón de documentos de verdad, pero **avisando de la primera mirada**.
+///
+/// 🔴 **Es lo que quita la intermitente de esta prueba.** El doble de Claude
+/// escribía el documento tras esperar **200 ms de reloj**, apostando a que la
+/// foto de «antes» —dos llamadas a git— ya hubiera pasado. Dentro de la suite
+/// entera, con noventa archivos a la vez, esos 200 ms no son tiempo: son una
+/// apuesta. Cuando la perdía, el documento salía en las dos listas, no contaba
+/// como nuevo y el registro se guardaba con `documento: null` — el síntoma
+/// exacto que se midió: «guardados=2 · mensajes=2 · documento=null».
+///
+/// Es la misma regla que este repo ya escribió dos veces: **un reloj fijo solo
+/// vale para comprobar que algo NO vuelve a pasar**. Para esperar a que algo
+/// ocurra hay que esperar a que ocurra.
+class _Artefactos extends ArtifactsDataSource {
+  const _Artefactos(this._yaMiro);
+
+  final Completer<void> _yaMiro;
+
+  @override
+  Future<List<Artifact>> list(
+    String directory, {
+    Set<String> cuentas = const {},
+  }) async {
+    final lista = await super.list(directory, cuentas: cuentas);
+    if (!_yaMiro.isCompleted) _yaMiro.complete();
+    return lista;
+  }
+}
+
 class _Claude implements AskClaude {
-  _Claude({required this.contextos, this.documento});
+  _Claude({required this.contextos, this.documento, Completer<void>? yaMiro})
+    : yaMiro = yaMiro ?? Completer<void>();
+
+  /// Se cumple cuando la foto de «antes» ya se tomó. Escribir el documento
+  /// antes de eso lo dejaría en las dos listas y no contaría como nuevo.
+  final Completer<void> yaMiro;
 
   /// Un contexto por llamada, en orden. `null` = el turno no reporta medida,
   /// que es lo que hace `/compact` a menudo y el motivo del mensaje sin número.
@@ -78,12 +114,12 @@ class _Claude implements AskClaude {
     pedidos.add(instruction);
 
     if (vuelta == 0 && documento != null) {
-      // **Con espera de reloj y no de microtask.** La foto de «antes» la toma
-      // `_markRepo()`, que va suelto al arrancar el encargo y hace dos
-      // llamadas a git por medio. Escribiendo el documento antes de esa foto,
-      // el archivo saldría en las dos listas y no contaría como nuevo — la
-      // prueba fallaría por una carrera suya, no por la que mide.
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      // **Se espera a que la foto se haya tomado, no a que pase un rato.** La
+      // toma `_markRepo()`, que va suelto al arrancar el encargo y hace dos
+      // llamadas a git por medio; escribiendo el documento antes, el archivo
+      // saldría en las dos listas y no contaría como nuevo — la prueba fallaría
+      // por una carrera suya y no por la que mide. Ver [_Artefactos].
+      await yaMiro.future;
       documento!.writeAsStringSync('<html>un diagrama</html>');
     }
 
@@ -218,7 +254,12 @@ void main() {
   montar({required List<int?> contextos, File? documento}) {
     final almacen = _AlmacenQueApunta();
     final destino = _DestinoQueCuenta();
-    final claude = _Claude(contextos: contextos, documento: documento);
+    final yaMiro = Completer<void>();
+    final claude = _Claude(
+      contextos: contextos,
+      documento: documento,
+      yaMiro: yaMiro,
+    );
     final container = ProviderContainer(
       overrides: [
         conversationFolderProvider(_id).overrideWithValue(_carpeta),
@@ -227,6 +268,7 @@ void main() {
         localConversationStoreProvider.overrideWithValue(almacen),
         conversationArchiveProvider.overrideWith((ref) async => destino),
         askClaudeProvider(_id).overrideWithValue(claude),
+        artifactsDataSourceProvider.overrideWithValue(_Artefactos(yaMiro)),
         geminiImageKeyStoreProvider.overrideWithValue(
           const _SinLlaveDeImagenes(),
         ),
