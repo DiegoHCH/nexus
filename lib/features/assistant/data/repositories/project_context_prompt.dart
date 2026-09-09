@@ -69,6 +69,15 @@ abstract final class ProjectContextPrompt {
     /// Cómo se llama quien contesta y cómo llamar a quien pregunta. Ver
     /// [LosNombres.paraElPrompt].
     String? nombres,
+
+    /// Quién es quien contesta y para qué sirve. Ver [QuienEsNexus].
+    ///
+    /// 🔴 **Va aparte de [nombres] porque son dos cosas distintas**, y esa
+    /// distinción es justo la que faltaba: los nombres decían cómo lo llamas
+    /// —«en esta app te llamas X»— y nada de qué es. Un nombre sin identidad
+    /// detrás se lee como un apodo, así que al preguntarle quién era se
+    /// presentaba como lo que sí sabía que era: Claude. Reportado usando la app.
+    String? identidad,
   }) {
     final sections = <String>[];
 
@@ -78,6 +87,12 @@ abstract final class ProjectContextPrompt {
     // personaje: es información, y por eso cabe en dos líneas.
     if (nombres != null && nombres.isNotEmpty) {
       sections.add(nombres);
+    }
+
+    // Y quién es, pegado a los nombres: es la misma clase de dato —con quién
+    // está hablando y quién es él— y las dos frases se leen juntas.
+    if (identidad != null && identidad.isNotEmpty) {
+      sections.add(identidad);
     }
 
     // **Lo que puede y no puede ejecutar aquí.**

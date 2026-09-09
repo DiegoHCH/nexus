@@ -46,6 +46,7 @@ class _PuenteQueSeQuedaVivo implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Object? alPedirPermiso,
   }) async* {
@@ -113,6 +114,7 @@ void main() {
       artifactsFolder: null,
       carpetaDePruebas: null,
       nombres: null,
+      identidad: null,
       disallowedTools: const <String>[],
       comandosPermitidos: const <String>[],
       constraintsNotice: null,

@@ -89,6 +89,7 @@ class _Puente implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
@@ -175,6 +176,7 @@ AskClaude _armar(
     artifactsFolder: null,
     carpetaDePruebas: null,
     nombres: null,
+    identidad: null,
     disallowedTools: const <String>[],
     comandosPermitidos: const <String>[],
     constraintsNotice: null,
