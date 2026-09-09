@@ -2157,8 +2157,35 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// no puede pasar sin que se vea. Cuando el gateway de la empresa se cayó, lo
   /// único que llegó a pantalla fue el error crudo de la herramienta al usarla,
   /// y ese texto apunta al comando de quien pregunta y no a la causa.
+  /// Lo último que se avisó de los MCP caídos, para no repetirlo.
+  ///
+  /// 🔴 **Salía en cada prompt.** Reportado por otra persona con captura: el
+  /// arranque del CLI trae el parte de los servidores en **cada** encargo, así
+  /// que un gateway caído pintaba el mismo aviso una y otra vez —«los
+  /// servidores plugin:firebase:firebase, figma-console, docs-context no
+  /// arrancaron»— encima de la respuesta que estaba leyendo. Un aviso que se
+  /// repite deja de avisar: se convierte en algo que se cierra sin leer.
+  ///
+  /// Se guarda el **conjunto** y no un booleano porque si mañana cae otro
+  /// servidor eso **sí** es nuevo y hay que decirlo. Es la misma regla que el
+  /// aviso del audio ajeno, que se dice una vez por sesión.
+  ///
+  /// Lo que no cubre, dicho aquí para que nadie lo descubra por sorpresa: si un
+  /// servidor se recupera y vuelve a caerse **en la misma conversación**, la
+  /// segunda caída no se avisa —el parte del CLI solo nombra a los que fallan,
+  /// así que la recuperación no llega como evento—. Queda en el registro, que
+  /// es donde se mira cuando algo no cuadra.
+  Set<String>? _mcpQueYaDije;
+
   void _onMcpCaido(List<String> servidores) {
     debugPrint('claude · no arrancaron: ${servidores.join(', ')}');
+    final caidos = servidores.toSet();
+    if (_mcpQueYaDije != null &&
+        _mcpQueYaDije!.length == caidos.length &&
+        _mcpQueYaDije!.containsAll(caidos)) {
+      return;
+    }
+    _mcpQueYaDije = caidos;
     state = state.copyWith(
       notice: ref.read(stringsProvider).mcpCaido(servidores),
     );

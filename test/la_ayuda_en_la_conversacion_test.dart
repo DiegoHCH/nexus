@@ -37,7 +37,14 @@ const _id = 'c1';
 const _carpeta = '/Users/alguien/General';
 
 class _Claude implements AskClaude {
+  _Claude({List<String> mcpCaidos = const []}) : mcpCaidos = [...mcpCaidos];
+
   final pedidos = <String>[];
+
+  /// Los servidores MCP que el arranque dice que no levantaron. El CLI manda
+  /// este parte en **cada** encargo, que es justo lo que había que dejar de
+  /// repetir en pantalla.
+  final List<String> mcpCaidos;
 
   @override
   Stream<ClaudeEvent> call(
@@ -47,6 +54,7 @@ class _Claude implements AskClaude {
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
     pedidos.add(instruction);
+    if (mcpCaidos.isNotEmpty) yield ClaudeMcpCaido(mcpCaidos);
     yield const ClaudeTextDelta('ya está');
     yield const ClaudeTurnCompleted(result: 'ya está');
   }
@@ -132,8 +140,8 @@ void main() {
     }
   }
 
-  ProviderContainer contenedor() {
-    claude = _Claude();
+  ProviderContainer contenedor({List<String> mcpCaidos = const []}) {
+    claude = _Claude(mcpCaidos: mcpCaidos);
     memoria = _Memoria();
     final c = ProviderContainer(
       overrides: [
@@ -234,6 +242,57 @@ void main() {
       );
     },
   );
+
+  // 🔴 **Reportado por otra persona con captura:** «cada vez que hago un prompt
+  // esto salta» — el aviso de los servidores MCP que no arrancaron. El parte
+  // del CLI viene en **cada** encargo, así que un gateway caído pintaba el
+  // mismo aviso encima de cada respuesta. Un aviso que se repite deja de
+  // avisar: se cierra sin leer.
+  group('el aviso de los MCP caídos', () {
+    test('se dice una vez y no en cada encargo', () async {
+      final c = contenedor(mcpCaidos: ['figma-console', 'docs-context']);
+      final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+      await controlador.submit('lo primero');
+      await vueltas();
+      expect(
+        c.read(assistantControllerProvider(_id)).notice,
+        contains('figma-console'),
+        reason: 'la primera vez sí: es información nueva',
+      );
+
+      // Se cierra, como haría cualquiera, y se manda otro encargo.
+      controlador.dismissNotice();
+      await controlador.submit('lo segundo');
+      await vueltas();
+
+      expect(
+        c.read(assistantControllerProvider(_id)).notice,
+        isNull,
+        reason: 'los mismos caídos no son noticia dos veces',
+      );
+    });
+
+    // Que caiga otro **sí** es nuevo, y por eso se guarda el conjunto y no un
+    // booleano.
+    test('pero si cae otro, se vuelve a decir', () async {
+      final c = contenedor(mcpCaidos: ['figma-console']);
+      final controlador = c.read(assistantControllerProvider(_id).notifier);
+
+      await controlador.submit('lo primero');
+      await vueltas();
+      controlador.dismissNotice();
+
+      claude.mcpCaidos.add('docs-context');
+      await controlador.submit('lo segundo');
+      await vueltas();
+
+      expect(
+        c.read(assistantControllerProvider(_id)).notice,
+        contains('docs-context'),
+      );
+    });
+  });
 
   // La otra mitad del enrutado, vista desde aquí: lo que no es un comando
   // sigue siendo trabajo.
