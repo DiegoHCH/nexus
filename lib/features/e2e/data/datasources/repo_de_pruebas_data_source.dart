@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
+import 'package:nexus/core/platform/lanzar_un_proceso.dart';
 
 import '../../domain/usecases/donde_vive_el_repo_de_pruebas.dart';
 import '../../domain/usecases/el_arbol_de_un_flow.dart';
@@ -63,7 +64,21 @@ class Publicacion {
 /// `config.yaml` dentro del clon. Es lo que hace imposible empujar una contraseña
 /// por accidente: no está en el sitio desde el que se empuja.
 class RepoDePruebasDataSource {
-  const RepoDePruebasDataSource();
+  const RepoDePruebasDataSource({
+    this.correr = Process.run,
+    this.buscar = HerramientaExterna.laDeSiempre,
+  });
+
+  /// Con qué se corren los `git` y el `gh`. Ver [CorrerUnComando].
+  ///
+  /// 🔴 Punto 3 del repaso: este archivo estaba al **15,8 %** de 114 líneas, y
+  /// lo que quedaba fuera era **la secuencia entera de publicar** —rama, commit,
+  /// push, PR y la vuelta a la base—, que es donde un comando en el orden
+  /// equivocado no falla: hace otra cosa.
+  final CorrerUnComando correr;
+
+  /// Con qué se encuentran `git` y `gh`. Ver [BuscarUnBinario].
+  final BuscarUnBinario buscar;
 
   /// Deja el clon listo para usar: lo crea si no está, lo actualiza si sí.
   Future<ResultadoDeSync> asegurar({
@@ -122,6 +137,33 @@ class RepoDePruebasDataSource {
         ComoFueLaSync.sucio,
         clon: clon,
         detalle: 'El clon tiene cambios sin publicar; no lo toco.',
+      );
+    }
+
+    // 🔴 **Un commit sin publicar no lo ve `status`.** La cabecera de esta clase
+    // promete que «un push que falló y dejó cosas sin publicar se detecta y se
+    // respeta», y con solo la línea de arriba eso era falso: `publicar` commitea
+    // **antes** de empujar, así que si el push falla el árbol queda limpio y
+    // esto decía «Al día con origin/main» — y el `reset --hard` de abajo se
+    // llevaba la rama por delante en la siguiente sincronización. Se encontró
+    // escribiendo las pruebas de este archivo, que estaba al 15,8 %.
+    //
+    // `--branches --not --remotes` es «lo que hay en alguna rama local y en
+    // ninguna remota», que es exactamente eso y no cuesta nada: los refs ya
+    // están en el disco.
+    final sinPublicar = await _correr(git, [
+      'log',
+      '--branches',
+      '--not',
+      '--remotes',
+      '--format=%H',
+      '-1',
+    ], en: clon);
+    if (sinPublicar.ok && sinPublicar.salida.trim().isNotEmpty) {
+      return ResultadoDeSync(
+        ComoFueLaSync.sucio,
+        clon: clon,
+        detalle: 'El clon tiene commits sin publicar; no lo toco.',
       );
     }
 
@@ -299,10 +341,7 @@ class RepoDePruebasDataSource {
     required String contra,
     required String titulo,
   }) async {
-    final gh = await HerramientaExterna.donde(
-      'gh',
-      candidatos: HerramientaExterna.candidatosDeGh(),
-    );
+    final gh = await buscar('gh', HerramientaExterna.candidatosDeGh());
     if (gh == null) return null;
 
     final r = await _correr(gh, [
@@ -321,10 +360,7 @@ class RepoDePruebasDataSource {
     return url;
   }
 
-  Future<String?> _git() => HerramientaExterna.donde(
-    'git',
-    candidatos: HerramientaExterna.candidatosDeGit(),
-  );
+  Future<String?> _git() => buscar('git', HerramientaExterna.candidatosDeGit());
 
   Future<_Salida> _correr(
     String binario,
@@ -332,7 +368,7 @@ class RepoDePruebasDataSource {
     required String en,
   }) async {
     try {
-      final r = await Process.run(
+      final r = await correr(
         binario,
         args,
         workingDirectory: en,

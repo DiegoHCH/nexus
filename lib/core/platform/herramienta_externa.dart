@@ -22,6 +22,20 @@ import 'package:nexus/core/platform/claude_environment.dart';
 /// 3. **El shell de login**, como último recurso. Es lo único que ve un PATH
 ///    montado a mano en un `.zshrc`, y cuesta un proceso — así que va al final y
 ///    no al principio.
+/// Cómo se **encuentra** un binario de la máquina, como un dato.
+///
+/// 🔴 El hermano de `CorrerUnComando` para la otra mitad del problema: un data
+/// source que corre comandos de mentira sigue preguntándole al PATH de verdad
+/// dónde está `flutter`, así que la prueba de «no está instalado» solo pasa en
+/// una máquina donde no lo esté — y la de «sí está» depende de dónde lo tenga
+/// quien la corra. Con la búsqueda como parámetro, las dos ramas se comprueban
+/// en cualquier máquina, incluida la de CI.
+///
+/// Lo de siempre es [HerramientaExterna.laDeSiempre], que es [donde] con esta
+/// forma.
+typedef BuscarUnBinario =
+    Future<String?> Function(String nombre, List<String> candidatos);
+
 abstract final class HerramientaExterna {
   /// Donde suele estar Flutter cuando el PATH de la app no lo trae.
   ///
@@ -201,6 +215,13 @@ abstract final class HerramientaExterna {
 
     return (preguntaAlShell ?? _alShellDeLogin)(nombre);
   }
+
+  /// [donde] con la forma de [BuscarUnBinario], para poder pasarla como dato.
+  ///
+  /// Es el valor por defecto de quien deja la búsqueda como costura, así que
+  /// nadie tiene que pasar nada para que siga funcionando igual.
+  static Future<String?> laDeSiempre(String nombre, List<String> candidatos) =>
+      donde(nombre, candidatos: candidatos);
 
   /// La ruta absoluta de una herramienta, resuelta **una vez** y recordada.
   ///

@@ -1,8 +1,9 @@
 import 'dart:io';
 
+import 'package:nexus/core/platform/binario_en_el_path.dart';
 import 'package:nexus/core/platform/claude_environment.dart';
 import 'package:nexus/core/platform/herramienta_externa.dart';
-import 'package:nexus/core/platform/binario_en_el_path.dart';
+import 'package:nexus/core/platform/lanzar_un_proceso.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_iphone.dart';
 import 'package:nexus/features/emulators/domain/usecases/el_espejo_del_movil.dart';
@@ -43,10 +44,24 @@ Future<void> _abrirDeVerdad(
 }
 
 class EmuladoresDataSource {
-  const EmuladoresDataSource({this.abrirSuelto = _abrirDeVerdad});
+  const EmuladoresDataSource({
+    this.abrirSuelto = _abrirDeVerdad,
+    this.correr = Process.run,
+    this.buscar = HerramientaExterna.laDeSiempre,
+  });
 
   /// Con qué se abren el espejo del móvil y el visor del iPhone.
   final AbrirSuelto abrirSuelto;
+
+  /// Con qué se corren los comandos. Por defecto, de verdad — la costura existe
+  /// para poder probar **cómo se lee lo que contestan** sin un emulador
+  /// encendido. Ver [CorrerUnComando].
+  final CorrerUnComando correr;
+
+  /// Con qué se encuentran `flutter` y `adb`. Ver [BuscarUnBinario]: sin esta
+  /// costura, «no se encontró Flutter» solo se puede comprobar en una máquina
+  /// que no lo tenga.
+  final BuscarUnBinario buscar;
 
   /// El catálogo de emuladores con su estado.
   ///
@@ -117,11 +132,9 @@ class EmuladoresDataSource {
     required bool conControl,
     bool encima = false,
   }) async {
-    final scrcpy = await HerramientaExterna.donde(
+    final scrcpy = await buscar(
       ElEspejoDelMovil.binario,
-      candidatos: HerramientaExterna.candidatosDeScrcpy(
-        Platform.environment['HOME'] ?? '',
-      ),
+      HerramientaExterna.candidatosDeScrcpy(Platform.environment['HOME'] ?? ''),
     );
     if (scrcpy == null) return 'No se encontró scrcpy';
 
@@ -371,18 +384,14 @@ class EmuladoresDataSource {
 
   // ── Lo de dentro ───────────────────────────────────────────────────────────
 
-  Future<String?> _flutter() => HerramientaExterna.donde(
+  Future<String?> _flutter() => buscar(
     'flutter',
-    candidatos: HerramientaExterna.candidatosDeFlutter(
-      Platform.environment['HOME'] ?? '',
-    ),
+    HerramientaExterna.candidatosDeFlutter(Platform.environment['HOME'] ?? ''),
   );
 
-  Future<String?> _adb() => HerramientaExterna.donde(
+  Future<String?> _adb() => buscar(
     'adb',
-    candidatos: HerramientaExterna.candidatosDeAdb(
-      Platform.environment['HOME'] ?? '',
-    ),
+    HerramientaExterna.candidatosDeAdb(Platform.environment['HOME'] ?? ''),
   );
 
   /// Del nombre del AVD al dispositivo con el que se cierra.
@@ -435,7 +444,7 @@ class EmuladoresDataSource {
     Duration tope = const Duration(seconds: 90),
   }) async {
     try {
-      final resultado = await Process.run(
+      final resultado = await correr(
         binario,
         argumentos,
         environment: ClaudeEnvironment.forTools(),
