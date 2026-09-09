@@ -14,6 +14,7 @@ class ClaudeProfile {
     required this.path,
     required this.name,
     required this.signedIn,
+    this.correo,
   });
 
   final String path;
@@ -32,6 +33,20 @@ class ClaudeProfile {
   /// Quien la enseña le pone el nombre que toque en su idioma: aquí no hay
   /// textos de interfaz.
   bool get esLaDeSiempre => nameFromPath(path) == null;
+
+  /// Con qué correo está iniciada la sesión de esa cuenta, si se sabe.
+  ///
+  /// 🔴 **Preguntado antes de ponerle nombre a nada:** «¿se puede saber con qué
+  /// correo está logueada la cuenta?». Sí, y estaba a la vista: Claude Code lo
+  /// guarda en el `.claude.json` de cada directorio, en `oauthAccount`. Con eso,
+  /// una cuenta no necesita que nadie le invente un nombre — ya tiene el suyo, y
+  /// es el que su dueño reconoce.
+  ///
+  /// Y contesta una pregunta que no se sabía hacer: en este Mac, `.claude` y
+  /// `.claude-work` resultaron ser **la misma cuenta** —el mismo correo y la
+  /// misma organización— y solo `.claude-private` era otra. Sin el correo, tres
+  /// perfiles parecen tres cuentas.
+  final String? correo;
 
   /// El nombre de cuenta que le corresponde a un directorio de configuración, o
   /// `null` si ese directorio no es una cuenta —`.claude` a secas, la de siempre—.
@@ -110,6 +125,26 @@ class ClaudeProfilesDataSource {
     }
   }
 
+  /// El correo con el que está iniciada la sesión de esa cuenta, o `null`.
+  ///
+  /// Se lee de su `.claude.json` —lo escribe Claude Code al entrar— y no del
+  /// llavero: ahí está el token, no quién es. No lanza nunca: un archivo a
+  /// medio escribir o de otra versión vale lo mismo que no saberlo.
+  Future<String?> correoDe(String configDir) async {
+    final file = File('$configDir/.claude.json');
+    if (!file.existsSync()) return null;
+    try {
+      final decoded = jsonDecode(await file.readAsString());
+      if (decoded is! Map<String, dynamic>) return null;
+      final cuenta = decoded['oauthAccount'];
+      if (cuenta is! Map<String, dynamic>) return null;
+      final correo = cuenta['emailAddress'];
+      return correo is String && correo.contains('@') ? correo : null;
+    } on Object {
+      return null;
+    }
+  }
+
   Future<List<ClaudeProfile>> list() async {
     final home = Platform.environment['HOME'] ?? '';
     if (home.isEmpty) return const [];
@@ -131,6 +166,7 @@ class ClaudeProfilesDataSource {
           path: entity.path,
           name: ClaudeProfile.nameFromPath(entity.path) ?? name,
           signedIn: await _hasSession(entity.path),
+          correo: await correoDe(entity.path),
         ),
       );
     }
@@ -161,6 +197,7 @@ class ClaudeProfilesDataSource {
         // Sin nombre: se lo pone quien la enseñe, en su idioma.
         name: '',
         signedIn: await _hasSession(siempre),
+        correo: await correoDe(siempre),
       ),
       ...await list(),
     ];

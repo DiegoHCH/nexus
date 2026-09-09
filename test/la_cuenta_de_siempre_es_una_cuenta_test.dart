@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:convert';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
 
@@ -60,6 +62,77 @@ void main() {
             '/Users/alguien/.claude-private',
           ),
         ),
+      );
+    });
+  });
+
+  // 🔴 **Preguntado antes de ponerle nombre a nada:** «¿se puede saber con qué
+  // correo está logueada la cuenta?». Sí, y estaba a la vista: Claude Code lo
+  // guarda en el `.claude.json` de cada directorio, en `oauthAccount`. Con eso
+  // una cuenta no necesita un nombre inventado — ya tiene el suyo.
+  //
+  // Y contesta una pregunta que no se sabía hacer: en el Mac donde se midió,
+  // `.claude` y `.claude-work` resultaron ser **la misma cuenta** —mismo correo
+  // y misma organización— y solo `.claude-private` era otra. Sin el correo,
+  // tres perfiles parecen tres cuentas.
+  group('con qué correo está iniciada', () {
+    late Directory casa;
+
+    setUp(() => casa = Directory.systemTemp.createTempSync('cuentas'));
+    tearDown(() => casa.deleteSync(recursive: true));
+
+    File elArchivo() => File('${casa.path}/.claude.json');
+
+    test('sale del .claude.json de esa cuenta', () async {
+      elArchivo().writeAsStringSync(
+        jsonEncode({
+          'oauthAccount': {
+            'emailAddress': 'alguien@empresa.com',
+            'displayName': 'Alguien',
+          },
+          'mcpServers': <String, Object?>{},
+        }),
+      );
+
+      expect(
+        await const ClaudeProfilesDataSource().correoDe(casa.path),
+        'alguien@empresa.com',
+      );
+    });
+
+    test(
+      'sin archivo, sin sesión o a medias, no se sabe y no revienta',
+      () async {
+        const fuente = ClaudeProfilesDataSource();
+
+        // Sin archivo: la cuenta existe pero nunca se entró.
+        expect(await fuente.correoDe(casa.path), isNull);
+
+        // Sin `oauthAccount`: el archivo está pero no hay sesión.
+        elArchivo().writeAsStringSync(
+          jsonEncode({'mcpServers': <String, Object?>{}}),
+        );
+        expect(await fuente.correoDe(casa.path), isNull);
+
+        // Y un archivo a medio escribir vale lo mismo que no saberlo: esto no
+        // puede tumbar la pantalla que lo enseña.
+        elArchivo().writeAsStringSync('{a medias');
+        expect(await fuente.correoDe(casa.path), isNull);
+      },
+    );
+
+    // Un valor que no es un correo no se enseña como si lo fuera: lo que sale
+    // en pantalla tiene que poder reconocerse.
+    test('lo que no parece un correo no cuenta', () async {
+      elArchivo().writeAsStringSync(
+        jsonEncode({
+          'oauthAccount': {'emailAddress': 'sin-arroba'},
+        }),
+      );
+
+      expect(
+        await const ClaudeProfilesDataSource().correoDe(casa.path),
+        isNull,
       );
     });
   });

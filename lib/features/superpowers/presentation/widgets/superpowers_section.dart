@@ -81,11 +81,20 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
           Padding(
             padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
             child: Text(
-              strings.superpowersDeLaCuenta(
-                profiles.single.esLaDeSiempre
-                    ? strings.cuentaGeneral
-                    : profiles.single.name,
-              ),
+              // 🔴 **Con el correo si se sabe, y el correo es mejor nombre que
+              // cualquiera que inventemos.** Preguntado antes de bautizar nada:
+              // «¿se puede saber con qué correo está logueada la cuenta?». Sí
+              // —Claude Code lo guarda en el `.claude.json` de cada
+              // directorio— y con eso quien mira esta pantalla reconoce la
+              // cuenta sin tener que aprender qué es un perfil.
+              [
+                strings.superpowersDeLaCuenta(
+                  profiles.single.esLaDeSiempre
+                      ? strings.cuentaGeneral
+                      : profiles.single.name,
+                ),
+                ?profiles.single.correo,
+              ].join(' · '),
               style: NexusTypography.label.copyWith(color: colors.faint),
             ),
           ),
@@ -100,6 +109,10 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
                     label: profile.esLaDeSiempre
                         ? strings.cuentaGeneral
                         : profile.name,
+                    // El correo, en el tooltip: en la pestaña no cabe —son
+                    // tres o cuatro repartidas a partes iguales— y es justo lo
+                    // que se quiere consultar al dudar de cuál es cuál.
+                    correo: profile.correo,
                     active: profile.path == current,
                     onTap: () => setState(() => _profile = profile.path),
                   ),
@@ -201,33 +214,46 @@ class _Toggle extends StatelessWidget {
 }
 
 class _Tab extends StatelessWidget {
-  const _Tab({required this.label, required this.active, required this.onTap});
+  const _Tab({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.correo,
+  });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
 
+  /// Con qué correo está iniciada esa cuenta, si se sabe. Va en el tooltip
+  /// porque en la pestaña no cabe —se reparten a partes iguales— y es lo que se
+  /// quiere consultar al dudar de cuál es cuál.
+  final String? correo;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: active ? colors.accent : colors.rule,
-              width: 2,
+    return Tooltip(
+      message: correo ?? '',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: active ? colors.accent : colors.rule,
+                width: 2,
+              ),
             ),
           ),
-        ),
-        child: Text(
-          label.toUpperCase(),
-          textAlign: TextAlign.center,
-          style: NexusTypography.label.copyWith(
-            color: active ? colors.accent : colors.faint,
+          child: Text(
+            label.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: NexusTypography.label.copyWith(
+              color: active ? colors.accent : colors.faint,
+            ),
           ),
         ),
       ),

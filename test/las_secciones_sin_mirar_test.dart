@@ -43,6 +43,7 @@ const _siempre = ClaudeProfile(
   path: '/Users/alguien/.claude',
   name: '',
   signedIn: true,
+  correo: 'alguien@empresa.com',
 );
 
 /// Una segunda cuenta **con nombre**. Las estadísticas y el historial solo ven
@@ -189,8 +190,13 @@ void main() {
       expect(find.text(textos.superpowersMcp), findsOneWidget);
       // Y se dice de qué cuenta es lo que se mira, que sin pestañas no lo dice
       // nadie: quien no ha creado perfiles no tiene por qué saber que existen.
+      // Con el correo detrás, que es mejor nombre que cualquiera inventado:
+      // quien mira esto reconoce su cuenta sin saber qué es un perfil.
       expect(
-        find.text(textos.superpowersDeLaCuenta(textos.cuentaGeneral)),
+        find.text(
+          '${textos.superpowersDeLaCuenta(textos.cuentaGeneral)} · '
+          'alguien@empresa.com',
+        ),
         findsOneWidget,
       );
       sinDesbordar(tester);
