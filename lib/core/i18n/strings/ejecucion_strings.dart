@@ -47,6 +47,15 @@ mixin EjecucionStrings {
   String get nivelSoloFatales;
   String get runAuto;
 
+  /// La copia local de una configuración, con el panel de depuración de la app
+  /// encendido. Ver [LaConfigDeCasa].
+  String get runDuplicarConConsola;
+  String get runDuplicarNota;
+  String get runYaTraeConsola;
+  String get runEsTuya;
+  String get runQuitarCopia;
+  String get runCopiaFallo;
+
   /// Los errores que ha dado la app, para el aviso que se ve sin abrir nada.
   ///
   /// Con parámetro porque el número **es** el mensaje: «1 error» y «14 errores»
@@ -131,6 +140,20 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
+  String get runDuplicarConConsola => 'Copiarla con la consola';
+  @override
+  String get runDuplicarNota =>
+      'Te la guarda Nexus, con el panel de depuración encendido. El repo no se '
+      'toca.';
+  @override
+  String get runYaTraeConsola => 'Esta ya trae el panel de depuración.';
+  @override
+  String get runEsTuya => 'Es tuya: vive en Nexus, no en el repositorio.';
+  @override
+  String get runQuitarCopia => 'Quitar la copia';
+  @override
+  String get runCopiaFallo => 'Ya tienes una copia con ese nombre.';
+  @override
   String runAppErrors(int cuantos) => cuantos == 1
       ? '1 error de la app desde la última recarga · abre el registro'
       : '$cuantos errores de la app desde la última recarga · abre el registro';
@@ -208,6 +231,20 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String get nivelSoloFatales => 'fatal only';
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
+  @override
+  String get runDuplicarConConsola => 'Copy it with the console';
+  @override
+  String get runDuplicarNota =>
+      'Nexus keeps it for you, with the app debug panel on. The repo is left '
+      'untouched.';
+  @override
+  String get runYaTraeConsola => 'This one already has the debug panel.';
+  @override
+  String get runEsTuya => 'This one is yours: it lives in Nexus, not the repo.';
+  @override
+  String get runQuitarCopia => 'Remove the copy';
+  @override
+  String get runCopiaFallo => 'You already have a copy with that name.';
   @override
   String runAppErrors(int cuantos) => cuantos == 1
       ? '1 app error since the last reload · open the log'

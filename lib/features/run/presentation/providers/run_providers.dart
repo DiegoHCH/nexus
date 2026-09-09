@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:nexus/features/run/data/datasources/configs_data_source.dart';
 import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
+import 'package:nexus/features/run/domain/usecases/la_config_de_casa.dart';
+import 'package:nexus/features/run/data/datasources/las_configs_de_casa.dart';
 
 final configsDataSourceProvider = Provider<ConfigsDataSource>(
   (ref) => const ConfigsDataSource(),
@@ -24,8 +26,25 @@ final configsDataSourceProvider = Provider<ConfigsDataSource>(
 /// Sin `autoDispose` y sin refresco automático, a diferencia de los dispositivos:
 /// un `launch.json` lo cambia una persona editando el archivo, no la máquina por
 /// su cuenta. Se invalida cuando cambie de proyecto o cuando alguien lo pida.
-final configsProvider = FutureProvider.family<List<ConfigDeArranque>, String>(
-  (ref, proyecto) => ref.watch(configsDataSourceProvider).deProyecto(proyecto),
+/// **Las del repo y las tuyas, juntas.** Las tuyas viven fuera del repositorio
+/// —ver [LasConfigsDeCasa]— porque el `launch.json` está versionado y
+/// compartido: añadir ahí «la de prod con el panel» ensucia el `git status` de
+/// quien lo pida y le cambia el menú al equipo.
+final configsProvider = FutureProvider.family<List<ConfigDeArranque>, String>((
+  ref,
+  proyecto,
+) async {
+  final delRepo = await ref
+      .watch(configsDataSourceProvider)
+      .deProyecto(proyecto);
+  final propias = await ref
+      .watch(lasConfigsDeCasaProvider)
+      .deProyecto(proyecto);
+  return LaConfigDeCasa.junta(delRepo: delRepo, propias: propias);
+});
+
+final lasConfigsDeCasaProvider = Provider<LasConfigsDeCasa>(
+  (ref) => const LasConfigsDeCasa(),
 );
 
 /// La configuración con la que se corre cada proyecto cuando no se dice nada.
@@ -73,6 +92,18 @@ class ConfigsPorDefecto extends Notifier<Map<String, String>> {
 
   Future<void> elegir(String proyecto, String nombre) async {
     state = {...state, proyecto: nombre};
+    await _guardar();
+  }
+
+  /// Se quitó la configuración que estaba recordada —era una copia tuya y la
+  /// borraste—: se olvida, en vez de dejar apuntado un nombre que ya no existe.
+  Future<void> olvidar(String proyecto) async {
+    if (!state.containsKey(proyecto)) return;
+    state = {...state}..remove(proyecto);
+    await _guardar();
+  }
+
+  Future<void> _guardar() async {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString(_clave, jsonEncode(state));
   }
