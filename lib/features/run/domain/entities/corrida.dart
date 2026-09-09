@@ -31,6 +31,7 @@ class Corrida {
     this.error,
     this.consola,
     this.errores = 0,
+    this.seRecarga = true,
   });
 
   /// El `-d` con el que se lanzó. **Es la clave de todo**: una corrida por
@@ -82,8 +83,22 @@ class Corrida {
   /// delante está roto, no cuántas veces se rompió antes de arreglarlo.
   final int errores;
 
+  /// Si esta corrida acepta recargas, **dicho por el daemon**.
+  ///
+  /// 🔴 **Lo dice `app.start` en `supportsRestart` y no se miraba.** En una
+  /// corrida de `profile` no hay recarga ni reinicio —es de debug— así que la
+  /// botonera ofrecía dos botones que no podían funcionar: pulsarlos deja un
+  /// «Todavía está compilando» o un error del daemon, y aprender que un botón
+  /// no sirve cuesta más que no tenerlo. Salió al hacer «prod + profile + el
+  /// panel de depuración», que es una corrida de profile de verdad.
+  ///
+  /// Nace en `true` porque es lo que contesta el daemon en el caso normal —una
+  /// corrida de debug— y porque hasta que llega `app.start` no hay nada que
+  /// recargar de todas formas.
+  final bool seRecarga;
+
   bool get puedeRecargar =>
-      appId != null && estado == EstadoDeCorrida.corriendo;
+      seRecarga && appId != null && estado == EstadoDeCorrida.corriendo;
 
   Corrida copyWith({
     EstadoDeCorrida? estado,
@@ -94,6 +109,7 @@ class Corrida {
     String? error,
     int? consola,
     int? errores,
+    bool? seRecarga,
   }) => Corrida(
     deviceId: deviceId,
     dispositivo: dispositivo,
@@ -107,6 +123,7 @@ class Corrida {
     error: error ?? this.error,
     consola: consola ?? this.consola,
     errores: errores ?? this.errores,
+    seRecarga: seRecarga ?? this.seRecarga,
   );
 }
 
