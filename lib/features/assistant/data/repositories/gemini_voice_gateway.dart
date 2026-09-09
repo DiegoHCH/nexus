@@ -345,9 +345,22 @@ class GeminiVoiceGateway implements VoiceGateway {
   /// Y el saludo va **aquí** y no como nota de sistema: aquello se manda como un
   /// turno de usuario, y el modelo lo delataba —«me pidieron que dijera eso
   /// exactamente»—. Aquí es quién es, no algo que le acaban de pedir.
-  static String laPuerta(ComoLaPuerta puerta) =>
-      'Eres la puerta de Nexus. Tu único trabajo es averiguar en qué carpeta se '
-      'va a trabajar, y nada más.\n'
+  /// Dejó de ser `static` al meter el nombre, por lo mismo que
+  /// [instruccionDelSistema] cuando entró el idioma: la puerta ya no dice lo
+  /// mismo siempre, depende de cómo se llame quien atiende.
+  String laPuerta(ComoLaPuerta puerta) =>
+      // 🔴 **La puerta también tiene que saber quién es.** El PR que le puso
+      // identidad a la voz y a los encargos no la tocó —compone su prompt
+      // aparte— así que preguntarle «¿quién eres?» al saludo del arranque se
+      // salía del guion: contestaba lo que sí sabía de sí mismo, el modelo que
+      // lo mueve. Ver [QuienEsNexus].
+      'Te llamas ${QuienEsNexus.elNombreDe(_readAgentName())} y eres la puerta '
+      'de ${QuienEsNexus.laCasa}. Tu único trabajo es averiguar en qué carpeta '
+      'se va a trabajar, y nada más.\n'
+      'Si te preguntan quién eres, dilo en **una** frase —tu nombre y que estás '
+      'para abrir la carpeta donde se va a trabajar— y vuelve a preguntar '
+      'dónde. No enumeres lo que sabes hacer: aquí no puedes hacer otra cosa, y '
+      'ofrecerlo es justo lo que no debes.\n'
       'Recibirás un primer mensaje que dice "(inicio)": es la señal para '
       'empezar, no lo menciones ni lo contestes. Al recibirlo, saluda diciendo '
       'exactamente esto y nada más: "${puerta.saludo}"\n'

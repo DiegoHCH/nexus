@@ -101,21 +101,13 @@ jobs:
       #
       # 85 y no 90: el margen es para que un caso de uso nuevo y a medio cubrir
       # no rompa el CI del PR que lo introduce, no para tolerar que se erosione.
+      # 🔴 **El cálculo vive en `scripts/cobertura.sh` y no aquí.** Estaba
+      # metido en este YAML, y con eso el suelo era lo único del gate que **no
+      # se podía comprobar en local**: llegaba como sorpresa cinco minutos
+      # después de empujar. Ahora lo corren los dos —este paso y
+      # `scripts/gate.sh`— y por definición dicen el mismo número.
       - name: cobertura
-        run: |
-          awk -F: '
-            /^SF:/ { dominio = ($2 ~ /\/domain\//) }
-            /^LF:/ { t += $2; if (dominio) dt += $2 }
-            /^LH:/ { c += $2; if (dominio) dc += $2 }
-            END {
-              printf "Cobertura de líneas: **%.1f %%** — %d de %d\n", 100*c/t, c, t
-              printf "En `domain`: **%.1f %%** — %d de %d\n", 100*dc/dt, dc, dt
-              if (100*dc/dt < 85) {
-                printf "\n**Por debajo del suelo de 85 %% en `domain`.**\n"
-                exit 1
-              }
-            }
-          ' coverage/lcov.info | tee -a "$GITHUB_STEP_SUMMARY"
+        run: ./scripts/cobertura.sh | tee -a "$GITHUB_STEP_SUMMARY"
 
   # Aparte porque pide macOS: es el único sitio donde se pueden correr, y no hay
   # motivo para pagar un Mac por el análisis.
