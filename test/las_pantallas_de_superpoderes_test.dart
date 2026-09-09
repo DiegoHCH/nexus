@@ -1,7 +1,9 @@
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
+import 'package:nexus/features/superpowers/data/datasources/el_recuerdo_de_los_mcp.dart';
 import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/plugins_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/skills_data_source.dart';
@@ -44,15 +46,21 @@ class _Skills extends SkillsDataSource {
 }
 
 class _Mcp extends McpDataSource {
-  const _Mcp({this.servidores = const []});
+  const _Mcp({this.servidores = const [], this.loQueVeElCli});
 
+  /// Lo que hay en el archivo del perfil: **solo los tuyos**.
   final List<McpServer> servidores;
+
+  /// Lo que ve el CLI, que trae además los conectores de la cuenta. Nulo
+  /// —lo de siempre en estas pruebas— es «lo mismo que el archivo».
+  final List<McpServer>? loQueVeElCli;
 
   @override
   Future<List<McpServer>> list(String configDir) async => servidores;
 
   @override
-  Future<List<McpServer>?> check(String configDir) async => servidores;
+  Future<List<McpServer>?> check(String configDir) async =>
+      loQueVeElCli ?? servidores;
 }
 
 class _Plugins extends PluginsDataSource {
@@ -164,12 +172,86 @@ void main() {
   });
 
   group('servidores MCP', () {
+    // El recuerdo va a una carpeta temporal: sin esto, leerlo pasa por el
+    // soporte de la app de verdad —un canal de plataforma que en una prueba no
+    // contesta— y la lista se queda esperando a algo que no va a llegar.
+    late Directory recuerdos;
+    setUp(() => recuerdos = Directory.systemTemp.createTempSync('mcp_panel'));
+    tearDown(() => recuerdos.deleteSync(recursive: true));
+
     Future<void> abrir(WidgetTester tester, McpDataSource fuente) => pumpScreen(
       tester,
       const Scaffold(body: McpPanel(configDir: _cuenta)),
-      overrides: [mcpDataSourceProvider.overrideWithValue(fuente)],
+      overrides: [
+        mcpDataSourceProvider.overrideWithValue(fuente),
+        elRecuerdoDeLosMcpProvider.overrideWithValue(
+          ElRecuerdoDeLosMcp(carpeta: recuerdos),
+        ),
+      ],
     );
 
+    // 🔴 **Reportado mirando la pantalla:** «no se están listando todos los MCP
+    // que tengo en mi cuenta; solo se listan los de usuario y no los de
+    // claude.ai». Y era exacto: la lista salía del archivo del perfil, donde
+    // los conectores de la cuenta **no están** —llegan con la sesión—. Medido
+    // en este Mac: cinco en el archivo, veinte en el CLI.
+    testWidgets('los conectores de la cuenta salen en la misma lista', (
+      tester,
+    ) async {
+      await abrir(
+        tester,
+        const _Mcp(
+          servidores: [McpServer(name: 'mi-servidor', spec: 'mi-servidor mcp')],
+          loQueVeElCli: [
+            McpServer(name: 'mi-servidor', spec: 'mi-servidor mcp'),
+            McpServer(
+              name: 'claude.ai Gmail',
+              spec: 'https://gmailmcp.googleapis.com/mcp/v1',
+              fromAccount: true,
+            ),
+            McpServer(
+              name: 'claude.ai Slack',
+              spec: 'https://mcp.slack.com/mcp',
+              fromAccount: true,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('mi-servidor'), findsOneWidget);
+      expect(find.text('claude.ai Gmail'), findsOneWidget);
+      expect(find.text('claude.ai Slack'), findsOneWidget);
+      // Y se dice cuántos son de la cuenta, porque no se quitan desde aquí.
+      expect(find.text(textos.mcpDeLaCuenta(2)), findsOneWidget);
+      sinDesbordar(tester);
+    });
+
+    // Un botón que no funciona es peor que no tenerlo: los de la cuenta se
+    // gestionan en claude.ai.
+    testWidgets('y los de la cuenta no traen botón de quitar', (tester) async {
+      await abrir(
+        tester,
+        const _Mcp(
+          servidores: [McpServer(name: 'mi-servidor', spec: 'mi-servidor mcp')],
+          loQueVeElCli: [
+            McpServer(name: 'mi-servidor', spec: 'mi-servidor mcp'),
+            McpServer(
+              name: 'claude.ai Gmail',
+              spec: 'https://gmailmcp.googleapis.com/mcp/v1',
+              fromAccount: true,
+            ),
+          ],
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byTooltip(textos.mcpRemove),
+        findsOneWidget,
+        reason: 'uno solo: el tuyo',
+      );
+    });
     testWidgets('sin ninguno lo dice', (tester) async {
       await abrir(tester, const _Mcp());
 
