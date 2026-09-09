@@ -54,8 +54,8 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
     // dejaba ver ni poner nada, mientras el chat funcionaba — porque
     // `claudeProfilesProvider` solo lista las `.claude-*`. Aquí no se elige la
     // cuenta de una carpeta: se mira qué tiene instalado cada una, y la de
-    // siempre tiene lo suyo como cualquier otra. Ver [todasLasCuentasProvider].
-    final profiles = ref.watch(todasLasCuentasProvider).value ?? const [];
+    // siempre tiene lo suyo como cualquier otra. Ver [lasCuentasParaMirarProvider].
+    final profiles = ref.watch(lasCuentasParaMirarProvider).value ?? const [];
     // 🔴 **El nombre sale de la organización de la cuenta, no del directorio.**
     // «Global66 - Tech» se enseña como «Global66»; una cuenta personal, como
     // «Mi perfil»; y si dos perfiles resultan ser la misma cuenta —pasa, está
