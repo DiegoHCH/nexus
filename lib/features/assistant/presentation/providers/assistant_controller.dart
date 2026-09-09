@@ -33,6 +33,7 @@ import 'package:nexus/features/assistant/presentation/providers/model_providers.
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/assistant/presentation/state/lo_que_hace_un_evento.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
@@ -312,20 +313,15 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? respondeA,
   }) {
     state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessage(
-          author: author,
-          text: text,
-          spoken: spoken,
-          streaming: true,
-          attachments: attachments,
-          respondeA: respondeA,
-          // Solo la respuesta, no lo que se pidió: el botón de enviar va bajo
-          // el parte, y lo que se pidió es la instrucción que lo generó.
-          esElParte: author == ChatAuthor.nexus && _elParteEnCurso,
-        ),
-      ],
+      messages: LosMensajes.diciendo(
+        state.messages,
+        author,
+        text,
+        spoken: spoken,
+        attachments: attachments,
+        respondeA: respondeA,
+        esElParte: _elParteEnCurso,
+      ),
     );
   }
 
@@ -339,14 +335,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool spoken = false,
     String? respondeA,
   }) {
-    final messages = [...state.messages];
-    final last = messages.lastOrNull;
-    if (last != null && last.author == author && last.streaming) {
-      messages[messages.length - 1] = last.copyWith(text: last.text + text);
-      state = state.copyWith(messages: messages);
-      return;
-    }
-    _say(author, text, spoken: spoken, respondeA: respondeA);
+    state = state.copyWith(
+      messages: LosMensajes.alargando(
+        state.messages,
+        author,
+        text,
+        spoken: spoken,
+        respondeA: respondeA,
+        esElParte: _elParteEnCurso,
+      ),
+    );
   }
 
   /// Cierra el turno en curso: se le quita el cursor.
@@ -540,18 +538,8 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
   }
 
-  void _sealLast() {
-    final messages = [...state.messages];
-    final last = messages.lastOrNull;
-    if (last == null || !last.streaming) return;
-    if (last.isEmpty) {
-      // Un turno que no llegó a decir nada no se deja en la ventana.
-      messages.removeLast();
-    } else {
-      messages[messages.length - 1] = last.copyWith(streaming: false);
-    }
-    state = state.copyWith(messages: messages);
-  }
+  void _sealLast() =>
+      state = state.copyWith(messages: LosMensajes.sellados(state.messages));
 
   /// [allowWrites] es un **tope y no un permiso**: baja lo que la carpeta concede,
   /// nunca lo sube. Lo usa el canal del teléfono, que manda `false` mientras no
@@ -837,10 +825,10 @@ class AssistantController extends Notifier<AssistantHudState> {
           alPedirPermiso: _pedirPermiso,
         ).listen(
           (event) => switch (event) {
-            ClaudeQueued() => _onQueued(),
+            ClaudeQueued() => _aplicar(event),
             ClaudeRulesChanged() => _onRulesChanged(event.paths),
             ClaudeMcpCaido() => _onMcpCaido(event.servidores),
-            ClaudeSessionStarted() => _onSessionStarted(event.model),
+            ClaudeSessionStarted() => _alArrancarLaSesion(event),
             ClaudeTextDelta() => _onTextDelta(buffer, event),
             ClaudeToolUsed() => _onClaudeToolUsed(event),
             ClaudeToolFinished() => _onClaudeToolFinished(
@@ -1040,87 +1028,73 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// `_compacting` es la condición exacta y ya estaba aquí: es de **esta**
   /// conversación. Si el turno lo tiene otra —trabajando o comprimiéndose—, el
   /// mensaje de siempre sigue siendo verdad.
-  void _onQueued() {
-    final strings = ref.read(stringsProvider);
-    state = state.copyWith(
-      orbState: NexusOrbState.think,
-      activity: [
-        ...state.activity,
-        ActivityItem(
-          id: _queueItemId,
-          description: _compacting
-              ? strings.waitingForOwnCompaction
-              : strings.waitingForOtherConversation,
-          writes: false,
-        ),
-      ],
+  /// El estado que deja un evento, que **ya no se decide aquí**.
+  ///
+  /// Ver [conElEvento]: el mapeo de evento a estado salió a una función pura,
+  /// que es lo que el PR #306 dejó anotado como paso siguiente y lo que ya hace
+  /// `aplicaEvento` en la feature de correr. Lo que queda en el controlador es
+  /// la coreografía —avisar, archivar, recordar el modelo—, que es lo que sí
+  /// necesita el resto de la app.
+  void _aplicar(ClaudeEvent evento) {
+    state = conElEvento(
+      state,
+      evento,
+      espera: () {
+        final strings = ref.read(stringsProvider);
+        return (
+          laPropia: strings.waitingForOwnCompaction,
+          deOtra: strings.waitingForOtherConversation,
+        );
+      },
+      // `_compacting` es la condición exacta: es de **esta** conversación. Si el
+      // turno lo tiene otra —trabajando o comprimiéndose—, el mensaje de
+      // siempre sigue siendo verdad.
+      comprimiendose: _compacting,
+      respondeA: _respondiendoA,
+      esElParte: _elParteEnCurso,
     );
   }
 
-  void _onSessionStarted(String model) {
-    // Le llegó el turno: la espera se da por terminada en cuanto arranca.
-    _onClaudeToolFinished(_queueItemId);
+  /// Le llegó el turno: se cierra la espera y se apunta con qué modelo corrió.
+  void _alArrancarLaSesion(ClaudeSessionStarted evento) {
+    _aplicar(evento);
+    _recordarElModelo(evento.model);
+  }
+
+  /// Con qué modelo corrió, apuntado para después.
+  ///
+  /// Es lo único de este evento que no es estado de la pantalla: **es lo único
+  /// que permite enseñar el modelo de un perfil que no fija ninguno** en su
+  /// configuración.
+  void _recordarElModelo(String model) {
     if (model.isEmpty) return;
-    // Se apunta con qué cuenta corrió: es lo único que permite enseñar el
-    // modelo de un perfil que no fija ninguno en su configuración.
     final folder = _folder;
-    if (folder != null) {
-      final paired = ref
-          .read(workspaceControllerProvider)
-          .folders
-          .where((item) => item.path == folder)
-          .firstOrNull;
-      unawaited(
-        ref
-            .read(seenModelsProvider.notifier)
-            .remember(paired?.claudeProfile, model),
-      );
-    }
-    state = state.copyWith(meter: state.meter.copyWith(model: model));
-  }
-
-  /// La actividad se acumula en el turno y se vacía al empezar el siguiente:
-  /// la columna se llama «Ahora mismo», no «historial».
-  void _onClaudeToolUsed(ClaudeToolUsed event) {
-    state = state.copyWith(
-      orbState: NexusOrbState.think,
-      activity: [
-        ...state.activity,
-        ActivityItem(
-          id: event.id,
-          description: event.description,
-          writes: event.writes,
-          // El detalle se estaba tirando aquí: el lector lo traía y la fila no
-          // lo recibía, así que un paso no se podía abrir hasta que terminara
-          // —y entonces solo enseñaba lo que devolvió, nunca lo que se
-          // ejecutó—. Es justo la mitad que 3.2 fue a buscar.
-          detail: event.detail,
-          parentId: event.parentId,
-        ),
-      ],
+    if (folder == null) return;
+    final paired = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull;
+    unawaited(
+      ref
+          .read(seenModelsProvider.notifier)
+          .remember(paired?.claudeProfile, model),
     );
   }
 
-  /// Identificador fijo: solo puede haber una espera por turno, y así se cierra
-  /// sin tener que recordar cuál era.
-  static const _queueItemId = 'esperando-turno';
+  /// Un paso que empieza, venga de Claude o de la voz. Ver [conElEvento].
+  void _onClaudeToolUsed(ClaudeToolUsed event) => _aplicar(event);
 
-  void _onClaudeToolFinished(String id, [String? output]) {
-    state = state.copyWith(
-      activity: [
-        for (final item in state.activity)
-          if (item.id == id) item.asDone(output: output) else item,
-      ],
-    );
-  }
+  /// Y uno que acaba. Lo llama también la voz, y la compresión para cerrar el
+  /// suyo, así que sigue recibiendo el identificador y no el evento.
+  void _onClaudeToolFinished(String id, [String? output]) =>
+      _aplicar(ClaudeToolFinished(id, output: output));
 
+  /// El texto que llega a trozos. Lo único que no es estado es **el búfer**, que
+  /// es lo que se archiva al final del turno.
   void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
     buffer.write(event.text);
-    // La cita solo cuaja al **crear** el mensaje: `_appendTo` la ignora cuando
-    // está alargando el que ya hay, así que las porciones siguientes no la
-    // repiten ni la borran.
-    _appendTo(ChatAuthor.nexus, event.text, respondeA: _respondiendoA);
-    state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
+    _aplicar(event);
   }
 
   /// ¿Sigue existiendo esta conversación?
@@ -1187,15 +1161,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   void _onTurnCompleted(ClaudeTurnCompleted event) {
-    _sealLast();
-    state = state.copyWith(
-      orbState: NexusOrbState.sleep,
-      isStreaming: false,
-      meter: state.meter.copyWith(
-        turnTokens: event.turnTokens,
-        contextTokens: event.contextTokens,
-      ),
-    );
+    _aplicar(event);
     // Con el medidor ya actualizado: es de aquí de donde sale el número que le
     // faltaba al aviso de la compresión anterior.
     _completarLaCompresion();
@@ -1261,17 +1227,14 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? documento,
     List<ActivityItem>? actividad,
   }) {
-    final mensajes = [...state.messages];
-    final donde = mensajes.lastIndexWhere(
-      (mensaje) => mensaje.author == ChatAuthor.nexus,
+    state = state.copyWith(
+      messages: LosMensajes.conLoQueDejo(
+        state.messages,
+        cambios: cambios,
+        documento: documento,
+        actividad: actividad,
+      ),
     );
-    if (donde == -1) return;
-    mensajes[donde] = mensajes[donde].copyWith(
-      cambios: cambios,
-      documento: documento,
-      actividad: actividad,
-    );
-    state = state.copyWith(messages: mensajes);
   }
 
   /// El documento que salió de este encargo, si salió alguno.
