@@ -20,10 +20,15 @@ void main() {
         },
       );
 
+  // La frase la escribe ahora [QuienEsNexus], que es de donde salen también
+  // los encargos escritos: preguntarle quién es hablando y escribiendo no puede
+  // dar dos respuestas. Antes esto era «Eres <nombre>, un asistente de voz» y
+  // nada más — y con eso, al preguntarle quién era contestaba lo que sí sabía
+  // de sí mismo: el modelo que lo mueve.
   test('sin nombres elegidos, sigue siendo Nexus', () {
     final texto = instruccion(const LosNombres());
 
-    expect(texto, contains('Eres Nexus'));
+    expect(texto, contains('Te llamas Nexus'));
     // Y sin una línea de nombres colgando en medio de la instrucción.
     expect(texto, isNot(contains('La persona con la que hablas')));
   });
@@ -31,8 +36,13 @@ void main() {
   test('con nombre de agente, se presenta con él', () {
     final texto = instruccion(const LosNombres(agente: 'Hestia'));
 
-    expect(texto, contains('Eres Hestia'));
-    expect(texto, isNot(contains('Eres Nexus')));
+    expect(texto, contains('Te llamas Hestia'));
+    expect(texto, isNot(contains('Te llamas Nexus')));
+    expect(
+      texto,
+      contains('vives en Nexus'),
+      reason: 'el nombre es de quien atiende; Nexus es la casa',
+    );
   });
 
   test('con tu nombre, sabe cómo llamarte', () {
@@ -46,7 +56,7 @@ void main() {
       const LosNombres(agente: 'Hestia', tuyo: 'Argonauta'),
     );
 
-    expect(texto, contains('Eres Hestia'));
+    expect(texto, contains('Te llamas Hestia'));
     expect(texto, contains('Argonauta'));
   });
 

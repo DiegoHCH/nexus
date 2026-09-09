@@ -323,6 +323,7 @@ class _PuenteQuePregunta implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {

@@ -58,6 +58,12 @@ abstract class ClaudeBridge {
     /// para el prompt del sistema. Ver `LosNombres.paraElPrompt`.
     String? nombres,
 
+    /// Quién es quien contesta y para qué sirve, ya compuesto. Aparte de los
+    /// nombres porque son dos cosas: aquello es cómo lo llamas, esto es qué es
+    /// — y sin esto, preguntarle quién era se contestaba solo con lo que Claude
+    /// sabe de sí mismo. Ver `QuienEsNexus`.
+    String? identidad,
+
     /// El modo en que quedó esta sesión cuando alguien pulsó «Permitir todo»,
     /// o `null` para el de siempre.
     ///

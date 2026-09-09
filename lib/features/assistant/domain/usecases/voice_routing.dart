@@ -30,6 +30,62 @@ abstract final class VoiceRouting {
     caseSensitive: false,
   );
 
+  /// 🔴 **Lo que le preguntan sobre sí mismo lo contesta él**, y no por
+  /// cortesía: es lo único que Claude **no** sabe. «¿Quién eres?» son dos
+  /// palabras que no son un saludo, así que iban a Claude — que contestaba con
+  /// verdad quién es *él*, y de ahí el reporte: «si le preguntas quién eres
+  /// responde que es Claude, o que es Gemini hablando». La pregunta acababa en
+  /// el único sitio que no podía responderla.
+  ///
+  /// Va **antes** del tope de palabras a propósito: estas preguntas se hacen
+  /// largas —«¿tú eres Nexus o eres Claude?»— y con el tope delante volverían a
+  /// enrutarse. Quién es lo dice `QuienEsNexus`, en el prompt del sistema.
+  static final _quienEres = RegExp(
+    r'(qui[eé]n eres|qui[eé]n hablo|con qui[eé]n hablo|c[oó]mo te llamas|'
+    r'tu nombre|qu[eé] eres|qu[eé] sos|eres nexus|sos nexus|eres claude|'
+    r'eres gemini|eres una? (ia|inteligencia)|qui[eé]n te hizo|'
+    r'qu[eé] modelo eres|pres[eé]ntate|h[aá]blame de ti|'
+    r'who are you|who am i (talking|speaking) to|what are you|'
+    r"what'?s your name|your name|are you nexus|are you claude|are you gemini|"
+    r'introduce yourself|tell me about yourself|which model are you)',
+    caseSensitive: false,
+  );
+
+  /// Lo que sabe hacer, que es la otra mitad de presentarse.
+  ///
+  /// ⚠️ **Estas van con freno**, y es la parte delicada: «¿qué puedes hacer?»
+  /// habla de ella, pero «¿qué puedes hacer con este repositorio?» es un
+  /// encargo de los buenos. Enrutar de más cuesta unos segundos; contestar de
+  /// memoria sobre esta máquina cuesta un dato falso dicho con seguridad, así
+  /// que ante la duda va a Claude. Ver [_apuntaAAlgoDeAqui].
+  static final _loQueSabeHacer = RegExp(
+    r'(para qu[eé] sirves|qu[eé] sabes hacer|qu[eé] puedes hacer|'
+    r'qu[eé] haces t[uú]|what can you do|what do you do)',
+    caseSensitive: false,
+  );
+
+  /// Si la frase señala algo de esta máquina. Con esto delante, lo de «qué
+  /// puedes hacer» ya no habla de ella: habla de lo que hay aquí, y eso lo sabe
+  /// Claude y no ella.
+  static final _apuntaAAlgoDeAqui = RegExp(
+    r'\b(este|esta|esto|estos|estas|mi|mis|aqu[ií]|repo|repositorio|carpeta|'
+    r'proyecto|c[oó]digo|rama|archivo|test|prueba|this|these|my|here)\b',
+    caseSensitive: false,
+  );
+
+  /// Cuántas palabras se le aguantan a una pregunta sobre lo que sabe hacer.
+  /// Más que eso ya suele traer un complemento, y el complemento es el encargo.
+  static const _maxPalabrasDeLoSuyo = 5;
+
+  /// Si esto es una pregunta sobre sí misma.
+  static bool esSobreElla(String utterance) {
+    final limpia = _limpia(utterance);
+    if (_quienEres.hasMatch(limpia)) return true;
+    if (!_loQueSabeHacer.hasMatch(limpia)) return false;
+    return limpia.split(' ').length <= _maxPalabrasDeLoSuyo &&
+        !_apuntaAAlgoDeAqui.hasMatch(limpia);
+  }
+
   /// Una frase corta y sin verbo de encargo. El tope de palabras importa:
   /// «hola, mira el historial de git» empieza como un saludo y **no** lo es.
   static const _maxSmallTalkWords = 4;
@@ -43,16 +99,22 @@ abstract final class VoiceRouting {
   /// sigue enrutando. Lo que no aguantaba el texto roto era **el contenido** del
   /// encargo, y de eso ya no se encarga (ver [pasaloTu]).
   static bool needsClaude(String utterance) {
-    final clean = utterance
-        .trim()
-        .toLowerCase()
-        .replaceAll(RegExp(r'[¿?¡!.,;:]+'), ' ')
-        .replaceAll(RegExp(r'\s+'), ' ')
-        .trim();
+    final clean = _limpia(utterance);
     if (clean.isEmpty) return false;
+    // Lo suyo, primero: ver [_quienEres] para por qué va delante del tope.
+    if (esSobreElla(clean)) return false;
     if (clean.split(' ').length > _maxSmallTalkWords) return true;
     return !_smallTalk.hasMatch(clean);
   }
+
+  /// Sin signos, sin dobles espacios y en minúsculas: lo que llega del servicio
+  /// de voz viene puntuado a su gusto.
+  static String _limpia(String utterance) => utterance
+      .trim()
+      .toLowerCase()
+      .replaceAll(RegExp(r'[¿?¡!.,;:]+'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   /// Lo primero que se le dice cuando contestó de memoria: **que lo pase él**.
   ///

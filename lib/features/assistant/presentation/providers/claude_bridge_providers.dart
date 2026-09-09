@@ -12,6 +12,7 @@ import 'package:nexus/features/assistant/data/repositories/conversation_memory_i
 import 'package:nexus/features/assistant/domain/repositories/conversation_memory.dart';
 import 'package:nexus/features/assistant/domain/usecases/ask_claude.dart';
 import 'package:nexus/features/assistant/domain/usecases/folder_errand_queue.dart';
+import 'package:nexus/features/assistant/domain/usecases/quien_es_nexus.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/workspace/domain/usecases/allowed_commands.dart';
 import 'package:nexus/features/workspace/domain/usecases/blocked_commands.dart';
@@ -120,6 +121,12 @@ final askClaudeProvider = Provider.family<AskClaude, String>((
         // Cómo se llama quien contesta y cómo llamarte a ti. Global y no por
         // carpeta: tu nombre no cambia según el repo. Ver [LosNombres].
         nombres: ref.read(losNombresProvider).paraElPrompt(),
+        // Y quién es, del mismo sitio que lo dice la voz: preguntarle quién es
+        // escribiendo tiene que dar la misma respuesta que preguntárselo
+        // hablando. Ver [QuienEsNexus].
+        identidad: QuienEsNexus.comoSePresenta(
+          ref.read(losNombresProvider).agente,
+        ),
         model: paired?.claudeModel,
         effort: paired?.claudeEffort,
         claudeProfile: paired?.claudeProfile,
