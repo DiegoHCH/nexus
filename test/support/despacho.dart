@@ -18,4 +18,12 @@ class SinEnrutar implements ElDespachoDeCarpeta {
     required List<String> attachments,
     bool elFocoSigue = true,
   }) async => AtiendeloTu(frase);
+
+  @override
+  Future<LoQueQuedaPorHacer> aEstaCarpeta(
+    String carpeta, {
+    required String tarea,
+    required String loQueSeVe,
+    bool allowWrites = true,
+  }) async => AtiendeloTu(tarea);
 }
