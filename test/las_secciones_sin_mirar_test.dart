@@ -36,9 +36,20 @@ const _work = ClaudeProfile(
   name: 'work',
   signedIn: true,
 );
-const _personal = ClaudeProfile(
+
+/// La cuenta de siempre, tal como la produce `ClaudeProfilesDataSource.todas()`:
+/// **sin nombre**, porque no tiene uno propio — se lo pone quien la enseñe.
+const _siempre = ClaudeProfile(
   path: '/Users/alguien/.claude',
-  name: 'por defecto',
+  name: '',
+  signedIn: true,
+);
+
+/// Una segunda cuenta **con nombre**. Las estadísticas y el historial solo ven
+/// de estas: su lista es la de los perfiles `.claude-*`.
+const _private = ClaudeProfile(
+  path: '/Users/alguien/.claude-private',
+  name: 'private',
   signedIn: true,
 );
 
@@ -54,6 +65,10 @@ void main() {
     List<TranscriptTurn>? turnos,
   }) => [
     claudeProfilesProvider.overrideWith((ref) async => cuentas),
+    // Las dos, porque no dicen lo mismo: aquél lista solo las que tienen
+    // nombre y este incluye la de siempre. Superpoderes mira el segundo — ver
+    // [todasLasCuentasProvider].
+    todasLasCuentasProvider.overrideWith((ref) async => cuentas),
     for (final cuenta in cuentas)
       transcriptTurnsProvider(
         cuenta.path,
@@ -100,10 +115,10 @@ void main() {
     });
 
     testWidgets('con dos, sí, y se ven las dos', (tester) async {
-      await abrir(tester, cuentas: const [_work, _personal]);
+      await abrir(tester, cuentas: const [_work, _private]);
 
       expect(find.text('WORK'), findsOneWidget);
-      expect(find.text('POR DEFECTO'), findsOneWidget);
+      expect(find.text('PRIVATE'), findsOneWidget);
       sinDesbordar(tester);
     });
 
@@ -131,7 +146,7 @@ void main() {
     testWidgets('y también en claro', (tester) async {
       await abrir(
         tester,
-        cuentas: const [_work, _personal],
+        cuentas: const [_work, _private],
         turnos: [turno()],
         tema: NexusTheme.light(),
       );
@@ -159,6 +174,21 @@ void main() {
       sinDesbordar(tester);
     });
 
+    // 🔴 **Reportado con captura, y por otra persona:** en su Mac el chat
+    // funcionaba y esta sección decía «no hay ninguna cuenta configurada», sin
+    // dejar ver ni poner nada. No tenía perfiles con nombre —lo normal si nadie
+    // ha creado ninguno— y la sección miraba la lista que solo trae las
+    // `.claude-*`. La de siempre tiene sus MCP, sus skills y sus plugins como
+    // cualquier otra.
+    testWidgets('con solo la cuenta de siempre, la sección funciona', (
+      tester,
+    ) async {
+      await abrir(tester, cuentas: const [_siempre]);
+
+      expect(find.text(textos.statsNoAccounts), findsNothing);
+      expect(find.text(textos.superpowersMcp), findsOneWidget);
+      sinDesbordar(tester);
+    });
     testWidgets('con una cuenta no hay pestañas', (tester) async {
       await abrir(tester, cuentas: const [_work]);
 
@@ -167,17 +197,21 @@ void main() {
     });
 
     testWidgets('con dos, cada cuenta tiene la suya', (tester) async {
-      await abrir(tester, cuentas: const [_work, _personal]);
+      await abrir(tester, cuentas: const [_work, _siempre]);
 
       expect(find.text('WORK'), findsOneWidget);
-      expect(find.text('POR DEFECTO'), findsOneWidget);
+      // **A la de siempre la nombra la interfaz**, no el dato: quien la produce
+      // la deja sin nombre —no tiene uno propio— y aquí se le pone el del
+      // idioma elegido. Antes decía «POR DEFECTO» porque ese texto venía en el
+      // dato de esta prueba, y ningún sitio de la app producía esa cuenta.
+      expect(find.text(textos.laCuentaDeSiempre.toUpperCase()), findsOneWidget);
       sinDesbordar(tester);
     });
 
     testWidgets('y también en claro', (tester) async {
       await abrir(
         tester,
-        cuentas: const [_work, _personal],
+        cuentas: const [_work, _siempre],
         tema: NexusTheme.light(),
       );
 

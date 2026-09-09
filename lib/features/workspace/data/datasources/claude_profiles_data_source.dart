@@ -27,6 +27,12 @@ class ClaudeProfile {
   /// hacer; enseñarlo aquí convierte un fallo en una elección informada.
   final bool signedIn;
 
+  /// Si es **la cuenta de siempre**, la que no tiene nombre.
+  ///
+  /// Quien la enseña le pone el nombre que toque en su idioma: aquí no hay
+  /// textos de interfaz.
+  bool get esLaDeSiempre => nameFromPath(path) == null;
+
   /// El nombre de cuenta que le corresponde a un directorio de configuración, o
   /// `null` si ese directorio no es una cuenta —`.claude` a secas, la de siempre—.
   ///
@@ -65,6 +71,24 @@ class ClaudeProfilesDataSource {
     final hash = sha256.convert(utf8.encode(configDir)).toString();
     return 'Claude Code-credentials-${hash.substring(0, 8)}';
   }
+
+  /// **Todos** los servicios donde puede estar la credencial de esa cuenta.
+  ///
+  /// 🔴 **Porque la de siempre puede guardarla sin sufijo.** Su entrada se
+  /// llama «Claude Code-credentials» a secas —lo dice el comentario de arriba y
+  /// se comprobó en el llavero de este Mac—, así que buscándola solo por el
+  /// hash de su ruta la cuenta de siempre salía **sin sesión** aunque la
+  /// tuviera. Y con las dos puestas también se cubre el caso al revés, que ya
+  /// existe en esta máquina: las dos entradas a la vez.
+  ///
+  /// Vive aquí y no en cada quien porque **ya son dos** los que la necesitan
+  /// —esto y el lector de consumo—, y una copia se separa de la otra en cuanto
+  /// alguien toque una.
+  static List<String> keychainServices(String configDir) => [
+    keychainService(configDir),
+    if (ClaudeProfile.nameFromPath(configDir) == null)
+      'Claude Code-credentials',
+  ];
 
   /// Lo que ese perfil tiene configurado: modelo y esfuerzo, si los fijó.
   ///
@@ -115,12 +139,42 @@ class ClaudeProfilesDataSource {
     return profiles;
   }
 
+  /// Todas las cuentas **incluida la de siempre**, que va primero.
+  ///
+  /// 🔴 **Existe por un reporte con captura:** en un Mac con una sola cuenta
+  /// —la de siempre, que es lo normal si nadie ha creado perfiles— Ajustes →
+  /// Superpoderes decía «No hay ninguna cuenta de Claude configurada» y no
+  /// dejaba ver ni poner nada, mientras el chat funcionaba perfectamente. Y era
+  /// cierto desde su punto de vista: [list] devuelve solo las `.claude-*`,
+  /// porque para elegir la cuenta de una carpeta «la de siempre» es la ausencia
+  /// de perfil y ya está arriba como opción.
+  ///
+  /// Pero para **mirar qué tiene instalado una cuenta** eso no vale: la de
+  /// siempre tiene sus servidores MCP, sus skills y sus plugins como cualquier
+  /// otra, y sin listarla no había forma de verlos. Es el mismo caso que ya
+  /// resolvió `cuentasParaLlaves` para las llaves, con el mismo motivo escrito.
+  Future<List<ClaudeProfile>> todas() async {
+    final siempre = ClaudeProfile.elDeSiempre();
+    return [
+      ClaudeProfile(
+        path: siempre,
+        // Sin nombre: se lo pone quien la enseñe, en su idioma.
+        name: '',
+        signedIn: await _hasSession(siempre),
+      ),
+      ...await list(),
+    ];
+  }
+
   Future<bool> _hasSession(String configDir) async {
-    final result = await Process.run('security', [
-      'find-generic-password',
-      '-s',
-      keychainService(configDir),
-    ]);
-    return result.exitCode == 0;
+    for (final servicio in keychainServices(configDir)) {
+      final result = await Process.run('security', [
+        'find-generic-password',
+        '-s',
+        servicio,
+      ]);
+      if (result.exitCode == 0) return true;
+    }
+    return false;
   }
 }

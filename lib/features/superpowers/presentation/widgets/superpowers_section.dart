@@ -48,7 +48,13 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   Widget build(BuildContext context) {
     final strings = context.strings;
     final colors = context.colors;
-    final profiles = ref.watch(claudeProfilesProvider).value ?? const [];
+    // 🔴 **Con la de siempre dentro.** Reportado con captura: en un Mac sin
+    // perfiles con nombre esto decía «no hay ninguna cuenta configurada» y no
+    // dejaba ver ni poner nada, mientras el chat funcionaba — porque
+    // `claudeProfilesProvider` solo lista las `.claude-*`. Aquí no se elige la
+    // cuenta de una carpeta: se mira qué tiene instalado cada una, y la de
+    // siempre tiene lo suyo como cualquier otra. Ver [todasLasCuentasProvider].
+    final profiles = ref.watch(todasLasCuentasProvider).value ?? const [];
     if (profiles.isEmpty) {
       return Text(
         strings.statsNoAccounts,
@@ -71,7 +77,11 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
               for (final profile in profiles)
                 Expanded(
                   child: _Tab(
-                    label: profile.name,
+                    // La de siempre no trae nombre: se lo pone la interfaz, en
+                    // el idioma que toque.
+                    label: profile.esLaDeSiempre
+                        ? strings.laCuentaDeSiempre
+                        : profile.name,
                     active: profile.path == current,
                     onTap: () => setState(() => _profile = profile.path),
                   ),
