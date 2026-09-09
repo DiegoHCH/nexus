@@ -73,6 +73,24 @@ mixin EjecucionStrings {
   /// Lo que se ve en la conversación, que no es el encargo entero.
   String get elErrorDeLaAppEnCorto;
 
+  /// El freno de las excepciones: que la app se pare donde se rompe.
+  ///
+  /// **En vez de solo contarlo después.** Un error en el registro dice qué pasó;
+  /// pararse dice dónde, con la app viva y el estado delante.
+  String get runFreno;
+
+  /// Dónde se paró, para la línea de la fila.
+  String runParadaEn(String donde);
+
+  /// La app está parada y no se sabe dónde: pasa mientras se traduce la
+  /// posición a una línea, y en una parada sin marco.
+  String get runParadaSinSitio;
+
+  String get runSeguir;
+  String get runPasoSiguiente;
+  String get runPasoEntrar;
+  String get runPasoSalir;
+
   /// La consola de depuración que la app levanta ella misma. **No** es la de
   /// Nexus ni una nuestra: es la de la app que está corriendo.
   String get runConsole;
@@ -177,6 +195,20 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   @override
   String get elErrorDeLaAppEnCorto => 'Arregla el error que dejó la app';
   @override
+  String get runFreno => 'Pararse en los errores';
+  @override
+  String runParadaEn(String donde) => 'Parada en $donde';
+  @override
+  String get runParadaSinSitio => 'Parada';
+  @override
+  String get runSeguir => 'Seguir';
+  @override
+  String get runPasoSiguiente => 'Siguiente línea';
+  @override
+  String get runPasoEntrar => 'Entrar en la llamada';
+  @override
+  String get runPasoSalir => 'Salir de la función';
+  @override
   String get runToolbarDrag => 'Corriendo';
   @override
   String get runConsole => 'Consola de la app';
@@ -277,6 +309,20 @@ mixin EjecucionStringsEn implements EjecucionStrings {
       'than one place, say so before touching it.';
   @override
   String get elErrorDeLaAppEnCorto => 'Fix the error the app left';
+  @override
+  String get runFreno => 'Pause on errors';
+  @override
+  String runParadaEn(String donde) => 'Paused at $donde';
+  @override
+  String get runParadaSinSitio => 'Paused';
+  @override
+  String get runSeguir => 'Resume';
+  @override
+  String get runPasoSiguiente => 'Next line';
+  @override
+  String get runPasoEntrar => 'Step into';
+  @override
+  String get runPasoSalir => 'Step out';
   @override
   String get runToolbarDrag => 'Running';
   @override
