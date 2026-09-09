@@ -28,6 +28,7 @@ import 'package:nexus/features/assistant/domain/usecases/la_sesion_que_se_compar
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
+import 'package:nexus/features/assistant/presentation/providers/lo_que_dejo_el_encargo.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
@@ -39,6 +40,7 @@ import 'package:nexus/features/history/domain/entities/conversation_summary.dart
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/history/presentation/providers/el_archivo_de_la_conversacion.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -821,7 +823,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
-    unawaited(_markRepo());
+    unawaited(_loQueDejo.tomaLaMarca(_workingDirectory));
 
     final ask = ref.read(askClaudeProvider(conversationId));
     _subscription =
@@ -1121,29 +1123,6 @@ class AssistantController extends Notifier<AssistantHudState> {
     state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
   }
 
-  /// Dónde estaba el repositorio antes de este encargo.
-  String? _repoBase;
-
-  /// Y qué documentos había antes, para saber cuál salió de aquí.
-  /// Los documentos que había **antes de este encargo**, o `null` si nadie ha
-  /// tomado la marca todavía.
-  ///
-  /// 🔴 **`null` y no un conjunto vacío, y esa es la diferencia que importa.**
-  /// Vacío significa «mirado, y no había ninguno»; `null` significa «no se ha
-  /// mirado». Confundirlos es lo que colgó un documento viejo de una respuesta
-  /// que no tenía nada que ver: sin marca, restar contra el vacío hace que
-  /// **toda** la carpeta parezca recién salida.
-  ///
-  /// Con esto, un camino que llegue al final de un encargo sin haber tomado la
-  /// marca no cuelga nada — que es lo correcto, porque no hay forma de saber
-  /// qué es nuevo.
-  Set<String>? _documentosAntes;
-
-  /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
-  /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
-  /// cualquier archivo suelto de ayer contaba como creado por este encargo.
-  Set<String> _sinTrackearAntes = const {};
-
   /// ¿Sigue existiendo esta conversación?
   ///
   /// 🔴 **Media docena de cosas del final de un encargo salen con `unawaited`**
@@ -1159,57 +1138,16 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// cuando esto ocurre de verdad.
   bool get _vive => ref.mounted;
 
-  Future<void> _markRepo() async {
-    final folder = _workingDirectory;
-    if (folder == null) {
-      _repoBase = null;
-      _sinTrackearAntes = const {};
-    } else {
-      const git = GitDataSource();
-      _repoBase = await git.snapshot(folder);
-      _sinTrackearAntes = await git.sinTrackear(folder);
-    }
-    if (!_vive) return;
-    _documentosAntes = await _documentosAhora();
-  }
-
-  /// Las rutas de los documentos que hay ahora mismo en el cajón.
-  ///
-  /// Se comparan antes y después por la misma razón que el repositorio: lo que
-  /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
-  Future<Set<String>> _documentosAhora() async {
-    if (!_vive) return const {};
-    final carpeta = ref.read(artifactsFolderProvider);
-    if (carpeta == null) return const {};
-    // 🔴 **Esperadas de verdad, no leídas a medias.** Aquí había un
-    // `.value` sobre un proveedor asíncrono: mientras no ha resuelto vale
-    // `null`, así que la foto de «antes» podía tomarse **sin cuentas** y la de
-    // «después» **con ellas**. Comparar dos listas sacadas con reglas distintas
-    // convierte la diferencia en basura: un documento guardado en la carpeta de
-    // una cuenta aparece como nuevo sin serlo, o al revés. Y la ventana en la
-    // que pasa no es teórica: el proveedor recorre el home al arrancar.
-    final cuentas = await ref
-        .read(claudeProfilesProvider.future)
-        .then((perfiles) => perfiles.map((perfil) => perfil.name).toSet())
-        .catchError((Object _) => const <String>{});
-    if (!_vive) return const {};
-    final lista = await ref
-        .read(artifactsDataSourceProvider)
-        .list(carpeta, cuentas: cuentas);
-    return {for (final documento in lista) documento.path};
-  }
+  /// Qué dejó tocado el encargo —el repositorio y los documentos—, que ya no
+  /// vive aquí. Ver [LoQueDejoElEncargo].
+  LoQueDejoElEncargo get _loQueDejo =>
+      ref.read(loQueDejoElEncargoProvider(conversationId));
 
   /// Qué dejó tocado, si tocó algo.
   Future<void> _readChanges() async {
     final folder = _workingDirectory;
-    final base = _repoBase;
-    if (folder == null || base == null) return;
-    final cambios = await const GitDataSource().changesSince(
-      folder,
-      base,
-      yaEstaban: _sinTrackearAntes,
-    );
-    if (cambios == null || !_vive) return;
+    final cambios = await _loQueDejo.losCambios(folder);
+    if (cambios == null || folder == null || !_vive) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
 
@@ -1342,18 +1280,9 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// ofrece el último: son las notas de la misma tarea y el botón lleva a la
   /// carpeta igual, con el resto al lado.
   Future<void> _mirarSiHayDocumento() async {
-    // Sin marca no se cuelga nada. Y **se consume**: la marca vale para un
-    // encargo, así que el siguiente tiene que tomar la suya. Dejarla puesta
-    // haría que un turno sin marca comparase contra la del anterior y colgase
-    // el documento de aquél.
-    final antes = _documentosAntes;
-    _documentosAntes = null;
-    if (antes == null) return;
-    final ahora = await _documentosAhora();
-    final nuevos = ahora.difference(antes);
-    if (nuevos.isEmpty || !_vive) return;
-    ref.invalidate(artifactsProvider);
-    _sellarEnElMensaje(documento: nuevos.last);
+    final documento = await _loQueDejo.elDocumentoNuevo();
+    if (documento == null || !_vive) return;
+    _sellarEnElMensaje(documento: documento);
   }
 
   /// Lo que hay que hacer cuando un encargo termina, **venga de donde venga**.
@@ -1470,28 +1399,9 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// estos dos no lo son. El documento seguía en el disco: lo que se perdió
   /// fue el enlace, que es la peor forma de perderlo, porque parece que el
   /// archivo tampoco está.
-  /// Lo que escribe el registro va **en fila**.
-  ///
-  /// 🔴 **Porque el final de un turno y el principio del siguiente se solapan.**
-  /// [_afterErrand] da paso a la cola —`_elEncargoTermino()`— y **después**
-  /// suelta el sellado con `unawaited`: si había algo encolado, el turno nuevo
-  /// puede estar archivando mientras el anterior todavía busca su documento, y
-  /// los dos escriben **el mismo registro** con `state.messages` leído en
-  /// momentos distintos. Gana el último que serializa, y si es el de antes del
-  /// sellado, el enlace del documento no queda en el disco.
-  ///
-  /// Es la misma medicina que ya toma el registro de la app —«las escrituras van
-  /// en fila: dos a la vez sobre el mismo archivo pueden intercalarse a media
-  /// línea»— y por el mismo motivo, un grado más arriba: aquí lo que se
-  /// intercala no son líneas, son turnos.
-  Future<void> _laFila = Future.value();
-
+  /// La fila la lleva quien escribe. Ver [ElArchivoDeLaConversacion.enFila].
   Future<void> _enFila(Future<void> Function() tarea) =>
-      _laFila = _laFila.then((_) => tarea()).catchError((Object error) {
-        // Un fallo al archivar no puede romper la fila: lo que viene detrás es
-        // el turno siguiente, y quedarse sin fila es quedarse sin registro.
-        debugPrint('archivo · la fila siguió tras un fallo: $error');
-      });
+      ref.read(elArchivoDeLaConversacionProvider(conversationId)).enFila(tarea);
 
   Future<void> _sellarYGuardar() async {
     await _readChanges();
@@ -1576,80 +1486,47 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Para las segundas pasadas del mismo turno: el historial local es
   /// idempotente —reescribirlo deja el mismo archivo— y el destino externo no,
   /// porque sale de la máquina y cuesta red cada vez.
+  /// Arma el registro y se lo da a quien escribe.
+  ///
+  /// 🔴 **Lo que se escribe y dónde ya no vive aquí**: eso es
+  /// [ElArchivoDeLaConversacion], que además es **el único que escribe** y por
+  /// eso puede garantizar la fila. Aquí se queda lo que sí es de esta
+  /// conversación: qué mensajes hay ahora mismo y cómo se dice que algo falló.
   Future<void> _archive({bool soloLocal = false}) async {
     final folder = _folder;
     if (folder == null) return;
-    final record = ConversationRecord(
-      id: _recordId,
-      folderPath: folder,
-      startedAt: _startedAt,
-      messages: state.messages,
-      // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale de la
-      // carpeta, que es donde se elige la cuenta.
-      profileName: _profileName(folder),
-      model: state.meter.model,
-      contextTokens: state.meter.contextTokens,
-    );
 
-    // Primero el historial de la app, que no depende de nada externo. Si
-    // dependiera del vault o de Notion, elegir «en ningún sitio» dejaría a
-    // Nexus sin memoria de lo que hiciste.
-    // Los dos fallos se recogen y se cuentan **al final, en un solo aviso**.
-    // Antes cada uno solo hacía `debugPrint`: si el vault ya no existía, la
-    // conversación se perdía y la app no decía nada — te enterabas el día que
-    // ibas a buscar la nota, cuando ya no había forma de recuperarla. Y es la
-    // peor clase de silencio, porque no se repite: la conversación ya terminó.
-    var falloLocal = false;
+    final fallo = await ref
+        .read(elArchivoDeLaConversacionProvider(conversationId))
+        .guardar(
+          ConversationRecord(
+            id: _recordId,
+            folderPath: folder,
+            startedAt: _startedAt,
+            messages: state.messages,
+            // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale
+            // de la carpeta, que es donde se elige la cuenta.
+            profileName: _profileName(folder),
+            model: state.meter.model,
+            contextTokens: state.meter.contextTokens,
+          ),
+          soloLocal: soloLocal,
+        );
 
-    try {
-      await ref.read(localConversationStoreProvider).save(record);
-      if (!_vive) return;
-      ref.invalidate(savedConversationsProvider(folder));
-    } catch (error) {
-      falloLocal = true;
-      debugPrint('archivo · no se pudo guardar en local: $error');
-    }
-
-    // **Resolver el destino también va dentro del try.** Estaba fuera, y eso
-    // contradecía el párrafo de arriba: si averiguar cuál es el destino
-    // externo fallaba —un vault que ya no está, una preferencia a medio
-    // escribir—, `_archive` lanzaba desde dentro de un `unawaited` y quedaba
-    // como error sin atrapar. El historial local ya estaba guardado, así que
-    // no se perdía nada; lo que se llevaba por delante era el silencio.
-    var falloElDestino = false;
-    try {
-      // La segunda pasada de un turno no vuelve a salir de la máquina.
-      final archive = soloLocal
-          ? null
-          : await ref.read(conversationArchiveProvider.future);
-      if (archive != null) await archive.save(record);
-    } catch (error) {
-      // Que falle guardar no puede tumbar la conversación: la carpeta puede
-      // haberse desconectado, o el vault puede no existir ya. Se dice y se
-      // sigue — el historial de la app nunca depende del destino externo.
-      falloElDestino = true;
-      debugPrint('archivo · no se pudo archivar: $error');
-    }
-
-    // 🔴 **Un solo `if (!_vive)` y aquí abajo, que es donde faltaba.**
-    //
-    // Todo lo que queda necesita `ref` —el nombre del destino, los textos, el
-    // estado— y esto corre después de dos `await` que pueden tardar: si la
-    // conversación se cerró mientras se archivaba, el proveedor ya no existe y
-    // leerlo lanza «Cannot use the Ref … after it has been disposed». Y lanza
-    // desde dentro de un `unawaited`, así que no lo atrapa nadie.
-    //
-    // Arriba ya había un guardia igual, pero **cubría solo la escritura local**
-    // y se quedó a medio camino: el destino externo es justo el que más tarda,
-    // porque sale de la máquina. Salió en CI, donde la carrera se pierde.
+    // 🔴 **El guardia va aquí abajo, que es donde faltaba.** Lo que queda
+    // necesita `ref` y `state` —el nombre del destino, los textos— y esto corre
+    // después de dos `await` que pueden tardar: si la conversación se cerró
+    // mientras se archivaba, leer el proveedor lanza «Cannot use the Ref … after
+    // it has been disposed», y lanza desde dentro de un `unawaited`, así que no
+    // lo atrapa nadie. Salió en CI, donde la carrera se pierde.
     //
     // Sin aviso no se pierde nada: si el proveedor está muerto no hay pantalla
     // donde ponerlo, y el historial local ya está escrito o ya se dijo por qué
     // no.
-    if (!_vive) return;
+    if (!_vive || !fallo.algo) return;
     _reportArchiveFailure(
-      local: falloLocal,
-      destination: falloElDestino ? _destinationName() : null,
+      local: fallo.local,
+      destination: fallo.destino ? _destinationName() : null,
     );
   }
 
@@ -2325,7 +2202,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // viejo pegado a dos respuestas que no tenían nada que ver, y de nuevo con
     // el mismo patrón: se arregló la mitad de después para la voz y la de antes
     // se quedó en el camino de escribir.
-    unawaited(_markRepo());
+    unawaited(_loQueDejo.tomaLaMarca(_workingDirectory));
     state = state.copyWith(
       orbState: NexusOrbState.think,
       subtitle: instruction,
