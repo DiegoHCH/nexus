@@ -47,6 +47,12 @@ mixin SuperpoderesStrings {
   String get mcpAdd;
   String get mcpRemove;
   String get mcpCheck;
+
+  /// Cuántos de la lista son conectores de la cuenta de claude.ai.
+  ///
+  /// Con parámetro porque el número es lo que contesta la pregunta que trajo
+  /// esto —«¿están todos?»—, y porque quince y uno se leen distinto.
+  String mcpDeLaCuenta(int cuantos);
   String get mcpCheckNote;
   String get mcpChecking;
   String get mcpCheckFailed;
@@ -194,11 +200,16 @@ mixin SuperpoderesStringsEs implements SuperpoderesStrings {
   @override
   String get mcpRemove => 'Quitar';
   @override
-  String get mcpCheck => 'Comprobar';
+  String get mcpCheck => 'Volver a comprobar';
+  @override
+  String mcpDeLaCuenta(int cuantos) => cuantos == 1
+      ? 'Uno de ellos es un conector de tu cuenta de claude.ai: se gestiona allí.'
+      : '$cuantos de ellos son conectores de tu cuenta de claude.ai: se '
+            'gestionan allí.';
   @override
   String get mcpCheckNote =>
-      'Pregunta a cada servidor si responde. Tarda, y trae también los '
-      'conectores de tu cuenta de claude.ai.';
+      'La lista se refresca sola cada pocas horas. Púlsalo si acabas de '
+      'conectar algo: pregunta a cada servidor si responde, y tarda.';
   @override
   String get mcpChecking => 'Preguntando a cada uno…';
   @override
@@ -388,7 +399,12 @@ mixin SuperpoderesStringsEn implements SuperpoderesStrings {
   @override
   String get mcpRemove => 'Remove';
   @override
-  String get mcpCheck => 'Check';
+  String get mcpCheck => 'Check again';
+  @override
+  String mcpDeLaCuenta(int cuantos) => cuantos == 1
+      ? 'One of them is a connector from your claude.ai account: it is managed there.'
+      : '$cuantos of them are connectors from your claude.ai account: they are '
+            'managed there.';
   @override
   String get mcpCheckNote =>
       'Asks every server whether it answers. Slow, and it also brings in your '
