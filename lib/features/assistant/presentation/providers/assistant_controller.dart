@@ -538,8 +538,18 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
   }
 
-  void _sealLast() =>
-      state = state.copyWith(messages: LosMensajes.sellados(state.messages));
+  void _sealLast() {
+    final sellados = LosMensajes.sellados(state.messages);
+    // 🔴 **Si no había nada que sellar, no se escribe el estado.** Antes de que
+    // las reglas salieran a [LosMensajes] había aquí un `return` temprano, y al
+    // sacarlas se perdió: sellar sobre una conversación ya sellada escribía un
+    // estado nuevo igual al anterior. Cada escritura repinta el HUD —y el orbe
+    // es un `CustomPainter` con su malla y sus anillos—, que es la ruta por la
+    // que este archivo ya midió que **la voz se entrecorta**. Y `_sealLast` se
+    // llama desde una docena de sitios, varios mientras suena audio.
+    if (identical(sellados, state.messages)) return;
+    state = state.copyWith(messages: sellados);
+  }
 
   /// [allowWrites] es un **tope y no un permiso**: baja lo que la carpeta concede,
   /// nunca lo sube. Lo usa el canal del teléfono, que manda `false` mientras no
@@ -1227,14 +1237,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? documento,
     List<ActivityItem>? actividad,
   }) {
-    state = state.copyWith(
-      messages: LosMensajes.conLoQueDejo(
-        state.messages,
-        cambios: cambios,
-        documento: documento,
-        actividad: actividad,
-      ),
+    final conLoQueDejo = LosMensajes.conLoQueDejo(
+      state.messages,
+      cambios: cambios,
+      documento: documento,
+      actividad: actividad,
     );
+    // Lo mismo que en [_sealLast]: sin ningún mensaje de Nexus no hay dónde
+    // colgarlo, y escribir el estado igual solo cuesta un repintado.
+    if (identical(conLoQueDejo, state.messages)) return;
+    state = state.copyWith(messages: conLoQueDejo);
   }
 
   /// El documento que salió de este encargo, si salió alguno.
