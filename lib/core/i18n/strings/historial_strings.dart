@@ -30,6 +30,19 @@ mixin HistorialStrings {
 
   String get historyExplainer;
   String get nothingAskedYet;
+
+  /// Las cabeceras de los días del historial.
+  ///
+  /// «Hoy» y «Ayer» tienen nombre porque es como se piensa en ellos; de tres
+  /// días atrás nadie dice «hace tres días», dice la fecha — y contar hacia
+  /// atrás es trabajo para quien lee. Ver [LosDiasDelHistorial].
+  String get historialHoy;
+  String get historialAyer;
+
+  /// El día, escrito. Lleva el año **solo si no es el de ahora**: repetirlo en
+  /// cada cabecera es ruido, y omitirlo en una conversación del año pasado la
+  /// haría parecer de este.
+  String historialDia(DateTime dia, {required bool conElAno});
   String startFromScratchIn(String folder);
   String get conversationForgotten;
 
@@ -134,6 +147,32 @@ mixin HistorialStringsEs implements HistorialStrings {
       'conversación anterior, así que sabe lo que ya hicisteis.';
   @override
   String get nothingAskedYet => 'Todavía no le has pedido nada.';
+  @override
+  String get historialHoy => 'Hoy';
+  @override
+  String get historialAyer => 'Ayer';
+  @override
+  String historialDia(DateTime dia, {required bool conElAno}) {
+    const meses = [
+      'enero',
+      'febrero',
+      'marzo',
+      'abril',
+      'mayo',
+      'junio',
+      'julio',
+      'agosto',
+      'septiembre',
+      'octubre',
+      'noviembre',
+      'diciembre',
+    ];
+    final mes = meses[dia.month - 1];
+    return conElAno
+        ? '${dia.day} de $mes de ${dia.year}'
+        : '${dia.day} de $mes';
+  }
+
   @override
   String startFromScratchIn(String folder) =>
       'QUE CLAUDE OLVIDE LO HABLADO EN $folder';
@@ -291,6 +330,30 @@ mixin HistorialStringsEn implements HistorialStrings {
       'conversation, so it knows what you already did together.';
   @override
   String get nothingAskedYet => 'You have not asked for anything yet.';
+  @override
+  String get historialHoy => 'Today';
+  @override
+  String get historialAyer => 'Yesterday';
+  @override
+  String historialDia(DateTime dia, {required bool conElAno}) {
+    const meses = [
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
+    ];
+    final mes = meses[dia.month - 1];
+    return conElAno ? '$mes ${dia.day}, ${dia.year}' : '$mes ${dia.day}';
+  }
+
   @override
   String startFromScratchIn(String folder) =>
       'MAKE CLAUDE FORGET WHAT WAS SAID IN $folder';
