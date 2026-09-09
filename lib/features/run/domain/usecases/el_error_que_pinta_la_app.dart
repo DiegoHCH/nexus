@@ -1,4 +1,4 @@
-import 'dart:convert';
+import 'package:nexus/features/run/domain/usecases/protocolo_del_vm_service.dart';
 
 /// Los errores del framework, que **no salen por donde sale todo lo demás**.
 ///
@@ -54,12 +54,8 @@ abstract final class ElErrorQuePintaLaApp {
   static bool sePuedeOir(String? url) => url != null && url.startsWith('ws');
 
   /// Apuntarse al canal. Sin esto el VM service no manda nada: hay que pedirlo.
-  static String peticionDeEscucha(int id) => jsonEncode({
-    'jsonrpc': '2.0',
-    'id': id,
-    'method': 'streamListen',
-    'params': {'streamId': canal},
-  });
+  static String peticionDeEscucha(int id) =>
+      ProtocoloDelVmService.escuchar(id, canal);
 
   /// El error que trae esta línea, ya redactado, o `null` si la línea es otra
   /// cosa.
@@ -74,28 +70,11 @@ abstract final class ElErrorQuePintaLaApp {
   /// una terminal, y repetir el bloque entero por cada frame roto llena el
   /// registro con lo mismo.
   static String? loQueDice(String linea) {
-    final Object? leido;
-    try {
-      leido = jsonDecode(linea);
-    } on FormatException {
-      return null;
-    }
-    if (leido is! Map) return null;
-
-    // 🔴 **`streamNotify`, y está medido.** El nombre que se lee en la
-    // documentación del protocolo es «streamNotification»; lo que manda el VM
-    // service de verdad es `streamNotify`. Se capturó el evento crudo de una app
-    // que revienta pintando para verlo: con el nombre de la documentación se
-    // descartaba **todo**.
-    //
-    // Las respuestas a lo que pedimos —el `streamListen`— llegan con `id` y sin
-    // `method`: no son eventos y aquí no cuentan.
-    if (leido['method'] != 'streamNotify') return null;
-
-    final params = leido['params'];
-    if (params is! Map) return null;
-    final evento = params['event'];
-    if (evento is! Map) return null;
+    // El idioma del canal —incluido que un evento llega como `streamNotify` y
+    // no como el `streamNotification` de la documentación, que está medido—
+    // vive en [ProtocoloDelVmService]: lo comparte con el freno.
+    final evento = ProtocoloDelVmService.elEvento(linea);
+    if (evento == null) return null;
     if (evento['extensionKind'] != clase) return null;
 
     final datos = evento['extensionData'];

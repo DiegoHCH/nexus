@@ -1,4 +1,6 @@
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
+import 'package:nexus/features/run/domain/usecases/el_error_que_pinta_la_app.dart';
+import 'package:nexus/features/run/domain/usecases/el_freno_de_la_app.dart';
 
 /// En qué anda una corrida.
 enum EstadoDeCorrida {
@@ -32,6 +34,8 @@ class Corrida {
     this.consola,
     this.errores = 0,
     this.seRecarga = true,
+    this.freno = ModoDePausa.ninguna,
+    this.parada,
   });
 
   /// El `-d` con el que se lanzó. **Es la clave de todo**: una corrida por
@@ -97,6 +101,22 @@ class Corrida {
   /// recargar de todas formas.
   final bool seRecarga;
 
+  /// Si esta corrida se para cuando la app se rompe, y con qué criterio.
+  ///
+  /// **Nace en [ModoDePausa.ninguna] a propósito.** Pararse solo es lo que hace
+  /// un depurador conectado, y aquí no lo hay hasta que alguien lo pide: una app
+  /// que se congela sin haberlo pedido se lee como que se colgó.
+  final ModoDePausa freno;
+
+  /// Donde está parada ahora mismo, si lo está. Ver [LaParadaDeLaApp].
+  final LaParadaDeLaApp? parada;
+
+  /// Se le puede pedir el freno: hay VM service al que hablarle y la app está
+  /// arriba. Antes de `app.started` no hay isolates a los que ponerle nada.
+  bool get sePuedeFrenar =>
+      ElErrorQuePintaLaApp.sePuedeOir(url) &&
+      estado == EstadoDeCorrida.corriendo;
+
   bool get puedeRecargar =>
       seRecarga && appId != null && estado == EstadoDeCorrida.corriendo;
 
@@ -110,6 +130,9 @@ class Corrida {
     int? consola,
     int? errores,
     bool? seRecarga,
+    ModoDePausa? freno,
+    LaParadaDeLaApp? parada,
+    bool limpiaParada = false,
   }) => Corrida(
     deviceId: deviceId,
     dispositivo: dispositivo,
@@ -124,6 +147,12 @@ class Corrida {
     consola: consola ?? this.consola,
     errores: errores ?? this.errores,
     seRecarga: seRecarga ?? this.seRecarga,
+    freno: freno ?? this.freno,
+    // Igual que el progreso: **borrarla es un caso**, y sin una bandera propia
+    // no se distingue de «déjala como está». Una parada que no se borra al
+    // reanudar deja la fila diciendo «parada en gate.dart:78» con la app
+    // corriendo, que es peor que no decir nada.
+    parada: limpiaParada ? null : (parada ?? this.parada),
   );
 }
 
