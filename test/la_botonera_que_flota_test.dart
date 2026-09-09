@@ -3,8 +3,11 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/design_system/nexus_colors.dart';
 import 'package:nexus/core/design_system/nexus_theme.dart';
+import 'package:nexus/core/i18n/language_preference.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
+import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
+import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -69,6 +72,32 @@ class _Corridas extends CorridasController {
   }
 }
 
+/// Un despacho que apunta lo que se le manda, sin abrir conversaciones.
+class _Despacho implements ElDespachoDeCarpeta {
+  final llevados = <({String carpeta, String tarea, String loQueSeVe})>[];
+
+  @override
+  Future<LoQueQuedaPorHacer> aEstaCarpeta(
+    String carpeta, {
+    required String tarea,
+    required String loQueSeVe,
+    bool allowWrites = true,
+  }) async {
+    llevados.add((carpeta: carpeta, tarea: tarea, loQueSeVe: loQueSeVe));
+    return YaSeFue(carpeta.split('/').last);
+  }
+
+  @override
+  Future<LoQueQuedaPorHacer> despachar(
+    String frase, {
+    required String? carpetaDeAqui,
+    required String loQueSeVe,
+    required bool allowWrites,
+    required List<String> attachments,
+    bool elFocoSigue = true,
+  }) async => AtiendeloTu(frase);
+}
+
 class _Pintor {
   final paginas = <String>[];
 
@@ -83,12 +112,14 @@ void main() {
   const strings = NexusStringsEs();
   late _Corridas corridas;
   late _Pintor pintor;
+  late _Despacho despacho;
 
   late List<String> consolas;
 
   setUp(() {
     SharedPreferences.setMockInitialValues({});
     pintor = _Pintor();
+    despacho = _Despacho();
     consolas = [];
   });
 
@@ -106,6 +137,7 @@ void main() {
         overrides: [
           corridasProvider.overrideWith(() => corridas),
           elPintorDeVentanasProvider.overrideWithValue(pintor.pinta),
+          elDespachoDeCarpetaProvider.overrideWithValue(despacho),
           abreLaConsolaProvider.overrideWithValue(({
             required url,
             titulo,
@@ -174,6 +206,71 @@ void main() {
 
     // Con la app rompiéndose en cada fotograma esto llega a los miles, y el
     // número entero ensancha la fila hasta empujar los botones fuera.
+    // 🔴 **El puente que faltaba, y en el sentido que faltaba.** Al terminar un
+    // encargo la app se recarga sola; al revés no había nada, así que un error
+    // se veía y arreglarlo pasaba por copiar el bloque a mano — donde se pierde
+    // justo lo que importa.
+    testWidgets('y se le puede pasar el error a Claude, con su traza', (
+      tester,
+    ) async {
+      final contenedor = await montar(
+        tester,
+        conCorridas: {_deviceId: _corrida(errores: 1)},
+      );
+      contenedor
+          .read(registrosProvider.notifier)
+          .anota(
+            _deviceId,
+            '[ERROR:flutter/runtime/dart_vm_initializer.cc(40)] Unhandled '
+            'Exception: Bad state: algo\n'
+            '#0      Algo.build (package:app/algo.dart:10:5)',
+          );
+      await tester.pumpAndSettle();
+
+      // El tooltip sale del ámbito del widget y el texto del encargo del
+      // proveedor: **los dos existen y pueden discrepar**, y el que manda en lo
+      // que se ve es el que envuelve a esta pantalla. Está dicho en el código
+      // de la casa desde que una prueba los pilló en dos idiomas.
+      await tester.tap(find.byTooltip(strings.runPasarloAClaude));
+      await tester.pumpAndSettle();
+
+      expect(despacho.llevados, hasLength(1));
+      final llevado = despacho.llevados.single;
+      expect(
+        llevado.carpeta,
+        '/casa/tienda',
+        reason:
+            'el error es de ese repo: llevarlo a otra pestaña sería pedir '
+            'que arregle un archivo que no puede ver',
+      );
+      expect(llevado.tarea, contains('Bad state: algo'));
+      expect(
+        llevado.tarea,
+        contains('algo.dart:10:5'),
+        reason: 'sin la traza, el bloque no dice dónde mirar',
+      );
+      expect(
+        llevado.tarea,
+        contains('Medium Phone API 36.1'),
+        reason: 'dónde pasó es parte del encargo',
+      );
+      // En la conversación se ve una línea, no la traza entera. El texto se
+      // lee del contenedor: el idioma se elige en Ajustes y esta prueba no
+      // manda en eso.
+      expect(
+        llevado.loQueSeVe,
+        contenedor.read(stringsProvider).elErrorDeLaAppEnCorto,
+      );
+    });
+
+    // Sin errores no hay nada que pasar, y el botón no existe: uno que no puede
+    // hacer nada enseña a no pulsarlo.
+    testWidgets('sin errores no hay botón que lo pase', (tester) async {
+      await montar(tester, conCorridas: {_deviceId: _corrida()});
+
+      expect(find.byTooltip(strings.runPasarloAClaude), findsNothing);
+    });
+
     testWidgets('mil errores no ensanchan la fila', (tester) async {
       await montar(tester, conCorridas: {_deviceId: _corrida(errores: 4212)});
 

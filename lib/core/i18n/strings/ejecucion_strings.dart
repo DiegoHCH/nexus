@@ -63,6 +63,16 @@ mixin EjecucionStrings {
   /// ahora y mirar luego.
   String runAppErrors(int cuantos);
 
+  /// Pasarle a Claude el último error de la app.
+  String get runPasarloAClaude;
+
+  /// Lo que se le pide, con la corrida delante: es lo que le dice **dónde**
+  /// pasó, y sin eso el bloque es un error sin sitio.
+  String elErrorDeLaApp(String configuracion, String dispositivo);
+
+  /// Lo que se ve en la conversación, que no es el encargo entero.
+  String get elErrorDeLaAppEnCorto;
+
   /// La consola de depuración que la app levanta ella misma. **No** es la de
   /// Nexus ni una nuestra: es la de la app que está corriendo.
   String get runConsole;
@@ -158,6 +168,15 @@ mixin EjecucionStringsEs implements EjecucionStrings {
       ? '1 error de la app desde la última recarga · abre el registro'
       : '$cuantos errores de la app desde la última recarga · abre el registro';
   @override
+  String get runPasarloAClaude => 'Pasarle el error a Claude';
+  @override
+  String elErrorDeLaApp(String configuracion, String dispositivo) =>
+      'La app dejó este error corriendo con «$configuracion» en $dispositivo. '
+      'Mira qué lo causa y arréglalo; si hace falta tocar más de un sitio, '
+      'dilo antes de tocarlo.';
+  @override
+  String get elErrorDeLaAppEnCorto => 'Arregla el error que dejó la app';
+  @override
   String get runToolbarDrag => 'Corriendo';
   @override
   String get runConsole => 'Consola de la app';
@@ -249,6 +268,15 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   String runAppErrors(int cuantos) => cuantos == 1
       ? '1 app error since the last reload · open the log'
       : '$cuantos app errors since the last reload · open the log';
+  @override
+  String get runPasarloAClaude => 'Send the error to Claude';
+  @override
+  String elErrorDeLaApp(String configuracion, String dispositivo) =>
+      'The app left this error while running «$configuracion» on '
+      '$dispositivo. Find what causes it and fix it; if it needs touching more '
+      'than one place, say so before touching it.';
+  @override
+  String get elErrorDeLaAppEnCorto => 'Fix the error the app left';
   @override
   String get runToolbarDrag => 'Running';
   @override
