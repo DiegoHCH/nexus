@@ -140,6 +140,87 @@ void main() {
     });
   });
 
+  // 🔴 **La regla entera, y sale de las dos mitades del mismo reporte:** la de
+  // siempre se enseña **solo si no hay perfiles con nombre**. Quien no creó
+  // ninguno —lo normal si instalaste Claude y nada más— tiene que poder ver la
+  // suya; y quien sí los creó lo dijo claro: «en mi caso no hay que meter la de
+  // General, porque mis perfiles son WORK y PRIVATE».
+  group('qué cuentas se enseñan', () {
+    late Directory casa;
+
+    setUp(() => casa = Directory.systemTemp.createTempSync('home'));
+    tearDown(() => casa.deleteSync(recursive: true));
+
+    ClaudeProfilesDataSource enEstaCasa() =>
+        ClaudeProfilesDataSource(home: casa.path);
+
+    void creaLaCuenta(String nombre, {String? organizacion}) {
+      final dir = Directory('${casa.path}/$nombre')..createSync();
+      File('${dir.path}/.claude.json').writeAsStringSync(
+        jsonEncode({
+          'oauthAccount': {
+            'emailAddress': 'alguien@empresa.com',
+            'organizationName': ?organizacion,
+          },
+        }),
+      );
+    }
+
+    test('sin perfiles con nombre, la de siempre', () async {
+      creaLaCuenta('.claude', organizacion: 'Empresa - Equipo');
+
+      final cuentas = await enEstaCasa().paraMirar();
+
+      expect(cuentas, hasLength(1));
+      expect(cuentas.single.esLaDeSiempre, isTrue);
+      expect(cuentas.single.correo, 'alguien@empresa.com');
+    });
+
+    test('con perfiles, solo los perfiles', () async {
+      creaLaCuenta('.claude', organizacion: 'Empresa - Equipo');
+      creaLaCuenta('.claude-work', organizacion: 'Empresa - Equipo');
+      creaLaCuenta('.claude-private');
+
+      final cuentas = await enEstaCasa().paraMirar();
+
+      expect(cuentas.map((c) => c.name), [
+        'private',
+        'work',
+      ], reason: 'la de siempre sobra: quien creó perfiles trabaja con ellos');
+      expect(cuentas.any((c) => c.esLaDeSiempre), isFalse);
+    });
+
+    // 🔴 **Lo pescó el CI, que corre en Linux:** preguntar al llavero es
+    // `security`, que es de macOS, y su ausencia tumbaba **listar las
+    // cuentas** con `ProcessException` — no solo el «tiene sesión». Aquí «no se
+    // pudo preguntar» vale lo mismo que «no hay sesión».
+    test('sin llavero que preguntar, las cuentas siguen saliendo', () async {
+      creaLaCuenta('.claude-work', organizacion: 'Empresa - Equipo');
+
+      final cuentas = await enEstaCasa().paraMirar();
+
+      expect(cuentas.single.name, 'work');
+      expect(
+        cuentas.single.organizacion,
+        'Empresa - Equipo',
+        reason: 'lo que se sabe de ella no depende del llavero',
+      );
+    });
+
+    test('y si no hay ni home, no se inventa ninguna', () async {
+      final cuentas = await ClaudeProfilesDataSource(
+        home: '${casa.path}/no-existe',
+      ).paraMirar();
+
+      expect(cuentas.single.esLaDeSiempre, isTrue);
+      expect(
+        cuentas.single.correo,
+        isNull,
+        reason: 'existe como opción, pero no se sabe nada de ella',
+      );
+    });
+  });
+
   group('quién es la de siempre', () {
     test('la reconoce por no tener nombre', () {
       const siempre = ClaudeProfile(

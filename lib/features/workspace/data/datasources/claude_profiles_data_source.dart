@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
 /// Una cuenta de Claude Code en esta máquina.
 ///
@@ -86,7 +87,14 @@ class ClaudeProfile {
 
 /// Encuentra las cuentas de Claude que hay en el Mac.
 class ClaudeProfilesDataSource {
-  const ClaudeProfilesDataSource();
+  const ClaudeProfilesDataSource({this.home});
+
+  /// El home donde buscar las cuentas. Inyectable para poder probar la regla de
+  /// arriba —qué cuentas se enseñan— sin depender de las que tenga el Mac que
+  /// corre la suite.
+  final String? home;
+
+  String get _home => home ?? Platform.environment['HOME'] ?? '';
 
   /// Claude Code guarda el token de cada perfil en el llavero, con el servicio
   /// `Claude Code-credentials-<sha256(directorio)[:8]>`. Comprobar que esa
@@ -167,8 +175,8 @@ class ClaudeProfilesDataSource {
   }
 
   Future<List<ClaudeProfile>> list() async {
-    final home = Platform.environment['HOME'] ?? '';
-    if (home.isEmpty) return const [];
+    final home = _home;
+    if (home.isEmpty || !Directory(home).existsSync()) return const [];
 
     final profiles = <ClaudeProfile>[];
     await for (final entity in Directory(home).list(followLinks: false)) {
@@ -199,22 +207,35 @@ class ClaudeProfilesDataSource {
     return profiles;
   }
 
-  /// Todas las cuentas **incluida la de siempre**, que va primero.
+  /// Las cuentas que **hay que enseñar** para mirar qué tiene instalada cada
+  /// una: las que tienen nombre, o la de siempre si no hay ninguna.
   ///
-  /// 🔴 **Existe por un reporte con captura:** en un Mac con una sola cuenta
-  /// —la de siempre, que es lo normal si nadie ha creado perfiles— Ajustes →
-  /// Superpoderes decía «No hay ninguna cuenta de Claude configurada» y no
-  /// dejaba ver ni poner nada, mientras el chat funcionaba perfectamente. Y era
-  /// cierto desde su punto de vista: [list] devuelve solo las `.claude-*`,
-  /// porque para elegir la cuenta de una carpeta «la de siempre» es la ausencia
-  /// de perfil y ya está arriba como opción.
+  /// 🔴 **Existe por un reporte con captura:** en un Mac sin perfiles con
+  /// nombre —lo normal si instalaste Claude y nada más— Ajustes → Superpoderes
+  /// decía «No hay ninguna cuenta de Claude configurada» y no dejaba ver ni
+  /// poner nada, mientras el chat funcionaba perfectamente. Y era cierto desde
+  /// su punto de vista: [list] devuelve solo las `.claude-*`, porque para
+  /// **elegir** la cuenta de una carpeta «la de siempre» es la ausencia de
+  /// perfil y ya está arriba como opción.
   ///
-  /// Pero para **mirar qué tiene instalado una cuenta** eso no vale: la de
-  /// siempre tiene sus servidores MCP, sus skills y sus plugins como cualquier
-  /// otra, y sin listarla no había forma de verlos. Es el mismo caso que ya
-  /// resolvió `cuentasParaLlaves` para las llaves, con el mismo motivo escrito.
-  Future<List<ClaudeProfile>> todas() async {
-    final siempre = ClaudeProfile.elDeSiempre();
+  /// 🔴 **Y la de siempre solo entra cuando no hay perfiles**, que es la
+  /// segunda mitad del mismo reporte, dicha por quien sí los tiene: «en mi caso
+  /// no hay que meter la de General, porque mis perfiles son WORK y PRIVATE».
+  /// Con razón: quien creó perfiles trabaja con ellos, así que añadir la de
+  /// siempre le pone una tercera pestaña que además puede ser **la misma
+  /// cuenta** que una de las suyas —medido: `.claude` y `.claude-work` con el
+  /// mismo correo y la misma organización—, y entonces hay dos sitios donde
+  /// instalar lo mismo y ninguna forma de saber cuál mira el encargo.
+  ///
+  /// Lo que esto no cubre, dicho aquí: si alguien con perfiles deja **alguna
+  /// carpeta sin perfil** —y esas corren con la de siempre—, sus MCP no se ven
+  /// desde aquí. Se sabrá si alguien lo pide; enseñarla «por si acaso» es
+  /// justamente la tercera pestaña que se acaba de quitar.
+  Future<List<ClaudeProfile>> paraMirar() async {
+    final conNombre = await list();
+    if (conNombre.isNotEmpty) return conNombre;
+
+    final siempre = '$_home/.claude';
     final quienEs = await datosDe(siempre);
     return [
       ClaudeProfile(
@@ -226,18 +247,30 @@ class ClaudeProfilesDataSource {
         correo: quienEs.correo,
         organizacion: quienEs.organizacion,
       ),
-      ...await list(),
     ];
   }
 
   Future<bool> _hasSession(String configDir) async {
     for (final servicio in keychainServices(configDir)) {
-      final result = await Process.run('security', [
-        'find-generic-password',
-        '-s',
-        servicio,
-      ]);
-      if (result.exitCode == 0) return true;
+      // 🔴 **`security` es de macOS y no está en todas partes.** Lo pescó el CI,
+      // que corre en Linux: `ProcessException: No such file or directory` al
+      // preguntar por el llavero, y con eso se caía **listar las cuentas** —no
+      // solo saber si tienen sesión—. Aquí «no se pudo preguntar» vale lo mismo
+      // que «no hay sesión»: la cuenta se sigue enseñando, que es lo que
+      // importa, y quien la elija se enterará por el error del CLI.
+      try {
+        final result = await Process.run('security', [
+          'find-generic-password',
+          '-s',
+          servicio,
+        ]);
+        if (result.exitCode == 0) return true;
+      } on ProcessException catch (error) {
+        debugPrint(
+          'cuentas · no se pudo preguntar al llavero: ${error.message}',
+        );
+        return false;
+      }
     }
     return false;
   }
