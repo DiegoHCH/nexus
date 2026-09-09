@@ -15,6 +15,9 @@ import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dar
 import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
 import 'package:nexus/features/assistant/domain/usecases/los_comandos_de_la_casa.dart';
+import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
+import 'package:nexus/features/superpowers/domain/usecases/la_lista_de_mcp.dart';
+import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
@@ -661,11 +664,28 @@ class AssistantController extends Notifier<AssistantHudState> {
               ElComandoDeLaCasa.git => s.ayudaGit,
               ElComandoDeLaCasa.parte => s.ayudaParte,
               ElComandoDeLaCasa.agenda => s.ayudaAgenda,
+              ElComandoDeLaCasa.mcp => s.ayudaMcp,
               ElComandoDeLaCasa.olvida => s.ayudaOlvida,
               ElComandoDeLaCasa.ayuda => s.ayudaAyuda,
             },
           ),
         );
+        return;
+
+      // 🔴 **El listado de MCP, en la conversación.** Pedido con la referencia
+      // delante: «que me mostrara el listado de MCP en el chat, así como se
+      // hace en el CLI, con su conectado o desconectado». Estaba en Ajustes, y
+      // eso es levantarse de la conversación para responder una pregunta de
+      // una línea.
+      //
+      // **No se espera a comprobarlos.** Preguntarle al CLI tarda casi un
+      // minuto —comprueba la salud de cada uno, uno por uno—, así que se pinta
+      // lo que se sabe ya y, si eso está viejo, se vuelve a preguntar por
+      // detrás para que el siguiente `/mcp` lo tenga. Ver [LaListaDeMcp].
+      case ALosMcp():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        await _contarLosMcp();
         return;
 
       // El `/clear` de la terminal, que aquí ya existía como botón: lo mismo
@@ -1363,6 +1383,68 @@ class AssistantController extends Notifier<AssistantHudState> {
     _elEncargoTermino();
     unawaited(_sellarYGuardar());
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// El listado de servidores MCP de **la cuenta de esta carpeta**.
+  ///
+  /// La cuenta importa: los servidores se configuran por cuenta, así que
+  /// enseñar los de otra sería contestar sobre una máquina distinta. Sin perfil
+  /// elegido, la de siempre.
+  Future<void> _contarLosMcp() async {
+    final s = ref.read(stringsProvider);
+    final configDir = _perfilDeLaCarpeta() ?? ClaudeProfile.elDeSiempre();
+    final delArchivo = await ref.read(mcpDataSourceProvider).list(configDir);
+    final recordado = await ref
+        .read(elRecuerdoDeLosMcpProvider)
+        .leer(configDir);
+    if (!_vive) return;
+
+    final lista = LaListaDeMcp.junta(
+      delArchivo: delArchivo,
+      recordados: recordado?.servidores ?? const [],
+    );
+    final hayQuePreguntar = LaListaDeMcp.hayQuePreguntar(recordado?.cuando);
+    if (hayQuePreguntar) {
+      // Por detrás y sin esperarlo: lo que devuelva se recuerda, así que el
+      // siguiente `/mcp` sale con el estado nuevo.
+      ref.invalidate(mcpHealthProvider(configDir));
+      unawaited(
+        ref
+            .read(mcpHealthProvider(configDir).future)
+            .catchError((Object _) => null),
+      );
+    }
+
+    final cuantos = LaListaDeMcp.deLaCuenta(lista);
+    _decir(
+      LaListaDeMcp.comoSeCuenta(
+        lista: lista,
+        titulo: lista.isEmpty
+            ? s.mcpNingunoEnElChat
+            : s.mcpEnElChat(
+                lista.length,
+                ClaudeProfile.nameFromPath(configDir) ?? s.laCuentaDeSiempre,
+              ),
+        comoEsta: (estado) => switch (estado) {
+          McpStatus.connected => s.mcpConectado,
+          McpStatus.needsAuth => s.mcpPideEntrar,
+          McpStatus.failed => s.mcpNoResponde,
+          McpStatus.unknown => s.mcpSinComprobar,
+        },
+        deLaCuentaDicho: cuantos > 0 ? s.mcpDeLaCuenta(cuantos) : null,
+        elEstado: recordado == null
+            ? (hayQuePreguntar ? s.mcpPreguntandoDeNuevo : null)
+            : [
+                s.mcpEstadoDe(_laHora(recordado.cuando)),
+                if (hayQuePreguntar) s.mcpPreguntandoDeNuevo,
+              ].join(' '),
+      ),
+    );
+  }
+
+  static String _laHora(DateTime cuando) {
+    String dos(int valor) => valor.toString().padLeft(2, '0');
+    return '${dos(cuando.hour)}:${dos(cuando.minute)}';
   }
 
   /// Cuelga del mensaje lo que aún falta y **entonces** lo escribe.

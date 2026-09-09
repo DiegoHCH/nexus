@@ -1,4 +1,9 @@
 import 'dart:async';
+import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
+import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
+import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
+import 'package:nexus/features/superpowers/data/datasources/el_recuerdo_de_los_mcp.dart';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -78,6 +83,20 @@ class _Memoria implements ConversationMemory {
   }) async {}
 }
 
+/// Lo que hay puesto en la cuenta, sin salir a preguntarle al CLI: `check` no
+/// se llama en estas pruebas —tarda casi un minuto— y por eso devuelve nulo.
+class _Mcp extends McpDataSource {
+  const _Mcp(this.servidores);
+
+  final List<McpServer> servidores;
+
+  @override
+  Future<List<McpServer>> list(String configDir) async => servidores;
+
+  @override
+  Future<List<McpServer>?> check(String configDir) async => null;
+}
+
 class _SinAlmacen implements LocalConversationStore {
   const _SinAlmacen();
   @override
@@ -102,6 +121,10 @@ void main() {
 
   late _Claude claude;
   late _Memoria memoria;
+  late Directory recuerdos;
+
+  setUp(() => recuerdos = Directory.systemTemp.createTempSync('mcp_chat'));
+  tearDown(() => recuerdos.deleteSync(recursive: true));
 
   Future<void> vueltas() async {
     for (var i = 0; i < 6; i++) {
@@ -119,6 +142,21 @@ void main() {
         workspaceControllerProvider.overrideWith(_Espacio.new),
         localConversationStoreProvider.overrideWithValue(const _SinAlmacen()),
         askClaudeProvider(_id).overrideWithValue(claude),
+        mcpDataSourceProvider.overrideWithValue(
+          const _Mcp([
+            McpServer(name: 'maestro', spec: 'maestro mcp'),
+            McpServer(
+              name: 'claude.ai Gmail',
+              spec: 'https://gmailmcp.googleapis.com/mcp/v1',
+              fromAccount: true,
+            ),
+          ]),
+        ),
+        // El recuerdo, a una carpeta temporal: leerlo del soporte de la app
+        // pasa por un canal de plataforma que en una prueba no contesta.
+        elRecuerdoDeLosMcpProvider.overrideWithValue(
+          ElRecuerdoDeLosMcp(carpeta: recuerdos),
+        ),
       ],
     );
     addTearDown(c.dispose);
@@ -169,6 +207,33 @@ void main() {
     expect(mensajesDe(c).last.text, contains('General'));
     expect(claude.pedidos, isEmpty);
   });
+
+  // 🔴 **Pedido con la referencia delante:** «quisiera escribir el `/mcp` y que
+  // me mostrara el listado de MCP en el chat, así como se hace en el CLI, con
+  // su conectado o desconectado».
+  test(
+    '«/mcp» cuenta los servidores de la cuenta, sin gastar un encargo',
+    () async {
+      final c = contenedor();
+
+      await c.read(assistantControllerProvider(_id).notifier).submit('/mcp');
+      await vueltas();
+
+      final dicho = mensajesDe(c).last;
+      expect(dicho.author, ChatAuthor.nexus);
+      expect(dicho.text, contains('maestro'));
+      expect(dicho.text, contains('claude.ai Gmail'));
+      // Sin comprobar todavía se dice así, en vez de callarlo o inventarlo.
+      expect(dicho.text, contains(c.read(stringsProvider).mcpSinComprobar));
+      // Y se dice cuántos son de la cuenta, que no se quitan desde aquí.
+      expect(dicho.text, contains(c.read(stringsProvider).mcpDeLaCuenta(1)));
+      expect(
+        claude.pedidos,
+        isEmpty,
+        reason: 'preguntar qué MCP hay puestos no es trabajo para Claude',
+      );
+    },
+  );
 
   // La otra mitad del enrutado, vista desde aquí: lo que no es un comando
   // sigue siendo trabajo.

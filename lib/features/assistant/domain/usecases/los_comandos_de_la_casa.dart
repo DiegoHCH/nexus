@@ -33,6 +33,14 @@ enum ElComandoDeLaCasa {
   /// La agenda de hoy, por lo mismo.
   agenda(['/agenda', '/reuniones'], conTexto: false),
 
+  /// Los servidores MCP de la cuenta de esta carpeta, con su estado.
+  ///
+  /// 🔴 **Pedido con la referencia delante:** «quisiera escribir el `/mcp` y
+  /// que me mostrara el listado de MCP en el chat, así como se hace en el CLI,
+  /// con su conectado o desconectado». Estaban en Ajustes, y eso es levantarse
+  /// de la conversación para responder una pregunta de una línea.
+  mcp(['/mcp', '/mcps'], conTexto: false),
+
   /// Dibujar desde cero. Vive en [LoQueSePideDibujar] —lo reconoce él— y aquí
   /// solo está para que la ayuda lo cuente.
   imagen(['/imagen', '/img'], conTexto: true),
@@ -79,7 +87,16 @@ enum ElComandoDeLaCasa {
 
   /// Los que la ayuda enseña, en el orden en que se enseñan: primero los que se
   /// usan a diario.
-  static const enLaAyuda = [imagen, edita, git, parte, agenda, olvida, ayuda];
+  static const enLaAyuda = [
+    imagen,
+    edita,
+    git,
+    parte,
+    agenda,
+    mcp,
+    olvida,
+    ayuda,
+  ];
 
   /// La lista, ya escrita.
   ///

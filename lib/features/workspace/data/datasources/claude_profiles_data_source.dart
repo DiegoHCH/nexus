@@ -35,6 +35,15 @@ class ClaudeProfile {
   /// y quien arranca un encargo lo hace en el mismo momento en que lo lanza. La
   /// derivación es la misma que usa [ClaudeProfilesDataSource.list], y vive aquí para
   /// que no haya dos.
+  /// El directorio de la **cuenta de siempre**, la que no tiene nombre.
+  ///
+  /// Hace falta porque una carpeta sin perfil elegido trabaja con ella, y quien
+  /// quiera mirar lo que esa cuenta tiene configurado —sus servidores MCP, por
+  /// ejemplo— necesita un directorio que leer. No se lista en [list] a
+  /// propósito: ahí solo van las cuentas con nombre.
+  static String elDeSiempre() =>
+      '${Platform.environment['HOME'] ?? ''}/.claude';
+
   static String? nameFromPath(String? configDir) {
     if (configDir == null || configDir.isEmpty) return null;
     final ultimo = configDir.split('/').where((p) => p.isNotEmpty).lastOrNull;

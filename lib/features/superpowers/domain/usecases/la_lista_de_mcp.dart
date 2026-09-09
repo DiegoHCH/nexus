@@ -87,4 +87,32 @@ abstract final class LaListaDeMcp {
   /// Cuántos de la lista son de la cuenta, para poder decirlo en una línea.
   static int deLaCuenta(List<McpServer> lista) =>
       lista.where((server) => server.fromAccount).length;
+
+  /// La lista **contada en una conversación**, como la cuenta el CLI.
+  ///
+  /// 🔴 **Pedido con la referencia delante:** «quisiera escribir el `/mcp` y
+  /// que me mostrara el listado en el chat, así como se hace en el CLI, con su
+  /// conectado o desconectado». Estaba en Ajustes, y eso es levantarse de la
+  /// conversación para responder una pregunta de una línea.
+  ///
+  /// **Los textos se reciben**, que el idioma se elige en Ajustes y esto es
+  /// dominio. Y el destino de cada uno va detrás de su estado porque es lo que
+  /// distingue dos servidores con el mismo nombre — la misma razón por la que
+  /// la pantalla lo enseña.
+  static String comoSeCuenta({
+    required List<McpServer> lista,
+    required String titulo,
+    required String Function(McpStatus estado) comoEsta,
+    String? deLaCuentaDicho,
+    String? elEstado,
+  }) {
+    if (lista.isEmpty) return titulo;
+    return [
+      titulo,
+      for (final server in lista)
+        '· ${server.name} — ${comoEsta(server.status)} · ${server.spec}',
+      ?deLaCuentaDicho,
+      ?elEstado,
+    ].join('\n');
+  }
 }
