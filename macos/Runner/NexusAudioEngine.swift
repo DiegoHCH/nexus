@@ -710,7 +710,9 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     enEspera = []
     sonando = false
     pendingLock.unlock()
-    Self.log.info(
+    // Igual que el hueco: en `notice` para que quede en el log unificado y se
+    // pueda leer después de que pase. Es una línea por sesión.
+    Self.log.notice(
       "reproducción · \(gaps, privacy: .public) huecos, el peor de \(worst, privacy: .public) ms"
     )
 
@@ -1034,7 +1036,13 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     ) {
       gapCount += 1
       worstGapMs = max(worstGapMs, gap)
-      Self.log.info("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
+      // 🔴 **`notice` y no `info`, y esto se pagó buscándolo.** El nivel `info`
+      // no se persiste en el log unificado: `log show` no lo devuelve, así que
+      // el contador solo se podía leer en un build de debug lanzado desde una
+      // terminal. Cuando alguien dice «el saludo no suena» lo que hay que poder
+      // hacer es pedirle el número, no reproducirlo a ciegas — y en una app de
+      // ventana el `print` de abajo no va a ninguna parte.
+      Self.log.notice("playback gap \(gap, privacy: .public) ms (\(self.gapCount, privacy: .public) en esta sesión)")
       // Y por stdout, que es donde se lee cuando alguien dice «se escucha
       // entrecortado»: un hueco es el altavoz quedándose sin audio, o sea que
       // el problema está **antes** del motor —el socket, la decodificación, el
