@@ -7,6 +7,7 @@ import 'package:nexus/features/superpowers/presentation/widgets/plugins_panel.da
 import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_nombre_de_la_cuenta.dart';
 
 /// Lo que Claude sabe hacer de más, por cuenta.
 ///
@@ -48,7 +49,23 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
   Widget build(BuildContext context) {
     final strings = context.strings;
     final colors = context.colors;
-    final profiles = ref.watch(claudeProfilesProvider).value ?? const [];
+    // 🔴 **Con la de siempre dentro.** Reportado con captura: en un Mac sin
+    // perfiles con nombre esto decía «no hay ninguna cuenta configurada» y no
+    // dejaba ver ni poner nada, mientras el chat funcionaba — porque
+    // `claudeProfilesProvider` solo lista las `.claude-*`. Aquí no se elige la
+    // cuenta de una carpeta: se mira qué tiene instalado cada una, y la de
+    // siempre tiene lo suyo como cualquier otra. Ver [todasLasCuentasProvider].
+    final profiles = ref.watch(todasLasCuentasProvider).value ?? const [];
+    // 🔴 **El nombre sale de la organización de la cuenta, no del directorio.**
+    // «Global66 - Tech» se enseña como «Global66»; una cuenta personal, como
+    // «Mi perfil»; y si dos perfiles resultan ser la misma cuenta —pasa, está
+    // medido— cada uno lleva detrás su directorio para poder distinguirlos. Ver
+    // [ElNombreDeLaCuenta].
+    final nombres = ElNombreDeLaCuenta.paraTodas(
+      profiles,
+      general: strings.cuentaGeneral,
+      mia: strings.cuentaMia,
+    );
     if (profiles.isEmpty) {
       return Text(
         strings.statsNoAccounts,
@@ -65,13 +82,40 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 🔴 **Con una sola cuenta se dice cuál es, aunque no haya pestañas.**
+        // Pedido tras el reporte del compañero: quien no ha creado perfiles no
+        // tiene por qué saber que existe algo llamado «perfil», y una pantalla
+        // que gestiona cosas «por cuenta» sin decir de qué cuenta habla obliga
+        // a suponerlo. Con dos o más lo dicen las pestañas, y repetirlo sería
+        // decir lo mismo dos veces.
+        if (profiles.length == 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
+            child: Text(
+              // 🔴 **Con el correo si se sabe, y el correo es mejor nombre que
+              // cualquiera que inventemos.** Preguntado antes de bautizar nada:
+              // «¿se puede saber con qué correo está logueada la cuenta?». Sí
+              // —Claude Code lo guarda en el `.claude.json` de cada
+              // directorio— y con eso quien mira esta pantalla reconoce la
+              // cuenta sin tener que aprender qué es un perfil.
+              [
+                strings.superpowersDeLaCuenta(nombres.single),
+                ?profiles.single.correo,
+              ].join(' · '),
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+          ),
         if (profiles.length > 1) ...[
           Row(
             children: [
-              for (final profile in profiles)
+              for (final (indice, profile) in profiles.indexed)
                 Expanded(
                   child: _Tab(
-                    label: profile.name,
+                    label: nombres[indice],
+                    // El correo, en el tooltip: en la pestaña no cabe —son
+                    // tres o cuatro repartidas a partes iguales— y es justo lo
+                    // que se quiere consultar al dudar de cuál es cuál.
+                    correo: profile.correo,
                     active: profile.path == current,
                     onTap: () => setState(() => _profile = profile.path),
                   ),
@@ -173,33 +217,46 @@ class _Toggle extends StatelessWidget {
 }
 
 class _Tab extends StatelessWidget {
-  const _Tab({required this.label, required this.active, required this.onTap});
+  const _Tab({
+    required this.label,
+    required this.active,
+    required this.onTap,
+    this.correo,
+  });
 
   final String label;
   final bool active;
   final VoidCallback onTap;
 
+  /// Con qué correo está iniciada esa cuenta, si se sabe. Va en el tooltip
+  /// porque en la pestaña no cabe —se reparten a partes iguales— y es lo que se
+  /// quiere consultar al dudar de cuál es cuál.
+  final String? correo;
+
   @override
   Widget build(BuildContext context) {
     final colors = context.colors;
 
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
-        decoration: BoxDecoration(
-          border: Border(
-            bottom: BorderSide(
-              color: active ? colors.accent : colors.rule,
-              width: 2,
+    return Tooltip(
+      message: correo ?? '',
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: NexusSpacing.s3),
+          decoration: BoxDecoration(
+            border: Border(
+              bottom: BorderSide(
+                color: active ? colors.accent : colors.rule,
+                width: 2,
+              ),
             ),
           ),
-        ),
-        child: Text(
-          label.toUpperCase(),
-          textAlign: TextAlign.center,
-          style: NexusTypography.label.copyWith(
-            color: active ? colors.accent : colors.faint,
+          child: Text(
+            label.toUpperCase(),
+            textAlign: TextAlign.center,
+            style: NexusTypography.label.copyWith(
+              color: active ? colors.accent : colors.faint,
+            ),
           ),
         ),
       ),

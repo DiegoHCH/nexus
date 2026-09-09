@@ -178,12 +178,10 @@ class ClaudeUsageDataSource {
   /// petición de red menos, y sobre todo permite distinguir «esta cuenta no
   /// tiene sesión» de «el servicio no responde».
   Future<String?> _tokenFor(String configDir) async {
-    final services = [
-      ClaudeProfilesDataSource.keychainService(configDir),
-      // El perfil por defecto puede guardar la credencial sin sufijo, de antes
-      // de que Claude Code separara cuentas.
-      if (configDir.endsWith('/.claude')) 'Claude Code-credentials',
-    ];
+    // Los dos sitios donde puede estar, resueltos en un solo lugar: la de
+    // siempre guarda la credencial sin sufijo. Ver
+    // [ClaudeProfilesDataSource.keychainServices].
+    final services = ClaudeProfilesDataSource.keychainServices(configDir);
 
     for (final name in services) {
       final result = await Process.run('security', [

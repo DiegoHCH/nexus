@@ -36,6 +36,13 @@ void main() {
       }
     });
 
+    // 🔴 Pedido con la referencia delante: «que me mostrara el listado de MCP
+    // en el chat, así como se hace en el CLI, con su conectado o desconectado».
+    test('los servidores MCP, con sus dos formas', () {
+      expect(aDonde('/mcp'), isA<ALosMcp>());
+      expect(aDonde('/mcps'), isA<ALosMcp>());
+    });
+
     test('el parte y la agenda, ya sin depender de acertar la frase', () {
       expect(aDonde('/parte'), isA<AlParte>());
       expect(aDonde('/daily'), isA<AlParte>());
@@ -55,6 +62,7 @@ void main() {
     test('un comando con cola detrás no es el comando', () {
       expect(aDonde('/parte de lo que hablamos ayer'), isA<AClaude>());
       expect(aDonde('/ayuda a entender este método'), isA<AClaude>());
+      expect(aDonde('/mcp de jira, cómo se pone'), isA<AClaude>());
     });
 
     test('los de siempre no se los queda nadie nuevo', () {
@@ -89,6 +97,7 @@ void main() {
         ElComandoDeLaCasa.git => textos.ayudaGit,
         ElComandoDeLaCasa.parte => textos.ayudaParte,
         ElComandoDeLaCasa.agenda => textos.ayudaAgenda,
+        ElComandoDeLaCasa.mcp => textos.ayudaMcp,
         ElComandoDeLaCasa.olvida => textos.ayudaOlvida,
         ElComandoDeLaCasa.ayuda => textos.ayudaAyuda,
       },
@@ -134,6 +143,7 @@ void main() {
           textos.ayudaGit,
           textos.ayudaParte,
           textos.ayudaAgenda,
+          textos.ayudaMcp,
           textos.ayudaOlvida,
           textos.ayudaAyuda,
         ]) {

@@ -106,6 +106,7 @@ mixin NucleoStrings {
   String get ayudaGit;
   String get ayudaParte;
   String get ayudaAgenda;
+  String get ayudaMcp;
   String get ayudaOlvida;
   String get ayudaAyuda;
 
@@ -377,6 +378,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   String get ayudaParte => 'el parte del día, ya reunido';
   @override
   String get ayudaAgenda => 'lo que hay en tu agenda de hoy';
+  @override
+  String get ayudaMcp => 'los servidores MCP de esta cuenta, con su estado';
   @override
   String get ayudaOlvida =>
       'Claude deja de recordar lo hablado en esta carpeta. Lo escrito se '
@@ -756,6 +759,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   String get ayudaParte => 'the day\'s report, already gathered';
   @override
   String get ayudaAgenda => "what's on your calendar today";
+  @override
+  String get ayudaMcp => "this account's MCP servers, with their status";
   @override
   String get ayudaOlvida =>
       'Claude stops remembering what was said in this folder. What is written '

@@ -50,6 +50,11 @@ final class ALaAyuda extends ADondeVa {
   const ALaAyuda();
 }
 
+/// A la lista de servidores MCP de la cuenta de esta carpeta, con su estado.
+final class ALosMcp extends ADondeVa {
+  const ALosMcp();
+}
+
 /// A empezar de cero en esta carpeta: el `/clear` de la terminal.
 final class AOlvidar extends ADondeVa {
   const AOlvidar();
@@ -106,6 +111,8 @@ abstract final class ADondeVaLoQueSeEscribe {
         return const AlParte();
       case ElComandoDeLaCasa.agenda:
         return const ALaAgenda();
+      case ElComandoDeLaCasa.mcp:
+        return const ALosMcp();
       // Los que llevan texto los reconoce su dueño, unas líneas más abajo: aquí
       // no se repite esa decisión.
       case _:

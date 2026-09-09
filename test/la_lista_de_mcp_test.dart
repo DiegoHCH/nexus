@@ -72,6 +72,76 @@ void main() {
     });
   });
 
+  // 🔴 **Pedido con la referencia delante:** «quisiera escribir el `/mcp` y que
+  // me mostrara el listado de MCP en el chat, así como se hace en el CLI, con
+  // su conectado o desconectado». Estaba en Ajustes, y eso es levantarse de la
+  // conversación para responder una pregunta de una línea.
+  group('contada en la conversación', () {
+    String contada(List<McpServer> lista, {String? estado}) =>
+        LaListaDeMcp.comoSeCuenta(
+          lista: lista,
+          titulo: '${lista.length} servidores MCP en la cuenta work:',
+          comoEsta: (e) => switch (e) {
+            McpStatus.connected => 'conectado',
+            McpStatus.needsAuth => 'pide iniciar sesión',
+            McpStatus.failed => 'no responde',
+            McpStatus.unknown => 'sin comprobar',
+          },
+          deLaCuentaDicho: LaListaDeMcp.deLaCuenta(lista) > 0
+              ? 'uno es de tu cuenta'
+              : null,
+          elEstado: estado,
+        );
+
+    test('cada uno con su estado y su destino, como en el CLI', () {
+      final dicho = contada([
+        _mio('maestro', estado: McpStatus.connected),
+        _deLaCuenta('Figma', estado: McpStatus.needsAuth),
+        _mio('g66', estado: McpStatus.failed),
+        _mio('recién-puesto'),
+      ]);
+
+      expect(dicho, contains('· maestro — conectado · npx -y maestro'));
+      expect(dicho, contains('claude.ai Figma — pide iniciar sesión'));
+      expect(dicho, contains('· g66 — no responde'));
+      expect(
+        dicho,
+        contains('recién-puesto — sin comprobar'),
+        reason: 'uno del archivo que el CLI no ha mirado todavía',
+      );
+      // El destino va detrás del estado porque es lo que distingue dos
+      // servidores con el mismo nombre.
+      expect(dicho, contains('https://mcp.Figma.com/mcp'));
+      expect(dicho, contains('uno es de tu cuenta'));
+      expect(dicho, startsWith('4 servidores MCP en la cuenta work:'));
+    });
+
+    test('una línea por servidor y ni una más', () {
+      final dicho = contada([
+        _mio('a'),
+        _mio('b'),
+      ], estado: 'Estado de las 10:41.');
+
+      expect(
+        dicho.split('\n'),
+        hasLength(4),
+        reason: 'el título, los dos, y el estado',
+      );
+    });
+
+    test('sin ninguno, solo se dice eso', () {
+      expect(
+        LaListaDeMcp.comoSeCuenta(
+          lista: const [],
+          titulo: 'Esta cuenta no tiene ninguno.',
+          comoEsta: (_) => 'da igual',
+          deLaCuentaDicho: 'esto no debería salir',
+        ),
+        'Esta cuenta no tiene ninguno.',
+      );
+    });
+  });
+
   group('la lista junta', () {
     test('con solo el archivo, son los del archivo', () {
       final lista = LaListaDeMcp.junta(delArchivo: [_mio('context7')]);
