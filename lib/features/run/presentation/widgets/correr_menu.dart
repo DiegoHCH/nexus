@@ -6,6 +6,7 @@ import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
+import 'package:nexus/features/run/domain/usecases/la_config_de_casa.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/usecases/lector_de_configs.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -293,6 +294,47 @@ class _PanelState extends ConsumerState<_Panel> {
                 ),
             ],
           ),
+
+          // 🔴 **La copia con el panel de depuración, sin tocar el repo.**
+          // Pedida con un caso: el repo del trabajo trae «ci + Debug
+          // Dashboard» y no la misma con `prod` ni la de `profile`. Añadirla al
+          // `launch.json` es tocar un archivo versionado y compartido — y en un
+          // repo del trabajo, la regla es no comitear nada. Ver
+          // [LaConfigDeCasa], donde está de dónde se aprenden los defines.
+          if (_laElegida(configs) case final elegida?)
+            Padding(
+              padding: const EdgeInsets.only(top: NexusSpacing.s2),
+              child: Row(
+                children: [
+                  if (elegida.local)
+                    TextButton(
+                      onPressed: _ocupado
+                          ? null
+                          : () => _quitarLaCopia(elegida),
+                      child: Text(strings.runQuitarCopia),
+                    )
+                  else if (LaConfigDeCasa.sePuedeDuplicar(elegida))
+                    TextButton(
+                      onPressed: _ocupado
+                          ? null
+                          : () => _duplicarConLaConsola(elegida, configs),
+                      child: Text(strings.runDuplicarConConsola),
+                    ),
+                  Expanded(
+                    child: Text(
+                      elegida.local
+                          ? strings.runEsTuya
+                          : LaConfigDeCasa.sePuedeDuplicar(elegida)
+                          ? strings.runDuplicarNota
+                          : strings.runYaTraeConsola,
+                      style: NexusTypography.label.copyWith(
+                        color: colors.faint,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
         ],
 
         if (_error case final mensaje?) ...[
@@ -304,6 +346,61 @@ class _PanelState extends ConsumerState<_Panel> {
         ],
       ],
     );
+  }
+
+  /// La configuración elegida, entera y no solo su nombre: hace falta saber si
+  /// es tuya y qué argumentos lleva.
+  ConfigDeArranque? _laElegida(List<ConfigDeArranque> configs) {
+    final nombre = _elegida(configs);
+    if (nombre == null) return null;
+    for (final config in configs) {
+      if (config.nombre == nombre) return config;
+    }
+    return null;
+  }
+
+  /// Duplica la elegida con la consola encendida y **la deja elegida**: quien
+  /// pulsa esto quiere correr esa, no volver a buscarla en el desplegable.
+  Future<void> _duplicarConLaConsola(
+    ConfigDeArranque elegida,
+    List<ConfigDeArranque> configs,
+  ) async {
+    final proyecto = widget.proyecto;
+    if (proyecto == null) return;
+    final copia = LaConfigDeCasa.conLaConsola(
+      elegida,
+      // De la del propio repo que ya la enciende: los defines que hacen falta
+      // los sabe el repo, no Nexus.
+      modelo: LaConfigDeCasa.laQueEnciendeLaConsola(configs),
+    );
+    setState(() => _ocupado = true);
+    final ok = await ref.read(lasConfigsDeCasaProvider).anadir(proyecto, copia);
+    if (!mounted) return;
+    ref.invalidate(configsProvider(proyecto));
+    setState(() {
+      _ocupado = false;
+      _error = ok ? null : context.strings.runCopiaFallo;
+      if (ok) _config = copia.nombre;
+    });
+    if (ok) {
+      ref
+          .read(configsPorDefectoProvider.notifier)
+          .elegir(proyecto, copia.nombre);
+    }
+  }
+
+  Future<void> _quitarLaCopia(ConfigDeArranque cual) async {
+    final proyecto = widget.proyecto;
+    if (proyecto == null) return;
+    setState(() => _ocupado = true);
+    await ref.read(lasConfigsDeCasaProvider).quitar(proyecto, cual.nombre);
+    if (!mounted) return;
+    ref.invalidate(configsProvider(proyecto));
+    setState(() {
+      _ocupado = false;
+      _config = null;
+    });
+    ref.read(configsPorDefectoProvider.notifier).olvidar(proyecto);
   }
 
   /// Cómo se llama un dispositivo, para poder elegirlo.

@@ -15,9 +15,21 @@ aplicaEvento(
 ) {
   switch (evento.nombre) {
     case 'app.start':
-      // Llega el identificador con el que se le pide todo lo demás.
+      // Llega el identificador con el que se le pide todo lo demás — y si esta
+      // corrida acepta recargas, que en `profile` es **no**: el daemon lo dice
+      // en `supportsRestart` y antes se ignoraba, así que la botonera ofrecía
+      // recargar y reiniciar en corridas donde eso no existe. Ver
+      // [Corrida.seRecarga].
       return (
-        corrida: actual.copyWith(appId: evento.params['appId'] as String?),
+        corrida: actual.copyWith(
+          appId: evento.params['appId'] as String?,
+          seRecarga: switch (evento.params['supportsRestart']) {
+            final bool dicho => dicho,
+            // Un daemon que no lo diga se trata como que sí: es lo que hacía
+            // antes, y quitar los botones por una clave ausente sería peor.
+            _ => true,
+          },
+        ),
         progresos: progresos,
         termino: false,
       );

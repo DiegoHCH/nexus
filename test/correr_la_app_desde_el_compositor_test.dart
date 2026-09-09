@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import 'package:nexus/features/emulators/data/datasources/emuladores_data_source
 import 'package:nexus/features/emulators/domain/entities/emulador.dart';
 import 'package:nexus/features/emulators/presentation/providers/emuladores_providers.dart';
 import 'package:nexus/features/run/data/datasources/configs_data_source.dart';
+import 'package:nexus/features/run/data/datasources/las_configs_de_casa.dart';
 import 'package:nexus/features/run/domain/entities/config_de_arranque.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -133,6 +135,13 @@ Future<void> _montar(
         configsDataSourceProvider.overrideWithValue(
           _ConfigsFalsas({'/casa/tienda': configs}),
         ),
+        // Las tuyas —las que Nexus guarda fuera del repo— a una carpeta
+        // temporal: sin esto se leen del soporte de la app, que es un canal de
+        // plataforma que en una prueba no contesta, y el menú se queda
+        // esperando algo que no va a llegar.
+        lasConfigsDeCasaProvider.overrideWithValue(
+          LasConfigsDeCasa(carpeta: _propias),
+        ),
         emuladoresDataSourceProvider.overrideWithValue(
           maquina ?? _MaquinaFalsa(emuladores),
         ),
@@ -177,7 +186,12 @@ Corrida _corrida({
   progreso: progreso,
 );
 
+late Directory _propias;
+
 void main() {
+  setUp(() => _propias = Directory.systemTemp.createTempSync('configs_menu'));
+  tearDown(() => _propias.deleteSync(recursive: true));
+
   const strings = NexusStringsEs();
 
   testWidgets('sin nada corriendo el icono está apagado', (tester) async {

@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:async';
 
 import 'package:flutter/material.dart';
@@ -21,6 +22,7 @@ import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/usecases/el_registro_como_html.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
+import 'package:nexus/features/run/data/datasources/las_configs_de_casa.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 import 'package:nexus/features/run/presentation/widgets/la_botonera_de_corridas.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -91,7 +93,12 @@ class _Pintor {
   String get ultima => paginas.last.html;
 }
 
+late Directory _propias;
+
 void main() {
+  setUp(() => _propias = Directory.systemTemp.createTempSync('configs_reg'));
+  tearDown(() => _propias.deleteSync(recursive: true));
+
   const strings = NexusStringsEs();
   late StreamController<LineaDeRegistro> dice;
   late _Pintor pintor;
@@ -134,6 +141,9 @@ void main() {
       ProviderScope(
         overrides: [
           configsDataSourceProvider.overrideWithValue(const _Configs()),
+          lasConfigsDeCasaProvider.overrideWithValue(
+            LasConfigsDeCasa(carpeta: _propias),
+          ),
           emuladoresDataSourceProvider.overrideWithValue(const _SinMaquinas()),
           registrosDataSourceProvider.overrideWithValue(_Dispositivo(dice)),
           elPintorDeVentanasProvider.overrideWithValue(pintor.pinta),

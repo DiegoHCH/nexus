@@ -11,6 +11,7 @@ class ConfigDeArranque {
     this.entry,
     this.modo = 'debug',
     this.args = const [],
+    this.local = false,
   });
 
   /// Como se llama en el editor. Es lo que se enseña y lo que se elige.
@@ -29,4 +30,13 @@ class ConfigDeArranque {
   /// El resto, tal como lo escribió el editor: `--flavor`, los
   /// `--dart-define-from-file`, lo que sea. Nexus no los interpreta.
   final List<String> args;
+
+  /// Si es **tuya** y no del repositorio.
+  ///
+  /// 🔴 Existe porque hacía falta una que el repo no trae —«la de prod con el
+  /// panel de depuración»— y añadirla al `launch.json` es tocar un archivo
+  /// versionado y compartido. Las tuyas viven en el soporte de Nexus; esto es
+  /// lo que permite marcarlas en el menú y ofrecer quitarlas. Ver
+  /// [LaConfigDeCasa].
+  final bool local;
 }
