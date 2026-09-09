@@ -94,6 +94,25 @@ mixin NucleoStrings {
   /// A dónde se fue el encargo, cuando quien lo pidió no va a verlo llegar.
   String seMandoA(String carpeta);
 
+  /// La cabecera de la lista de comandos, y lo que hace cada uno.
+  ///
+  /// 🔴 **La ayuda se compone, no se escribe.** Lo que se puede escribir sale
+  /// del catálogo —[ElComandoDeLaCasa]— y aquí solo está lo que significa cada
+  /// uno: una lista a mano se queda vieja el día que alguien añada un atajo, y
+  /// una ayuda desfasada manda a escribir cosas que no funcionan.
+  String get ayudaTitulo;
+  String get ayudaImagen;
+  String get ayudaEdita;
+  String get ayudaGit;
+  String get ayudaParte;
+  String get ayudaAgenda;
+  String get ayudaMcp;
+  String get ayudaOlvida;
+  String get ayudaAyuda;
+
+  /// Lo que se dice al olvidar la sesión: la carpeta sigue, el hilo no.
+  String seOlvidoLaSesion(String carpeta);
+
   /// Habría que abrir una conversación y no caben más.
   String noCabeOtraConversacion(String carpeta);
   String textOnlyFolder(String folder);
@@ -347,6 +366,30 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String seMandoA(String carpeta) =>
       'Lo mandé a «$carpeta», que es la carpeta que nombraste. El trabajo sale por ahí.';
+  @override
+  String get ayudaTitulo => 'Esto es lo que puedes escribir aquí:';
+  @override
+  String get ayudaImagen => 'dibuja lo que le digas y lo guarda en documentos';
+  @override
+  String get ayudaEdita => 'sigue con la última imagen de esta conversación';
+  @override
+  String get ayudaGit => 'corre git aquí mismo y enseña su salida, literal';
+  @override
+  String get ayudaParte => 'el parte del día, ya reunido';
+  @override
+  String get ayudaAgenda => 'lo que hay en tu agenda de hoy';
+  @override
+  String get ayudaMcp => 'los servidores MCP de esta cuenta, con su estado';
+  @override
+  String get ayudaOlvida =>
+      'Claude deja de recordar lo hablado en esta carpeta. Lo escrito se '
+      'conserva';
+  @override
+  String get ayudaAyuda => 'esta lista';
+  @override
+  String seOlvidoLaSesion(String carpeta) =>
+      'Hecho: Claude empieza de cero en $carpeta. Lo hablado hasta ahora sigue '
+      'escrito aquí, pero él ya no lo recuerda.';
   @override
   String noCabeOtraConversacion(String carpeta) =>
       'Para trabajar en «$carpeta» hace falta otra conversación y no caben más. '
@@ -704,6 +747,30 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String seMandoA(String carpeta) =>
       'Sent it to "$carpeta", the folder you named. The work happens there.';
+  @override
+  String get ayudaTitulo => 'This is what you can type here:';
+  @override
+  String get ayudaImagen => 'draws what you describe and saves it to documents';
+  @override
+  String get ayudaEdita => 'keeps going from this conversation\'s last image';
+  @override
+  String get ayudaGit => 'runs git right here and shows its output, literally';
+  @override
+  String get ayudaParte => 'the day\'s report, already gathered';
+  @override
+  String get ayudaAgenda => "what's on your calendar today";
+  @override
+  String get ayudaMcp => "this account's MCP servers, with their status";
+  @override
+  String get ayudaOlvida =>
+      'Claude stops remembering what was said in this folder. What is written '
+      'stays';
+  @override
+  String get ayudaAyuda => 'this list';
+  @override
+  String seOlvidoLaSesion(String carpeta) =>
+      'Done: Claude starts fresh in $carpeta. What you have said so far is '
+      'still written here, but he no longer remembers it.';
   @override
   String noCabeOtraConversacion(String carpeta) =>
       'Working in "$carpeta" needs another conversation and there is no room. '

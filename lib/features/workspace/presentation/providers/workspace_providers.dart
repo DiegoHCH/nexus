@@ -366,6 +366,21 @@ final claudeProfilesProvider = FutureProvider<List<ClaudeProfile>>(
   (ref) => const ClaudeProfilesDataSource().list(),
 );
 
+/// Las cuentas que se enseñan para mirar qué tiene instalada cada una: las que
+/// tienen nombre, o la de siempre si no hay ninguna.
+///
+/// 🔴 **Aparte de [claudeProfilesProvider] y no en su lugar.** Aquél devuelve
+/// solo las `.claude-*` a propósito: para **elegir** la cuenta de una carpeta,
+/// «la de siempre» es la ausencia de perfil y ya está arriba como opción, así
+/// que listarla ahí la enseñaría dos veces. Aquí hace falta que aparezca cuando
+/// es la única — reportado con captura: en un Mac sin perfiles con nombre,
+/// Superpoderes decía «no hay ninguna cuenta configurada» mientras el chat
+/// funcionaba— y **no cuando hay perfiles**, que fue la otra mitad del reporte.
+/// Ver [ClaudeProfilesDataSource.paraMirar].
+final lasCuentasParaMirarProvider = FutureProvider<List<ClaudeProfile>>(
+  (ref) => const ClaudeProfilesDataSource().paraMirar(),
+);
+
 /// Quien sabe abrir el navegador para entrar en una cuenta.
 final claudeAuthProvider = Provider<ClaudeAuthDataSource>(
   (ref) => const ClaudeAuthDataSource(),

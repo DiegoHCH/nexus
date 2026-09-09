@@ -52,6 +52,45 @@ void main() {
       expect(r.corrida.puedeRecargar, isFalse);
     });
 
+    // 🔴 **En `profile` no hay recarga, y el daemon lo dice.** Salió al hacer
+    // «prod + profile + el panel de depuración»: la botonera ofrecía recargar y
+    // reiniciar en una corrida donde eso no existe, y aprender que un botón no
+    // sirve cuesta más que no tenerlo.
+    test('una corrida que no acepta recargas no las ofrece', () {
+      final r = aplicaEvento(
+        _corrida(),
+        const {},
+        const EventoDelDaemon(
+          nombre: 'app.start',
+          params: {'appId': 'abc', 'supportsRestart': false},
+        ),
+      );
+      final corriendo = aplicaEvento(
+        r.corrida,
+        const {},
+        const EventoDelDaemon(nombre: 'app.started'),
+      ).corrida;
+
+      expect(corriendo.estado, EstadoDeCorrida.corriendo);
+      expect(
+        corriendo.puedeRecargar,
+        isFalse,
+        reason: 'ni con appId ni corriendo: en profile no hay recarga',
+      );
+    });
+
+    // Y un daemon que no lo diga se trata como que sí: es lo que hacía antes, y
+    // quitar los botones por una clave ausente sería peor que dejarlos.
+    test('si el daemon no lo dice, se sigue ofreciendo', () {
+      final r = aplicaEvento(
+        _corrida(),
+        const {},
+        const EventoDelDaemon(nombre: 'app.start', params: {'appId': 'abc'}),
+      );
+
+      expect(r.corrida.seRecarga, isTrue);
+    });
+
     test('app.started es cuando ya se ve, y solo entonces acepta recargas', () {
       // Este es el evento que en H1 hubo que sondear a mano con el emulador.
       // Aquí lo dice el propio daemon, y esa es la mitad del valor de hablar el

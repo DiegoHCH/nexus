@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/domain/usecases/los_dias_del_historial.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 
@@ -123,6 +124,31 @@ class _ConversationHistorySheetState
     );
   }
 
+  /// Las cabeceras y las filas, en el orden en que se pintan.
+  ///
+  /// Una sola lista y no una lista de listas: así el desplazamiento es continuo
+  /// —una cabecera no arrastra a su grupo— y `ListView.builder` sigue
+  /// construyendo solo lo que se ve.
+  List<Widget> _renglones(List<ConversationSummary> visibles) {
+    final dias = LosDiasDelHistorial.agrupa(visibles);
+    return [
+      for (final (indice, dia) in dias.indexed) ...[
+        // El primero no lleva aire encima: no separa de nada, y un hueco al
+        // principio de la lista se lee como un fallo de dibujo.
+        _Dia(dia: dia, primero: indice == 0),
+        for (final record in dia.fichas)
+          _Row(
+            record: record,
+            onTap: () {
+              Navigator.of(context).pop();
+              widget.onPick(record);
+            },
+            onDelete: () => ref.read(deleteConversationProvider)(record),
+          ),
+      ],
+    ];
+  }
+
   Widget _body(List<ConversationSummary> records) {
     final colors = context.colors;
     if (records.isEmpty) {
@@ -179,19 +205,22 @@ class _ConversationHistorySheetState
             ],
           ),
         const SizedBox(height: NexusSpacing.s4),
+        // 🔴 **Por días, y el día se dice una vez.** Pedido después de arreglar
+        // la fecha: «que se organicen por fechas, que tengan una separación
+        // visual y que aparezca la fecha». Antes era una tira de filas con la
+        // marca de tiempo completa repetida en cada una —`2026-09-09 11:05`—:
+        // la fecha estaba y no organizaba nada. Ver [LosDiasDelHistorial].
         Flexible(
-          child: ListView.builder(
-            shrinkWrap: true,
-            itemCount: visibles.length,
-            itemBuilder: (context, index) {
-              final record = visibles[index];
-              return _Row(
-                record: record,
-                onTap: () {
-                  Navigator.of(context).pop();
-                  widget.onPick(record);
-                },
-                onDelete: () => ref.read(deleteConversationProvider)(record),
+          child: Builder(
+            builder: (context) {
+              // Se agrupa **una vez** por construcción y no dentro del
+              // `itemBuilder`: ahí se llamaría por cada fila que entra en
+              // pantalla, y agrupar es recorrer y ordenar la lista entera.
+              final renglones = _renglones(visibles);
+              return ListView.builder(
+                shrinkWrap: true,
+                itemCount: renglones.length,
+                itemBuilder: (context, index) => renglones[index],
               );
             },
           ),
@@ -282,7 +311,12 @@ class _RowState extends State<_Row> {
     final record = widget.record;
     final onTap = widget.onTap;
     final colors = context.colors;
-    final when = record.startedAt;
+    // 🔴 **La fecha de la lista es la del último uso, no la del comienzo.**
+    // Una conversación que se retoma tres días seguidos aparecía con la fecha
+    // del primero, así que el trabajo de hoy se leía como de anteayer — y de
+    // ahí «las últimas conversaciones no se están guardando», con todas
+    // guardadas. Ver [ConversationSummary.usadaEn].
+    final when = record.usadaEn;
     String two(int value) => value.toString().padLeft(2, '0');
 
     return InkWell(
@@ -295,10 +329,13 @@ class _RowState extends State<_Row> {
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // La fecha delante y en monoespaciada: así las columnas cuadran y
-            // la lista se recorre con la vista en vertical.
+            // **La hora y no la fecha entera**: el día lo dice la cabecera de
+            // su grupo, y repetirlo en cada fila era lo que hacía que veinte
+            // conversaciones se leyeran como una tira sin cortes. Delante y en
+            // monoespaciada, para que las columnas cuadren y la lista se
+            // recorra con la vista en vertical.
             Text(
-              '${when.year}-${two(when.month)}-${two(when.day)} ${two(when.hour)}:${two(when.minute)}',
+              '${two(when.hour)}:${two(when.minute)}',
               style: NexusTypography.mono.copyWith(color: colors.faint),
             ),
             const SizedBox(width: NexusSpacing.s4),
@@ -359,6 +396,56 @@ class _RowState extends State<_Row> {
               ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// La cabecera de un día, que es la separación visual entre grupos.
+///
+/// **El aire va arriba y no abajo**: así la cabecera se lee pegada a lo que
+/// titula, que es lo que hace que un grupo se vea como un grupo.
+class _Dia extends StatelessWidget {
+  const _Dia({required this.dia, required this.primero});
+
+  final UnDiaDelHistorial dia;
+
+  /// Si es la primera cabecera de la lista. Ver el `padding` de abajo.
+  final bool primero;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = context.colors;
+    final strings = context.strings;
+
+    return Padding(
+      padding: EdgeInsets.only(
+        top: primero ? 0 : NexusSpacing.s5,
+        bottom: NexusSpacing.s2,
+      ),
+      child: Row(
+        children: [
+          Text(
+            switch (dia.cuando) {
+              CuandoFue.hoy => strings.historialHoy,
+              CuandoFue.ayer => strings.historialAyer,
+              CuandoFue.antes => strings.historialDia(
+                dia.dia,
+                conElAno: dia.dia.year != DateTime.now().year,
+              ),
+            }.toUpperCase(),
+            style: NexusTypography.label.copyWith(color: colors.accent),
+          ),
+          const SizedBox(width: NexusSpacing.s3),
+          // La línea sale del texto y llega al borde: es lo que dice «lo de
+          // debajo es de este día» sin escribirlo.
+          Expanded(child: Divider(height: 1, color: colors.rule)),
+          const SizedBox(width: NexusSpacing.s3),
+          Text(
+            '${dia.fichas.length}',
+            style: NexusTypography.label.copyWith(color: colors.faint),
+          ),
+        ],
       ),
     );
   }

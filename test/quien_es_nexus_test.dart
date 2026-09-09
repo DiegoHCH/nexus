@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
 import 'package:nexus/features/assistant/data/repositories/gemini_voice_gateway.dart';
 import 'package:nexus/features/assistant/data/repositories/project_context_prompt.dart';
+import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
 import 'package:nexus/features/assistant/domain/usecases/quien_es_nexus.dart';
 import 'package:nexus/features/assistant/domain/usecases/voice_routing.dart';
 
@@ -110,6 +112,38 @@ void main() {
     final texto = ProjectContextPrompt.compose(rules: const [], language: 'es');
 
     expect(texto, isNot(contains('QUIÉN ERES')));
+  });
+
+  // 🔴 **La puerta también, y se le olvidó al ponerle identidad a las otras
+  // dos.** Compone su prompt aparte, así que preguntarle «¿quién eres?» al
+  // saludo del arranque se salía del guion — y ahí el modelo contesta lo que sí
+  // sabe de sí mismo. Ver el punto 6 del repaso.
+  test('la puerta dice su nombre, y sin ofrecerse a hacer nada', () {
+    final puerta = GeminiVoiceGateway(
+      const GeminiLiveDataSource(),
+      () async => 'una-llave',
+      () => 'Kore',
+      () => 'español',
+      () => null,
+      () => 'Hal',
+      () async {},
+    ).elSetupDe(const ComoLaPuerta(saludo: 'buenas', carpetas: ['nexus']));
+    final dicho =
+        ((puerta['systemInstruction']! as Map<String, dynamic>)['parts']!
+                    as List)
+                .first['text']
+            as String;
+
+    expect(dicho, contains('Te llamas Hal'));
+    expect(dicho, contains('la puerta de Nexus'));
+    // Una frase y a lo suyo: la puerta no puede hacer nada más, y ofrecerlo es
+    // lo que ya la llevó a decir «voy a inicializar el entorno».
+    expect(dicho, contains('vuelve a preguntar'));
+    expect(
+      dicho,
+      isNot(contains('PARA QUÉ SIRVES')),
+      reason: 'la lista de lo que sabe hacer es de la conversación, no de aquí',
+    );
   });
 
   group('lo que se pregunta sobre ella lo contesta ella', () {

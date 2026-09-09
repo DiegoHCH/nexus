@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_catalog.dart';
+import 'package:nexus/features/superpowers/domain/usecases/la_lista_de_mcp.dart';
 import 'package:nexus/features/superpowers/domain/usecases/mcp_command.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
@@ -42,7 +43,13 @@ class _McpPanelState extends ConsumerState<McpPanel> {
   /// encargo. El único camino era la terminal.
   final _header = TextEditingController();
   var _busy = false;
-  var _checking = false;
+
+  /// Si se está preguntando al CLI **porque alguien lo pidió**.
+  ///
+  /// Aparte de la caducidad de lo recordado: sin esto, pulsar «volver a
+  /// comprobar» dentro de las seis horas no haría nada visible — se invalidaría
+  /// un proveedor que nadie está mirando.
+  var _preguntando = false;
   String? _error;
 
   @override
@@ -156,12 +163,30 @@ class _McpPanelState extends ConsumerState<McpPanel> {
   Widget build(BuildContext context) {
     final colors = context.colors;
     final strings = context.strings;
-    final installed =
+    final delArchivo =
         ref.watch(mcpServersProvider(widget.configDir)).value ?? const [];
-    final names = installed.map((server) => server.name).toSet();
-    final health = _checking
+    final names = delArchivo.map((server) => server.name).toSet();
+
+    // 🔴 **Lo recordado y la comprobación entran en la MISMA lista.** Antes los
+    // conectores de la cuenta solo salían en un bloque aparte al pulsar
+    // «Comprobar», y desde fuera eso se lee como que no están: reportado tal
+    // cual, «solo se listan los de usuario y no los de claude.ai». Ver
+    // [LaListaDeMcp], donde está la medición: cinco en el archivo, veinte en el
+    // CLI.
+    final recordado = ref.watch(mcpRecordadosProvider(widget.configDir)).value;
+    // Se le pregunta al CLI **por detrás** cuando lo recordado ya no vale o no
+    // hay nada: sin esto, la primera vez la lista volvería a salir a medias.
+    final preguntando =
+        _preguntando || LaListaDeMcp.hayQuePreguntar(recordado?.cuando);
+    final health = preguntando
         ? ref.watch(mcpHealthProvider(widget.configDir))
         : null;
+    final installed = LaListaDeMcp.junta(
+      delArchivo: delArchivo,
+      recordados: recordado?.servidores ?? const [],
+      comprobados: health?.value,
+    );
+    final deLaCuenta = LaListaDeMcp.deLaCuenta(installed);
 
     return ListView(
       children: [
@@ -184,7 +209,17 @@ class _McpPanelState extends ConsumerState<McpPanel> {
           _ServerRow(
             server: server,
             enabled: !_busy,
-            onRemove: () => _remove(server.name),
+            // Los de la cuenta no se quitan desde aquí —se gestionan en
+            // claude.ai— y un botón que no funciona es peor que no tenerlo.
+            onRemove: server.fromAccount ? null : () => _remove(server.name),
+          ),
+        if (deLaCuenta > 0)
+          Padding(
+            padding: const EdgeInsets.only(top: NexusSpacing.s2),
+            child: Text(
+              strings.mcpDeLaCuenta(deLaCuenta),
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
           ),
 
         const SizedBox(height: NexusSpacing.s4),
@@ -195,7 +230,7 @@ class _McpPanelState extends ConsumerState<McpPanel> {
                   ? null
                   : () {
                       ref.invalidate(mcpHealthProvider(widget.configDir));
-                      setState(() => _checking = true);
+                      setState(() => _preguntando = true);
                     },
               child: Text(strings.mcpCheck),
             ),
@@ -208,28 +243,21 @@ class _McpPanelState extends ConsumerState<McpPanel> {
             ),
           ],
         ),
+        // 🔴 **La lista ya no se repinta aquí abajo.** Lo que llega del CLI
+        // entra arriba, en la lista de verdad; esto solo dice en qué anda —o
+        // que no se pudo—, que es lo único que no cabe en una fila.
         if (health != null) ...[
           const SizedBox(height: NexusSpacing.s3),
           switch (health) {
-            AsyncData(:final value?) => Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                for (final server in value)
-                  _ServerRow(server: server, enabled: false),
-              ],
-            ),
-            AsyncData() => Text(
-              strings.mcpCheckFailed,
-              style: NexusTypography.mono.copyWith(color: colors.warn),
-            ),
-            AsyncError() => Text(
-              strings.mcpCheckFailed,
-              style: NexusTypography.mono.copyWith(color: colors.warn),
-            ),
-            _ => Text(
+            AsyncLoading() => Text(
               strings.mcpChecking,
               style: NexusTypography.mono.copyWith(color: colors.faint),
             ),
+            AsyncData(value: null) || AsyncError() => Text(
+              strings.mcpCheckFailed,
+              style: NexusTypography.mono.copyWith(color: colors.warn),
+            ),
+            _ => const SizedBox.shrink(),
           },
         ],
 

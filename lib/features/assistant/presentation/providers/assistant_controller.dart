@@ -14,6 +14,10 @@ import 'package:nexus/features/artifacts/domain/entities/lo_que_salio_del_dibujo
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_comandos_de_la_casa.dart';
+import 'package:nexus/features/superpowers/presentation/providers/superpowers_providers.dart';
+import 'package:nexus/features/superpowers/domain/usecases/la_lista_de_mcp.dart';
+import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
@@ -24,10 +28,12 @@ import 'package:nexus/features/assistant/domain/usecases/la_sesion_que_se_compar
 import 'package:nexus/features/assistant/presentation/providers/claude_bridge_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/conversations_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/el_despacho_de_carpeta_impl.dart';
+import 'package:nexus/features/assistant/presentation/providers/lo_que_dejo_el_encargo.dart';
 import 'package:nexus/features/assistant/presentation/providers/model_providers.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_session_providers.dart';
 import 'package:nexus/features/assistant/presentation/state/assistant_hud_state.dart';
 import 'package:nexus/features/assistant/presentation/state/chat_message.dart';
+import 'package:nexus/features/assistant/presentation/state/lo_que_hace_un_evento.dart';
 import 'package:nexus/features/assistant/presentation/state/orb_state.dart';
 import 'package:nexus/features/assistant/presentation/state/session_meter.dart';
 import 'package:nexus/features/history/domain/entities/conversation_record.dart';
@@ -35,6 +41,7 @@ import 'package:nexus/features/history/domain/entities/conversation_summary.dart
 import 'package:nexus/features/history/domain/repositories/conversation_archive.dart';
 import 'package:nexus/features/assistant/domain/usecases/por_que_murio_claude.dart';
 import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
+import 'package:nexus/features/history/presentation/providers/el_archivo_de_la_conversacion.dart';
 import 'package:nexus/features/history/presentation/providers/el_parte_desde_la_voz.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
@@ -306,20 +313,15 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? respondeA,
   }) {
     state = state.copyWith(
-      messages: [
-        ...state.messages,
-        ChatMessage(
-          author: author,
-          text: text,
-          spoken: spoken,
-          streaming: true,
-          attachments: attachments,
-          respondeA: respondeA,
-          // Solo la respuesta, no lo que se pidió: el botón de enviar va bajo
-          // el parte, y lo que se pidió es la instrucción que lo generó.
-          esElParte: author == ChatAuthor.nexus && _elParteEnCurso,
-        ),
-      ],
+      messages: LosMensajes.diciendo(
+        state.messages,
+        author,
+        text,
+        spoken: spoken,
+        attachments: attachments,
+        respondeA: respondeA,
+        esElParte: _elParteEnCurso,
+      ),
     );
   }
 
@@ -333,14 +335,16 @@ class AssistantController extends Notifier<AssistantHudState> {
     bool spoken = false,
     String? respondeA,
   }) {
-    final messages = [...state.messages];
-    final last = messages.lastOrNull;
-    if (last != null && last.author == author && last.streaming) {
-      messages[messages.length - 1] = last.copyWith(text: last.text + text);
-      state = state.copyWith(messages: messages);
-      return;
-    }
-    _say(author, text, spoken: spoken, respondeA: respondeA);
+    state = state.copyWith(
+      messages: LosMensajes.alargando(
+        state.messages,
+        author,
+        text,
+        spoken: spoken,
+        respondeA: respondeA,
+        esElParte: _elParteEnCurso,
+      ),
+    );
   }
 
   /// Cierra el turno en curso: se le quita el cursor.
@@ -423,7 +427,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // terminar su turno. Este copió de ahí el `_say` y el `_sealLast` y se dejó
     // justo la línea que persiste, que es la única que no se nota hasta que
     // reinicias.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Lo dice aquí y lo cierra, que es lo que hace falta cuando no se enruta:
@@ -534,18 +538,8 @@ class AssistantController extends Notifier<AssistantHudState> {
     );
   }
 
-  void _sealLast() {
-    final messages = [...state.messages];
-    final last = messages.lastOrNull;
-    if (last == null || !last.streaming) return;
-    if (last.isEmpty) {
-      // Un turno que no llegó a decir nada no se deja en la ventana.
-      messages.removeLast();
-    } else {
-      messages[messages.length - 1] = last.copyWith(streaming: false);
-    }
-    state = state.copyWith(messages: messages);
-  }
+  void _sealLast() =>
+      state = state.copyWith(messages: LosMensajes.sellados(state.messages));
 
   /// [allowWrites] es un **tope y no un permiso**: baja lo que la carpeta concede,
   /// nunca lo sube. Lo usa el canal del teléfono, que manda `false` mientras no
@@ -641,6 +635,62 @@ class AssistantController extends Notifier<AssistantHudState> {
           loQueSeVe: loQueSeVe ?? trimmed,
           referencias: attachments,
           reintento: reintento,
+        );
+        return;
+
+      // La lista de lo que se puede escribir, **dentro** de la conversación.
+      // Nace de una pregunta que no tenía respuesta en la app: «qué comandos
+      // puedo usar aquí, como el `/clear` de Claude». Ver [ElComandoDeLaCasa].
+      case ALaAyuda():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        final s = ref.read(stringsProvider);
+        _decir(
+          ElComandoDeLaCasa.laLista(
+            s.ayudaTitulo,
+            (comando) => switch (comando) {
+              ElComandoDeLaCasa.imagen => s.ayudaImagen,
+              ElComandoDeLaCasa.edita => s.ayudaEdita,
+              ElComandoDeLaCasa.git => s.ayudaGit,
+              ElComandoDeLaCasa.parte => s.ayudaParte,
+              ElComandoDeLaCasa.agenda => s.ayudaAgenda,
+              ElComandoDeLaCasa.mcp => s.ayudaMcp,
+              ElComandoDeLaCasa.olvida => s.ayudaOlvida,
+              ElComandoDeLaCasa.ayuda => s.ayudaAyuda,
+            },
+          ),
+        );
+        return;
+
+      // 🔴 **El listado de MCP, en la conversación.** Pedido con la referencia
+      // delante: «que me mostrara el listado de MCP en el chat, así como se
+      // hace en el CLI, con su conectado o desconectado». Estaba en Ajustes, y
+      // eso es levantarse de la conversación para responder una pregunta de
+      // una línea.
+      //
+      // **No se espera a comprobarlos.** Preguntarle al CLI tarda casi un
+      // minuto —comprueba la salud de cada uno, uno por uno—, así que se pinta
+      // lo que se sabe ya y, si eso está viejo, se vuelve a preguntar por
+      // detrás para que el siguiente `/mcp` lo tenga. Ver [LaListaDeMcp].
+      case ALosMcp():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        await _contarLosMcp();
+        return;
+
+      // El `/clear` de la terminal, que aquí ya existía como botón: lo mismo
+      // que «Empezar de cero». Se dice lo que ha pasado, porque una pantalla
+      // que no cambia se lee como que el comando no hizo nada — y lo escrito
+      // sigue estando, que es lo que hay que aclarar.
+      case AOlvidar():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        await forgetConversation();
+        if (!_vive) return;
+        _decir(
+          ref
+              .read(stringsProvider)
+              .seOlvidoLaSesion(_folder?.split('/').last ?? ''),
         );
         return;
 
@@ -761,7 +811,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
     // La marca se toma **antes** de que Claude toque nada: es lo que hace que
     // al terminar se pueda enseñar lo de esta tarea y no lo de toda la tarde.
-    unawaited(_markRepo());
+    unawaited(_loQueDejo.tomaLaMarca(_workingDirectory));
 
     final ask = ref.read(askClaudeProvider(conversationId));
     _subscription =
@@ -775,10 +825,10 @@ class AssistantController extends Notifier<AssistantHudState> {
           alPedirPermiso: _pedirPermiso,
         ).listen(
           (event) => switch (event) {
-            ClaudeQueued() => _onQueued(),
+            ClaudeQueued() => _aplicar(event),
             ClaudeRulesChanged() => _onRulesChanged(event.paths),
             ClaudeMcpCaido() => _onMcpCaido(event.servidores),
-            ClaudeSessionStarted() => _onSessionStarted(event.model),
+            ClaudeSessionStarted() => _alArrancarLaSesion(event),
             ClaudeTextDelta() => _onTextDelta(buffer, event),
             ClaudeToolUsed() => _onClaudeToolUsed(event),
             ClaudeToolFinished() => _onClaudeToolFinished(
@@ -908,7 +958,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // diff de la tarea, y esto no tocó el repositorio. Con la marca de git de un
     // encargo anterior todavía en memoria, enseñaría los cambios de aquél como
     // si los hubiera hecho el dibujo.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Vuelve a mandar un encargo que no llegó a hacerse.
@@ -978,111 +1028,74 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// `_compacting` es la condición exacta y ya estaba aquí: es de **esta**
   /// conversación. Si el turno lo tiene otra —trabajando o comprimiéndose—, el
   /// mensaje de siempre sigue siendo verdad.
-  void _onQueued() {
-    final strings = ref.read(stringsProvider);
-    state = state.copyWith(
-      orbState: NexusOrbState.think,
-      activity: [
-        ...state.activity,
-        ActivityItem(
-          id: _queueItemId,
-          description: _compacting
-              ? strings.waitingForOwnCompaction
-              : strings.waitingForOtherConversation,
-          writes: false,
-        ),
-      ],
+  /// El estado que deja un evento, que **ya no se decide aquí**.
+  ///
+  /// Ver [conElEvento]: el mapeo de evento a estado salió a una función pura,
+  /// que es lo que el PR #306 dejó anotado como paso siguiente y lo que ya hace
+  /// `aplicaEvento` en la feature de correr. Lo que queda en el controlador es
+  /// la coreografía —avisar, archivar, recordar el modelo—, que es lo que sí
+  /// necesita el resto de la app.
+  void _aplicar(ClaudeEvent evento) {
+    state = conElEvento(
+      state,
+      evento,
+      espera: () {
+        final strings = ref.read(stringsProvider);
+        return (
+          laPropia: strings.waitingForOwnCompaction,
+          deOtra: strings.waitingForOtherConversation,
+        );
+      },
+      // `_compacting` es la condición exacta: es de **esta** conversación. Si el
+      // turno lo tiene otra —trabajando o comprimiéndose—, el mensaje de
+      // siempre sigue siendo verdad.
+      comprimiendose: _compacting,
+      respondeA: _respondiendoA,
+      esElParte: _elParteEnCurso,
     );
   }
 
-  void _onSessionStarted(String model) {
-    // Le llegó el turno: la espera se da por terminada en cuanto arranca.
-    _onClaudeToolFinished(_queueItemId);
+  /// Le llegó el turno: se cierra la espera y se apunta con qué modelo corrió.
+  void _alArrancarLaSesion(ClaudeSessionStarted evento) {
+    _aplicar(evento);
+    _recordarElModelo(evento.model);
+  }
+
+  /// Con qué modelo corrió, apuntado para después.
+  ///
+  /// Es lo único de este evento que no es estado de la pantalla: **es lo único
+  /// que permite enseñar el modelo de un perfil que no fija ninguno** en su
+  /// configuración.
+  void _recordarElModelo(String model) {
     if (model.isEmpty) return;
-    // Se apunta con qué cuenta corrió: es lo único que permite enseñar el
-    // modelo de un perfil que no fija ninguno en su configuración.
     final folder = _folder;
-    if (folder != null) {
-      final paired = ref
-          .read(workspaceControllerProvider)
-          .folders
-          .where((item) => item.path == folder)
-          .firstOrNull;
-      unawaited(
-        ref
-            .read(seenModelsProvider.notifier)
-            .remember(paired?.claudeProfile, model),
-      );
-    }
-    state = state.copyWith(meter: state.meter.copyWith(model: model));
-  }
-
-  /// La actividad se acumula en el turno y se vacía al empezar el siguiente:
-  /// la columna se llama «Ahora mismo», no «historial».
-  void _onClaudeToolUsed(ClaudeToolUsed event) {
-    state = state.copyWith(
-      orbState: NexusOrbState.think,
-      activity: [
-        ...state.activity,
-        ActivityItem(
-          id: event.id,
-          description: event.description,
-          writes: event.writes,
-          // El detalle se estaba tirando aquí: el lector lo traía y la fila no
-          // lo recibía, así que un paso no se podía abrir hasta que terminara
-          // —y entonces solo enseñaba lo que devolvió, nunca lo que se
-          // ejecutó—. Es justo la mitad que 3.2 fue a buscar.
-          detail: event.detail,
-          parentId: event.parentId,
-        ),
-      ],
+    if (folder == null) return;
+    final paired = ref
+        .read(workspaceControllerProvider)
+        .folders
+        .where((item) => item.path == folder)
+        .firstOrNull;
+    unawaited(
+      ref
+          .read(seenModelsProvider.notifier)
+          .remember(paired?.claudeProfile, model),
     );
   }
 
-  /// Identificador fijo: solo puede haber una espera por turno, y así se cierra
-  /// sin tener que recordar cuál era.
-  static const _queueItemId = 'esperando-turno';
+  /// Un paso que empieza, venga de Claude o de la voz. Ver [conElEvento].
+  void _onClaudeToolUsed(ClaudeToolUsed event) => _aplicar(event);
 
-  void _onClaudeToolFinished(String id, [String? output]) {
-    state = state.copyWith(
-      activity: [
-        for (final item in state.activity)
-          if (item.id == id) item.asDone(output: output) else item,
-      ],
-    );
-  }
+  /// Y uno que acaba. Lo llama también la voz, y la compresión para cerrar el
+  /// suyo, así que sigue recibiendo el identificador y no el evento.
+  void _onClaudeToolFinished(String id, [String? output]) =>
+      _aplicar(ClaudeToolFinished(id, output: output));
 
+  /// El texto que llega a trozos. Lo único que no es estado es **el búfer**, que
+  /// es lo que se archiva al final del turno.
   void _onTextDelta(StringBuffer buffer, ClaudeTextDelta event) {
     buffer.write(event.text);
-    // La cita solo cuaja al **crear** el mensaje: `_appendTo` la ignora cuando
-    // está alargando el que ya hay, así que las porciones siguientes no la
-    // repiten ni la borran.
-    _appendTo(ChatAuthor.nexus, event.text, respondeA: _respondiendoA);
-    state = state.copyWith(orbState: NexusOrbState.speak, isStreaming: true);
+    _aplicar(event);
   }
-
-  /// Dónde estaba el repositorio antes de este encargo.
-  String? _repoBase;
-
-  /// Y qué documentos había antes, para saber cuál salió de aquí.
-  /// Los documentos que había **antes de este encargo**, o `null` si nadie ha
-  /// tomado la marca todavía.
-  ///
-  /// 🔴 **`null` y no un conjunto vacío, y esa es la diferencia que importa.**
-  /// Vacío significa «mirado, y no había ninguno»; `null` significa «no se ha
-  /// mirado». Confundirlos es lo que colgó un documento viejo de una respuesta
-  /// que no tenía nada que ver: sin marca, restar contra el vacío hace que
-  /// **toda** la carpeta parezca recién salida.
-  ///
-  /// Con esto, un camino que llegue al final de un encargo sin haber tomado la
-  /// marca no cuelga nada — que es lo correcto, porque no hay forma de saber
-  /// qué es nuevo.
-  Set<String>? _documentosAntes;
-
-  /// Y qué archivos había ya sin trackear. La marca de git tiene dos mitades y
-  /// esta faltaba: `stash create` no ve lo que git no sigue, así que sin esto
-  /// cualquier archivo suelto de ayer contaba como creado por este encargo.
-  Set<String> _sinTrackearAntes = const {};
 
   /// ¿Sigue existiendo esta conversación?
   ///
@@ -1099,50 +1112,16 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// cuando esto ocurre de verdad.
   bool get _vive => ref.mounted;
 
-  Future<void> _markRepo() async {
-    final folder = _workingDirectory;
-    if (folder == null) {
-      _repoBase = null;
-      _sinTrackearAntes = const {};
-    } else {
-      const git = GitDataSource();
-      _repoBase = await git.snapshot(folder);
-      _sinTrackearAntes = await git.sinTrackear(folder);
-    }
-    if (!_vive) return;
-    _documentosAntes = await _documentosAhora();
-  }
-
-  /// Las rutas de los documentos que hay ahora mismo en el cajón.
-  ///
-  /// Se comparan antes y después por la misma razón que el repositorio: lo que
-  /// interesa es **lo que dejó este encargo**, no todo lo que hay en la carpeta.
-  Future<Set<String>> _documentosAhora() async {
-    if (!_vive) return const {};
-    final carpeta = ref.read(artifactsFolderProvider);
-    if (carpeta == null) return const {};
-    final cuentas = ref
-        .read(claudeProfilesProvider)
-        .value
-        ?.map((perfil) => perfil.name)
-        .toSet();
-    final lista = await ref
-        .read(artifactsDataSourceProvider)
-        .list(carpeta, cuentas: cuentas ?? const {});
-    return {for (final documento in lista) documento.path};
-  }
+  /// Qué dejó tocado el encargo —el repositorio y los documentos—, que ya no
+  /// vive aquí. Ver [LoQueDejoElEncargo].
+  LoQueDejoElEncargo get _loQueDejo =>
+      ref.read(loQueDejoElEncargoProvider(conversationId));
 
   /// Qué dejó tocado, si tocó algo.
   Future<void> _readChanges() async {
     final folder = _workingDirectory;
-    final base = _repoBase;
-    if (folder == null || base == null) return;
-    final cambios = await const GitDataSource().changesSince(
-      folder,
-      base,
-      yaEstaban: _sinTrackearAntes,
-    );
-    if (cambios == null || !_vive) return;
+    final cambios = await _loQueDejo.losCambios(folder);
+    if (cambios == null || folder == null || !_vive) return;
     state = state.copyWith(changes: cambios);
     _sellarEnElMensaje(cambios: cambios);
 
@@ -1182,15 +1161,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   }
 
   void _onTurnCompleted(ClaudeTurnCompleted event) {
-    _sealLast();
-    state = state.copyWith(
-      orbState: NexusOrbState.sleep,
-      isStreaming: false,
-      meter: state.meter.copyWith(
-        turnTokens: event.turnTokens,
-        contextTokens: event.contextTokens,
-      ),
-    );
+    _aplicar(event);
     // Con el medidor ya actualizado: es de aquí de donde sale el número que le
     // faltaba al aviso de la compresión anterior.
     _completarLaCompresion();
@@ -1256,17 +1227,14 @@ class AssistantController extends Notifier<AssistantHudState> {
     String? documento,
     List<ActivityItem>? actividad,
   }) {
-    final mensajes = [...state.messages];
-    final donde = mensajes.lastIndexWhere(
-      (mensaje) => mensaje.author == ChatAuthor.nexus,
+    state = state.copyWith(
+      messages: LosMensajes.conLoQueDejo(
+        state.messages,
+        cambios: cambios,
+        documento: documento,
+        actividad: actividad,
+      ),
     );
-    if (donde == -1) return;
-    mensajes[donde] = mensajes[donde].copyWith(
-      cambios: cambios,
-      documento: documento,
-      actividad: actividad,
-    );
-    state = state.copyWith(messages: mensajes);
   }
 
   /// El documento que salió de este encargo, si salió alguno.
@@ -1275,18 +1243,9 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// ofrece el último: son las notas de la misma tarea y el botón lleva a la
   /// carpeta igual, con el resto al lado.
   Future<void> _mirarSiHayDocumento() async {
-    // Sin marca no se cuelga nada. Y **se consume**: la marca vale para un
-    // encargo, así que el siguiente tiene que tomar la suya. Dejarla puesta
-    // haría que un turno sin marca comparase contra la del anterior y colgase
-    // el documento de aquél.
-    final antes = _documentosAntes;
-    _documentosAntes = null;
-    if (antes == null) return;
-    final ahora = await _documentosAhora();
-    final nuevos = ahora.difference(antes);
-    if (nuevos.isEmpty || !_vive) return;
-    ref.invalidate(artifactsProvider);
-    _sellarEnElMensaje(documento: nuevos.last);
+    final documento = await _loQueDejo.elDocumentoNuevo();
+    if (documento == null || !_vive) return;
+    _sellarEnElMensaje(documento: documento);
   }
 
   /// Lo que hay que hacer cuando un encargo termina, **venga de donde venga**.
@@ -1321,8 +1280,70 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
     _elParteEnCurso = false;
     _elEncargoTermino();
-    unawaited(_sellarYGuardar());
+    unawaited(_enFila(_sellarYGuardar));
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
+  }
+
+  /// El listado de servidores MCP de **la cuenta de esta carpeta**.
+  ///
+  /// La cuenta importa: los servidores se configuran por cuenta, así que
+  /// enseñar los de otra sería contestar sobre una máquina distinta. Sin perfil
+  /// elegido, la de siempre.
+  Future<void> _contarLosMcp() async {
+    final s = ref.read(stringsProvider);
+    final configDir = _perfilDeLaCarpeta() ?? ClaudeProfile.elDeSiempre();
+    final delArchivo = await ref.read(mcpDataSourceProvider).list(configDir);
+    final recordado = await ref
+        .read(elRecuerdoDeLosMcpProvider)
+        .leer(configDir);
+    if (!_vive) return;
+
+    final lista = LaListaDeMcp.junta(
+      delArchivo: delArchivo,
+      recordados: recordado?.servidores ?? const [],
+    );
+    final hayQuePreguntar = LaListaDeMcp.hayQuePreguntar(recordado?.cuando);
+    if (hayQuePreguntar) {
+      // Por detrás y sin esperarlo: lo que devuelva se recuerda, así que el
+      // siguiente `/mcp` sale con el estado nuevo.
+      ref.invalidate(mcpHealthProvider(configDir));
+      unawaited(
+        ref
+            .read(mcpHealthProvider(configDir).future)
+            .catchError((Object _) => null),
+      );
+    }
+
+    final cuantos = LaListaDeMcp.deLaCuenta(lista);
+    _decir(
+      LaListaDeMcp.comoSeCuenta(
+        lista: lista,
+        titulo: lista.isEmpty
+            ? s.mcpNingunoEnElChat
+            : s.mcpEnElChat(
+                lista.length,
+                ClaudeProfile.nameFromPath(configDir) ?? s.cuentaGeneral,
+              ),
+        comoEsta: (estado) => switch (estado) {
+          McpStatus.connected => s.mcpConectado,
+          McpStatus.needsAuth => s.mcpPideEntrar,
+          McpStatus.failed => s.mcpNoResponde,
+          McpStatus.unknown => s.mcpSinComprobar,
+        },
+        deLaCuentaDicho: cuantos > 0 ? s.mcpDeLaCuenta(cuantos) : null,
+        elEstado: recordado == null
+            ? (hayQuePreguntar ? s.mcpPreguntandoDeNuevo : null)
+            : [
+                s.mcpEstadoDe(_laHora(recordado.cuando)),
+                if (hayQuePreguntar) s.mcpPreguntandoDeNuevo,
+              ].join(' '),
+      ),
+    );
+  }
+
+  static String _laHora(DateTime cuando) {
+    String dos(int valor) => valor.toString().padLeft(2, '0');
+    return '${dos(cuando.hour)}:${dos(cuando.minute)}';
   }
 
   /// Cuelga del mensaje lo que aún falta y **entonces** lo escribe.
@@ -1341,6 +1362,10 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// estos dos no lo son. El documento seguía en el disco: lo que se perdió
   /// fue el enlace, que es la peor forma de perderlo, porque parece que el
   /// archivo tampoco está.
+  /// La fila la lleva quien escribe. Ver [ElArchivoDeLaConversacion.enFila].
+  Future<void> _enFila(Future<void> Function() tarea) =>
+      ref.read(elArchivoDeLaConversacionProvider(conversationId)).enFila(tarea);
+
   Future<void> _sellarYGuardar() async {
     await _readChanges();
     await _mirarSiHayDocumento();
@@ -1424,80 +1449,47 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// Para las segundas pasadas del mismo turno: el historial local es
   /// idempotente —reescribirlo deja el mismo archivo— y el destino externo no,
   /// porque sale de la máquina y cuesta red cada vez.
+  /// Arma el registro y se lo da a quien escribe.
+  ///
+  /// 🔴 **Lo que se escribe y dónde ya no vive aquí**: eso es
+  /// [ElArchivoDeLaConversacion], que además es **el único que escribe** y por
+  /// eso puede garantizar la fila. Aquí se queda lo que sí es de esta
+  /// conversación: qué mensajes hay ahora mismo y cómo se dice que algo falló.
   Future<void> _archive({bool soloLocal = false}) async {
     final folder = _folder;
     if (folder == null) return;
-    final record = ConversationRecord(
-      id: _recordId,
-      folderPath: folder,
-      startedAt: _startedAt,
-      messages: state.messages,
-      // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale de la
-      // carpeta, que es donde se elige la cuenta.
-      profileName: _profileName(folder),
-      model: state.meter.model,
-      contextTokens: state.meter.contextTokens,
-    );
 
-    // Primero el historial de la app, que no depende de nada externo. Si
-    // dependiera del vault o de Notion, elegir «en ningún sitio» dejaría a
-    // Nexus sin memoria de lo que hiciste.
-    // Los dos fallos se recogen y se cuentan **al final, en un solo aviso**.
-    // Antes cada uno solo hacía `debugPrint`: si el vault ya no existía, la
-    // conversación se perdía y la app no decía nada — te enterabas el día que
-    // ibas a buscar la nota, cuando ya no había forma de recuperarla. Y es la
-    // peor clase de silencio, porque no se repite: la conversación ya terminó.
-    var falloLocal = false;
+    final fallo = await ref
+        .read(elArchivoDeLaConversacionProvider(conversationId))
+        .guardar(
+          ConversationRecord(
+            id: _recordId,
+            folderPath: folder,
+            startedAt: _startedAt,
+            messages: state.messages,
+            // El perfil es el primer nivel del vault: `work/proyecto/…`. Sale
+            // de la carpeta, que es donde se elige la cuenta.
+            profileName: _profileName(folder),
+            model: state.meter.model,
+            contextTokens: state.meter.contextTokens,
+          ),
+          soloLocal: soloLocal,
+        );
 
-    try {
-      await ref.read(localConversationStoreProvider).save(record);
-      if (!_vive) return;
-      ref.invalidate(savedConversationsProvider(folder));
-    } catch (error) {
-      falloLocal = true;
-      debugPrint('archivo · no se pudo guardar en local: $error');
-    }
-
-    // **Resolver el destino también va dentro del try.** Estaba fuera, y eso
-    // contradecía el párrafo de arriba: si averiguar cuál es el destino
-    // externo fallaba —un vault que ya no está, una preferencia a medio
-    // escribir—, `_archive` lanzaba desde dentro de un `unawaited` y quedaba
-    // como error sin atrapar. El historial local ya estaba guardado, así que
-    // no se perdía nada; lo que se llevaba por delante era el silencio.
-    var falloElDestino = false;
-    try {
-      // La segunda pasada de un turno no vuelve a salir de la máquina.
-      final archive = soloLocal
-          ? null
-          : await ref.read(conversationArchiveProvider.future);
-      if (archive != null) await archive.save(record);
-    } catch (error) {
-      // Que falle guardar no puede tumbar la conversación: la carpeta puede
-      // haberse desconectado, o el vault puede no existir ya. Se dice y se
-      // sigue — el historial de la app nunca depende del destino externo.
-      falloElDestino = true;
-      debugPrint('archivo · no se pudo archivar: $error');
-    }
-
-    // 🔴 **Un solo `if (!_vive)` y aquí abajo, que es donde faltaba.**
-    //
-    // Todo lo que queda necesita `ref` —el nombre del destino, los textos, el
-    // estado— y esto corre después de dos `await` que pueden tardar: si la
-    // conversación se cerró mientras se archivaba, el proveedor ya no existe y
-    // leerlo lanza «Cannot use the Ref … after it has been disposed». Y lanza
-    // desde dentro de un `unawaited`, así que no lo atrapa nadie.
-    //
-    // Arriba ya había un guardia igual, pero **cubría solo la escritura local**
-    // y se quedó a medio camino: el destino externo es justo el que más tarda,
-    // porque sale de la máquina. Salió en CI, donde la carrera se pierde.
+    // 🔴 **El guardia va aquí abajo, que es donde faltaba.** Lo que queda
+    // necesita `ref` y `state` —el nombre del destino, los textos— y esto corre
+    // después de dos `await` que pueden tardar: si la conversación se cerró
+    // mientras se archivaba, leer el proveedor lanza «Cannot use the Ref … after
+    // it has been disposed», y lanza desde dentro de un `unawaited`, así que no
+    // lo atrapa nadie. Salió en CI, donde la carrera se pierde.
     //
     // Sin aviso no se pierde nada: si el proveedor está muerto no hay pantalla
     // donde ponerlo, y el historial local ya está escrito o ya se dijo por qué
     // no.
-    if (!_vive) return;
+    if (!_vive || !fallo.algo) return;
     _reportArchiveFailure(
-      local: falloLocal,
-      destination: falloElDestino ? _destinationName() : null,
+      local: fallo.local,
+      destination: fallo.destino ? _destinationName() : null,
     );
   }
 
@@ -1787,8 +1779,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> entrarConLaCuenta() async {
     final strings = ref.read(stringsProvider);
     final perfil = _perfilDeLaCarpeta();
-    final cuenta =
-        ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre;
+    final cuenta = ClaudeProfile.nameFromPath(perfil) ?? strings.cuentaGeneral;
 
     state = state.copyWith(
       errorMessage: null,
@@ -1841,8 +1832,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
     final strings = ref.read(stringsProvider);
     return strings.sesionCaducada(
-      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ??
-          strings.laCuentaDeSiempre,
+      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ?? strings.cuentaGeneral,
     );
   }
 
@@ -2035,8 +2025,35 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// no puede pasar sin que se vea. Cuando el gateway de la empresa se cayó, lo
   /// único que llegó a pantalla fue el error crudo de la herramienta al usarla,
   /// y ese texto apunta al comando de quien pregunta y no a la causa.
+  /// Lo último que se avisó de los MCP caídos, para no repetirlo.
+  ///
+  /// 🔴 **Salía en cada prompt.** Reportado por otra persona con captura: el
+  /// arranque del CLI trae el parte de los servidores en **cada** encargo, así
+  /// que un gateway caído pintaba el mismo aviso una y otra vez —«los
+  /// servidores plugin:firebase:firebase, figma-console, docs-context no
+  /// arrancaron»— encima de la respuesta que estaba leyendo. Un aviso que se
+  /// repite deja de avisar: se convierte en algo que se cierra sin leer.
+  ///
+  /// Se guarda el **conjunto** y no un booleano porque si mañana cae otro
+  /// servidor eso **sí** es nuevo y hay que decirlo. Es la misma regla que el
+  /// aviso del audio ajeno, que se dice una vez por sesión.
+  ///
+  /// Lo que no cubre, dicho aquí para que nadie lo descubra por sorpresa: si un
+  /// servidor se recupera y vuelve a caerse **en la misma conversación**, la
+  /// segunda caída no se avisa —el parte del CLI solo nombra a los que fallan,
+  /// así que la recuperación no llega como evento—. Queda en el registro, que
+  /// es donde se mira cuando algo no cuadra.
+  Set<String>? _mcpQueYaDije;
+
   void _onMcpCaido(List<String> servidores) {
     debugPrint('claude · no arrancaron: ${servidores.join(', ')}');
+    final caidos = servidores.toSet();
+    if (_mcpQueYaDije != null &&
+        _mcpQueYaDije!.length == caidos.length &&
+        _mcpQueYaDije!.containsAll(caidos)) {
+      return;
+    }
+    _mcpQueYaDije = caidos;
     state = state.copyWith(
       notice: ref.read(stringsProvider).mcpCaido(servidores),
     );
@@ -2128,7 +2145,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // desaparecía entero del historial. Guardar es reescribir el mismo registro,
     // así que hacerlo cada turno es barato e idempotente — la misma razón por
     // la que ya se hacía turno a turno escribiendo.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Se muestra la instrucción que redactó Gemini, no lo que dijo el usuario:
@@ -2148,7 +2165,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // viejo pegado a dos respuestas que no tenían nada que ver, y de nuevo con
     // el mismo patrón: se arregló la mitad de después para la voz y la de antes
     // se quedó en el camino de escribir.
-    unawaited(_markRepo());
+    unawaited(_loQueDejo.tomaLaMarca(_workingDirectory));
     state = state.copyWith(
       orbState: NexusOrbState.think,
       subtitle: instruction,

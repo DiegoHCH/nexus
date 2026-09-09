@@ -44,6 +44,16 @@ class _SeLoLleva implements ElDespachoDeCarpeta {
     required List<String> attachments,
     bool elFocoSigue = true,
   }) async => YaSeFue(carpeta);
+
+  // Esta prueba va de la voz: llevar un encargo a una carpeta que ya se sabe
+  // cuál es no pasa por aquí.
+  @override
+  Future<LoQueQuedaPorHacer> aEstaCarpeta(
+    String carpeta, {
+    required String tarea,
+    required String loQueSeVe,
+    bool allowWrites = true,
+  }) async => YaSeFue(carpeta);
 }
 
 /// El micrófono, callado: esta prueba va de lo que llega del servicio.

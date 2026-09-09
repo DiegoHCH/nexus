@@ -221,14 +221,28 @@ flutter pub get
 flutter run -d macos                       # el escritorio
 flutter run -t lib/main_movil.dart         # el teléfono
 
-flutter analyze
-flutter test                               # las pruebas de Dart
-(cd packages/nexus_protocol && dart test)  # y las del paquete del protocolo, que flutter test no mira
+./scripts/gate.sh                          # lo mismo que el CI, en el mismo orden
 
-# y las nativas, que son de verdad y no un adorno:
+# y las nativas, que son de verdad y no un adorno — y que el gate no corre,
+# porque piden Xcode:
 xcodebuild test -workspace macos/Runner.xcworkspace -scheme Runner \
   -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
 ```
+
+**Antes de empujar, el gate.** `scripts/gate.sh` corre los seis pasos del CI en
+el mismo orden —dependencias, dependencias del paquete del protocolo, `analyze
+--fatal-infos`, `format`, las pruebas del protocolo, las pruebas con cobertura— y
+comprueba el suelo de cobertura de `domain` con el mismo script que usa el
+workflow. Los corre **todos** y da un resumen al final: antes de empujar hace
+falta saber cuántos frentes hay abiertos, no el primero por orden.
+
+Existe porque el gate local **no era el gate**: se corrían dos pasos de memoria y
+los otros cuatro llegaban como sorpresa cinco minutos después de empujar — un PR
+rojo por formato, las 37 pruebas del paquete del protocolo que no corría nadie, y
+un suelo de cobertura que solo se podía comprobar en el CI. El orden tampoco es
+decorativo: las dependencias del paquete van **antes** del análisis, porque
+`flutter analyze` desde la raíz analiza también `packages/` y sin resolver daba 98
+errores de imports que no existen.
 
 ### Cómo está organizado
 

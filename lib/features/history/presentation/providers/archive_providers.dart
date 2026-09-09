@@ -273,7 +273,7 @@ final savedConversationsProvider =
       final todas = [
         ...propias,
         ...delVault.where((record) => !vistas.contains(record.id)),
-      ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+      ]..sort((a, b) => b.usadaEn.compareTo(a.usadaEn));
       return todas;
     });
 
@@ -308,7 +308,7 @@ final allSavedConversationsProvider = FutureProvider<List<ConversationSummary>>(
     return [
       ...propias,
       ...delVault.where((record) => !vistas.contains(record.id)),
-    ]..sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    ]..sort((a, b) => b.usadaEn.compareTo(a.usadaEn));
   },
 );
 

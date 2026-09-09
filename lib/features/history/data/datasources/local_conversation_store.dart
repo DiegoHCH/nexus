@@ -53,6 +53,11 @@ class LocalConversationStore {
 
   Future<void> save(ConversationRecord record) async {
     if (record.isEmpty) return;
+    // 🔴 **Guardar ES usarla, y ese es el sello.** Se toma una sola hora para
+    // el archivo y para el índice: si cada uno tomara la suya, la lista
+    // ordenaría por una y enseñaría la otra, y en las conversaciones que se
+    // guardan cada turno esa diferencia se nota al ordenar.
+    final ahora = DateTime.now();
     final directory = await _folderFor(record.folderPath);
     await directory.create(recursive: true);
     final file = File('${directory.path}/${record.id}.json');
@@ -61,6 +66,13 @@ class LocalConversationStore {
         'id': record.id,
         'carpeta': record.folderPath,
         'fecha': record.startedAt.toIso8601String(),
+        // 🔴 **Cuándo se usó, además de cuándo empezó.** Guardar es reescribir
+        // el registro entero en cada turno, así que «ahora» **es** la última
+        // vez que se usó — y es lo que la lista tiene que decir. Sin esto, una
+        // conversación que se retoma tres días seguidos se hundía en la lista
+        // justo por usarse mucho: reportado como «las últimas conversaciones no
+        // se están guardando», y estaban todas guardadas.
+        'usada': ahora.toIso8601String(),
         if (record.model != null) 'modelo': record.model,
         if (record.contextTokens != null) 'contexto': record.contextTokens,
         if (record.profileName != null) 'perfil': record.profileName,
@@ -128,7 +140,7 @@ class LocalConversationStore {
     // donde importa.
     final fichas = await _paraEscribir(directory)
       ..removeWhere((ficha) => ficha.id == record.id)
-      ..add(record.summary);
+      ..add(record.summary.usadaAhora(ahora));
     await _writeIndex(directory, fichas);
   }
 
@@ -136,7 +148,9 @@ class LocalConversationStore {
   Future<List<ConversationSummary>> list(String folderPath) async {
     final directory = await _folderFor(folderPath);
     final fichas = await _index(directory);
-    fichas.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    // Por uso y no por comienzo: lo que se busca en un historial es «lo de
+    // esta mañana», y eso es cuándo se tocó por última vez.
+    fichas.sort((a, b) => b.usadaEn.compareTo(a.usadaEn));
     return fichas;
   }
 
@@ -153,7 +167,9 @@ class LocalConversationStore {
       fichas.addAll(await _index(folder));
     }
 
-    fichas.sort((a, b) => b.startedAt.compareTo(a.startedAt));
+    // Por uso y no por comienzo: lo que se busca en un historial es «lo de
+    // esta mañana», y eso es cuándo se tocó por última vez.
+    fichas.sort((a, b) => b.usadaEn.compareTo(a.usadaEn));
     return fichas;
   }
 
@@ -246,6 +262,9 @@ class LocalConversationStore {
             id: id,
             folderPath: cruda['carpeta'] as String? ?? '',
             startedAt: when,
+            // Las fichas de antes no lo guardaban: ahí lo único honesto que se
+            // puede decir es cuándo empezó.
+            usadaEn: DateTime.tryParse(cruda['usada'] as String? ?? ''),
             title: cruda['titulo'] as String? ?? 'Conversación sin título',
             turns: (cruda['turnos'] as num?)?.toInt() ?? 0,
             profileName: cruda['perfil'] as String?,
@@ -275,6 +294,7 @@ class LocalConversationStore {
               'id': ficha.id,
               'carpeta': ficha.folderPath,
               'fecha': ficha.startedAt.toIso8601String(),
+              'usada': ficha.usadaEn.toIso8601String(),
               'titulo': ficha.title,
               'turnos': ficha.turns,
               if (ficha.profileName != null) 'perfil': ficha.profileName,
@@ -316,6 +336,7 @@ class LocalConversationStore {
         id: decoded['id'] as String? ?? '',
         folderPath: decoded['carpeta'] as String? ?? '',
         startedAt: when,
+        usadaEn: DateTime.tryParse(decoded['usada'] as String? ?? ''),
         model: decoded['modelo'] as String?,
         contextTokens: (decoded['contexto'] as num?)?.toInt(),
         profileName: decoded['perfil'] as String?,

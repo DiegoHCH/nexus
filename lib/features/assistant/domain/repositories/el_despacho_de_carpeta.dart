@@ -57,4 +57,28 @@ abstract interface class ElDespachoDeCarpeta {
     required List<String> attachments,
     bool elFocoSigue = true,
   });
+
+  /// Lleva un encargo a **una carpeta que ya se sabe cuál es**, sin mirar la
+  /// frase.
+  ///
+  /// 🔴 **Existe porque hay quien ya sabe la carpeta y no tiene una frase que
+  /// parsear.** El primero es el error de la app: la corrida sabe en qué
+  /// proyecto pasó, y pedirle que redacte «en front-mobile-b2c, arregla esto»
+  /// para que el enrutado vuelva a deducir la carpeta sería escribir una
+  /// adivinanza para acertarla nosotros mismos.
+  ///
+  /// Va en el puerto y no como una función suelta en la pantalla que lo pide
+  /// por lo de siempre: llevar un encargo a una conversación —buscarla, abrirla
+  /// si no está, mover el foco, respetar el tope de escritura— es una sola cosa
+  /// y ya vive aquí. Copiarla sería tener dos sitios que se separan.
+  ///
+  /// [loQueSeVe] es lo que se pinta en el chat, que casi nunca es el encargo
+  /// entero: un error con su traza son treinta líneas y en la conversación
+  /// sobra con una.
+  Future<LoQueQuedaPorHacer> aEstaCarpeta(
+    String carpeta, {
+    required String tarea,
+    required String loQueSeVe,
+    bool allowWrites = true,
+  });
 }

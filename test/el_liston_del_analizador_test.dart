@@ -11,6 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   final opciones = File('analysis_options.yaml').readAsStringSync();
   final ci = File('.github/workflows/ci.yml').readAsStringSync();
+  final gate = File('scripts/gate.sh').readAsStringSync();
+  final cobertura = File('scripts/cobertura.sh').readAsStringSync();
 
   group('el listón del analizador', () {
     // Medidos por separado sobre las 48.000 líneas antes de activarlos:
@@ -55,19 +57,75 @@ void main() {
     // widgets y baja solo con que alguien añada una pantalla grande. El agregado
     // está en 60 % y `domain` en 90 %.
     test('y hay un suelo, pero donde importa', () {
-      expect(ci, contains(r'dominio = ($2 ~ /\/domain\//)'));
+      // Vive en `scripts/cobertura.sh` desde que el gate local existe: el
+      // cálculo lo corren los dos y así por definición dicen el mismo número.
+      expect(cobertura, contains(r'dominio = ($2 ~ /\/domain\//)'));
       expect(
-        ci,
-        contains('< 85'),
+        cobertura,
+        contains('< suelo'),
         reason: 'sin el corte, medir por capa es informar y nada más',
       );
       expect(
-        ci,
+        cobertura,
+        contains('SUELO:-85'),
+        reason: 'el número, escrito y no supuesto',
+      );
+      expect(
+        cobertura,
         isNot(contains(r'if (100*c/t <')),
         reason:
             'un suelo sobre el total castigaría añadir una pantalla y premiaría '
             'probar widgets, que no es lo que se quiere de este número',
       );
+      // Y el CI lo corre, que es lo que lo convierte en un suelo y no en un
+      // archivo con buenas intenciones.
+      expect(ci, contains('scripts/cobertura.sh'));
+    });
+  });
+
+  /// 🔴 **El gate local tiene que ser el del CI, paso por paso.** Existe porque
+  /// no lo era: se corrían dos de memoria y los otros cuatro llegaban como
+  /// sorpresa cinco minutos después de empujar — un PR rojo por formato, las 37
+  /// pruebas del paquete del protocolo que no corría nadie, y un suelo de
+  /// cobertura que solo se podía comprobar en el CI.
+  ///
+  /// Esto es una prueba y no una nota en el README por lo mismo que el listón:
+  /// el día que el CI gane un paso, el gate se queda corto **en silencio**, y
+  /// entonces vuelve a no ser el gate.
+  group('el gate de casa', () {
+    test('corre los mismos seis pasos que el CI', () {
+      for (final paso in [
+        'flutter pub get',
+        'dart pub get',
+        'flutter analyze --fatal-infos',
+        'dart format --output=none --set-exit-if-changed lib test packages',
+        'dart test',
+        'flutter test --coverage',
+        './scripts/cobertura.sh',
+      ]) {
+        expect(gate, contains(paso), reason: paso);
+      }
+    });
+
+    // El orden **no es decorativo**: `flutter analyze` desde la raíz analiza
+    // también `packages/`, así que sin resolver las dependencias del paquete
+    // daba 98 errores de imports que no existen. Está escrito en el workflow
+    // con su incidente, y aquí se fija.
+    test('y en el orden que importa: el paquete antes del análisis', () {
+      // Se comparan las **llamadas** y no el texto suelto: los comentarios de
+      // arriba nombran los dos pasos para explicar por qué van así, y buscar
+      // por nombre encontraría la explicación antes que la orden.
+      expect(
+        gate.indexOf('paso "dependencias del protocolo"'),
+        allOf(greaterThan(-1), lessThan(gate.indexOf('paso "analyze'))),
+      );
+    });
+
+    // Los corre todos y luego informa: antes de empujar hace falta saber
+    // cuántos frentes hay abiertos, no el primero por orden.
+    test('no para en el primer fallo, pero acaba en rojo', () {
+      expect(gate, contains('RESULTADO DEL GATE'));
+      expect(gate, contains('exit 1'));
     });
   });
 }

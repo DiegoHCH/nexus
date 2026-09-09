@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:nexus/core/platform/claude_environment.dart';
+import 'package:nexus/core/platform/lanzar_un_proceso.dart';
 import 'package:nexus/features/run/domain/entities/mensaje_del_daemon.dart';
 import 'package:nexus/features/run/domain/usecases/lineas_del_daemon.dart';
 import 'package:nexus/features/run/domain/usecases/peticiones_pendientes.dart';
@@ -56,10 +57,14 @@ class CorridaViva {
     required void Function(EventoDelDaemon evento) onEvento,
     required void Function(String linea) onRegistro,
     required void Function(String? motivo) onFin,
+    // La costura para poder probar esto sin un `flutter run` de verdad: por
+    // defecto es `Process.start`, así que fuera de las pruebas nada cambia.
+    // Ver [LanzarUnProceso].
+    LanzarUnProceso lanzar = Process.start,
   }) async {
     final Process proceso;
     try {
-      proceso = await Process.start(
+      proceso = await lanzar(
         flutter,
         ['run', '--machine', '-d', deviceId, ...args],
         workingDirectory: proyecto,

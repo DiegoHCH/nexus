@@ -47,12 +47,49 @@ mixin EjecucionStrings {
   String get nivelSoloFatales;
   String get runAuto;
 
+  /// La copia local de una configuración, con el panel de depuración de la app
+  /// encendido. Ver [LaConfigDeCasa].
+  String get runDuplicarConConsola;
+  String get runDuplicarNota;
+  String get runYaTraeConsola;
+  String get runEsTuya;
+  String get runQuitarCopia;
+  String get runCopiaFallo;
+
   /// Los errores que ha dado la app, para el aviso que se ve sin abrir nada.
   ///
   /// Con parámetro porque el número **es** el mensaje: «1 error» y «14 errores»
   /// se leen distinto, y saber que son catorce es la diferencia entre mirar
   /// ahora y mirar luego.
   String runAppErrors(int cuantos);
+
+  /// Pasarle a Claude el último error de la app.
+  String get runPasarloAClaude;
+
+  /// Lo que se le pide, con la corrida delante: es lo que le dice **dónde**
+  /// pasó, y sin eso el bloque es un error sin sitio.
+  String elErrorDeLaApp(String configuracion, String dispositivo);
+
+  /// Lo que se ve en la conversación, que no es el encargo entero.
+  String get elErrorDeLaAppEnCorto;
+
+  /// El freno de las excepciones: que la app se pare donde se rompe.
+  ///
+  /// **En vez de solo contarlo después.** Un error en el registro dice qué pasó;
+  /// pararse dice dónde, con la app viva y el estado delante.
+  String get runFreno;
+
+  /// Dónde se paró, para la línea de la fila.
+  String runParadaEn(String donde);
+
+  /// La app está parada y no se sabe dónde: pasa mientras se traduce la
+  /// posición a una línea, y en una parada sin marco.
+  String get runParadaSinSitio;
+
+  String get runSeguir;
+  String get runPasoSiguiente;
+  String get runPasoEntrar;
+  String get runPasoSalir;
 
   /// La consola de depuración que la app levanta ella misma. **No** es la de
   /// Nexus ni una nuestra: es la de la app que está corriendo.
@@ -131,9 +168,46 @@ mixin EjecucionStringsEs implements EjecucionStrings {
   @override
   String get runAuto => 'Recargar sola al terminar cada encargo';
   @override
+  String get runDuplicarConConsola => 'Copiarla con la consola';
+  @override
+  String get runDuplicarNota =>
+      'Te la guarda Nexus, con el panel de depuración encendido. El repo no se '
+      'toca.';
+  @override
+  String get runYaTraeConsola => 'Esta ya trae el panel de depuración.';
+  @override
+  String get runEsTuya => 'Es tuya: vive en Nexus, no en el repositorio.';
+  @override
+  String get runQuitarCopia => 'Quitar la copia';
+  @override
+  String get runCopiaFallo => 'Ya tienes una copia con ese nombre.';
+  @override
   String runAppErrors(int cuantos) => cuantos == 1
       ? '1 error de la app desde la última recarga · abre el registro'
       : '$cuantos errores de la app desde la última recarga · abre el registro';
+  @override
+  String get runPasarloAClaude => 'Pasarle el error a Claude';
+  @override
+  String elErrorDeLaApp(String configuracion, String dispositivo) =>
+      'La app dejó este error corriendo con «$configuracion» en $dispositivo. '
+      'Mira qué lo causa y arréglalo; si hace falta tocar más de un sitio, '
+      'dilo antes de tocarlo.';
+  @override
+  String get elErrorDeLaAppEnCorto => 'Arregla el error que dejó la app';
+  @override
+  String get runFreno => 'Pararse en los errores';
+  @override
+  String runParadaEn(String donde) => 'Parada en $donde';
+  @override
+  String get runParadaSinSitio => 'Parada';
+  @override
+  String get runSeguir => 'Seguir';
+  @override
+  String get runPasoSiguiente => 'Siguiente línea';
+  @override
+  String get runPasoEntrar => 'Entrar en la llamada';
+  @override
+  String get runPasoSalir => 'Salir de la función';
   @override
   String get runToolbarDrag => 'Corriendo';
   @override
@@ -209,9 +283,46 @@ mixin EjecucionStringsEn implements EjecucionStrings {
   @override
   String get runAuto => 'Reload on its own when an errand finishes';
   @override
+  String get runDuplicarConConsola => 'Copy it with the console';
+  @override
+  String get runDuplicarNota =>
+      'Nexus keeps it for you, with the app debug panel on. The repo is left '
+      'untouched.';
+  @override
+  String get runYaTraeConsola => 'This one already has the debug panel.';
+  @override
+  String get runEsTuya => 'This one is yours: it lives in Nexus, not the repo.';
+  @override
+  String get runQuitarCopia => 'Remove the copy';
+  @override
+  String get runCopiaFallo => 'You already have a copy with that name.';
+  @override
   String runAppErrors(int cuantos) => cuantos == 1
       ? '1 app error since the last reload · open the log'
       : '$cuantos app errors since the last reload · open the log';
+  @override
+  String get runPasarloAClaude => 'Send the error to Claude';
+  @override
+  String elErrorDeLaApp(String configuracion, String dispositivo) =>
+      'The app left this error while running «$configuracion» on '
+      '$dispositivo. Find what causes it and fix it; if it needs touching more '
+      'than one place, say so before touching it.';
+  @override
+  String get elErrorDeLaAppEnCorto => 'Fix the error the app left';
+  @override
+  String get runFreno => 'Pause on errors';
+  @override
+  String runParadaEn(String donde) => 'Paused at $donde';
+  @override
+  String get runParadaSinSitio => 'Paused';
+  @override
+  String get runSeguir => 'Resume';
+  @override
+  String get runPasoSiguiente => 'Next line';
+  @override
+  String get runPasoEntrar => 'Step into';
+  @override
+  String get runPasoSalir => 'Step out';
   @override
   String get runToolbarDrag => 'Running';
   @override

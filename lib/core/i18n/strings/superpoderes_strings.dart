@@ -47,11 +47,34 @@ mixin SuperpoderesStrings {
   String get mcpAdd;
   String get mcpRemove;
   String get mcpCheck;
+
+  /// Cuántos de la lista son conectores de la cuenta de claude.ai.
+  ///
+  /// Con parámetro porque el número es lo que contesta la pregunta que trajo
+  /// esto —«¿están todos?»—, y porque quince y uno se leen distinto.
+  String mcpDeLaCuenta(int cuantos);
+
+  /// El listado contado en la conversación, con `/mcp`.
+  String mcpEnElChat(int cuantos, String cuenta);
+  String get mcpNingunoEnElChat;
+  String get mcpConectado;
+  String get mcpPideEntrar;
+  String get mcpNoResponde;
+  String get mcpSinComprobar;
+
+  /// De cuándo es el estado que se está enseñando, y si se está preguntando de
+  /// nuevo — que tarda casi un minuto, así que no se espera.
+  String mcpEstadoDe(String hora);
+  String get mcpPreguntandoDeNuevo;
   String get mcpCheckNote;
   String get mcpChecking;
   String get mcpCheckFailed;
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
+
+  /// De qué cuenta es lo que se está mirando, cuando hay una sola y no hay
+  /// pestañas que lo digan.
+  String superpowersDeLaCuenta(String cuenta);
 
   /// Instalar en todas las cuentas de golpe.
   ///
@@ -194,17 +217,45 @@ mixin SuperpoderesStringsEs implements SuperpoderesStrings {
   @override
   String get mcpRemove => 'Quitar';
   @override
-  String get mcpCheck => 'Comprobar';
+  String get mcpCheck => 'Volver a comprobar';
+  @override
+  String mcpDeLaCuenta(int cuantos) => cuantos == 1
+      ? 'Uno de ellos es un conector de tu cuenta de claude.ai: se gestiona allí.'
+      : '$cuantos de ellos son conectores de tu cuenta de claude.ai: se '
+            'gestionan allí.';
+  @override
+  String mcpEnElChat(int cuantos, String cuenta) => cuantos == 1
+      ? 'Un servidor MCP en la cuenta $cuenta:'
+      : '$cuantos servidores MCP en la cuenta $cuenta:';
+  @override
+  String get mcpNingunoEnElChat =>
+      'Esta cuenta no tiene ningún servidor MCP puesto.';
+  @override
+  String get mcpConectado => 'conectado';
+  @override
+  String get mcpPideEntrar => 'pide iniciar sesión';
+  @override
+  String get mcpNoResponde => 'no responde';
+  @override
+  String get mcpSinComprobar => 'sin comprobar';
+  @override
+  String mcpEstadoDe(String hora) => 'Estado de las $hora.';
+  @override
+  String get mcpPreguntandoDeNuevo =>
+      'Se está preguntando otra vez: escribe /mcp en un minuto para el estado '
+      'nuevo.';
   @override
   String get mcpCheckNote =>
-      'Pregunta a cada servidor si responde. Tarda, y trae también los '
-      'conectores de tu cuenta de claude.ai.';
+      'La lista se refresca sola cada pocas horas. Púlsalo si acabas de '
+      'conectar algo: pregunta a cada servidor si responde, y tarda.';
   @override
   String get mcpChecking => 'Preguntando a cada uno…';
   @override
   String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
   @override
   String get superpowersMcp => 'Servidores MCP';
+  @override
+  String superpowersDeLaCuenta(String cuenta) => 'Cuenta $cuenta';
   @override
   String durationMinutes(int minutes) => '$minutes min';
   @override
@@ -388,7 +439,31 @@ mixin SuperpoderesStringsEn implements SuperpoderesStrings {
   @override
   String get mcpRemove => 'Remove';
   @override
-  String get mcpCheck => 'Check';
+  String get mcpCheck => 'Check again';
+  @override
+  String mcpDeLaCuenta(int cuantos) => cuantos == 1
+      ? 'One of them is a connector from your claude.ai account: it is managed there.'
+      : '$cuantos of them are connectors from your claude.ai account: they are '
+            'managed there.';
+  @override
+  String mcpEnElChat(int cuantos, String cuenta) => cuantos == 1
+      ? 'One MCP server in the $cuenta account:'
+      : '$cuantos MCP servers in the $cuenta account:';
+  @override
+  String get mcpNingunoEnElChat => 'This account has no MCP server set up.';
+  @override
+  String get mcpConectado => 'connected';
+  @override
+  String get mcpPideEntrar => 'needs sign-in';
+  @override
+  String get mcpNoResponde => 'not answering';
+  @override
+  String get mcpSinComprobar => 'not checked';
+  @override
+  String mcpEstadoDe(String hora) => 'Status as of $hora.';
+  @override
+  String get mcpPreguntandoDeNuevo =>
+      'Asking again now: type /mcp in a minute for the fresh status.';
   @override
   String get mcpCheckNote =>
       'Asks every server whether it answers. Slow, and it also brings in your '
@@ -399,6 +474,8 @@ mixin SuperpoderesStringsEn implements SuperpoderesStrings {
   String get mcpCheckFailed => 'The CLI could not produce the list.';
   @override
   String get superpowersMcp => 'MCP servers';
+  @override
+  String superpowersDeLaCuenta(String cuenta) => '$cuenta account';
   @override
   String durationMinutes(int minutes) => '$minutes min';
   @override

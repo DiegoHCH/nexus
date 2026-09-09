@@ -10,6 +10,7 @@ import 'package:nexus/features/run/domain/entities/corrida.dart';
 import 'package:nexus/features/run/domain/entities/mensaje_del_daemon.dart';
 import 'package:nexus/features/run/domain/usecases/decision_de_recarga.dart';
 import 'package:nexus/features/run/domain/usecases/el_error_que_pinta_la_app.dart';
+import 'package:nexus/features/run/domain/usecases/el_freno_de_la_app.dart';
 import 'package:nexus/features/run/domain/usecases/estado_de_la_corrida.dart';
 import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
 
@@ -228,6 +229,10 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
         // líneas de un solo error.
         _sumaErrores(deviceId, 1);
       },
+      // El mismo socket lleva las paradas: es el mismo VM service y abrir otro
+      // sería tener dos cables al mismo sitio. Ver [ElFrenoDeLaApp].
+      alPararse: (parada) => unawaited(_seParo(deviceId, parada)),
+      alSeguir: (_) => _cambia(deviceId, (c) => c.copyWith(limpiaParada: true)),
     );
     if (canal == null) return;
     // Si la corrida se murió mientras se conectaba, este socket ya no es de
@@ -237,6 +242,100 @@ class CorridasController extends Notifier<Map<String, Corrida>> {
       return;
     }
     _oidos[deviceId] = canal;
+  }
+
+  /// Pone o quita el freno de las excepciones.
+  ///
+  /// **Se pone en todos los isolates y no solo en el principal.** Una app de
+  /// Flutter corre varios —el de la interfaz y los que arranque el código— y una
+  /// excepción sin dueño en el de al lado se perdería igual que antes: ponerlo
+  /// solo en el primero es prometer un freno que a veces no está.
+  Future<void> frenar(String deviceId, {ModoDePausa? cuando}) async {
+    final corrida = state[deviceId];
+    final canal = _oidos[deviceId];
+    if (corrida == null || canal == null) return;
+
+    // Sin decir cuál, se alterna: es lo que hace el botón.
+    final modo =
+        cuando ??
+        (corrida.freno == ModoDePausa.ninguna
+            ? ModoDePausa.sinDueno
+            : ModoDePausa.ninguna);
+
+    final quienes = ElFrenoDeLaApp.losIsolates(
+      await canal.pedir(ElFrenoDeLaApp.pedirLosIsolates),
+    );
+    if (quienes.isEmpty) return;
+    for (final isolate in quienes) {
+      await canal.pedir(
+        (id) => ElFrenoDeLaApp.frenar(id, isolate: isolate, cuando: modo),
+      );
+    }
+    _cambia(
+      deviceId,
+      (c) => c.copyWith(
+        freno: modo,
+        // Quitar el freno con la app parada la deja parada, y entonces el botón
+        // de seguir es el único que queda. Se suelta aquí para no dejar a nadie
+        // sin salida.
+        limpiaParada: modo == ModoDePausa.ninguna,
+      ),
+    );
+    if (modo == ModoDePausa.ninguna && corrida.parada != null) {
+      await _seguirDeVerdad(canal, corrida.parada!.isolate);
+    }
+  }
+
+  /// Que siga. Con [paso], hasta la línea siguiente en vez de hasta el próximo
+  /// motivo para pararse.
+  Future<void> seguir(String deviceId, {PasoDelDepurador? paso}) async {
+    final parada = state[deviceId]?.parada;
+    final canal = _oidos[deviceId];
+    if (parada == null || canal == null) return;
+    await _seguirDeVerdad(canal, parada.isolate, paso: paso);
+  }
+
+  /// 🔴 **La parada se borra con el evento `Resume`, no al pedirlo.** Borrarla
+  /// aquí sería decir que la app sigue porque se lo pedimos: si el VM service no
+  /// contesta —o contesta un error—, la app está parada y la fila diría que no.
+  /// Quien lo cuenta es el propio depurador.
+  Future<void> _seguirDeVerdad(
+    ElCanalDelVmService canal,
+    String isolate, {
+    PasoDelDepurador? paso,
+  }) => canal.pedir(
+    (id) => ElFrenoDeLaApp.seguir(id, isolate: isolate, paso: paso),
+  );
+
+  /// La app se paró: se apunta dónde, y se traduce la posición a una línea.
+  ///
+  /// **Dos pasos porque el evento no trae la línea**: trae una posición en la
+  /// tabla del script, y traducirla pide el script. Se enseña primero lo que ya
+  /// se sabe —el archivo y la función— y la línea se añade cuando llega: una
+  /// parada que tarda medio segundo en aparecer se lee como que no funcionó.
+  Future<void> _seParo(String deviceId, LaParadaDeLaApp parada) async {
+    _cambia(deviceId, (c) => c.copyWith(parada: parada));
+
+    final canal = _oidos[deviceId];
+    final script = parada.scriptId;
+    if (canal == null || script == null || parada.posicion == null) return;
+    final linea = ElFrenoDeLaApp.laLineaDeLaPosicion(
+      await canal.pedir(
+        (id) => ElFrenoDeLaApp.pedirElScript(
+          id,
+          isolate: parada.isolate,
+          script: script,
+        ),
+      ),
+      parada.posicion,
+    );
+    if (linea == null) return;
+    _cambia(deviceId, (c) {
+      // Si mientras se traducía la app siguió y se paró en otro sitio, esta
+      // línea es de la parada de antes y colgarla sería mentir.
+      if (c.parada?.posicion != parada.posicion) return c;
+      return c.copyWith(parada: parada.conLaLinea(linea));
+    });
   }
 
   void _sumaErrores(String deviceId, int cuantos) {

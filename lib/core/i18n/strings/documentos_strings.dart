@@ -45,7 +45,23 @@ mixin DocumentosStrings {
   String entrandoEnLaCuenta(String cuenta);
   String get entroLaCuenta;
   String get nadieTerminoDeEntrar;
-  String get laCuentaDeSiempre;
+
+  /// Cómo se llama la cuenta que no tiene nombre propio.
+  ///
+  /// 🔴 **Es un nombre y no una descripción, y eso lo pidió quien lo usa.** Se
+  /// llamaba «la de siempre», y en las frases donde aparece —«entrando en la
+  /// cuenta la de siempre», «la sesión de la cuenta la de siempre caducó»— eso
+  /// se lee como un rodeo, no como una cuenta. Y sobre todo: quien **no ha
+  /// creado perfiles** —lo más normal, si instalaste Claude y nada más— no
+  /// tiene por qué saber que existe algo llamado «perfil» para entender de qué
+  /// cuenta le hablan. Con un nombre, la suya se llama «General» y las otras
+  /// «work» o «private» cuando las cree.
+  String get cuentaGeneral;
+
+  /// Cómo se llama una cuenta **personal**: la que Claude Code apunta como
+  /// «alguien@gmail.com's Organization», que no es un sitio donde trabajes.
+  /// Ver [ElNombreDeLaCuenta].
+  String get cuentaMia;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -159,7 +175,9 @@ mixin DocumentosStringsEs implements DocumentosStrings {
       'La sesión de la cuenta «$cuenta» caducó. Entra otra vez con esa cuenta '
       'y vuelve a lanzarlo.';
   @override
-  String get laCuentaDeSiempre => 'la de siempre';
+  String get cuentaGeneral => 'General';
+  @override
+  String get cuentaMia => 'Mi perfil';
   @override
   String get entrarConLaCuenta => 'Entrar';
   @override
@@ -294,7 +312,9 @@ mixin DocumentosStringsEn implements DocumentosStrings {
       'The session for the «$cuenta» account expired. Sign in again with that '
       'account and run it once more.';
   @override
-  String get laCuentaDeSiempre => 'the default one';
+  String get cuentaGeneral => 'General';
+  @override
+  String get cuentaMia => 'My profile';
   @override
   String get entrarConLaCuenta => 'Sign in';
   @override

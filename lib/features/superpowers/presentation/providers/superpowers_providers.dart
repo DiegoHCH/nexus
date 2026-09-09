@@ -1,9 +1,11 @@
+import 'dart:async';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/features/superpowers/data/datasources/mcp_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/plugins_data_source.dart';
 import 'package:nexus/features/superpowers/data/datasources/skills_data_source.dart';
 import 'package:nexus/features/superpowers/domain/entities/claude_plugin.dart';
 import 'package:nexus/features/superpowers/domain/entities/skill.dart';
+import 'package:nexus/features/superpowers/data/datasources/el_recuerdo_de_los_mcp.dart';
 import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 
 final mcpDataSourceProvider = Provider<McpDataSource>(
@@ -18,12 +20,38 @@ final mcpServersProvider = FutureProvider.family<List<McpServer>, String>(
 /// Lo que el CLI ve de verdad, con la salud de cada uno y los conectores de la
 /// cuenta de claude.ai incluidos.
 ///
-/// Aparte del anterior y **no automático**: tarda casi un minuto porque
-/// pregunta a cada servidor. Abrir una pantalla no puede costar eso, así que se
-/// pide cuando se pulsa.
-final mcpHealthProvider = FutureProvider.family<List<McpServer>?, String>(
-  (ref, configDir) => ref.watch(mcpDataSourceProvider).check(configDir),
+/// Aparte del anterior porque **tarda casi un minuto**: pregunta a cada
+/// servidor, uno por uno. Abrir una pantalla no puede costar eso, así que la
+/// lista se pinta con lo del archivo y lo recordado, y esto entra cuando llega.
+///
+/// Y al llegar **se recuerda**, que es lo que hace que la próxima vez la lista
+/// salga completa desde el primer fotograma. Ver [ElRecuerdoDeLosMcp].
+final mcpHealthProvider = FutureProvider.family<List<McpServer>?, String>((
+  ref,
+  configDir,
+) async {
+  final vistos = await ref.watch(mcpDataSourceProvider).check(configDir);
+  // **Recordarlo no se espera.** Es un efecto de lado que nadie mira: la lista
+  // ya se puede pintar con lo que el CLI acaba de contestar, y hacerla esperar
+  // a que el disco confirme es pagar dos veces por lo mismo.
+  if (vistos != null) {
+    unawaited(ref.read(elRecuerdoDeLosMcpProvider).guardar(configDir, vistos));
+  }
+  return vistos;
+});
+
+final elRecuerdoDeLosMcpProvider = Provider<ElRecuerdoDeLosMcp>(
+  (ref) => const ElRecuerdoDeLosMcp(),
 );
+
+/// Lo que el CLI contestó la última vez, con su fecha. Instantáneo.
+final mcpRecordadosProvider =
+    FutureProvider.family<
+      ({List<McpServer> servidores, DateTime cuando})?,
+      String
+    >(
+      (ref, configDir) => ref.watch(elRecuerdoDeLosMcpProvider).leer(configDir),
+    );
 
 final skillsDataSourceProvider = Provider<SkillsDataSource>(
   (ref) => const SkillsDataSource(),

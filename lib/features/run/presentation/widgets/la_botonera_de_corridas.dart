@@ -3,10 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:nexus/core/design_system/design_system.dart';
 import 'package:nexus/core/i18n/strings_scope.dart';
 import 'package:nexus/features/run/domain/entities/corrida.dart';
+import 'package:nexus/features/run/domain/usecases/el_freno_de_la_app.dart';
 import 'package:nexus/features/run/presentation/providers/corridas_providers.dart';
 import 'package:nexus/features/run/presentation/providers/donde_flota_la_botonera.dart';
 import 'package:nexus/features/run/domain/usecases/la_consola_de_la_app.dart';
 import 'package:nexus/features/run/presentation/providers/la_consola_que_se_abre.dart';
+import 'package:nexus/features/run/presentation/providers/pasarle_el_error_a_claude.dart';
 import 'package:nexus/features/run/presentation/providers/la_ventana_del_registro.dart';
 import 'package:nexus/features/run/presentation/providers/run_providers.dart';
 
@@ -279,10 +281,19 @@ class _Corrida extends ConsumerWidget {
       LasVentanasDelRegistro.nombreDe(corrida.deviceId, sistema: sistema),
     );
 
-    final detalle = switch (corrida.estado) {
-      EstadoDeCorrida.arrancando => corrida.progreso ?? strings.runCompiling,
-      EstadoDeCorrida.corriendo => strings.runRunning,
-      EstadoDeCorrida.parando => strings.runStopping,
+    // 🔴 **La parada manda sobre el estado**, y esa es toda la gracia: una app
+    // detenida en una excepción sigue estando «corriendo» para el daemon, así
+    // que sin esto la fila diría «Ejecutando» con la app congelada delante.
+    final detalle = switch (corrida.parada) {
+      final parada? =>
+        parada.donde == null
+            ? strings.runParadaSinSitio
+            : strings.runParadaEn(parada.donde!),
+      null => switch (corrida.estado) {
+        EstadoDeCorrida.arrancando => corrida.progreso ?? strings.runCompiling,
+        EstadoDeCorrida.corriendo => strings.runRunning,
+        EstadoDeCorrida.parando => strings.runStopping,
+      },
     };
 
     return Container(
@@ -303,7 +314,9 @@ class _Corrida extends ConsumerWidget {
             margin: const EdgeInsets.only(right: NexusSpacing.s3),
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: corrida.estado == EstadoDeCorrida.corriendo
+              color:
+                  corrida.estado == EstadoDeCorrida.corriendo &&
+                      corrida.parada == null
                   ? colors.ok
                   : colors.warn,
             ),
@@ -327,7 +340,9 @@ class _Corrida extends ConsumerWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: NexusTypography.mono.copyWith(
-                    color: corrida.estado == EstadoDeCorrida.corriendo
+                    color:
+                        corrida.estado == EstadoDeCorrida.corriendo &&
+                            corrida.parada == null
                         ? colors.ok
                         : colors.warn,
                   ),
@@ -340,12 +355,82 @@ class _Corrida extends ConsumerWidget {
           // ventana que se abre a mano, y lo que no se anuncia no se mira. Esto
           // se ve sin abrir nada, dice cuántos son y lleva al registro de un
           // toque. Solo cuando hay: un aviso que está siempre puesto no avisa.
-          if (corrida.errores > 0)
+          if (corrida.errores > 0) ...[
             _ElAviso(
               cuantos: corrida.errores,
               onPulsar: () => registros.abre(corrida, sistema: false),
             ),
-          if (corrida.puedeRecargar) ...[
+            // 🔴 **El puente que faltaba, y en el sentido que faltaba.** Al
+            // terminar un encargo la app se recarga sola; al revés no había
+            // nada, así que un error se veía y arreglarlo pasaba por copiar el
+            // bloque a mano — donde se pierde justo lo que importa: medido dos
+            // días seguidos con un `git push` mal retranscrito. Ahora el error,
+            // su traza y la corrida donde pasó se van de un toque a la carpeta
+            // de ese proyecto. Ver [ElErrorQueSeLePasa].
+            BotonMini(
+              icono: Icons.bolt_outlined,
+              titulo: strings.runPasarloAClaude,
+              color: colors.err,
+              onPulsar: () => ref.read(pasarleElErrorAClaudeProvider)(corrida),
+            ),
+          ],
+          // 🔴 **Los pasos solo cuando está parada.** Un «entrar en la llamada»
+          // con la app corriendo no tiene a dónde entrar: el VM service
+          // contesta un error que nadie ve y el botón enseña a no pulsarlo.
+          if (corrida.parada != null) ...[
+            BotonMini(
+              icono: Icons.play_arrow_rounded,
+              titulo: strings.runSeguir,
+              color: colors.ok,
+              onPulsar: () => controller.seguir(corrida.deviceId),
+            ),
+            BotonMini(
+              icono: Icons.redo_rounded,
+              titulo: strings.runPasoSiguiente,
+              onPulsar: () => controller.seguir(
+                corrida.deviceId,
+                paso: PasoDelDepurador.siguiente,
+              ),
+            ),
+            BotonMini(
+              icono: Icons.subdirectory_arrow_right_rounded,
+              titulo: strings.runPasoEntrar,
+              onPulsar: () => controller.seguir(
+                corrida.deviceId,
+                paso: PasoDelDepurador.entrar,
+              ),
+            ),
+            BotonMini(
+              icono: Icons.subdirectory_arrow_left_rounded,
+              titulo: strings.runPasoSalir,
+              onPulsar: () => controller.seguir(
+                corrida.deviceId,
+                paso: PasoDelDepurador.salir,
+              ),
+            ),
+          ],
+          // 🔴 **El freno se pide, no viene puesto.** Pararse solo es lo que
+          // hace un depurador conectado, y una app que se congela sin haberlo
+          // pedido se lee como que se colgó. Solo se ofrece cuando hay VM
+          // service al que hablarle y la app está arriba: antes de
+          // `app.started` no hay isolates a los que ponerle nada.
+          //
+          // Y no mientras está parada: ahí el freno ya está puesto y quitarlo
+          // es soltarla, que es lo que hace «Seguir» con su nombre.
+          if (corrida.sePuedeFrenar && corrida.parada == null)
+            BotonMini(
+              icono: Icons.pause_circle_outline,
+              titulo: strings.runFreno,
+              activo: corrida.freno != ModoDePausa.ninguna,
+              onPulsar: () => controller.frenar(corrida.deviceId),
+            ),
+          // 🔴 **Con la app parada no se ofrece recargar, y la prueba de la fila
+          // es lo que obligó a decidirlo:** con los cuatro pasos puestos, la
+          // barra —que mide 380 px fijos, y los mide para no bailar— se pasaba
+          // **61 px**. La respuesta no es apretar los iconos: es que recargar
+          // con la app detenida no recarga nada, primero hay que soltarla. Así
+          // que se enseña lo que sirve ahora y cabe sin recortar nada.
+          if (corrida.puedeRecargar && corrida.parada == null) ...[
             BotonMini(
               icono: Icons.refresh,
               titulo: strings.runReload,

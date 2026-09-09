@@ -90,6 +90,40 @@ class ElDespachoDeCarpetaImpl implements ElDespachoDeCarpeta {
     }
   }
 
+  @override
+  Future<LoQueQuedaPorHacer> aEstaCarpeta(
+    String carpeta, {
+    required String tarea,
+    required String loQueSeVe,
+    bool allowWrites = true,
+  }) async {
+    final abiertas = _ref.read(conversationsProvider);
+    // La que ya esté abierta en esa carpeta, si hay una: abrir otra dejaría dos
+    // pestañas del mismo repo, y la memoria y la sesión son de la carpeta.
+    final suya = abiertas.items
+        .where((item) => item.folderPath == carpeta)
+        .firstOrNull;
+    final conversacion =
+        suya?.id ??
+        await _ref.read(conversationsProvider.notifier).open(carpeta);
+    if (conversacion == null) {
+      return HayQueDecir(
+        _ref
+            .read(stringsProvider)
+            .noCabeOtraConversacion(carpeta.split('/').last),
+      );
+    }
+
+    return _llevar(
+      conversacion,
+      tarea,
+      loQueSeVe: loQueSeVe,
+      allowWrites: allowWrites,
+      attachments: const [],
+      elFocoSigue: true,
+    );
+  }
+
   /// Lleva el encargo, y **se va con él**.
   ///
   /// El foco cambia porque es la única señal de que pasó algo: sin eso, se pide

@@ -10,7 +10,10 @@ abstract final class LectorDeConfigs {
   /// lleva también configuraciones de `attach` y, en un monorepo, de otros
   /// lenguajes. Ofrecer una de esas como forma de arrancar la app sería ofrecer
   /// un fallo.
-  static List<ConfigDeArranque> leer(String jsonc) {
+  /// [local] marca lo que sale del archivo de configuraciones **tuyas** —el de
+  /// Nexus, fuera del repo—, que se lee con este mismo lector porque tiene la
+  /// misma forma. Ver [LaConfigDeCasa.comoArchivo].
+  static List<ConfigDeArranque> leer(String jsonc, {bool local = false}) {
     final Object? leido;
     try {
       leido = jsonDecode(sinComentarios(jsonc));
@@ -34,6 +37,7 @@ abstract final class LectorDeConfigs {
                 args: [
                   for (final a in (entrada['args'] as List?) ?? const []) '$a',
                 ],
+                local: local,
               ),
     ];
   }
