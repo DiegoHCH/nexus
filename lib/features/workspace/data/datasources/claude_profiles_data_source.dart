@@ -15,6 +15,7 @@ class ClaudeProfile {
     required this.name,
     required this.signedIn,
     this.correo,
+    this.organizacion,
   });
 
   final String path;
@@ -47,6 +48,15 @@ class ClaudeProfile {
   /// misma organización— y solo `.claude-private` era otra. Sin el correo, tres
   /// perfiles parecen tres cuentas.
   final String? correo;
+
+  /// La organización de esa cuenta, tal como la escribe Claude Code —«Global66
+  /// - Tech», o «alguien@gmail.com's Organization» en una cuenta personal—.
+  ///
+  /// Cruda a propósito: de aquí sale el nombre que se enseña, y esa derivación
+  /// vive en [ElNombreDeLaCuenta] con sus reglas y sus pruebas. Guardar aquí lo
+  /// ya masticado dejaría el dato original irrecuperable el día que la regla
+  /// cambie.
+  final String? organizacion;
 
   /// El nombre de cuenta que le corresponde a un directorio de configuración, o
   /// `null` si ese directorio no es una cuenta —`.claude` a secas, la de siempre—.
@@ -125,23 +135,34 @@ class ClaudeProfilesDataSource {
     }
   }
 
-  /// El correo con el que está iniciada la sesión de esa cuenta, o `null`.
+  /// Quién es esa cuenta: con qué correo entró y a qué organización pertenece.
   ///
   /// Se lee de su `.claude.json` —lo escribe Claude Code al entrar— y no del
   /// llavero: ahí está el token, no quién es. No lanza nunca: un archivo a
   /// medio escribir o de otra versión vale lo mismo que no saberlo.
-  Future<String?> correoDe(String configDir) async {
+  Future<({String? correo, String? organizacion})> datosDe(
+    String configDir,
+  ) async {
+    const nada = (correo: null, organizacion: null);
     final file = File('$configDir/.claude.json');
-    if (!file.existsSync()) return null;
+    if (!file.existsSync()) return nada;
     try {
       final decoded = jsonDecode(await file.readAsString());
-      if (decoded is! Map<String, dynamic>) return null;
+      if (decoded is! Map<String, dynamic>) return nada;
       final cuenta = decoded['oauthAccount'];
-      if (cuenta is! Map<String, dynamic>) return null;
+      if (cuenta is! Map<String, dynamic>) return nada;
       final correo = cuenta['emailAddress'];
-      return correo is String && correo.contains('@') ? correo : null;
+      final organizacion = cuenta['organizationName'];
+      return (
+        // Sin arroba no es un correo, y enseñarlo como si lo fuera es peor que
+        // no saberlo.
+        correo: correo is String && correo.contains('@') ? correo : null,
+        organizacion: organizacion is String && organizacion.trim().isNotEmpty
+            ? organizacion.trim()
+            : null,
+      );
     } on Object {
-      return null;
+      return nada;
     }
   }
 
@@ -161,12 +182,15 @@ class ClaudeProfilesDataSource {
       // salía también aquí, la misma cuenta aparecía dos veces con dos nombres
       // distintos y no había forma de saber en qué se diferenciaban.
       if (!name.startsWith('.claude-')) continue;
+      // Una sola lectura del archivo: son dos datos del mismo sitio.
+      final quienEs = await datosDe(entity.path);
       profiles.add(
         ClaudeProfile(
           path: entity.path,
           name: ClaudeProfile.nameFromPath(entity.path) ?? name,
           signedIn: await _hasSession(entity.path),
-          correo: await correoDe(entity.path),
+          correo: quienEs.correo,
+          organizacion: quienEs.organizacion,
         ),
       );
     }
@@ -191,13 +215,16 @@ class ClaudeProfilesDataSource {
   /// resolvió `cuentasParaLlaves` para las llaves, con el mismo motivo escrito.
   Future<List<ClaudeProfile>> todas() async {
     final siempre = ClaudeProfile.elDeSiempre();
+    final quienEs = await datosDe(siempre);
     return [
       ClaudeProfile(
         path: siempre,
-        // Sin nombre: se lo pone quien la enseñe, en su idioma.
+        // Sin nombre de directorio: el que se enseña sale de su organización.
+        // Ver [ElNombreDeLaCuenta].
         name: '',
         signedIn: await _hasSession(siempre),
-        correo: await correoDe(siempre),
+        correo: quienEs.correo,
+        organizacion: quienEs.organizacion,
       ),
       ...await list(),
     ];

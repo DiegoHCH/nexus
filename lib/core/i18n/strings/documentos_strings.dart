@@ -57,6 +57,11 @@ mixin DocumentosStrings {
   /// cuenta le hablan. Con un nombre, la suya se llama «General» y las otras
   /// «work» o «private» cuando las cree.
   String get cuentaGeneral;
+
+  /// Cómo se llama una cuenta **personal**: la que Claude Code apunta como
+  /// «alguien@gmail.com's Organization», que no es un sitio donde trabajes.
+  /// Ver [ElNombreDeLaCuenta].
+  String get cuentaMia;
   String get modelTitle;
   String get effortTitle;
   String get effortFaster;
@@ -171,6 +176,8 @@ mixin DocumentosStringsEs implements DocumentosStrings {
       'y vuelve a lanzarlo.';
   @override
   String get cuentaGeneral => 'General';
+  @override
+  String get cuentaMia => 'Mi perfil';
   @override
   String get entrarConLaCuenta => 'Entrar';
   @override
@@ -306,6 +313,8 @@ mixin DocumentosStringsEn implements DocumentosStrings {
       'account and run it once more.';
   @override
   String get cuentaGeneral => 'General';
+  @override
+  String get cuentaMia => 'My profile';
   @override
   String get entrarConLaCuenta => 'Sign in';
   @override

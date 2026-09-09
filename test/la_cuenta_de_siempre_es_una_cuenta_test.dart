@@ -89,15 +89,18 @@ void main() {
           'oauthAccount': {
             'emailAddress': 'alguien@empresa.com',
             'displayName': 'Alguien',
+            'organizationName': 'Empresa - Equipo',
           },
           'mcpServers': <String, Object?>{},
         }),
       );
 
-      expect(
-        await const ClaudeProfilesDataSource().correoDe(casa.path),
-        'alguien@empresa.com',
-      );
+      final quienEs = await const ClaudeProfilesDataSource().datosDe(casa.path);
+
+      expect(quienEs.correo, 'alguien@empresa.com');
+      // La organización sale del mismo sitio, y de ella el nombre que se
+      // enseña. Ver [ElNombreDeLaCuenta].
+      expect(quienEs.organizacion, 'Empresa - Equipo');
     });
 
     test(
@@ -106,18 +109,18 @@ void main() {
         const fuente = ClaudeProfilesDataSource();
 
         // Sin archivo: la cuenta existe pero nunca se entró.
-        expect(await fuente.correoDe(casa.path), isNull);
+        expect((await fuente.datosDe(casa.path)).correo, isNull);
 
         // Sin `oauthAccount`: el archivo está pero no hay sesión.
         elArchivo().writeAsStringSync(
           jsonEncode({'mcpServers': <String, Object?>{}}),
         );
-        expect(await fuente.correoDe(casa.path), isNull);
+        expect((await fuente.datosDe(casa.path)).correo, isNull);
 
         // Y un archivo a medio escribir vale lo mismo que no saberlo: esto no
         // puede tumbar la pantalla que lo enseña.
         elArchivo().writeAsStringSync('{a medias');
-        expect(await fuente.correoDe(casa.path), isNull);
+        expect((await fuente.datosDe(casa.path)).correo, isNull);
       },
     );
 
@@ -131,7 +134,7 @@ void main() {
       );
 
       expect(
-        await const ClaudeProfilesDataSource().correoDe(casa.path),
+        (await const ClaudeProfilesDataSource().datosDe(casa.path)).correo,
         isNull,
       );
     });

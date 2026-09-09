@@ -7,6 +7,7 @@ import 'package:nexus/features/superpowers/presentation/widgets/plugins_panel.da
 import 'package:nexus/features/superpowers/presentation/widgets/skills_panel.dart';
 import 'package:nexus/features/workspace/presentation/providers/workspace_providers.dart';
 import 'package:nexus/features/workspace/data/datasources/claude_profiles_data_source.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_nombre_de_la_cuenta.dart';
 
 /// Lo que Claude sabe hacer de más, por cuenta.
 ///
@@ -55,6 +56,16 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
     // cuenta de una carpeta: se mira qué tiene instalado cada una, y la de
     // siempre tiene lo suyo como cualquier otra. Ver [todasLasCuentasProvider].
     final profiles = ref.watch(todasLasCuentasProvider).value ?? const [];
+    // 🔴 **El nombre sale de la organización de la cuenta, no del directorio.**
+    // «Global66 - Tech» se enseña como «Global66»; una cuenta personal, como
+    // «Mi perfil»; y si dos perfiles resultan ser la misma cuenta —pasa, está
+    // medido— cada uno lleva detrás su directorio para poder distinguirlos. Ver
+    // [ElNombreDeLaCuenta].
+    final nombres = ElNombreDeLaCuenta.paraTodas(
+      profiles,
+      general: strings.cuentaGeneral,
+      mia: strings.cuentaMia,
+    );
     if (profiles.isEmpty) {
       return Text(
         strings.statsNoAccounts,
@@ -88,11 +99,7 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
               // directorio— y con eso quien mira esta pantalla reconoce la
               // cuenta sin tener que aprender qué es un perfil.
               [
-                strings.superpowersDeLaCuenta(
-                  profiles.single.esLaDeSiempre
-                      ? strings.cuentaGeneral
-                      : profiles.single.name,
-                ),
+                strings.superpowersDeLaCuenta(nombres.single),
                 ?profiles.single.correo,
               ].join(' · '),
               style: NexusTypography.label.copyWith(color: colors.faint),
@@ -101,14 +108,10 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
         if (profiles.length > 1) ...[
           Row(
             children: [
-              for (final profile in profiles)
+              for (final (indice, profile) in profiles.indexed)
                 Expanded(
                   child: _Tab(
-                    // La de siempre no trae nombre: se lo pone la interfaz, en
-                    // el idioma que toque.
-                    label: profile.esLaDeSiempre
-                        ? strings.cuentaGeneral
-                        : profile.name,
+                    label: nombres[indice],
                     // El correo, en el tooltip: en la pestaña no cabe —son
                     // tres o cuatro repartidas a partes iguales— y es justo lo
                     // que se quiere consultar al dudar de cuál es cuál.
