@@ -200,6 +200,7 @@ class _Bridge implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {
@@ -338,6 +339,7 @@ AskClaude _armar(ClaudeBridge bridge, {bool canEdit = false}) => AskClaude(
     comandosPermitidos: const <String>[],
     constraintsNotice: null,
     nombres: null,
+    identidad: null,
   ),
   _Memory(),
   FolderErrandQueue(),
@@ -371,6 +373,7 @@ class _BridgeQueDiceElModelo implements ClaudeBridge {
     String? constraintsNotice,
     String? language,
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
   }) async* {

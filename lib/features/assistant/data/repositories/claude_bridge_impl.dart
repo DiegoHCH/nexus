@@ -82,6 +82,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
     /// Cómo se llama quien contesta y cómo llamarte a ti, ya compuesto
     /// para el prompt. Ver [LosNombres.paraElPrompt].
     String? nombres,
+    String? identidad,
     String? modoConcedido,
     Future<RespuestaDePermiso> Function(PeticionDePermiso peticion)?
     alPedirPermiso,
@@ -232,6 +233,7 @@ class ClaudeBridgeImpl implements ClaudeBridge {
         ],
         appendSystemPrompt: ProjectContextPrompt.compose(
           nombres: nombres,
+          identidad: identidad,
           perfil: perfil,
           rules: context.rules,
           sharedContext: context.sharedContext,

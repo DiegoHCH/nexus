@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:nexus/features/assistant/data/datasources/gemini_live_data_source.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/domain/repositories/voice_gateway.dart';
+import 'package:nexus/features/assistant/domain/usecases/quien_es_nexus.dart';
 
 /// Abre sesiones de voz contra Gemini Live y traduce su JSON a [VoiceEvent].
 /// Lo que un marco del servicio de voz significa: los eventos que produce y las
@@ -170,8 +171,11 @@ class GeminiVoiceGateway implements VoiceGateway {
     required String idioma,
     required String nombres,
   }) =>
-      'Eres ${agente ?? 'Nexus'}, un asistente de voz que vive en el '
-      'Mac de quien te habla. '
+      // 🔴 **La identidad va aquí y sale de un solo sitio.** Antes esto era
+      // «Eres <nombre>, un asistente de voz» y nada más: al preguntarle quién
+      // era, contestaba lo que sí sabía de sí mismo —el modelo que lo mueve—.
+      // Ver [QuienEsNexus], donde está escrito lo que es y lo que hace.
+      '${QuienEsNexus.comoSePresenta(agente)}\n'
       'Respondes en $idioma, en frases cortas: esto se escucha, '
       'no se lee.\n'
       '$nombres'
@@ -181,8 +185,11 @@ class GeminiVoiceGateway implements VoiceGateway {
       'NO respondas de memoria aunque sepas la respuesta: tú pones la voz, '
       'Claude pone el trabajo.\n'
       'Solo contestas tú, sin llamar a nadie, a lo que no es un encargo: '
-      'saludos, agradecimientos, "para", "espera", o cuando te pidan repetir '
-      'algo que acabas de decir. Esa lista es completa: no la amplíes — y la '
+      'saludos, agradecimientos, "para", "espera", cuando te pidan repetir '
+      'algo que acabas de decir, y **lo que te pregunten sobre ti mismo** '
+      '—quién eres, cómo te llamas, qué eres, para qué sirves, qué puedes '
+      'hacer—. Eso último lo contestas tú porque es lo único que Claude no '
+      'sabe: él no sabe quién eres. Esa lista es completa: no la amplíes — y la '
       'app la comprueba, así que si contestas de memoria otra cosa, se lo '
       'preguntará a Claude igual y tendrás que rectificar en voz alta.\n'
       'ZONA GRIS, medida: preguntas como "¿qué opinas de Riverpod?", "¿qué '
