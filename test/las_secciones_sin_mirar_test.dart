@@ -68,8 +68,8 @@ void main() {
     claudeProfilesProvider.overrideWith((ref) async => cuentas),
     // Las dos, porque no dicen lo mismo: aquél lista solo las que tienen
     // nombre y este incluye la de siempre. Superpoderes mira el segundo — ver
-    // [todasLasCuentasProvider].
-    todasLasCuentasProvider.overrideWith((ref) async => cuentas),
+    // [lasCuentasParaMirarProvider].
+    lasCuentasParaMirarProvider.overrideWith((ref) async => cuentas),
     for (final cuenta in cuentas)
       transcriptTurnsProvider(
         cuenta.path,
