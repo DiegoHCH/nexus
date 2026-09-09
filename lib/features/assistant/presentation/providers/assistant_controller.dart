@@ -21,6 +21,8 @@ import 'package:nexus/features/superpowers/domain/entities/mcp_server.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
+import 'package:nexus/features/assistant/domain/usecases/lo_que_queda_permitido.dart';
+import 'package:nexus/features/workspace/domain/usecases/el_permiso_que_vale.dart';
 import 'package:nexus/features/assistant/domain/usecases/lo_que_se_contesta_al_permiso.dart';
 import 'package:nexus/features/assistant/domain/entities/voice_event.dart';
 import 'package:nexus/features/assistant/presentation/providers/voice_input_providers.dart';
@@ -445,9 +447,61 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// la pestaña que no era.
   final _permisos = LasPreguntasEnPie();
 
+  /// Si esta carpeta puede escribir de verdad: el tope de la app, el permiso de
+  /// la carpeta y lo que el propio repositorio declara, los tres. Es el mismo
+  /// cálculo con el que se lanza el encargo — ver [ElPermisoQueVale] — y por eso
+  /// se lee de ahí en vez de mirar solo el interruptor.
+  bool get _puedeEditar => ElPermisoQueVale.enLaCarpeta(
+    ref.read(workspaceControllerProvider),
+    _folder,
+  );
+
+  /// Las herramientas que ya dijiste que sí **para toda esta conversación**.
+  ///
+  /// 🔴 **El botón lo prometía y no lo cumplía.** Reportado por un compañero:
+  /// «cada cosa que hace pide permiso, para leer una imagen, para todo», con la
+  /// captura de dos `Bash` seguidos con su «lo permitiste, y el resto de la
+  /// sesión» encima y un tercero preguntando lo mismo. Lo que el CLI concede en
+  /// esa salida es `acceptEdits` —ediciones de archivo— y una regla para el
+  /// comando literal que se escribiría en tu repositorio; ni una ni otra cubren
+  /// el `Bash` siguiente ni un `Read` de fuera de la carpeta. Ver
+  /// [LoQueQuedaPermitido], donde está la medición.
+  ///
+  /// Vive en el controlador porque es de esta conversación y muere con ella:
+  /// mañana, en otra pestaña, se vuelve a preguntar. Lo que quiera durar más va
+  /// a la lista de la carpeta, que se escribe a sabiendas.
+  final _permitidas = <String>{};
+
   /// Claude quiere usar algo que no tiene concedido: se pregunta **en la
   /// conversación**, como un turno más.
   Future<RespuestaDePermiso> _pedirPermiso(PeticionDePermiso peticion) {
+    // 🔴 **Con la carpeta en «puede editar» no se pregunta por lo de casa.** El
+    // interruptor de abajo **es** el permiso: decía «puede editar» y la pantalla
+    // preguntaba por cada comando, y ese desajuste es lo que se reportó dos
+    // veces. Lo que sale de la máquina —las herramientas MCP— sí sigue
+    // preguntando. Ver [LoQueQuedaPermitido.sinPreguntar].
+    if (LoQueQuedaPermitido.sinPreguntar(
+      puedeEditar: _puedeEditar,
+      peticion: peticion,
+    )) {
+      debugPrint(
+        'permiso · ${peticion.herramienta} va sin preguntar: la carpeta puede '
+        'editar',
+      );
+      return Future.value(LoQueQuedaPermitido.laRespuesta(peticion));
+    }
+
+    // Y si no, lo que hayas dicho antes en esta conversación. Entonces tampoco
+    // hay pregunta: eso es lo que se pulsó, y volver a preguntarlo es lo que
+    // hacía que el botón no sirviera.
+    if (LoQueQuedaPermitido.yaLoDijiste(peticion, _permitidas)) {
+      debugPrint(
+        'permiso · ${peticion.herramienta} ya lo permitiste en esta '
+        'conversación',
+      );
+      return Future.value(LoQueQuedaPermitido.laRespuesta(peticion));
+    }
+
     final strings = ref.read(stringsProvider);
     // El texto en curso se cierra antes: la pregunta es su propio turno, y sin
     // esto el trozo siguiente de la respuesta se pegaría debajo de los botones.
@@ -496,6 +550,13 @@ class AssistantController extends Notifier<AssistantHudState> {
         );
       }
     }
+    // Y lo que queda permitido de aquí en adelante, apuntado antes de
+    // contestar: el CLI puede pedir la siguiente en el mismo instante.
+    if (LoQueQuedaPermitido.laHerramientaDe(decision, peticion)
+        case final herramienta?) {
+      _permitidas.add(herramienta);
+    }
+
     final contestada = _permisos.contestar(
       id,
       LoQueSeContestaAlPermiso.de(

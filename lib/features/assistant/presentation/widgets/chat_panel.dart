@@ -354,7 +354,9 @@ class _ElPermiso extends StatelessWidget {
                       DecisionDePermiso.concedido =>
                         strings.permisoDichoConcedido,
                       DecisionDePermiso.concedidoTodo =>
-                        strings.permisoDichoConcedidoTodo,
+                        strings.permisoDichoConcedidoTodo(
+                          peticion.nombreVisible,
+                        ),
                       DecisionDePermiso.denegado =>
                         strings.permisoDichoDenegado,
                       DecisionDePermiso.cancelado =>
@@ -364,9 +366,12 @@ class _ElPermiso extends StatelessWidget {
                   ),
                 ],
               ),
-              // Sin contestar: las salidas. «Permitir todo» solo si el CLI la
-              // ofrece — sin sugerencia que aplicar sería un botón que promete
-              // dejar de preguntar y no lo hace.
+              // Sin contestar: las salidas. La tercera se ofrece **siempre**,
+              // y antes dependía de que el CLI mandara sugerencias: ahora quien
+              // sostiene la promesa es Nexus —la herramienta queda permitida en
+              // esta conversación— así que también vale para lo que el CLI no
+              // ofrece nada, como un `Read` de fuera de la carpeta. Ver
+              // [LoQueQuedaPermitido].
               null => Wrap(
                 spacing: NexusSpacing.s2,
                 runSpacing: NexusSpacing.s2,
@@ -387,15 +392,14 @@ class _ElPermiso extends StatelessWidget {
                       DecisionDePermiso.concedido,
                     ),
                   ),
-                  if (peticion.sePuedeConcederTodo)
-                    _BotonDePermiso(
-                      texto: strings.permisoConcederTodo,
-                      color: colors.accent,
-                      onTap: () => onPermiso?.call(
-                        peticion.id,
-                        DecisionDePermiso.concedidoTodo,
-                      ),
+                  _BotonDePermiso(
+                    texto: strings.permisoConcederTodo(peticion.nombreVisible),
+                    color: colors.accent,
+                    onTap: () => onPermiso?.call(
+                      peticion.id,
+                      DecisionDePermiso.concedidoTodo,
                     ),
+                  ),
                 ],
               ),
             },

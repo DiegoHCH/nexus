@@ -28,12 +28,31 @@ import 'package:shared_preferences/shared_preferences.dart';
 const conversationId = 'c1';
 const folderPath = '/Users/alguien/General';
 
+/// Una escritura, para las pruebas del panel: lo que se pinta no depende de la
+/// carpeta.
 const _peticion = PeticionDePermiso(
   id: 'req-1',
   herramienta: 'Write',
   nombreVisible: 'Write',
   entrada: {'file_path': '/tmp/a.txt', 'content': 'hola'},
   descripcion: 'a.txt',
+  sugerencias: [
+    {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
+  ],
+);
+
+/// 🔴 **Y lo que de verdad pregunta hoy: lo que sale de la máquina.** Con la
+/// carpeta en «puede editar», un `Bash` o un `Write` ya no se preguntan —el
+/// interruptor **es** el permiso, reportado dos veces— así que las pruebas del
+/// ciclo de la pregunta usan una herramienta MCP, que es lo que una carpeta no
+/// concede: un correo enviado no se deshace borrando un archivo. Ver
+/// [LoQueQuedaPermitido].
+const _deFuera = PeticionDePermiso(
+  id: 'req-1',
+  herramienta: 'mcp__claude_ai_Gmail__send_message',
+  nombreVisible: 'Gmail · send_message',
+  entrada: {'to': 'alguien@example.com', 'subject': 'hola'},
+  descripcion: 'send_message',
   sugerencias: [
     {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
   ],
@@ -104,6 +123,84 @@ void main() {
     return m;
   }
 
+  // 🔴 **Lo que el botón prometía y no cumplía.** Reportado por un compañero con
+  // la pantalla delante: «cada cosa que hace pide permiso, para leer una imagen,
+  // para todo» — y en la captura, dos preguntas de `Bash` seguidas con su «lo
+  // permitiste, y el resto de la sesión» encima. Lo que el CLI concede ahí es
+  // `acceptEdits`, que cubre ediciones y no comandos.
+  group('permitir una herramienta dura la conversación', () {
+    test('la segunda llamada ya no pregunta', () async {
+      final puente = _PuenteQuePreguntaDosVeces();
+      final container = ProviderContainer(
+        overrides: [
+          conversationFolderProvider(
+            conversationId,
+          ).overrideWithValue(folderPath),
+          conversationMemoryProvider.overrideWithValue(const _NoMemory()),
+          workspaceControllerProvider.overrideWith(
+            () => _Workspace(FilePermission.canEdit),
+          ),
+          claudeBridgeProvider.overrideWithValue(puente),
+          localConversationStoreProvider.overrideWithValue(const _SinDisco()),
+          conversationArchiveProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      unawaited(mando(container).submit('haz dos cosas'));
+      await hasta(() => elPermiso(container) != null);
+      mando(
+        container,
+      ).responderPermiso('req-1', DecisionDePermiso.concedidoTodo);
+
+      await hasta(() => puente.segunda != null);
+
+      expect(puente.primera, isA<PermisoConcedido>());
+      expect(
+        puente.segunda,
+        isA<PermisoConcedido>(),
+        reason: 'la segunda se contesta sin preguntar: eso es lo que se pulsó',
+      );
+      // Y la prueba de que no se preguntó: solo hay **un** turno de permiso en
+      // la conversación.
+      final preguntas = container
+          .read(assistantControllerProvider(conversationId))
+          .messages
+          .where((m) => m.permiso != null);
+      expect(preguntas, hasLength(1));
+      expect(preguntas.single.permiso!.id, 'req-1');
+    });
+
+    // Y con «solo esta vez» se sigue preguntando, que es la otra mitad de la
+    // decisión: si las dos salidas hicieran lo mismo, una de las dos sobra.
+    test('con «solo esta vez», la segunda vuelve a preguntar', () async {
+      final puente = _PuenteQuePreguntaDosVeces();
+      final container = ProviderContainer(
+        overrides: [
+          conversationFolderProvider(
+            conversationId,
+          ).overrideWithValue(folderPath),
+          conversationMemoryProvider.overrideWithValue(const _NoMemory()),
+          workspaceControllerProvider.overrideWith(
+            () => _Workspace(FilePermission.canEdit),
+          ),
+          claudeBridgeProvider.overrideWithValue(puente),
+          localConversationStoreProvider.overrideWithValue(const _SinDisco()),
+          conversationArchiveProvider.overrideWith((ref) async => null),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      unawaited(mando(container).submit('haz dos cosas'));
+      await hasta(() => elPermiso(container) != null);
+      mando(container).responderPermiso('req-1', DecisionDePermiso.concedido);
+
+      await hasta(() => elPermiso(container)?.permiso?.id == 'req-2');
+
+      expect(puente.segunda, isNull, reason: 'sigue esperando tu respuesta');
+    });
+  });
+
   group('la pregunta es un turno', () {
     test('aparece en la conversación, sin contestar', () async {
       final m = await preguntando();
@@ -111,6 +208,7 @@ void main() {
       final mensaje = elPermiso(m.container);
       expect(mensaje, isNotNull);
       expect(mensaje!.permiso!.id, 'req-1');
+      expect(mensaje.permiso!.herramienta, startsWith('mcp__'));
       expect(mensaje.decision, isNull);
       expect(mensaje.esperaPermiso, isTrue);
       // Lo que la modal daba gratis: que no se pueda pasar por alto en
@@ -147,7 +245,7 @@ void main() {
 
       expect(
         (m.puente.contestado! as PermisoConcedido).permisosNuevos,
-        _peticion.sugerencias,
+        _deFuera.sugerencias,
       );
     });
 
@@ -251,7 +349,7 @@ void main() {
       expect(find.text('a.txt'), findsOneWidget);
       expect(find.text(strings.permisoEscribe), findsOneWidget);
 
-      await tester.tap(find.text(strings.permisoConcederTodo));
+      await tester.tap(find.text(strings.permisoConcederTodo('Write')));
       expect(pulsado, [('req-1', DecisionDePermiso.concedidoTodo)]);
     });
 
@@ -271,12 +369,19 @@ void main() {
 
       expect(find.text(strings.permisoDichoDenegado), findsOneWidget);
       expect(find.text(strings.permisoConceder), findsNothing);
-      expect(find.text(strings.permisoConcederTodo), findsNothing);
+      expect(find.text(strings.permisoConcederTodo('Write')), findsNothing);
     });
 
-    // Sin sugerencia que aplicar, «Permitir todo» prometería dejar de preguntar
-    // sin poder cumplirlo.
-    testWidgets('sin sugerencia no se ofrece permitir todo', (tester) async {
+    // 🔴 **Antes esta prueba decía lo contrario, y la decisión cambió con un
+    // reporte.** Sin sugerencias del CLI no se ofrecía la tercera salida,
+    // porque prometía dejar de preguntar sin poder cumplirlo. Y era verdad
+    // mientras la promesa dependiera del CLI — pero es justo el caso que se
+    // reportó: «pide permiso **para leer una imagen**», donde el CLI no ofrece
+    // nada y quedabas sin salida. Ahora la sostiene Nexus, así que se ofrece
+    // igual y dice qué herramienta permite. Ver [LoQueQuedaPermitido].
+    testWidgets('sin sugerencia se ofrece igual, y con su nombre', (
+      tester,
+    ) async {
       await pintar(
         tester,
         const ChatMessage(
@@ -292,8 +397,8 @@ void main() {
       );
 
       expect(
-        find.text(const NexusStringsEs().permisoConcederTodo),
-        findsNothing,
+        find.text(const NexusStringsEs().permisoConcederTodo('Read')),
+        findsOne,
       );
       // Y leer no se anuncia como escritura.
       expect(find.text(const NexusStringsEs().permisoEscribe), findsNothing);
@@ -334,7 +439,65 @@ class _PuenteQuePregunta implements ClaudeBridge {
       yield const ClaudeTurnCompleted(result: 'sin preguntar');
       return;
     }
-    contestado = await alPedirPermiso(_peticion);
+    contestado = await alPedirPermiso(_deFuera);
+    yield const ClaudeTurnCompleted(result: 'listo');
+  }
+}
+
+/// Pregunta **dos veces por la misma herramienta**, con argumentos distintos:
+/// es lo que hace un encargo de verdad y lo que se reportó como «pide permiso
+/// para cada cosa».
+class _PuenteQuePreguntaDosVeces implements ClaudeBridge {
+  RespuestaDePermiso? primera;
+  RespuestaDePermiso? segunda;
+
+  static const _unCorreo = PeticionDePermiso(
+    id: 'req-1',
+    herramienta: 'mcp__claude_ai_Gmail__send_message',
+    nombreVisible: 'Gmail · send_message',
+    entrada: {'to': 'uno@example.com'},
+    // Las de verdad, medidas contra el binario: un modo que solo cubre
+    // ediciones, o sea nada de esto.
+    sugerencias: [
+      {'type': 'setMode', 'mode': 'acceptEdits', 'destination': 'session'},
+    ],
+  );
+
+  static const _otroCorreo = PeticionDePermiso(
+    id: 'req-2',
+    herramienta: 'mcp__claude_ai_Gmail__send_message',
+    nombreVisible: 'Gmail · send_message',
+    entrada: {'to': 'dos@example.com'},
+  );
+
+  @override
+  Stream<ClaudeEvent> ask(
+    String instruction, {
+    required String workingDirectory,
+    required bool canEdit,
+    List<String> extraDirectories = const [],
+    String? resumeSessionId,
+    String? claudeProfile,
+    String? model,
+    String? effort,
+    String? artifactsFolder,
+    String? carpetaDePruebas,
+    List<String> disallowedTools = const [],
+    List<String> comandosPermitidos = const [],
+    String? constraintsNotice,
+    String? language,
+    String? nombres,
+    String? identidad,
+    String? modoConcedido,
+    Future<RespuestaDePermiso> Function(PeticionDePermiso)? alPedirPermiso,
+  }) async* {
+    yield const ClaudeSessionStarted(sessionId: 's1', model: 'm');
+    if (alPedirPermiso == null) {
+      yield const ClaudeTurnCompleted(result: 'sin preguntar');
+      return;
+    }
+    primera = await alPedirPermiso(_unCorreo);
+    segunda = await alPedirPermiso(_otroCorreo);
     yield const ClaudeTurnCompleted(result: 'listo');
   }
 }
