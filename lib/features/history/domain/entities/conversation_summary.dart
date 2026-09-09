@@ -20,15 +20,46 @@ class ConversationSummary {
     required this.startedAt,
     required this.title,
     required this.turns,
+    DateTime? usadaEn,
     this.profileName,
     this.sourcePath,
     this.model,
     this.contextTokens,
-  });
+  }) : usadaEn = usadaEn ?? startedAt;
 
   final String id;
   final String folderPath;
   final DateTime startedAt;
+
+  /// **Cuándo se usó por última vez**, que es lo que la lista tiene que decir.
+  ///
+  /// 🔴 **La lista enseñaba y ordenaba por [startedAt], y eso la hacía mentir.**
+  /// Reportado tal cual: «las últimas conversaciones que he hecho en
+  /// front-mobile-b2c no se están guardando». Estaban todas guardadas —se
+  /// comprobó archivo por archivo—: lo que pasaba es que la que tenía el trabajo
+  /// de hoy **había empezado ayer**, así que aparecía con la fecha de ayer y
+  /// varias posiciones más abajo, debajo de conversaciones más nuevas y más
+  /// cortas. Una conversación que se retoma tres días seguidos se hunde en la
+  /// lista justo por usarse mucho.
+  ///
+  /// Nace igual a [startedAt] para las fichas viejas, que no lo guardaban: es lo
+  /// único honesto que se puede decir de ellas.
+  final DateTime usadaEn;
+
+  /// La misma ficha, sellada como usada [cuando]. Es lo que hace el almacén al
+  /// guardar: guardar una conversación **es** usarla.
+  ConversationSummary usadaAhora(DateTime cuando) => ConversationSummary(
+    id: id,
+    folderPath: folderPath,
+    startedAt: startedAt,
+    title: title,
+    turns: turns,
+    usadaEn: cuando,
+    profileName: profileName,
+    sourcePath: sourcePath,
+    model: model,
+    contextTokens: contextTokens,
+  );
 
   /// Ya resuelto, no deducido al vuelo. Quien escribe la ficha tiene los
   /// mensajes delante; quien la lee, no.

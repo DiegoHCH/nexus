@@ -4,6 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:nexus/core/i18n/nexus_strings.dart';
 import 'package:nexus/features/assistant/presentation/pages/home_page.dart';
+import 'package:nexus/features/history/domain/entities/conversation_summary.dart';
+import 'package:nexus/features/history/presentation/providers/archive_providers.dart';
 import 'package:nexus/features/history/presentation/widgets/conversation_history_sheet.dart';
 import 'package:nexus/features/onboarding/presentation/pages/initial_setup_page.dart';
 import 'package:nexus/features/onboarding/presentation/pages/splash_page.dart';
@@ -109,5 +111,67 @@ void main() {
 
     expect(find.text(strings.history), findsOneWidget);
     expect(find.text(strings.nothingAskedYet), findsOneWidget);
+  });
+
+  // 🔴 **Con cosas guardadas, el historial se lee por días.** Pedido tras
+  // arreglar la fecha: «que se organicen por fechas, que tengan una separación
+  // visual y que aparezca la fecha». Antes era una tira de filas con la marca
+  // de tiempo completa repetida en cada una.
+  testWidgets('el historial agrupa por días y pone su cabecera', (
+    tester,
+  ) async {
+    final hoy = DateTime.now();
+    // A otra hora, o las dos filas enseñarían la misma y no se podría
+    // comprobar que cada una lleva la suya.
+    final ayer = hoy.subtract(const Duration(days: 1, hours: 3));
+    ConversationSummary ficha(String id, DateTime cuando) =>
+        ConversationSummary(
+          id: id,
+          folderPath: '/Users/alguien/Workspace/tienda',
+          startedAt: cuando,
+          usadaEn: cuando,
+          title: id,
+          turns: 3,
+        );
+
+    await pumpScreen(
+      tester,
+      Builder(
+        builder: (context) => TextButton(
+          onPressed: () => ConversationHistorySheet.open(
+            context,
+            onPick: (_) {},
+            onForget: () {},
+          ),
+          child: const Text('abrir'),
+        ),
+      ),
+      overrides: [
+        allSavedConversationsProvider.overrideWith(
+          (ref) => Future.value([
+            ficha('la de esta mañana', hoy),
+            ficha('la de ayer', ayer),
+          ]),
+        ),
+      ],
+    );
+
+    await tester.tap(find.text('abrir'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 100));
+
+    expect(find.text(strings.historialHoy.toUpperCase()), findsOneWidget);
+    expect(find.text(strings.historialAyer.toUpperCase()), findsOneWidget);
+    expect(find.text('la de esta mañana'), findsOneWidget);
+    expect(find.text('la de ayer'), findsOneWidget);
+    // Y la fila enseña la hora, no la fecha entera: el día ya lo dice su
+    // cabecera.
+    String dos(int v) => v.toString().padLeft(2, '0');
+    expect(find.text('${dos(hoy.hour)}:${dos(hoy.minute)}'), findsOneWidget);
+    expect(
+      find.textContaining('${hoy.year}-'),
+      findsNothing,
+      reason: 'la fecha repetida en cada fila era la tira sin cortes',
+    );
   });
 }
