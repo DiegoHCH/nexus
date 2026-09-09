@@ -72,6 +72,10 @@ mixin SuperpoderesStrings {
   // Superpoderes: skills instaladas en la cuenta.
   String get superpowersMcp;
 
+  /// De qué cuenta es lo que se está mirando, cuando hay una sola y no hay
+  /// pestañas que lo digan.
+  String superpowersDeLaCuenta(String cuenta);
+
   /// Instalar en todas las cuentas de golpe.
   ///
   /// Existe porque lo instalado en una cuenta es **invisible** para las carpetas de
@@ -250,6 +254,8 @@ mixin SuperpoderesStringsEs implements SuperpoderesStrings {
   String get mcpCheckFailed => 'El CLI no pudo dar la lista.';
   @override
   String get superpowersMcp => 'Servidores MCP';
+  @override
+  String superpowersDeLaCuenta(String cuenta) => 'Cuenta $cuenta';
   @override
   String durationMinutes(int minutes) => '$minutes min';
   @override
@@ -468,6 +474,8 @@ mixin SuperpoderesStringsEn implements SuperpoderesStrings {
   String get mcpCheckFailed => 'The CLI could not produce the list.';
   @override
   String get superpowersMcp => 'MCP servers';
+  @override
+  String superpowersDeLaCuenta(String cuenta) => '$cuenta account';
   @override
   String durationMinutes(int minutes) => '$minutes min';
   @override

@@ -187,6 +187,12 @@ void main() {
 
       expect(find.text(textos.statsNoAccounts), findsNothing);
       expect(find.text(textos.superpowersMcp), findsOneWidget);
+      // Y se dice de qué cuenta es lo que se mira, que sin pestañas no lo dice
+      // nadie: quien no ha creado perfiles no tiene por qué saber que existen.
+      expect(
+        find.text(textos.superpowersDeLaCuenta(textos.cuentaGeneral)),
+        findsOneWidget,
+      );
       sinDesbordar(tester);
     });
     testWidgets('con una cuenta no hay pestañas', (tester) async {
@@ -204,7 +210,7 @@ void main() {
       // la deja sin nombre —no tiene uno propio— y aquí se le pone el del
       // idioma elegido. Antes decía «POR DEFECTO» porque ese texto venía en el
       // dato de esta prueba, y ningún sitio de la app producía esa cuenta.
-      expect(find.text(textos.laCuentaDeSiempre.toUpperCase()), findsOneWidget);
+      expect(find.text(textos.cuentaGeneral.toUpperCase()), findsOneWidget);
       sinDesbordar(tester);
     });
 

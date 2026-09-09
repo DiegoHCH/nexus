@@ -1423,7 +1423,7 @@ class AssistantController extends Notifier<AssistantHudState> {
             ? s.mcpNingunoEnElChat
             : s.mcpEnElChat(
                 lista.length,
-                ClaudeProfile.nameFromPath(configDir) ?? s.laCuentaDeSiempre,
+                ClaudeProfile.nameFromPath(configDir) ?? s.cuentaGeneral,
               ),
         comoEsta: (estado) => switch (estado) {
           McpStatus.connected => s.mcpConectado,
@@ -1909,8 +1909,7 @@ class AssistantController extends Notifier<AssistantHudState> {
   Future<void> entrarConLaCuenta() async {
     final strings = ref.read(stringsProvider);
     final perfil = _perfilDeLaCarpeta();
-    final cuenta =
-        ClaudeProfile.nameFromPath(perfil) ?? strings.laCuentaDeSiempre;
+    final cuenta = ClaudeProfile.nameFromPath(perfil) ?? strings.cuentaGeneral;
 
     state = state.copyWith(
       errorMessage: null,
@@ -1963,8 +1962,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (!PorQueMurioClaude.esSesionCaducada(message)) return message;
     final strings = ref.read(stringsProvider);
     return strings.sesionCaducada(
-      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ??
-          strings.laCuentaDeSiempre,
+      ClaudeProfile.nameFromPath(_perfilDeLaCarpeta()) ?? strings.cuentaGeneral,
     );
   }
 

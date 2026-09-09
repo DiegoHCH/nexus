@@ -71,6 +71,24 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        // 🔴 **Con una sola cuenta se dice cuál es, aunque no haya pestañas.**
+        // Pedido tras el reporte del compañero: quien no ha creado perfiles no
+        // tiene por qué saber que existe algo llamado «perfil», y una pantalla
+        // que gestiona cosas «por cuenta» sin decir de qué cuenta habla obliga
+        // a suponerlo. Con dos o más lo dicen las pestañas, y repetirlo sería
+        // decir lo mismo dos veces.
+        if (profiles.length == 1)
+          Padding(
+            padding: const EdgeInsets.only(bottom: NexusSpacing.s2),
+            child: Text(
+              strings.superpowersDeLaCuenta(
+                profiles.single.esLaDeSiempre
+                    ? strings.cuentaGeneral
+                    : profiles.single.name,
+              ),
+              style: NexusTypography.label.copyWith(color: colors.faint),
+            ),
+          ),
         if (profiles.length > 1) ...[
           Row(
             children: [
@@ -80,7 +98,7 @@ class _SuperpowersSectionState extends ConsumerState<SuperpowersSection> {
                     // La de siempre no trae nombre: se lo pone la interfaz, en
                     // el idioma que toque.
                     label: profile.esLaDeSiempre
-                        ? strings.laCuentaDeSiempre
+                        ? strings.cuentaGeneral
                         : profile.name,
                     active: profile.path == current,
                     onTap: () => setState(() => _profile = profile.path),
