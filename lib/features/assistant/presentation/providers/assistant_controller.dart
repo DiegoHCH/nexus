@@ -14,6 +14,7 @@ import 'package:nexus/features/artifacts/domain/entities/lo_que_salio_del_dibujo
 import 'package:nexus/features/assistant/domain/entities/peticion_de_permiso.dart';
 import 'package:nexus/features/assistant/domain/repositories/el_despacho_de_carpeta.dart';
 import 'package:nexus/features/assistant/domain/usecases/a_donde_va_lo_que_se_escribe.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_comandos_de_la_casa.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_compresion_de_la_conversacion.dart';
 import 'package:nexus/features/assistant/domain/usecases/la_puerta_de_la_voz.dart';
 import 'package:nexus/features/assistant/domain/usecases/las_preguntas_en_pie.dart';
@@ -641,6 +642,45 @@ class AssistantController extends Notifier<AssistantHudState> {
           loQueSeVe: loQueSeVe ?? trimmed,
           referencias: attachments,
           reintento: reintento,
+        );
+        return;
+
+      // La lista de lo que se puede escribir, **dentro** de la conversación.
+      // Nace de una pregunta que no tenía respuesta en la app: «qué comandos
+      // puedo usar aquí, como el `/clear` de Claude». Ver [ElComandoDeLaCasa].
+      case ALaAyuda():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        final s = ref.read(stringsProvider);
+        _decir(
+          ElComandoDeLaCasa.laLista(
+            s.ayudaTitulo,
+            (comando) => switch (comando) {
+              ElComandoDeLaCasa.imagen => s.ayudaImagen,
+              ElComandoDeLaCasa.edita => s.ayudaEdita,
+              ElComandoDeLaCasa.git => s.ayudaGit,
+              ElComandoDeLaCasa.parte => s.ayudaParte,
+              ElComandoDeLaCasa.agenda => s.ayudaAgenda,
+              ElComandoDeLaCasa.olvida => s.ayudaOlvida,
+              ElComandoDeLaCasa.ayuda => s.ayudaAyuda,
+            },
+          ),
+        );
+        return;
+
+      // El `/clear` de la terminal, que aquí ya existía como botón: lo mismo
+      // que «Empezar de cero». Se dice lo que ha pasado, porque una pantalla
+      // que no cambia se lee como que el comando no hizo nada — y lo escrito
+      // sigue estando, que es lo que hay que aclarar.
+      case AOlvidar():
+        _say(ChatAuthor.user, loQueSeVe ?? trimmed);
+        _sealLast();
+        await forgetConversation();
+        if (!_vive) return;
+        _decir(
+          ref
+              .read(stringsProvider)
+              .seOlvidoLaSesion(_folder?.split('/').last ?? ''),
         );
         return;
 

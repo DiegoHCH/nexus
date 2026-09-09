@@ -1,5 +1,6 @@
 import 'package:nexus/features/agenda/domain/usecases/lo_que_se_pregunta_de_la_agenda.dart';
 import 'package:nexus/features/artifacts/domain/usecases/lo_que_se_pide_dibujar.dart';
+import 'package:nexus/features/assistant/domain/usecases/los_comandos_de_la_casa.dart';
 import 'package:nexus/features/history/domain/usecases/el_parte_de_ayer.dart';
 import 'package:nexus/features/workspace/domain/usecases/el_comando_directo.dart';
 
@@ -44,6 +45,16 @@ final class AlParte extends ADondeVa {
   const AlParte();
 }
 
+/// A la lista de comandos, que se enseña dentro de la conversación.
+final class ALaAyuda extends ADondeVa {
+  const ALaAyuda();
+}
+
+/// A empezar de cero en esta carpeta: el `/clear` de la terminal.
+final class AOlvidar extends ADondeVa {
+  const AOlvidar();
+}
+
 /// El camino normal.
 final class AClaude extends ADondeVa {
   const AClaude();
@@ -80,6 +91,25 @@ abstract final class ADondeVaLoQueSeEscribe {
     // puede colisionar con nada de lo de abajo.
     if (ElComandoDirecto.deLaFrase(limpia) case final directo?) {
       return AlGit(directo);
+    }
+
+    // Los comandos exactos, que no llevan nada escrito detrás. Van aquí, con
+    // los otros de barra y **antes** de las frases naturales: `/parte` tiene
+    // que valer aunque la lista de frases del parte cambie mañana. Ver
+    // [ElComandoDeLaCasa].
+    switch (ElComandoDeLaCasa.deLaFrase(limpia)) {
+      case ElComandoDeLaCasa.ayuda:
+        return const ALaAyuda();
+      case ElComandoDeLaCasa.olvida:
+        return const AOlvidar();
+      case ElComandoDeLaCasa.parte:
+        return const AlParte();
+      case ElComandoDeLaCasa.agenda:
+        return const ALaAgenda();
+      // Los que llevan texto los reconoce su dueño, unas líneas más abajo: aquí
+      // no se repite esa decisión.
+      case _:
+        break;
     }
 
     if (LoQueSePideDibujar.deLaFrase(limpia) case final descripcion?) {
