@@ -282,7 +282,12 @@ class _RowState extends State<_Row> {
     final record = widget.record;
     final onTap = widget.onTap;
     final colors = context.colors;
-    final when = record.startedAt;
+    // 🔴 **La fecha de la lista es la del último uso, no la del comienzo.**
+    // Una conversación que se retoma tres días seguidos aparecía con la fecha
+    // del primero, así que el trabajo de hoy se leía como de anteayer — y de
+    // ahí «las últimas conversaciones no se están guardando», con todas
+    // guardadas. Ver [ConversationSummary.usadaEn].
+    final when = record.usadaEn;
     String two(int value) => value.toString().padLeft(2, '0');
 
     return InkWell(

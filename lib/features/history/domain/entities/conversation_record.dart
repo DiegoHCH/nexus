@@ -19,6 +19,7 @@ class ConversationRecord {
     this.sourcePath,
     this.model,
     this.contextTokens,
+    this.usadaEn,
     String? title,
     // El campo es privado y el parámetro no: quien construye pasa `title`, y
     // adentro se guarda como el título de respaldo que usa el getter.
@@ -28,6 +29,11 @@ class ConversationRecord {
   final String id;
   final String folderPath;
   final DateTime startedAt;
+
+  /// Cuándo se usó por última vez, si el archivo lo dice. Los de antes no lo
+  /// guardaban. Ver [ConversationSummary.usadaEn].
+  final DateTime? usadaEn;
+
   final List<ChatMessage> messages;
 
   /// Con qué cuenta de Claude se trabajó — `work`, `private`— o `null` con la
@@ -85,6 +91,7 @@ class ConversationRecord {
     id: id,
     folderPath: folderPath,
     startedAt: startedAt,
+    usadaEn: usadaEn,
     title: title,
     turns: messages.length,
     profileName: profileName,

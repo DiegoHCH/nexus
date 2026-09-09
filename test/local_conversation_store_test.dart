@@ -30,6 +30,12 @@ ConversationRecord record({
       ],
 );
 
+/// El nombre de carpeta que usa el almacén: hace falta para tocar el índice a
+/// mano, que es la única forma de fabricar una ficha «de antes».
+String _slug(String folderPath) => folderPath
+    .replaceAll(RegExp(r'[^A-Za-z0-9]+'), '-')
+    .replaceAll(RegExp(r'^-|-$'), '');
+
 void main() {
   late Directory support;
 
@@ -85,6 +91,75 @@ void main() {
     final leidas = await store.list('/Users/alguien/workspace');
 
     expect(leidas.map((r) => r.id), ['nueva', 'vieja']);
+  });
+
+  // 🔴 **La lista ordena y enseña por el ÚLTIMO USO, no por el comienzo.**
+  // Reportado tal cual: «las últimas conversaciones que he hecho en
+  // front-mobile-b2c no se están guardando». Estaban todas guardadas —se
+  // comprobó archivo por archivo, y también en el vault—: lo que pasaba es que
+  // la que tenía el trabajo de hoy **había empezado el día anterior**, así que
+  // salía con la fecha vieja y por debajo de otras más nuevas y más cortas. Una
+  // conversación se hundía en la lista justo por usarse mucho.
+  group('cuándo se usó, que es lo que la lista tiene que decir', () {
+    test('la retomada va primero, aunque empezara antes', () async {
+      // La vieja se retoma **después** de guardar la nueva: es exactamente el
+      // caso del reporte.
+      await store.save(record(id: 'de-ayer', when: DateTime(2026, 9, 8)));
+      await store.save(
+        record(
+          id: 'de-hoy',
+          when: DateTime(2026, 9, 9),
+          messages: const [
+            ChatMessage(author: ChatAuthor.user, text: 'una pregunta corta'),
+          ],
+        ),
+      );
+      await store.save(
+        record(
+          id: 'de-ayer',
+          when: DateTime(2026, 9, 8),
+          messages: const [
+            ChatMessage(author: ChatAuthor.user, text: 'seguimos con esto'),
+            ChatMessage(author: ChatAuthor.nexus, text: 'vamos'),
+          ],
+        ),
+      );
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.map((r) => r.id), ['de-ayer', 'de-hoy']);
+      expect(
+        leidas.first.startedAt,
+        DateTime(2026, 9, 8),
+        reason: 'cuándo empezó no cambia: es su fecha de nacimiento',
+      );
+      expect(
+        leidas.first.usadaEn.isAfter(leidas.first.startedAt),
+        isTrue,
+        reason:
+            'y cuándo se usó es ahora, que es lo que se busca en un historial',
+      );
+    });
+
+    // Las fichas escritas por la versión de antes no lo guardaban: ahí lo único
+    // honesto que se puede decir es cuándo empezó.
+    test('una ficha de antes cae en su fecha de comienzo', () async {
+      await store.save(record(id: 'antigua', when: DateTime(2026, 8, 1)));
+      final indice = File(
+        '${support.path}/conversaciones/'
+        '${_slug('/Users/alguien/workspace')}/_index.json',
+      );
+      final leido =
+          jsonDecode(indice.readAsStringSync()) as Map<String, dynamic>;
+      for (final ficha in leido['conversaciones'] as List) {
+        (ficha as Map).remove('usada');
+      }
+      indice.writeAsStringSync(jsonEncode(leido));
+
+      final leidas = await store.list('/Users/alguien/workspace');
+
+      expect(leidas.single.usadaEn, DateTime(2026, 8, 1));
+    });
   });
 
   // La regla de todo el producto: la carpeta es la frontera. El historial de un
