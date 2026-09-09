@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart';
 
 /// Una cuenta de Claude Code en esta máquina.
 ///
@@ -251,12 +252,25 @@ class ClaudeProfilesDataSource {
 
   Future<bool> _hasSession(String configDir) async {
     for (final servicio in keychainServices(configDir)) {
-      final result = await Process.run('security', [
-        'find-generic-password',
-        '-s',
-        servicio,
-      ]);
-      if (result.exitCode == 0) return true;
+      // 🔴 **`security` es de macOS y no está en todas partes.** Lo pescó el CI,
+      // que corre en Linux: `ProcessException: No such file or directory` al
+      // preguntar por el llavero, y con eso se caía **listar las cuentas** —no
+      // solo saber si tienen sesión—. Aquí «no se pudo preguntar» vale lo mismo
+      // que «no hay sesión»: la cuenta se sigue enseñando, que es lo que
+      // importa, y quien la elija se enterará por el error del CLI.
+      try {
+        final result = await Process.run('security', [
+          'find-generic-password',
+          '-s',
+          servicio,
+        ]);
+        if (result.exitCode == 0) return true;
+      } on ProcessException catch (error) {
+        debugPrint(
+          'cuentas · no se pudo preguntar al llavero: ${error.message}',
+        );
+        return false;
+      }
     }
     return false;
   }

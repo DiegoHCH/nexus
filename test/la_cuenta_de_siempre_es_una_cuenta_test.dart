@@ -190,6 +190,23 @@ void main() {
       expect(cuentas.any((c) => c.esLaDeSiempre), isFalse);
     });
 
+    // 🔴 **Lo pescó el CI, que corre en Linux:** preguntar al llavero es
+    // `security`, que es de macOS, y su ausencia tumbaba **listar las
+    // cuentas** con `ProcessException` — no solo el «tiene sesión». Aquí «no se
+    // pudo preguntar» vale lo mismo que «no hay sesión».
+    test('sin llavero que preguntar, las cuentas siguen saliendo', () async {
+      creaLaCuenta('.claude-work', organizacion: 'Empresa - Equipo');
+
+      final cuentas = await enEstaCasa().paraMirar();
+
+      expect(cuentas.single.name, 'work');
+      expect(
+        cuentas.single.organizacion,
+        'Empresa - Equipo',
+        reason: 'lo que se sabe de ella no depende del llavero',
+      );
+    });
+
     test('y si no hay ni home, no se inventa ninguna', () async {
       final cuentas = await ClaudeProfilesDataSource(
         home: '${casa.path}/no-existe',
