@@ -427,7 +427,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // terminar su turno. Este copió de ahí el `_say` y el `_sealLast` y se dejó
     // justo la línea que persiste, que es la única que no se nota hasta que
     // reinicias.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Lo dice aquí y lo cierra, que es lo que hace falta cuando no se enruta:
@@ -968,7 +968,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // diff de la tarea, y esto no tocó el repositorio. Con la marca de git de un
     // encargo anterior todavía en memoria, enseñaría los cambios de aquél como
     // si los hubiera hecho el dibujo.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Vuelve a mandar un encargo que no llegó a hacerse.
@@ -1181,14 +1181,21 @@ class AssistantController extends Notifier<AssistantHudState> {
     if (!_vive) return const {};
     final carpeta = ref.read(artifactsFolderProvider);
     if (carpeta == null) return const {};
-    final cuentas = ref
-        .read(claudeProfilesProvider)
-        .value
-        ?.map((perfil) => perfil.name)
-        .toSet();
+    // 🔴 **Esperadas de verdad, no leídas a medias.** Aquí había un
+    // `.value` sobre un proveedor asíncrono: mientras no ha resuelto vale
+    // `null`, así que la foto de «antes» podía tomarse **sin cuentas** y la de
+    // «después» **con ellas**. Comparar dos listas sacadas con reglas distintas
+    // convierte la diferencia en basura: un documento guardado en la carpeta de
+    // una cuenta aparece como nuevo sin serlo, o al revés. Y la ventana en la
+    // que pasa no es teórica: el proveedor recorre el home al arrancar.
+    final cuentas = await ref
+        .read(claudeProfilesProvider.future)
+        .then((perfiles) => perfiles.map((perfil) => perfil.name).toSet())
+        .catchError((Object _) => const <String>{});
+    if (!_vive) return const {};
     final lista = await ref
         .read(artifactsDataSourceProvider)
-        .list(carpeta, cuentas: cuentas ?? const {});
+        .list(carpeta, cuentas: cuentas);
     return {for (final documento in lista) documento.path};
   }
 
@@ -1381,7 +1388,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     }
     _elParteEnCurso = false;
     _elEncargoTermino();
-    unawaited(_sellarYGuardar());
+    unawaited(_enFila(_sellarYGuardar));
     unawaited(_avisar(ref.read(stringsProvider).errandDone));
   }
 
@@ -1463,6 +1470,29 @@ class AssistantController extends Notifier<AssistantHudState> {
   /// estos dos no lo son. El documento seguía en el disco: lo que se perdió
   /// fue el enlace, que es la peor forma de perderlo, porque parece que el
   /// archivo tampoco está.
+  /// Lo que escribe el registro va **en fila**.
+  ///
+  /// 🔴 **Porque el final de un turno y el principio del siguiente se solapan.**
+  /// [_afterErrand] da paso a la cola —`_elEncargoTermino()`— y **después**
+  /// suelta el sellado con `unawaited`: si había algo encolado, el turno nuevo
+  /// puede estar archivando mientras el anterior todavía busca su documento, y
+  /// los dos escriben **el mismo registro** con `state.messages` leído en
+  /// momentos distintos. Gana el último que serializa, y si es el de antes del
+  /// sellado, el enlace del documento no queda en el disco.
+  ///
+  /// Es la misma medicina que ya toma el registro de la app —«las escrituras van
+  /// en fila: dos a la vez sobre el mismo archivo pueden intercalarse a media
+  /// línea»— y por el mismo motivo, un grado más arriba: aquí lo que se
+  /// intercala no son líneas, son turnos.
+  Future<void> _laFila = Future.value();
+
+  Future<void> _enFila(Future<void> Function() tarea) =>
+      _laFila = _laFila.then((_) => tarea()).catchError((Object error) {
+        // Un fallo al archivar no puede romper la fila: lo que viene detrás es
+        // el turno siguiente, y quedarse sin fila es quedarse sin registro.
+        debugPrint('archivo · la fila siguió tras un fallo: $error');
+      });
+
   Future<void> _sellarYGuardar() async {
     await _readChanges();
     await _mirarSiHayDocumento();
@@ -2275,7 +2305,7 @@ class AssistantController extends Notifier<AssistantHudState> {
     // desaparecía entero del historial. Guardar es reescribir el mismo registro,
     // así que hacerlo cada turno es barato e idempotente — la misma razón por
     // la que ya se hacía turno a turno escribiendo.
-    unawaited(_archive());
+    unawaited(_enFila(_archive));
   }
 
   /// Se muestra la instrucción que redactó Gemini, no lo que dijo el usuario:
