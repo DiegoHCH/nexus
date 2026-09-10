@@ -37,13 +37,22 @@ mixin NucleoStrings {
   String permisoPregunta(String herramienta);
   String get permisoEscribe;
   String get permisoConceder;
-  String get permisoConcederTodo;
+
+  /// La salida de «no me lo vuelvas a preguntar», **con el nombre de la
+  /// herramienta dentro**.
+  ///
+  /// 🔴 Decía «Permitir todo» y eso no era verdad: lo que el CLI concede ahí es
+  /// `acceptEdits` —ediciones de archivo— y una regla para el comando literal,
+  /// así que el `Bash` siguiente volvía a preguntar. Nombrarla es lo que hace
+  /// que el botón se lea como lo que hace: esta herramienta, en esta
+  /// conversación.
+  String permisoConcederTodo(String herramienta);
   String get permisoDenegar;
   String get permisoDenegadoMotivo;
   String get permisoCanceladoMotivo;
   String get permisoEnEspera;
   String get permisoDichoConcedido;
-  String get permisoDichoConcedidoTodo;
+  String permisoDichoConcedidoTodo(String herramienta);
   String get permisoDichoDenegado;
   String get permisoDichoCancelado;
   String contextUsed(int percent);
@@ -243,7 +252,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get canEdit => 'PUEDE EDITAR';
   @override
-  String get canEditExplainer => 'Modifica archivos, preguntando antes';
+  String get canEditExplainer =>
+      'Edita y corre comandos sin preguntar. Los conectores sí preguntan';
   @override
   String get readOnlyExplainer => 'Lee y ejecuta, pero no escribe';
   @override
@@ -251,9 +261,9 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get permisoEscribe => 'Esto modifica archivos.';
   @override
-  String get permisoConceder => 'Permitir';
+  String get permisoConceder => 'Solo esta vez';
   @override
-  String get permisoConcederTodo => 'Permitir todo';
+  String permisoConcederTodo(String herramienta) => 'Permitir $herramienta';
   @override
   String get permisoDenegar => 'No';
   @override
@@ -266,8 +276,8 @@ mixin NucleoStringsEs implements NucleoStrings {
   @override
   String get permisoDichoConcedido => 'Lo permitiste';
   @override
-  String get permisoDichoConcedidoTodo =>
-      'Lo permitiste, y el resto de la sesión';
+  String permisoDichoConcedidoTodo(String herramienta) =>
+      'Lo permitiste · $herramienta, en esta conversación';
   @override
   String get permisoDichoDenegado => 'No lo permitiste';
   @override
@@ -625,7 +635,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get canEdit => 'CAN EDIT';
   @override
-  String get canEditExplainer => 'Changes files, asking first';
+  String get canEditExplainer =>
+      'Edits and runs commands without asking. Connectors still ask';
   @override
   String get readOnlyExplainer => 'Reads and runs, but never writes';
   @override
@@ -633,9 +644,9 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get permisoEscribe => 'This changes files.';
   @override
-  String get permisoConceder => 'Allow';
+  String get permisoConceder => 'Just this time';
   @override
-  String get permisoConcederTodo => 'Allow all';
+  String permisoConcederTodo(String herramienta) => 'Allow $herramienta';
   @override
   String get permisoDenegar => 'No';
   @override
@@ -648,8 +659,8 @@ mixin NucleoStringsEn implements NucleoStrings {
   @override
   String get permisoDichoConcedido => 'You allowed it';
   @override
-  String get permisoDichoConcedidoTodo =>
-      'You allowed it, and the rest of the session';
+  String permisoDichoConcedidoTodo(String herramienta) =>
+      'You allowed it · $herramienta, in this conversation';
   @override
   String get permisoDichoDenegado => "You didn't allow it";
   @override
