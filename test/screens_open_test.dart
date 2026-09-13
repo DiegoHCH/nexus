@@ -120,7 +120,15 @@ void main() {
   testWidgets('el historial agrupa por días y pone su cabecera', (
     tester,
   ) async {
-    final hoy = DateTime.now();
+    // 🔴 **Anclado al mediodía, y no a la hora real.** Esto era
+    // `DateTime.now()` y «ayer» se calculaba restándole **27 horas**, así que
+    // una corrida entre las 00:00 y las 02:59 se iba dos días atrás y la
+    // cabecera dejaba de decir «AYER». No es una hipótesis: el CI lo tumbó a
+    // las 00:03 —«Found 0 widgets with text "AYER"»— en un PR que no tocaba
+    // nada de esto. Un fallo que solo aparece de madrugada es peor que uno que
+    // aparece siempre: sale en el PR de otro y parece suyo.
+    final ahora = DateTime.now();
+    final hoy = DateTime(ahora.year, ahora.month, ahora.day, 12);
     // A otra hora, o las dos filas enseñarían la misma y no se podría
     // comprobar que cada una lleva la suya.
     final ayer = hoy.subtract(const Duration(days: 1, hours: 3));
