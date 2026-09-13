@@ -616,10 +616,17 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       object: engine
     )
 
-    engine.prepare()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · grafo preparado")
-    try engine.start()
-    player.play()
+    do {
+      try arrancarYSonar()
+    } catch {
+      // Y aquí además el tap, que es lo que mató la app en la 1.9.0: dejarlo
+      // puesto hace que el montaje siguiente instale uno encima.
+      engine.inputNode.removeTap(onBus: 0)
+      engine.stop()
+      engine.detach(player)
+      throw error
+    }
     running = true
     listening = true
     sesionAbierta = true
@@ -627,6 +634,48 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     startedAt = Date()
     montadoEn = Date()
     Self.log.info("t+\(Int(Date().timeIntervalSince(begin) * 1000), privacy: .public) ms · motor en marcha")
+  }
+
+  /// Arranca el motor y deja al reproductor sonando, **sin matar la app si el
+  /// aparato se fue por el camino**.
+  ///
+  /// 🔴 **Esto abortó Nexus el 11 de septiembre a las 23:41, versión 1.12.2.**
+  /// El informe lo dice entero: `abort()` desde una `NSException` de AVFAudio
+  /// lanzada dentro de `-[AVAudioPlayerNode play]`, llamada desde
+  /// `montarSoloSalida` ← `start(para:)` ← `remontarAhora()` ← el aviso de
+  /// cambio de configuración. O sea: se estaba **remontando porque el aparato
+  /// cambió**, y mientras se montaba volvió a cambiar.
+  ///
+  /// `play()` exige que el motor esté corriendo, y `start()` puede volver sin
+  /// lanzar y pararse un instante después si el aparato desaparece —unos
+  /// auriculares que se desemparejan, un Bluetooth que entra—. Entonces `play()`
+  /// **no devuelve un error: levanta una excepción de Objective-C**, que en
+  /// Swift no se puede atrapar y termina el proceso.
+  ///
+  /// Es el segundo aborto de la misma familia: el 7 de septiembre, en la 1.9.0,
+  /// la excepción salió de `installTapOnBus` —«Failed to create tap due to
+  /// format mismatch»— y se arregló igual, comprobando la condición **antes** de
+  /// llamar. La regla que deja escrita: en este archivo, todo lo que AVFAudio
+  /// pueda rechazar se comprueba antes; lo que aquí lance, no lo atrapa nadie.
+  ///
+  /// Fallar así es un error normal y ya tiene quien lo recoja: los dos sitios
+  /// que llaman a `start(para:)` lo convierten en un `FlutterError`, y el
+  /// siguiente cambio de configuración vuelve a montar.
+  private func arrancarYSonar() throws {
+    engine.prepare()
+    try engine.start()
+    guard engine.isRunning else {
+      throw NSError(
+        domain: "NexusAudioEngine",
+        code: -1,
+        userInfo: [
+          NSLocalizedDescriptionKey:
+            "el motor no seguía en marcha al ir a sonar: el aparato cambió a "
+            + "mitad del montaje"
+        ]
+      )
+    }
+    player.play()
   }
 
   /// El grafo mínimo para decir una frase: reproductor, mezclador y salida.
@@ -670,9 +719,15 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       object: engine
     )
 
-    engine.prepare()
-    try engine.start()
-    player.play()
+    do {
+      try arrancarYSonar()
+    } catch {
+      // Se deja el grafo como estaba: el nodo suelto haría que el montaje
+      // siguiente conectara sobre lo de este, que es otra excepción esperando.
+      engine.stop()
+      engine.detach(player)
+      throw error
+    }
     running = true
     listening = false
     sesionAbierta = true
@@ -1093,7 +1148,11 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
       }
       self.pendingLock.unlock()
     }
-    if !player.isPlaying { player.play() }
+    // El mismo guardia que en el montaje: `play()` sobre un motor parado no
+    // devuelve un error, **levanta una excepción de Objective-C** y termina el
+    // proceso. Aquí llega audio mientras el aparato puede estar cambiando, que
+    // es justo el momento en que el motor se para solo.
+    if !player.isPlaying, engine.isRunning { player.play() }
   }
 
   /// Cuánto audio queda por sonar, en milisegundos.
@@ -1123,7 +1182,8 @@ final class NexusAudioEngine: NSObject, FlutterStreamHandler {
     starvedAt = nil
     playedAnything = false
     pendingLock.unlock()
-    player.play()
+    // Ver [arrancarYSonar]: con el motor parado esto aborta la app.
+    if engine.isRunning { player.play() }
   }
 }
 
